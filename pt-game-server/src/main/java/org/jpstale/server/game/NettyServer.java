@@ -1,4 +1,4 @@
-package org.jpstale.server.game.netty;
+package org.jpstale.server.game;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelInitializer;
@@ -16,9 +16,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class NettyLoginServer {
+public class NettyServer {
 
-    private static final Logger log = LoggerFactory.getLogger(NettyLoginServer.class);
+    private static final Logger log = LoggerFactory.getLogger(NettyServer.class);
 
     @Value("${pt.game.port:10007}")
     private int port;

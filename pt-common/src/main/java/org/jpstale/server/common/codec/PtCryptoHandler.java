@@ -83,7 +83,7 @@ public class PtCryptoHandler extends ChannelDuplexHandler {
         ByteBuf out = ctx.alloc().buffer(data.length).writeBytes(data);
         ctx.writeAndFlush(out);
 
-        log.debug("Sent PacketKeySet to {}, keySetReady={}",
+        log.info("Sent PacketKeySet to {}, keySetReady={}",
                 ctx.channel().remoteAddress(), state.isKeySetReady());
     }
 
@@ -132,8 +132,7 @@ public class PtCryptoHandler extends ChannelDuplexHandler {
                 obfForReceive = obfuscatorByte;
             }
             state.receiveKeySet(data, obfForReceive);
-            log.debug("Received PacketKeySet from {}, keySetReady={}",
-                      ctx.channel().remoteAddress(), state.isKeySetReady());
+            log.info("Received PacketKeySet from {}, keySetReady={}", ctx.channel().remoteAddress(), state.isKeySetReady());
             buf.release();
             return;
         }

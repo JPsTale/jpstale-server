@@ -255,9 +255,11 @@ public class AccountServerImpl implements AccountServer {
         Server s0 = servers[0];
         s0.setName("A Dedicated Java Server");
         s0.getIp()[0] = "127.0.0.1";
-        s0.getPort()[0] = 8485;
-        s0.getPort()[1] = 8485;
-        s0.getPort()[2] = 8485;
+        s0.getIp()[1] = "127.0.0.1";
+        s0.getIp()[2] = "127.0.0.1";
+        s0.getPort()[0] = 10007;
+        s0.getPort()[1] = 10007;
+        s0.getPort()[2] = 10007;
         s0.getPort()[3] = 0;
         packet.setServers(servers);
         PacketSender.sendPacket(ctx, packet);

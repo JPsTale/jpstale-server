@@ -19,3 +19,5 @@ spring:
 pt:
   game:
     port: 10007
+    loop:
+      tick-interval-ms: 50
