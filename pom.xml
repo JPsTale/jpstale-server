@@ -16,6 +16,7 @@
         <module>pt-common</module>
         <module>pt-dao</module>
         <module>pt-dao-spring-boot-starter</module>
+        <module>pt-server-core</module>
         <module>pt-login-server</module>
         <module>pt-game-server</module>
         <module>pt-web-server</module>

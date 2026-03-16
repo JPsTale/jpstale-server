@@ -1,4 +1,4 @@
-package org.jpstale.server.login.service;
+package org.jpstale.server.core;
 
 import io.netty.channel.ChannelHandlerContext;
 import org.jpstale.server.common.enums.account.AccountLogin;

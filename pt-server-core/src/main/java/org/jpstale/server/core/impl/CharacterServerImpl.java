@@ -1,9 +1,9 @@
-package org.jpstale.server.login.service.impl;
+package org.jpstale.server.core.impl;
 
 import io.netty.channel.ChannelHandlerContext;
 import org.jpstale.server.common.struct.packets.PacketCharacterDataEx;
 import org.jpstale.server.common.struct.packets.PacketCreateCharacter;
-import org.jpstale.server.login.service.CharacterServer;
+import org.jpstale.server.core.CharacterServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

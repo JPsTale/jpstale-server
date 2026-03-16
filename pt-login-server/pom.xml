@@ -15,7 +15,7 @@
     <dependencies>
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>pt-common</artifactId>
+            <artifactId>pt-server-core</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

@@ -1,7 +1,7 @@
-package org.jpstale.server.login.service.impl;
+package org.jpstale.server.core.impl;
 
 import io.netty.channel.ChannelHandlerContext;
-import org.jpstale.server.login.service.CheatServer;
+import org.jpstale.server.core.CheatServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

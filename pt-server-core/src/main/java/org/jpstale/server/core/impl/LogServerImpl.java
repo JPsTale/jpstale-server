@@ -1,11 +1,9 @@
-package org.jpstale.server.login.service.impl;
+package org.jpstale.server.core.impl;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.common.struct.packets.PacketVersion;
-import org.jpstale.server.login.service.LogServer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.jpstale.server.core.LogServer;
 import org.springframework.stereotype.Service;
 
 /**

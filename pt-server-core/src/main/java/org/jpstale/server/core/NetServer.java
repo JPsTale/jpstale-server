@@ -1,4 +1,4 @@
-package org.jpstale.server.login.service;
+package org.jpstale.server.core;
 
 /**
  * 登录服侧 Net* 包处理接口。

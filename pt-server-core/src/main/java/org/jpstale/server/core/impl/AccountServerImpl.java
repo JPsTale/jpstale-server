@@ -1,4 +1,4 @@
-package org.jpstale.server.login.service.impl;
+package org.jpstale.server.core.impl;
 
 import io.netty.channel.ChannelHandlerContext;
 import org.jpstale.dao.logdb.entity.AccountLog;
@@ -17,7 +17,7 @@ import org.jpstale.server.common.struct.packets.Header;
 import org.jpstale.server.common.struct.packets.PacketLoginUser;
 import org.jpstale.server.common.struct.packets.PacketServerList;
 import org.jpstale.server.common.struct.packets.PacketUserInfo;
-import org.jpstale.server.login.service.AccountServer;
+import org.jpstale.server.core.AccountServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

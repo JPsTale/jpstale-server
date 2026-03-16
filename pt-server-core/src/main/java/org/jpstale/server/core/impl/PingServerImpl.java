@@ -1,9 +1,9 @@
-package org.jpstale.server.login.service.impl;
+package org.jpstale.server.core.impl;
 
 import io.netty.channel.ChannelHandlerContext;
 import org.jpstale.server.common.codec.PacketSender;
 import org.jpstale.server.common.struct.socket.PacketPing;
-import org.jpstale.server.login.service.PingServer;
+import org.jpstale.server.core.PingServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

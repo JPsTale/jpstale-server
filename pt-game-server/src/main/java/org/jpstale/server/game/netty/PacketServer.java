@@ -1,9 +1,10 @@
-package org.jpstale.server.login.netty;
+package org.jpstale.server.game.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import org.jpstale.server.common.codec.PacketSender;
 import org.jpstale.server.common.enums.packets.PacketHeader;
 import org.jpstale.server.common.struct.packets.*;
 import org.jpstale.server.common.struct.socket.PacketPing;
@@ -68,37 +69,8 @@ public class PacketServer extends SimpleChannelInboundHandler<ByteBuf> {
     private void registerHandlers() {
         // 认证 / 心跳
         register(PacketHeader.PKTHDR_Ping, PacketPing::new, pingServer::handlePing);
-        register(PacketHeader.PKTHDR_Version, PacketVersion::new, (ctx, p) -> logServer.onLogEx(ctx,null, p));
-        register(PacketHeader.PKTHDR_LoginUser, PacketLoginUser::new, accountServer::processAccountLogin);
-        register(PacketHeader.PKTHDR_Client_Error, PacketTransCommand::new, cheatServer::handleClientError);
 
-        // 角色 / 存档
-        register(PacketHeader.PKTHDR_CharacterDataEx, PacketCharacterDataEx::new, characterServer::handleCharacterDataEx);
-        register(PacketHeader.PKTHDR_CreateCharacter, PacketCreateCharacter::new, characterServer::createCharacter);
-        // TODO: SaveData 等登录服相关包可在后续补充
-
-        // 崩溃 / 作弊日志
-        register(PacketHeader.PKTHDR_Crash, PacketCrash::new, cheatServer::handleCrash);
-        register(PacketHeader.PKTHDR_CrashData, PacketCrashData::new, cheatServer::handleCrashData);
-        register(PacketHeader.PKTHDR_LogCheat, PacketLogCheat::new, (ctx, p) -> logServer.onLogCheat(null, p));
-
-        // Inter-Server Net* 包（LoginServer 侧关心的子集）
-        register(PacketHeader.PKTHDR_NetIdentifier, PacketNetIdentifier::new, (ctx, p) -> netServer.onNetIdentifier(p));
-        register(PacketHeader.PKTHDR_NetUsersOnline, PacketNetUsersOnline::new,
-                (ctx, p) -> netServer.onNetUsersOnline(p));
-        register(PacketHeader.PKTHDR_NetClan, PacketNetClan::new, (ctx, p) -> netServer.onNetClan(p));
-        register(PacketHeader.PKTHDR_NetQuestUpdateDataPart, PacketNetQuestUpdateDataPart::new,
-                (ctx, p) -> netServer.onNetQuestUpdateDataPart(p));
-        register(PacketHeader.PKTHDR_NetPlayerGoldDiff, PacketNetPlayerGoldDiff::new,
-                (ctx, p) -> netServer.onNetPlayerGoldDiff(p));
-        register(PacketHeader.PKTHDR_NetPlayerItemPut, PacketNetPlayerItemPut::new,
-                (ctx, p) -> netServer.onNetPlayerItemPut(p));
-        register(PacketHeader.PKTHDR_NetPlayerThrow, PacketNetPlayerThrow::new,
-                (ctx, p) -> netServer.onNetPlayerThrow(p));
-
-        // 尚未在 pt-common 定义结构体的 Net 包，先直接调用 handler 占位
-        handlers.put(PacketHeader.PKTHDR_NetPlayDataEx, (ctx, buf) -> netServer.onNetPlayDataEx(null));
-        handlers.put(PacketHeader.PKTHDR_NetGiveExp, (ctx, buf) -> netServer.onNetGiveExp(null));
+        // TODO
     }
 
     private <P extends Packet> void register(PacketHeader header,

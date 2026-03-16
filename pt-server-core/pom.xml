@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.jpstale.server</groupId>
+        <artifactId>jpstale-server</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>pt-server-core</artifactId>
+    <packaging>jar</packaging>
+
+    <name>pt-server-core</name>
+    <description>Shared server core (Java port of C++ Server project)</description>
+
+    <dependencies>
+        <!-- 协议 / 编解码 -->
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>pt-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- DAO Mapper（无 Spring Boot Starter） -->
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>pt-dao</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- 日志 & lombok 由父 POM 提供版本 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>
+

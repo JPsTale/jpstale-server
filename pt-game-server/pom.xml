@@ -15,12 +15,12 @@
     <dependencies>
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>pt-common</artifactId>
+            <artifactId>pt-dao-spring-boot-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>pt-dao-spring-boot-starter</artifactId>
+            <artifactId>pt-server-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 
