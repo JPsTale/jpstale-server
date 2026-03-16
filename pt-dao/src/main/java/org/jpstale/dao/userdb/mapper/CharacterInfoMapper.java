@@ -4,6 +4,8 @@ import org.apache.ibatis.annotations.Param;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
+import java.util.List;
+
 /**
  * <p>
  *  Mapper 接口
@@ -14,6 +16,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
  */
 public interface CharacterInfoMapper extends BaseMapper<CharacterInfo> {
 
+    List<CharacterInfo> selectTop6CharacterByAccountNameAndSeason(@Param("accountName") String accountName,
+                                                                  @Param("season") Integer season);
     /** ClanSystem NewClan/DeleteClan: 按角色名更新 ClanId */
     int updateClanIdByName(@Param("name") String name, @Param("clanId") Integer clanId);
 }

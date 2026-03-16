@@ -2,6 +2,7 @@ package org.jpstale.server.core;
 
 import io.netty.channel.ChannelHandlerContext;
 import org.jpstale.server.common.enums.account.AccountLogin;
+import org.jpstale.server.common.model.UserData;
 import org.jpstale.server.common.struct.packets.PacketLoginUser;
 
 /**
@@ -27,11 +28,11 @@ public interface AccountServer {
     /**
      * 对应 C++: PHUserInfo(UserData* pcUserData).
      */
-    void sendUserInfo(ChannelHandlerContext ctx, String accountName);
+    void sendUserInfo(ChannelHandlerContext ctx, UserData userData);
 
     /**
      * 对应 C++: PHServerList(SocketData* pcSocketData, int iTicket).
      */
-    void sendServerList(ChannelHandlerContext ctx, int ticket);
+    void sendServerList(ChannelHandlerContext ctx, UserData userData);
 }
 

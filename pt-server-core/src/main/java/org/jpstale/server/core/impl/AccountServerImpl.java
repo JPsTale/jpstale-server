@@ -1,29 +1,44 @@
 package org.jpstale.server.core.impl;
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
+import org.apache.commons.io.FileUtils;
 import org.jpstale.dao.logdb.entity.AccountLog;
 import org.jpstale.dao.logdb.mapper.AccountLogMapper;
+import org.jpstale.dao.userdb.entity.CharacterInfo;
 import org.jpstale.dao.userdb.entity.UserInfo;
+import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
+import org.jpstale.server.common.enums.map.MapId;
 import org.jpstale.server.common.enums.packets.PacketHeader;
 import org.jpstale.server.common.codec.PacketSender;
 import org.jpstale.server.common.enums.account.AccountFlag;
 import org.jpstale.server.common.enums.account.AccountLogId;
 import org.jpstale.server.common.enums.account.AccountLogin;
 import org.jpstale.server.common.enums.account.BanStatus;
+import org.jpstale.server.common.model.UserData;
 import org.jpstale.server.common.struct.Server;
+import org.jpstale.server.common.struct.TransCharInfo;
 import org.jpstale.server.common.struct.account.PacketAccountLoginCode;
-import org.jpstale.server.common.struct.packets.Header;
-import org.jpstale.server.common.struct.packets.PacketLoginUser;
-import org.jpstale.server.common.struct.packets.PacketServerList;
-import org.jpstale.server.common.struct.packets.PacketUserInfo;
+import org.jpstale.server.common.struct.character.CharacterData;
+import org.jpstale.server.common.struct.character.CharacterSave;
+import org.jpstale.server.common.struct.packets.*;
 import org.jpstale.server.core.AccountServer;
+import org.jpstale.server.core.InterServerChannelManager;
+import org.jpstale.server.core.NetServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.FileSystemUtils;
 
+import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -36,16 +51,44 @@ public class AccountServerImpl implements AccountServer {
 
     private static final Logger log = LoggerFactory.getLogger(AccountServerImpl.class);
 
-    private final UserInfoMapper userInfoMapper;
-    private final AccountLogMapper accountLogMapper;
+    @Autowired
+    private NetServer netServer;
+    @Autowired
+    private InterServerChannelManager interServerChannelManager;
 
-    public AccountServerImpl(UserInfoMapper userInfoMapper, AccountLogMapper accountLogMapper) {
-        this.userInfoMapper = userInfoMapper;
-        this.accountLogMapper = accountLogMapper;
-    }
+    @Autowired
+    private UserInfoMapper userInfoMapper;
+
+    @Autowired
+    private AccountLogMapper accountLogMapper;
+    @Autowired
+    private CharacterInfoMapper characterInfoMapper;
 
     private static int generateLoginTicket() {
         return ThreadLocalRandom.current().nextInt(1, 1001);
+    }
+
+    public void enterWorld(/* 账号、角色等参数 */) {
+        // 1) 生成 token / tokenPass（简单起见，用 UUID）
+        String token     = UUID.randomUUID().toString().replace("-", "");
+        String tokenPass = UUID.randomUUID().toString().replace("-", "");
+
+        // 构造 Net* 包，
+        PacketNetPlayerWorldToken netPacket = new PacketNetPlayerWorldToken();
+        netPacket.setPktHeader(PacketHeader.PKTHDR_NetPlayerWorldToken);
+        netPacket.setToken(token);
+        netPacket.setTokenPass(tokenPass);
+
+        // 2) 本地记录一次（Java NetServerImpl 的 Map，供本进程内使用）
+        netServer.addWorldConnectAllowance(token, tokenPass);
+
+        // 3) 广播给所有 GameServer
+        interServerChannelManager.broadcastNetPacket(netPacket);
+        // 4) 再构造一个普通包，发给客户端，告诉它：
+        //    - 要连的 game 服 IP/port
+        //    - token / tokenPass
+        // 这里取决于你在 pt-common 里为“世界登录”设计的包结构（例如 PacketSendGameServer 或自定义包）。
+        // 假设有 PacketSendGameServer 包含这四个字段，在这里设置并通过登录服 Netty 写回客户端。
     }
 
     @Override
@@ -53,6 +96,13 @@ public class AccountServerImpl implements AccountServer {
         String accountName = login.getUserId() != null ? login.getUserId().trim() : "";
         String password = login.getPassword() != null ? login.getPassword().trim() : "";
         String clientIp = getClientIp(ctx);
+
+        Channel ch = ctx.channel();
+        UserData userData = UserData.get(ch);
+        if (userData == null) {
+            userData = UserData.create(ch);
+            userData.setClientIp(clientIp);
+        }
 
         log.info("accountLogin accountName=[{}] ip=[{}]", accountName, clientIp);
 
@@ -142,10 +192,33 @@ public class AccountServerImpl implements AccountServer {
         }
 
         if (code == AccountLogin.SUCCESS) {
-            sendAccountLoginCode(ctx, AccountLogin.SUCCESS, "OK");
-            sendUserInfo(ctx, accountName);
+            // ========= 绑定 UserData =========
+            userData.setAccountName(accountName);
+            if (userInfo.getId() != null) {
+                userData.setAccountId(userInfo.getId());
+            }
+            // GM 等级（如果你有 GameMasterLevel 字段的话）
+            if (userInfo.getGameMasterLevel() != null) {
+                userData.setGmLevel(userInfo.getGameMasterLevel());
+            }
+            // 静音状态（如果当前仍然处于 mute 期间）
+            if (userInfo.getIsMuted() != null && userInfo.getIsMuted() != 0) {
+                userData.setMuted(true);
+                if (userInfo.getUnmuteDate() != null) {
+                    userData.setUnmuteExpiry(userInfo.getUnmuteDate().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli());
+                }
+            } else {
+                userData.setMuted(false);
+                userData.setUnmuteExpiry(null);
+            }
+            // ========= 生成 ticket（对齐 C++：pcUserData->iTicket = Dice::RandomI(1,1000)）=========
             int ticket = generateLoginTicket();
-            sendServerList(ctx, ticket);
+            userData.setTicket(ticket);
+            // ========= 发送登录成功 / 角色列表 / 服务器列表 =========
+            sendAccountLoginCode(ctx, AccountLogin.SUCCESS, "OK");
+            // 这里改成用 UserData，而不是只传 accountName，方便后面你扩展更多字段
+            sendUserInfo(ctx, userData);
+            sendServerList(ctx, userData);
             logAccountLogin(clientIp, accountName, AccountLogId.LOGIN_SUCCESS.getValue(), "Login Success", ctx);
         } else {
             int logId = code == AccountLogin.INCORRECT_NAME ? AccountLogId.INCORRECT_ACCOUNT.getValue()
@@ -226,32 +299,109 @@ public class AccountServerImpl implements AccountServer {
         PacketSender.sendPacket(ctx, packet);
     }
 
+    /**
+     * 更接近 C++ OnLoginSuccess(UserData* pcUserData) 的版本：
+     * 通过 UserData 拿账号名，然后查询 CharacterInfo 表，填充 PacketUserInfo。
+     */
     @Override
-    public void sendUserInfo(ChannelHandlerContext ctx, String accountName) {
+    public void sendUserInfo(ChannelHandlerContext ctx, UserData userData) {
+        String accountName = userData.getAccountName() != null ? userData.getAccountName() : "";
         PacketUserInfo packet = new PacketUserInfo();
         packet.setPktHeader(PacketHeader.PKTHDR_UserInfo);
-        packet.setUserId(accountName != null ? accountName : "");
-        packet.setCharCount(0);
-        // TODO: 从 CharacterInfoMapper 查该账号角色列表并填充 sCharacterData（对齐 C++ OnLoginSuccess）
+        packet.setUserId(accountName);
+
+        // TODO: 这里按照 C++ AccountServer::OnLoginSuccess 的逻辑，
+        // 去 CharacterInfo 表查出该账号最多 6 个角色，填充 packet.getCharacterData()[i]
+        int charCount = 0;
+        List<CharacterInfo> charList = characterInfoMapper.selectTop6CharacterByAccountNameAndSeason(accountName, 999);
+        if (!charList.isEmpty()) {
+            for (CharacterInfo characterInfo : charList) {
+                String charName = characterInfo.getName();
+
+                String path = "Data" + File.pathSeparator + "Character" + File.pathSeparator + charName + ".chr";
+                File file = new File(path);
+                if (file.exists()) {
+                    try {
+                        byte[] filedata = FileUtils.readFileToByteArray(file);
+                        // 读取二进制文件，保存到 PacketCharacterRecordData
+                        PacketCharacterRecordData recordData = new PacketCharacterRecordData();
+                        ByteBuffer bb = ByteBuffer.wrap(filedata).order(ByteOrder.LITTLE_ENDIAN);
+                        recordData.readFrom(bb);
+
+                        TransCharInfo charInfo = packet.getCharacterData()[charCount];
+                        CharacterData charData = recordData.getCharacterData();
+                        CharacterSave saveData = recordData.getCharacterSaveData();
+
+                        charInfo.setName(charData.getName());
+                        charInfo.setModelName(charData.getPlayerBodyModel());
+                        charInfo.setModelName2(charData.getPlayerHeadModel());
+                        charInfo.setLevel(charData.getLevel());
+                        charInfo.setJobCode(charData.getClazz().getValue());
+                        charInfo.setArmorCode(0);
+                        charInfo.setBrood(charData.getMonsterType().getValue());
+                        charInfo.setStartField(saveData.getMapId().getValue());
+                        charInfo.setPosX(saveData.getCameraPositionX());
+                        charInfo.setPosZ(saveData.getCameraPositionZ());
+
+                        // Is in SOD?
+                        if (saveData.getMapId() == MapId.BELLATRA) {
+                            charInfo.setStartField(MapId.NAVISKO_TOWN.getValue());
+                        }
+                        // Is in Fury Arena ( Quest )?
+                        else if (saveData.getMapId() == MapId.QUEST_ARENA) {
+                            charInfo.setStartField(MapId.PILLAI_TOWN.getValue());
+                        }
+                        // Is in T5 Arena ( Quest )?
+                        else if (saveData.getMapId() == MapId.T5_QUEST_ARENA) {
+                            charInfo.setStartField(MapId.ATLANTIS.getValue());
+                        }
+
+                        charCount++;
+                    } catch (Exception e) {
+                        log.error("read character file error, path:{}", path, e);
+                    }
+                }
+            }
+        }
+
+        // 当前先占位：
+        packet.setCharCount(charCount);
         PacketSender.sendPacket(ctx, packet);
+
+        /***
+         * TODO
+         * 	SENDPACKET( USERDATATOUSER(pcUserData), &sPacketUserInfoLogin );
+         *
+         * 	AccountLogin al;
+         * 	STRINGCOPY( al.szAccountName, pcUserData->szAccountName );
+         *
+         * 	// Log data
+         * 	if ( pcUserData )
+         * 		LogAccountLogin( pcUserData, al, ACCLOGID_CharacterSelectSend );
+         */
     }
 
     @Override
-    public void sendServerList(ChannelHandlerContext ctx, int ticket) {
+    public void sendServerList(ChannelHandlerContext ctx, UserData userData) {
+        int ticket = userData.getTicket() != null ? userData.getTicket() : 0;
+
         PacketServerList packet = new PacketServerList();
         packet.setPktHeader(PacketHeader.PKTHDR_ServerList);
         Header header = new Header();
-        header.setServerName("Local");
+        header.setServerName("Local"); // TODO: 从配置或 DB 读取
         header.setTime((int) (System.currentTimeMillis() / 1000L));
         header.setTicket(ticket);
         header.setUnknown(0);
         header.setClanServerIndex(0);
         header.setGameServers(1);
         packet.setHeader(header);
+
         Server[] servers = new Server[4];
         for (int i = 0; i < servers.length; i++) {
             servers[i] = new Server();
         }
+
+        // TODO: 这里将来可以从配置/DB 读出多个 game 服信息，现在先保留你原来的写死版本
         Server s0 = servers[0];
         s0.setName("A Dedicated Java Server");
         s0.getIp()[0] = "127.0.0.1";

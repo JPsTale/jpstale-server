@@ -1,19 +1,36 @@
 package org.jpstale.server.core.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.core.NetServer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
- * NetServer 默认实现（登录服侧）。
+ * NetServer 默认实现（Login/Game 共有的一套逻辑）。
  *
- * 直接移植自原 core.NetServer，目前仅做日志，占位以便后续实现。
+ * 目前：
+ * - Net* 回调大部分只是留日志（占位，方便后续按 C++ 对照补齐）。
+ * - 世界登录 Token 逻辑已经完整实现，等价于 C++ 的
+ *   m_PlayerWorldLoginToken + UsePlayerWorldLoginToken。
  */
+@Slf4j
 @Service
 public class NetServerImpl implements NetServer {
 
-    private static final Logger log = LoggerFactory.getLogger(NetServerImpl.class);
+    /**
+     * 等价于 C++ 的 m_PlayerWorldLoginToken：
+     * key: token, value: tokenPass
+     *
+     * Login / Game 进程各自持有一份，仅用于本进程内：
+     * - Login 生成 token 后会调用 addWorldConnectAllowance 存入；
+     * - Game 在收到 Net* 包或本地生成 token 时也会存入；
+     * - 校验通过时 usePlayerWorldLoginToken 会一次性删除。
+     */
+    private final Map<String, String> playerWorldLoginToken = new ConcurrentHashMap<>();
+
+    // =============== C++ NetServer::OnReceivePacket 中各种 Net* 分支的占位回调 ===============
 
     @Override
     public void onNetIdentifier(Object packet) {
@@ -59,5 +76,35 @@ public class NetServerImpl implements NetServer {
     public void onNetPlayerThrow(Object packet) {
         log.trace("onNetPlayerThrow (TODO) packet={}", packet);
     }
-}
 
+    // ========================= 世界登录 Token 逻辑 =========================
+
+    @Override
+    public void addWorldConnectAllowance(String token, String tokenPass) {
+        if (token == null || tokenPass == null) {
+            log.warn("addWorldConnectAllowance with null token/tokenPass");
+            return;
+        }
+        playerWorldLoginToken.put(token, tokenPass);
+        log.debug("AddWorldConnectAllowance token={} (size={})",
+                token, playerWorldLoginToken.size());
+    }
+
+    @Override
+    public boolean usePlayerWorldLoginToken(String token, String tokenPass) {
+        if (token == null || tokenPass == null) {
+            return false;
+        }
+        String expected = playerWorldLoginToken.get(token);
+        if (expected == null) {
+            return false;
+        }
+        if (!expected.equals(tokenPass)) {
+            return false;
+        }
+        // 一次性消费
+        playerWorldLoginToken.remove(token);
+        log.debug("UsePlayerWorldLoginToken success token={}", token);
+        return true;
+    }
+}

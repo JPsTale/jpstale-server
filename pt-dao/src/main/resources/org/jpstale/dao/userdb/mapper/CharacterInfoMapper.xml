@@ -2,6 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.jpstale.dao.userdb.mapper.CharacterInfoMapper">
 
+
     <!-- C++ accountserver.cpp:602 -->
     <select id="selectCountLevel10ByAccountName" resultType="java.lang.Integer">
         SELECT COUNT(*) FROM userdb.character_info WHERE level &gt;= 10 AND account_name = #{accountName}
@@ -12,6 +13,9 @@
         UPDATE userdb.character_info SET banned = #{banned} WHERE account_name = #{accountName}
     </update>
 
+    <select id="selectTop6CharacterByAccountNameAndSeason" resultType="org.jpstale.dao.userdb.entity.CharacterInfo">
+        SELECT * FROM userdb.character_info WHERE account_name = #{accountName} and seasonal &lt; #{season} ORDER BY experience desc
+    </select>
     <!-- C++ accountserver.cpp:1556 delete char: 1564,1572 -->
     <delete id="deleteByName">
         DELETE FROM userdb.character_info WHERE name = #{name}

@@ -123,6 +123,12 @@ public final class GameConstants {
     /** 杂项 Y 扩展 */
     public static final int DISTANCE_MISC_Y_EX = 1000;
 
+    // ---------- 物品/背包（与 C++ #define 一致） ----------
+    /** 对应 C++ #define INVENTORYSERVER_MAX 100 */
+    public static final int INVENTORYSERVER_MAX = 100;
+    /** 对应 C++ #define MAX_ITEMSINITEMBOX 100 */
+    public static final int MAX_ITEMSINITEMBOX = 100;
+
     // ---------- 等级与数据量 ----------
     /** 服务器最大等级 */
     public static final int SERVER_LEVEL_MAX = 120;
