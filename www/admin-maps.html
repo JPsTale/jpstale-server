@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>地图管理 - PristonTale 管理后台</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="admin-body">
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-logo">PristonTale 管理</div>
+      <nav class="admin-nav">
+        <a href="/index.html" class="admin-nav-item">返回首页</a>
+        <span class="admin-nav-separator"></span>
+        <span class="admin-nav-label">管理功能</span>
+        <a href="/admin-maps.html" class="admin-nav-item admin-nav-item-active">地图管理</a>
+        <!-- 预留：NPC 模板、怪物模板等 -->
+      </nav>
+    </aside>
+    <main class="admin-main">
+      <header class="admin-header">
+        <h1>地图管理</h1>
+        <div class="admin-header-actions">
+          <span id="adminUserLabel" class="admin-user-label">未登录</span>
+          <button id="logoutBtn" class="btn btn-small btn-secondary" style="margin-left: 0.75rem;">退出登录</button>
+        </div>
+      </header>
+
+      <section class="admin-card">
+        <div class="admin-toolbar">
+          <input id="searchInput" type="text" class="admin-input" placeholder="按名称 / shortName 搜索">
+          <button id="refreshBtn" class="btn btn-small">刷新</button>
+        </div>
+        <div id="errorBox" class="msg error hidden" role="alert"></div>
+        <div class="admin-table-wrapper">
+          <table class="admin-table" aria-label="地图列表">
+            <thead>
+            <tr>
+              <th>ID</th>
+              <th>名称</th>
+              <th>shortName</th>
+              <th>类型</th>
+              <th>推荐等级</th>
+            </tr>
+            </thead>
+            <tbody id="mapsTableBody">
+            <!-- JS 渲染 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/js/admin-maps.js"></script>
+</body>
+</html>
+

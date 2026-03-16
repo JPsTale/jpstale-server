@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>用户中心 - PristonTale</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="admin-body">
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-logo">PristonTale</div>
+      <nav class="admin-nav">
+        <a href="/index.html" class="admin-nav-item">首页</a>
+        <span class="admin-nav-separator"></span>
+        <span class="admin-nav-label">账号</span>
+        <a href="/me.html" class="admin-nav-item admin-nav-item-active">用户中心</a>
+        <a href="/admin-maps.html" id="adminNavMaps" class="admin-nav-item" style="display:none;">地图管理（管理员）</a>
+      </nav>
+    </aside>
+    <main class="admin-main">
+      <header class="admin-header">
+        <h1>用户中心</h1>
+        <div class="admin-header-actions">
+          <span id="meUserLabel" class="admin-user-label">未登录</span>
+          <button id="meLogoutBtn" class="btn btn-small btn-secondary" style="margin-left: 0.75rem;">退出登录</button>
+        </div>
+      </header>
+
+      <section class="admin-card">
+        <h2 style="margin-top:0;font-size:1.1rem;">账号信息</h2>
+        <p id="meAccountLine" style="margin:0.5rem 0 1rem; color: var(--text-muted);">正在加载账号信息...</p>
+
+        <div style="margin-top:1.25rem;">
+          <h3 style="font-size:1rem;margin:0 0 0.75rem;">修改密码</h3>
+          <div id="meChangePwdMsg" class="msg hidden" role="alert"></div>
+          <form id="changePasswordForm" novalidate>
+            <div class="form-group">
+              <label for="oldPassword">当前密码</label>
+              <input type="password" id="oldPassword" autocomplete="current-password" maxlength="64" required>
+            </div>
+            <div class="form-group">
+              <label for="newPassword">新密码</label>
+              <input type="password" id="newPassword" autocomplete="new-password" maxlength="64" required>
+            </div>
+            <div class="form-group">
+              <label for="newPasswordConfirm">确认新密码</label>
+              <input type="password" id="newPasswordConfirm" autocomplete="new-password" maxlength="64" required>
+            </div>
+            <button type="submit" class="btn btn-small" id="changePasswordSubmitBtn" style="width:auto;">保存新密码</button>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/js/me.js"></script>
+</body>
+</html>
+

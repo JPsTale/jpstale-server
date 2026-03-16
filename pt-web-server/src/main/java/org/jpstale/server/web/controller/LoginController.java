@@ -1,12 +1,17 @@
 package org.jpstale.server.web.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
 import org.jpstale.dao.userdb.entity.UserInfo;
+import org.jpstale.server.web.dto.ChangePasswordRequest;
+import org.jpstale.server.web.dto.ChangePasswordResponse;
 import org.jpstale.server.web.dto.LoginRequest;
 import org.jpstale.server.web.dto.LoginResponse;
+import org.jpstale.server.web.service.ChangePasswordService;
 import org.jpstale.server.web.service.LoginService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class LoginController {
 
     private final LoginService loginService;
+    private final ChangePasswordService changePasswordService;
 
-    public LoginController(LoginService loginService) {
+    public LoginController(LoginService loginService, ChangePasswordService changePasswordService) {
         this.loginService = loginService;
+        this.changePasswordService = changePasswordService;
     }
 
     @PostMapping("/login")
@@ -41,5 +48,35 @@ public class LoginController {
     public ResponseEntity<?> logout() {
         StpUtil.logout();
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * 修改当前登录用户的密码。
+     */
+    @PostMapping("/change-password")
+    @SaCheckLogin
+    public ResponseEntity<ChangePasswordResponse> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        ChangePasswordResponse resp = changePasswordService.changePassword(
+                request.getOldPassword(), request.getNewPassword());
+        if (!resp.isSuccess()) {
+            return ResponseEntity.badRequest().body(resp);
+        }
+        return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 当前登录用户信息：账号名 + 是否管理员。
+     */
+    @GetMapping("/me")
+    @SaCheckLogin
+    public ResponseEntity<?> me() {
+        String accountName = StpUtil.getSession().getString("accountName");
+        Boolean webAdmin = StpUtil.getSession().getModel("webAdmin", Boolean.class);
+        return ResponseEntity.ok(
+                java.util.Map.of(
+                        "accountName", accountName != null ? accountName : "",
+                        "webAdmin", Boolean.TRUE.equals(webAdmin)
+                )
+        );
     }
 }
