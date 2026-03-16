@@ -1,6 +1,6 @@
-# Server 模块（Priston Tale 服务端）
+# JPsTale Server （Priston Tale 服务端）
 
-本目录是 **JPsTale** 的 Java 服务端实现，对原版 **PristonTale-EU**（C++）在协议与数据库层面对齐，便于与现有客户端或后续 Java 客户端联调。下文先简述原版架构，再说明本仓库模块与运行方式，便于新人快速理解项目。
+本目录是 **PristonTale** 的 Java 服务端实现，对原版 **PristonTale-EU**（C++）在协议与数据库层面对齐，便于与现有客户端或后续 Java 客户端联调。下文先简述原版架构，再说明本仓库模块与运行方式，便于新人快速理解项目。
 
 **要求**：**JDK 21**。
 
@@ -50,16 +50,14 @@
 
 ### 1. 模块与端口一览
 
-| 模块 | 对应原版 | 说明 | 端口 |
-|------|----------|------|------|
+| 模块 | 对应原版                       | 说明 | 端口 |
+|------|----------------------------|------|------|
 | **pt-common** | Shared + Server 的协议/枚举/加解密 | 网络包结构、包 ID、Netty 编解码与通信加解密（与 C++ 一致） | — |
-| **pt-dao** | 各 Server 对 DB 的访问 | 按 PostgreSQL schema 的 entity/mapper，无 Spring | — |
-| **pt-dao-spring-boot-starter** | — | 多数据源 + MyBatis-Plus 自动配置，供各应用复用 | — |
-| **pt-login-server** | Login Server | 账号认证、Ticket、世界/频道列表、World Auth | **8484** (TCP) |
-| **pt-game-server** | Game Server | 地图、NPC、怪物、战斗、任务、聊天等 | **8485** (TCP) |
-| **pt-web-server** | 无（新增） | **统一 Web**：用户注册/登录（`/api/user/*`，如 `POST /api/user/register`、`POST /api/user/login`、`POST /api/user/logout`）、管理端（`/api/admin/*`）、公会（`/api/clan/*` 与客户端兼容路径 `/Clan/xxx.asp`）；单端口部署。**登录鉴权**：Sa-Token（Cookie 模式）+ Redis 存储会话；`/api/admin/**` 仅允许角色 admin（`user_info.web_admin == true`）访问（`@SaCheckRole("admin")`） | **8080** (HTTP) |
-| **pt-admin-server** | — | 已合并入 pt-web-server，不再单独部署 | — |
-| **pt-clan-server** | ClanSystem (ASP) | 已合并入 pt-web-server，不再单独部署 | — |
+| **pt-dao** | 各 Server 对 DB 的访问          | 按 PostgreSQL schema 的 entity/mapper，无 Spring | — |
+| **pt-dao-spring-boot-starter** | —                          | 多数据源 + MyBatis-Plus 自动配置，供各应用复用 | — |
+| **pt-login-server** | Login Server               | 账号认证、Ticket、世界/频道列表、World Auth | **8484** (TCP) |
+| **pt-game-server** | Game Server                | 地图、NPC、怪物、战斗、任务、聊天等 | **8485** (TCP) |
+| **pt-web-server** | ClanSystem (ASP) + 系统管理功能  | **统一 Web**：用户注册/登录（`/api/user/*`，如 `POST /api/user/register`、`POST /api/user/login`、`POST /api/user/logout`）、管理端（`/api/admin/*`）、公会（`/api/clan/*` 与客户端兼容路径 `/Clan/xxx.asp`）；单端口部署。**登录鉴权**：Sa-Token（Cookie 模式）+ Redis 存储会话；`/api/admin/**` 仅允许角色 admin（`user_info.web_admin == true`）访问（`@SaCheckRole("admin")`） | **8080** (HTTP) |
 
 - **网站前端**：`server/www/`（首页、注册页、静态资源）。开发环境下由 Docker 中的 Nginx 提供，见下文「开发运行时环境」。
 
