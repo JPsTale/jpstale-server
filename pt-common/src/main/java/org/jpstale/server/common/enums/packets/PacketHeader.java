@@ -464,6 +464,10 @@ public enum PacketHeader {
     PKTHDR_Warehouse(0x48470047),
     /** 保存 */
     PKTHDR_Save(0x484700E8),
+    /** World登录认证 */
+    PKTHDR_WorldLoginAuth(0x48470022),
+    /** World登录令牌 */
+    PKTHDR_WorldLoginToken(0x48470084),
     /** 断开连接 */
     PKTHDR_Disconnect(0x484700E6),
     /** 重连 */
