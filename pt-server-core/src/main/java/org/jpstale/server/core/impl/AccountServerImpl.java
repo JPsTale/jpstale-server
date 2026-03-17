@@ -24,13 +24,11 @@ import org.jpstale.server.common.struct.character.CharacterData;
 import org.jpstale.server.common.struct.character.CharacterSave;
 import org.jpstale.server.common.struct.packets.*;
 import org.jpstale.server.core.AccountServer;
-import org.jpstale.server.core.InterServerChannelManager;
 import org.jpstale.server.core.NetServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.FileSystemUtils;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -53,8 +51,6 @@ public class AccountServerImpl implements AccountServer {
 
     @Autowired
     private NetServer netServer;
-    @Autowired
-    private InterServerChannelManager interServerChannelManager;
 
     @Autowired
     private UserInfoMapper userInfoMapper;
@@ -66,29 +62,6 @@ public class AccountServerImpl implements AccountServer {
 
     private static int generateLoginTicket() {
         return ThreadLocalRandom.current().nextInt(1, 1001);
-    }
-
-    public void enterWorld(/* 账号、角色等参数 */) {
-        // 1) 生成 token / tokenPass（简单起见，用 UUID）
-        String token     = UUID.randomUUID().toString().replace("-", "");
-        String tokenPass = UUID.randomUUID().toString().replace("-", "");
-
-        // 构造 Net* 包，
-        PacketNetPlayerWorldToken netPacket = new PacketNetPlayerWorldToken();
-        netPacket.setPktHeader(PacketHeader.PKTHDR_NetPlayerWorldToken);
-        netPacket.setToken(token);
-        netPacket.setTokenPass(tokenPass);
-
-        // 2) 本地记录一次（Java NetServerImpl 的 Map，供本进程内使用）
-        netServer.addWorldConnectAllowance(token, tokenPass);
-
-        // 3) 广播给所有 GameServer
-        interServerChannelManager.broadcastNetPacket(netPacket);
-        // 4) 再构造一个普通包，发给客户端，告诉它：
-        //    - 要连的 game 服 IP/port
-        //    - token / tokenPass
-        // 这里取决于你在 pt-common 里为“世界登录”设计的包结构（例如 PacketSendGameServer 或自定义包）。
-        // 假设有 PacketSendGameServer 包含这四个字段，在这里设置并通过登录服 Netty 写回客户端。
     }
 
     @Override
@@ -387,7 +360,7 @@ public class AccountServerImpl implements AccountServer {
 
         PacketServerList packet = new PacketServerList();
         packet.setPktHeader(PacketHeader.PKTHDR_ServerList);
-        Header header = new Header();
+        PacketServerListHeader header = new PacketServerListHeader();
         header.setServerName("Local"); // TODO: 从配置或 DB 读取
         header.setTime((int) (System.currentTimeMillis() / 1000L));
         header.setTicket(ticket);

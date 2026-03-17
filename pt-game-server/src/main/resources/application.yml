@@ -21,3 +21,6 @@ pt:
     port: 10007
     loop:
       tick-interval-ms: 50
+  inter-server:
+    login:
+      address: 127.0.0.1:10009

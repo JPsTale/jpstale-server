@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.common.enums.packets.PacketHeader;
 import org.jpstale.server.common.struct.packets.PacketNetPlayerWorldToken;
-import org.jpstale.server.core.InterServerChannelManager;
+import org.jpstale.server.core.InterServerBroadcastService;
 import org.jpstale.server.core.NetServer;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +24,7 @@ import java.util.UUID;
 public class WorldTokenService {
 
     private final NetServer netServer;
-    private final InterServerChannelManager interServerChannelManager;
+    private final InterServerBroadcastService interServerBroadcastService;
 
     @Data
     public static class WorldToken {
@@ -51,7 +51,7 @@ public class WorldTokenService {
         netPacket.setToken(token);
         netPacket.setTokenPass(tokenPass);
 
-        interServerChannelManager.broadcastNetPacket(netPacket);
+        interServerBroadcastService.broadcastPacket(netPacket);
 
         log.info("Generated world token={}, tokenPass={} and broadcast to games", token, tokenPass);
 
