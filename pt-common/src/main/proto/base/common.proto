@@ -1,0 +1,130 @@
+syntax = "proto3";
+package jpt.base;
+option java_package = "org.jpstale.server.proto.base";
+option java_outer_classname = "CommonProto";
+
+// 位置
+message Position {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+// 向量
+message Vector3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+// 错误码
+enum ErrorCode {
+  SUCCESS = 0;
+  UNKNOWN_ERROR = 1;
+  NOT_LOGIN = 2;
+  ALREADY_LOGIN = 3;
+  INVALID_PASSWORD = 4;
+  ACCOUNT_BANNED = 5;
+  CHARACTER_NOT_FOUND = 6;
+  CHARACTER_LIMIT = 7;
+  INVALID_MAP = 8;
+  POSITION_INVALID = 9;
+  SPEED_HACK = 10;
+  TELEPORT_HACK = 11;
+  INVINCIBLE_HACK = 12;
+  INVALID_NAME = 13;
+  NAME_EXISTS = 14;
+}
+
+// 物品类型
+enum ItemType {
+  WEAPON = 0;
+  ARMOR = 1;
+  ACCESSORY = 2;
+  CONSUMABLE = 3;
+  MATERIAL = 4;
+  QUEST = 5;
+}
+
+// 怪物状态
+enum MonsterState {
+  MONSTER_IDLE = 0;
+  MONSTER_PATROL = 1;
+  MONSTER_CHASE = 2;
+  MONSTER_ATTACK = 3;
+  MONSTER_RETURN = 4;
+  MONSTER_DEAD = 5;
+}
+
+// 玩家状态
+enum PlayerState {
+  PLAYER_ALIVE = 0;
+  PLAYER_DEAD = 1;
+  PLAYER_SITTING = 2;
+}
+
+// 聊天频道
+enum ChatChannel {
+  CHAT_WORLD = 0;
+  CHAT_MAP = 1;
+  CHAT_PARTY = 2;
+  CHAT_GUILD = 3;
+  CHAT_PRIVATE = 4;
+  CHAT_SYSTEM = 5;
+}
+
+// 技能类型
+enum SkillType {
+  SKILL_PHYSICAL_ATTACK = 0;
+  SKILL_MAGIC_ATTACK = 1;
+  SKILL_HEAL = 2;
+  SKILL_BUFF = 3;
+  SKILL_AOE = 4;
+}
+
+// 装备槽位
+enum EquipmentSlotType {
+  EQUIP_WEAPON = 0;
+  EQUIP_HEAD = 1;
+  EQUIP_BODY = 2;
+  EQUIP_LEGS = 3;
+  EQUIP_FEET = 4;
+  EQUIP_HANDS = 5;
+  EQUIP_ACCESSORY = 6;
+  EQUIP_RING = 7;
+  EQUIP_NECKLACE = 8;
+}
+
+// 物品
+message ItemProto {
+  int32 item_id = 1;
+  int32 quantity = 2;
+  bool stackable = 3;
+  int32 max_stack = 4;
+}
+
+// 地面物品
+message GroundItemProto {
+  int64 ground_item_id = 1;
+  int32 item_id = 2;
+  int32 quantity = 3;
+  Position position = 4;
+  int64 owner_id = 5;
+  int64 expire_time = 6;
+}
+
+// Buff效果
+message BuffEffectProto {
+  string type = 1;
+  int32 value = 2;
+}
+
+// Buff
+message BuffProto {
+  int64 buff_id = 1;
+  int32 skill_id = 2;
+  int64 caster_id = 3;
+  int32 duration = 4;
+  repeated BuffEffectProto effects = 5;
+  int64 apply_time = 6;
+}

@@ -1,0 +1,441 @@
+syntax = "proto3";
+package jpt.base;
+option java_package = "org.jpstale.server.proto.base";
+option java_outer_classname = "MessageProto";
+
+import "base/common.proto";
+
+// ==================== 客户端 -> 服务端 ====================
+
+// 客户端消息封装
+message ClientMessage {
+  oneof payload {
+    // 认证 (100-199)
+    C2S_LoginRequest login_request = 100;
+    C2S_CreateCharacter create_character = 101;
+    C2S_SelectCharacter select_character = 102;
+    C2S_Logout logout = 103;
+    
+    // 玩家 (200-299)
+    C2S_PlayerMove player_move = 200;
+    C2S_PlayerAction player_action = 201;
+    C2S_UseItem use_item = 202;
+    C2S_PickupItem pickup_item = 203;
+    C2S_DropItem drop_item = 204;
+    
+    // 战斗 (300-399)
+    C2S_Attack attack = 300;
+    C2S_UseSkill use_skill = 301;
+    
+    // 社交 (400-499)
+    C2S_Chat chat = 400;
+    C2S_TradeRequest trade_request = 401;
+    C2S_TradeAccept trade_accept = 402;
+    C2S_TradeAddItem trade_add_item = 403;
+    C2S_TradeConfirm trade_confirm = 404;
+    C2S_PartyInvite party_invite = 405;
+    C2S_PartyAccept party_accept = 406;
+    C2S_PartyLeave party_leave = 407;
+    
+    // 心跳 (900-999)
+    C2S_Ping ping = 900;
+  }
+}
+
+// 服务端消息封装
+message ServerMessage {
+  oneof payload {
+    // 认证 (100-199)
+    S2C_LoginResponse login_response = 100;
+    S2C_CharacterList character_list = 101;
+    S2C_CreateCharacterResult create_character_result = 102;
+    
+    // 玩家 (200-299)
+    S2C_PlayerAppear player_appear = 200;
+    S2C_PlayerDisappear player_disappear = 201;
+    S2C_PlayerMove player_move = 202;
+    S2C_PlayerState player_state = 203;
+    S2C_PlayerDeath player_death = 204;
+    S2C_PlayerRespawn player_respawn = 205;
+    
+    // 怪物 (300-399)
+    S2C_MonsterAppear monster_appear = 300;
+    S2C_MonsterDisappear monster_disappear = 301;
+    S2C_MonsterMove monster_move = 302;
+    S2C_MonsterState monster_state = 303;
+    S2C_MonsterDeath monster_death = 304;
+    
+    // 战斗 (400-499)
+    S2C_AttackResult attack_result = 400;
+    S2C_SkillAttack skill_attack = 401;
+    S2C_AoeAttack aoe_attack = 402;
+    S2C_Damage damage = 403;
+    S2C_Heal heal = 404;
+    S2C_BuffApply buff_apply = 405;
+    S2C_BuffRemove buff_remove = 406;
+    
+    // 物品 (500-599)
+    S2C_ItemAdd item_add = 500;
+    S2C_ItemRemove item_remove = 501;
+    S2C_ItemUse item_use = 502;
+    S2C_GoldChange gold_change = 503;
+    S2C_GroundItemAppear ground_item_appear = 504;
+    S2C_GroundItemDisappear ground_item_disappear = 505;
+    
+    // 社交 (600-699)
+    S2C_Chat chat = 600;
+    S2C_TradeRequest trade_request = 601;
+    S2C_TradeOpen trade_open = 602;
+    S2C_TradeUpdate trade_update = 603;
+    S2C_TradeComplete trade_complete = 604;
+    S2C_PartyUpdate party_update = 605;
+    S2C_PartyInvite party_invite = 606;
+    
+    // 系统 (900-999)
+    S2C_Pong pong = 900;
+    S2C_Error error = 901;
+    S2C_SystemMessage system_message = 902;
+    S2C_Disconnect disconnect = 903;
+  }
+}
+
+// ==================== 认证消息 (100-199) ====================
+
+message C2S_LoginRequest {
+  string username = 1;
+  string password = 2;
+  string client_version = 3;
+}
+
+message C2S_CreateCharacter {
+  string name = 1;
+  int32 class_id = 2;
+}
+
+message C2S_SelectCharacter {
+  int64 character_id = 1;
+}
+
+message C2S_Logout {
+}
+
+message S2C_LoginResponse {
+  bool success = 1;
+  int64 account_id = 2;
+  ErrorCode error_code = 3;
+  string error_message = 4;
+}
+
+message S2C_CharacterList {
+  repeated CharacterInfo characters = 1;
+}
+
+message CharacterInfo {
+  int64 character_id = 1;
+  string name = 2;
+  int32 class_id = 3;
+  int32 level = 4;
+  Position position = 5;
+  int32 map_id = 6;
+  int64 gold = 7;
+}
+
+message S2C_CreateCharacterResult {
+  bool success = 1;
+  int64 character_id = 2;
+  ErrorCode error_code = 3;
+}
+
+// ==================== 玩家消息 (200-299) ====================
+
+message C2S_PlayerMove {
+  Position new_position = 1;
+  int64 timestamp = 2;
+  float speed = 3;
+}
+
+message C2S_PlayerAction {
+  int32 action_type = 1;
+  int64 target_id = 2;
+}
+
+message C2S_UseItem {
+  int32 item_id = 1;
+  int32 quantity = 2;
+}
+
+message C2S_PickupItem {
+  int64 ground_item_id = 1;
+}
+
+message C2S_DropItem {
+  int32 item_id = 1;
+  int32 quantity = 2;
+}
+
+message S2C_PlayerAppear {
+  int64 player_id = 1;
+  string name = 2;
+  int32 class_id = 3;
+  int32 level = 4;
+  Position position = 5;
+  int32 hp = 6;
+  int32 max_hp = 7;
+}
+
+message S2C_PlayerDisappear {
+  int64 player_id = 1;
+}
+
+message S2C_PlayerMove {
+  int64 player_id = 1;
+  Position position = 2;
+  int64 timestamp = 3;
+}
+
+message S2C_PlayerState {
+  int64 player_id = 1;
+  Position position = 2;
+  int32 map_id = 3;
+  int32 hp = 4;
+  int32 mp = 5;
+  int32 max_hp = 6;
+  int32 max_mp = 7;
+  int32 level = 8;
+  int64 gold = 9;
+  int64 exp = 10;
+}
+
+message S2C_PlayerDeath {
+  int64 player_id = 1;
+  int64 exp_loss = 2;
+}
+
+message S2C_PlayerRespawn {
+  int64 player_id = 1;
+  Position position = 2;
+  int32 hp = 3;
+  int32 mp = 4;
+}
+
+// ==================== 怪物消息 (300-399) ====================
+
+message S2C_MonsterAppear {
+  int64 monster_id = 1;
+  int32 template_id = 2;
+  string name = 3;
+  int32 level = 4;
+  Position position = 5;
+  int32 hp = 6;
+  int32 max_hp = 7;
+}
+
+message S2C_MonsterDisappear {
+  int64 monster_id = 1;
+}
+
+message S2C_MonsterMove {
+  int64 monster_id = 1;
+  Position position = 2;
+}
+
+message S2C_MonsterState {
+  int64 monster_id = 1;
+  MonsterState state = 2;
+  int64 target_id = 3;
+}
+
+message S2C_MonsterDeath {
+  int64 monster_id = 1;
+  int64 killer_id = 2;
+  int32 exp = 3;
+  int32 gold = 4;
+}
+
+// ==================== 战斗消息 (400-499) ====================
+
+message C2S_Attack {
+  int64 target_id = 1;
+}
+
+message C2S_UseSkill {
+  int32 skill_id = 1;
+  int64 target_id = 2;
+  Position target_position = 3;
+}
+
+message S2C_AttackResult {
+  int64 attacker_id = 1;
+  int64 target_id = 2;
+  int32 damage = 3;
+  bool is_critical = 4;
+}
+
+message S2C_SkillAttack {
+  int64 caster_id = 1;
+  int32 skill_id = 2;
+  int64 target_id = 3;
+  int32 damage = 4;
+}
+
+message S2C_AoeAttack {
+  int64 caster_id = 1;
+  int32 skill_id = 2;
+  Position position = 3;
+  float range = 4;
+}
+
+message S2C_Damage {
+  int64 target_id = 1;
+  int32 damage = 2;
+  int32 current_hp = 3;
+}
+
+message S2C_Heal {
+  int64 target_id = 1;
+  int32 heal_amount = 2;
+  int32 current_hp = 3;
+}
+
+message S2C_BuffApply {
+  int64 entity_id = 1;
+  int64 buff_id = 2;
+  int32 skill_id = 3;
+  int32 duration = 4;
+  repeated BuffEffectProto effects = 5;
+}
+
+message S2C_BuffRemove {
+  int64 entity_id = 1;
+  int64 buff_id = 2;
+}
+
+// ==================== 物品消息 (500-599) ====================
+
+message S2C_ItemAdd {
+  ItemProto item = 1;
+}
+
+message S2C_ItemRemove {
+  int32 item_id = 1;
+  int32 quantity = 2;
+}
+
+message S2C_ItemUse {
+  int32 item_id = 1;
+  int32 quantity = 2;
+}
+
+message S2C_GoldChange {
+  int64 old_gold = 1;
+  int64 new_gold = 2;
+  string reason = 3;
+}
+
+message S2C_GroundItemAppear {
+  GroundItemProto item = 1;
+}
+
+message S2C_GroundItemDisappear {
+  int64 ground_item_id = 1;
+}
+
+// ==================== 社交消息 (600-699) ====================
+
+message C2S_Chat {
+  ChatChannel channel = 1;
+  string message = 2;
+  string target_name = 3;
+}
+
+message C2S_TradeRequest {
+  string target_name = 1;
+}
+
+message C2S_TradeAccept {
+  int64 trade_id = 1;
+}
+
+message C2S_TradeAddItem {
+  int64 trade_id = 1;
+  int32 item_id = 2;
+  int32 quantity = 3;
+}
+
+message C2S_TradeConfirm {
+  int64 trade_id = 1;
+}
+
+message C2S_PartyInvite {
+  string target_name = 1;
+}
+
+message C2S_PartyAccept {
+  int64 party_id = 1;
+}
+
+message C2S_PartyLeave {
+}
+
+message S2C_Chat {
+  ChatChannel channel = 1;
+  int64 sender_id = 2;
+  string sender_name = 3;
+  string message = 4;
+  int64 timestamp = 5;
+}
+
+message S2C_TradeRequest {
+  int64 trade_id = 1;
+  int64 requester_id = 2;
+  string requester_name = 3;
+}
+
+message S2C_TradeOpen {
+  int64 trade_id = 1;
+}
+
+message S2C_TradeUpdate {
+  int64 trade_id = 1;
+}
+
+message S2C_TradeComplete {
+  bool success = 1;
+  string message = 2;
+}
+
+message S2C_PartyUpdate {
+  int64 party_id = 1;
+  int64 leader_id = 2;
+  repeated int64 member_ids = 3;
+}
+
+message S2C_PartyInvite {
+  int64 party_id = 1;
+  int64 inviter_id = 2;
+  string inviter_name = 3;
+}
+
+// ==================== 系统消息 (900-999) ====================
+
+message C2S_Ping {
+  int64 timestamp = 1;
+}
+
+message S2C_Pong {
+  int64 timestamp = 1;
+}
+
+message S2C_Error {
+  ErrorCode error_code = 1;
+  string error_message = 2;
+}
+
+message S2C_SystemMessage {
+  string message = 1;
+  int64 timestamp = 2;
+}
+
+message S2C_Disconnect {
+  string reason = 1;
+}
