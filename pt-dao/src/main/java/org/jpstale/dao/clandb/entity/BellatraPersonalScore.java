@@ -16,14 +16,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "bellatra_personal_score")
+@TableName(schema = "clandb", value = "bellatrapersonalscore")
 public class BellatraPersonalScore {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
     @TableField("kills")
     private Integer kills;

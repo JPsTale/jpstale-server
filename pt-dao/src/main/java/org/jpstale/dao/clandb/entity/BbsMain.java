@@ -15,31 +15,31 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "bbs_main")
+@TableName(schema = "clandb", value = "bbsmain")
 public class BbsMain {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("midx")
     private Integer midx;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("write_name")
+    @TableField("writename")
     private String writeName;
     @TableField("title")
     private String title;
     @TableField("content")
     private String content;
-    @TableField("sel_server")
+    @TableField("selserver")
     private Integer selServer;
-    @TableField("regi_date")
+    @TableField("regidate")
     private LocalDateTime regiDate;
-    @TableField("regi_ip")
+    @TableField("regiip")
     private String regiIp;
     @TableField("hit")
     private Integer hit;
-    @TableField("count_com")
+    @TableField("countcom")
     private Integer countCom;
-    @TableField("nick_name")
+    @TableField("nickname")
     private String nickName;
 }

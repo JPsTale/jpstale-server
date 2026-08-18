@@ -17,20 +17,20 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "warehouse_log")
+@TableName(schema = "logdb", value = "warehouselog")
 public class WarehouseLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("char_name")
+    @TableField("charname")
     private String charName;
     @TableField("action")
     private Integer action;
-    @TableField("item_name")
+    @TableField("itemname")
     private String itemName;
-    @TableField("item_id")
+    @TableField("itemid")
     private Integer itemId;
     @TableField("code1")
     private Integer code1;

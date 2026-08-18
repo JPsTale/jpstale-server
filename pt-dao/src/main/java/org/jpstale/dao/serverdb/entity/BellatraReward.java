@@ -16,12 +16,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "bellatra_reward")
+@TableName(schema = "serverdb", value = "bellatrareward")
 public class BellatraReward {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("item_code")
+    @TableField("itemcode")
     private String itemCode;
     @TableField("quantity")
     private Integer quantity;

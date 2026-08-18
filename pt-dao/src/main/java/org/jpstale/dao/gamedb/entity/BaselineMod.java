@@ -15,19 +15,19 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "baseline_mod")
+@TableName(schema = "gamedb", value = "baselinemod")
 public class BaselineMod {
 
     @TableId("clazz")
     private Integer clazz;
-    @TableField("percent_baseline_strength")
+    @TableField("percentbaselinestrength")
     private Integer percentBaselineStrength;
-    @TableField("percent_baseline_spirit")
+    @TableField("percentbaselinespirit")
     private Integer percentBaselineSpirit;
-    @TableField("percent_baseline_talent")
+    @TableField("percentbaselinetalent")
     private Integer percentBaselineTalent;
-    @TableField("percent_baseline_agility")
+    @TableField("percentbaselineagility")
     private Integer percentBaselineAgility;
-    @TableField("percent_baseline_health")
+    @TableField("percentbaselinehealth")
     private Integer percentBaselineHealth;
 }

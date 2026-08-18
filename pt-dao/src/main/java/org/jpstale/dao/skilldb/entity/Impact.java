@@ -22,16 +22,16 @@ public class Impact {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_atk_rtg")
+    @TableField("addedatkrtg")
     private Integer addedAtkRtg;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
-    @TableField("mp_usage")
+    @TableField("mpusage")
     private Integer mpUsage;
-    @TableField("stm_usage")
+    @TableField("stmusage")
     private Integer stmUsage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -15,11 +15,11 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "itemdb", value = "item_craft_type")
+@TableName(schema = "itemdb", value = "itemcrafttype")
 public class ItemCraftType {
 
     @TableId("item_craft_type_id")
     private Short itemCraftTypeId;
-    @TableField("item_craft_type_name")
+    @TableField("itemcrafttypename")
     private String itemCraftTypeName;
 }

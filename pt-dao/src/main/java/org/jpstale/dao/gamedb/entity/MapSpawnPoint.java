@@ -14,7 +14,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "map_spawn_point")
+@TableName(schema = "gamedb", value = "mapspawnpoint")
 public class MapSpawnPoint {
 
     @TableId(value = "id", type = IdType.AUTO)

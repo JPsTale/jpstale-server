@@ -17,23 +17,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "split_javelin")
+@TableName(schema = "skilldb", value = "splitjavelin")
 public class SplitJavelin {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("numberof_hits")
+    @TableField("numberofhits")
     private Integer numberofHits;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
-    @TableField("atk_rtg_boost")
+    @TableField("atkrtgboost")
     private Integer atkRtgBoost;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

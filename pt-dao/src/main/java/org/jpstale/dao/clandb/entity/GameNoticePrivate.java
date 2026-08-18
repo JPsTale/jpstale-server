@@ -15,24 +15,24 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "game_notice_private")
+@TableName(schema = "clandb", value = "gamenoticeprivate")
 public class GameNoticePrivate {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
     @TableField("title")
     private String title;
     @TableField("content")
     private String content;
-    @TableField("from_day")
+    @TableField("fromday")
     private LocalDateTime fromDay;
-    @TableField("to_day")
+    @TableField("today")
     private LocalDateTime toDay;
-    @TableField("regist_day")
+    @TableField("registday")
     private LocalDateTime registDay;
-    @TableField("del_active")
+    @TableField("delactive")
     private Integer delActive;
     @TableField("hit")
     private Integer hit;

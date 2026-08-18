@@ -16,12 +16,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "notification_data")
+@TableName(schema = "userdb", value = "notificationdata")
 public class NotificationData {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("message")
     private String message;

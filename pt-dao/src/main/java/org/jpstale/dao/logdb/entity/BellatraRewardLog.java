@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "bellatra_reward_log")
+@TableName(schema = "logdb", value = "bellatrarewardlog")
 public class BellatraRewardLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("name")
     private String name;
-    @TableField("item_name")
+    @TableField("itemname")
     private String itemName;
     @TableField("quantity")
     private Integer quantity;

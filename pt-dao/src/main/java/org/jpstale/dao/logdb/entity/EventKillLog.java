@@ -17,21 +17,21 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "event_kill_log")
+@TableName(schema = "logdb", value = "eventkilllog")
 public class EventKillLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("event_id")
+    @TableField("eventid")
     private Integer eventId;
-    @TableField("map_id")
+    @TableField("mapid")
     private Integer mapId;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
-    @TableField("monster_id")
+    @TableField("monsterid")
     private Integer monsterId;
-    @TableField("monster_effect_id")
+    @TableField("monstereffectid")
     private Integer monsterEffectId;
-    @TableField("date_time")
+    @TableField("datetime")
     private LocalDateTime dateTime;
 }

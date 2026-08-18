@@ -16,25 +16,25 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "model_animation_list")
+@TableName(schema = "gamedb", value = "modelanimationlist")
 public class ModelAnimationList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("model_id")
+    @TableField("modelid")
     private Integer modelId;
     @TableField("type")
     private Integer type;
-    @TableField("frame_begin")
+    @TableField("framebegin")
     private Integer frameBegin;
-    @TableField("frame_end")
+    @TableField("frameend")
     private Integer frameEnd;
-    @TableField("frame_event1")
+    @TableField("frameevent1")
     private Integer frameEvent1;
-    @TableField("frame_event2")
+    @TableField("frameevent2")
     private Integer frameEvent2;
-    @TableField("frame_event3")
+    @TableField("frameevent3")
     private Integer frameEvent3;
-    @TableField("frame_event4")
+    @TableField("frameevent4")
     private Integer frameEvent4;
 }

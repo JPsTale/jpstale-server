@@ -4,7 +4,7 @@
 
     <!-- C++ logserver.cpp:728 -->
     <insert id="insertCheatLog" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.cheat_log (ip, account_name, action, log_id, description, date, server_id)
+        INSERT INTO logdb.cheatlog (ip, account_name, action, log_id, description, date, server_id)
         VALUES (#{ip}, #{accountName}, #{action}, #{logId}, #{description}, CURRENT_TIMESTAMP, #{serverId})
     </insert>
 

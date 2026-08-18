@@ -4,7 +4,7 @@
 
     <!-- C++ cheatserver.cpp:61 -->
     <select id="selectAll" resultType="org.jpstale.dao.serverdb.entity.FunctionChecksumList">
-        SELECT * FROM serverdb.function_checksum_list
+        SELECT * FROM serverdb.functionchecksumlist
     </select>
 
 </mapper>

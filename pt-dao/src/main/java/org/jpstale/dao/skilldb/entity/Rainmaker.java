@@ -22,12 +22,12 @@ public class Rainmaker {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_reduction")
+    @TableField("damagereduction")
     private Integer damageReduction;
     @TableField("duration")
     private Integer duration;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

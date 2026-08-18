@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "divine_shield")
+@TableName(schema = "skilldb", value = "divineshield")
 public class DivineShield {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_block_rating")
+    @TableField("addedblockrating")
     private Integer addedBlockRating;
-    @TableField("absorb_life")
+    @TableField("absorblife")
     private Integer absorbLife;
     @TableField("duration")
     private Integer duration;
@@ -34,6 +34,6 @@ public class DivineShield {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

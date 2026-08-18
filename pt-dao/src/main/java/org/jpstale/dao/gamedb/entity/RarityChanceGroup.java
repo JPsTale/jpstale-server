@@ -14,13 +14,13 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "rarity_chance_group")
+@TableName(schema = "gamedb", value = "raritychancegroup")
 public class RarityChanceGroup {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("min_level")
+    @TableField("minlevel")
     private Integer minLevel;
-    @TableField("max_level")
+    @TableField("maxlevel")
     private Integer maxLevel;
 }

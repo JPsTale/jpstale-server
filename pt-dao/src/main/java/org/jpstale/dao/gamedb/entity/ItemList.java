@@ -16,223 +16,223 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_list")
+@TableName(schema = "gamedb", value = "itemlist")
 public class ItemList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("id_code")
+    @TableField("idcode")
     private Integer idCode;
     @TableField("name")
     private String name;
     @TableField("nullcode")
     private String nullcode;
-    @TableField("code_img1")
+    @TableField("codeimg1")
     private String codeImg1;
-    @TableField("code_img2")
+    @TableField("codeimg2")
     private String codeImg2;
     @TableField("width")
     private Integer width;
     @TableField("height")
     private Integer height;
-    @TableField("drop_folder")
+    @TableField("dropfolder")
     private String dropFolder;
-    @TableField("class_item")
+    @TableField("classitem")
     private Integer classItem;
-    @TableField("model_position")
+    @TableField("modelposition")
     private Integer modelPosition;
     @TableField("sound")
     private Integer sound;
-    @TableField("weapon_class")
+    @TableField("weaponclass")
     private Integer weaponClass;
-    @TableField("quest_id")
+    @TableField("questid")
     private Integer questId;
-    @TableField("quest_r")
+    @TableField("questr")
     private Integer questR;
-    @TableField("quest_g")
+    @TableField("questg")
     private Integer questG;
-    @TableField("quest_b")
+    @TableField("questb")
     private Integer questB;
-    @TableField("quest_transparency")
+    @TableField("questtransparency")
     private Integer questTransparency;
-    @TableField("quest_flashing_time")
+    @TableField("questflashingtime")
     private Integer questFlashingTime;
-    @TableField("req_level")
+    @TableField("reqlevel")
     private Integer reqLevel;
-    @TableField("req_strengh")
+    @TableField("reqstrength")
     private Integer reqStrengh;
-    @TableField("req_spirit")
+    @TableField("reqspirit")
     private Integer reqSpirit;
-    @TableField("req_talent")
+    @TableField("reqtalent")
     private Integer reqTalent;
-    @TableField("req_agility")
+    @TableField("reqagility")
     private Integer reqAgility;
-    @TableField("req_health")
+    @TableField("reqhealth")
     private Integer reqHealth;
-    @TableField("integrity_min")
+    @TableField("integritymin")
     private Integer integrityMin;
-    @TableField("integrity_max")
+    @TableField("integritymax")
     private Integer integrityMax;
     @TableField("weight")
     private Integer weight;
     @TableField("price")
     private Integer price;
-    @TableField("organic_min")
+    @TableField("organicmin")
     private Integer organicMin;
-    @TableField("organic_max")
+    @TableField("organicmax")
     private Integer organicMax;
-    @TableField("fire_min")
+    @TableField("firemin")
     private Integer fireMin;
-    @TableField("fire_max")
+    @TableField("firemax")
     private Integer fireMax;
-    @TableField("frost_min")
+    @TableField("frostmin")
     private Integer frostMin;
-    @TableField("frost_max")
+    @TableField("frostmax")
     private Integer frostMax;
-    @TableField("lightning_min")
+    @TableField("lightningmin")
     private Integer lightningMin;
-    @TableField("lightning_max")
+    @TableField("lightningmax")
     private Integer lightningMax;
-    @TableField("poison_min")
+    @TableField("poisonmin")
     private Integer poisonMin;
-    @TableField("poison_max")
+    @TableField("poisonmax")
     private Integer poisonMax;
-    @TableField("atk_pow1_min")
+    @TableField("atkpow1min")
     private Integer atkPow1Min;
-    @TableField("atk_pow1_max")
+    @TableField("atkpow1max")
     private Integer atkPow1Max;
-    @TableField("atk_pow2_min")
+    @TableField("atkpow2min")
     private Integer atkPow2Min;
-    @TableField("atk_pow2_max")
+    @TableField("atkpow2max")
     private Integer atkPow2Max;
     @TableField("range")
     private Integer range;
-    @TableField("atk_speed")
+    @TableField("atkspeed")
     private Integer atkSpeed;
-    @TableField("atk_rating_min")
+    @TableField("atkratingmin")
     private Integer atkRatingMin;
-    @TableField("atk_rating_max")
+    @TableField("atkratingmax")
     private Integer atkRatingMax;
     @TableField("critical")
     private Integer critical;
-    @TableField("block_min")
+    @TableField("blockmin")
     private Double blockMin;
-    @TableField("block_max")
+    @TableField("blockmax")
     private Double blockMax;
-    @TableField("absorb_min")
+    @TableField("absorbmin")
     private Double absorbMin;
-    @TableField("absorb_max")
+    @TableField("absorbmax")
     private Double absorbMax;
-    @TableField("defense_min")
+    @TableField("defensemin")
     private Integer defenseMin;
-    @TableField("defense_max")
+    @TableField("defensemax")
     private Integer defenseMax;
-    @TableField("potion_space")
+    @TableField("potionspace")
     private Integer potionSpace;
-    @TableField("potion_count")
+    @TableField("potioncount")
     private Integer potionCount;
-    @TableField("regeneration_hp_min")
+    @TableField("regenerationhpmin")
     private Double regenerationHpMin;
-    @TableField("regeneration_hp_max")
+    @TableField("regenerationhpmax")
     private Double regenerationHpMax;
-    @TableField("regeneration_mp_min")
+    @TableField("regenerationmpmin")
     private Double regenerationMpMin;
-    @TableField("regeneration_mp_max")
+    @TableField("regenerationmpmax")
     private Double regenerationMpMax;
-    @TableField("regeneration_stm_min")
+    @TableField("regenerationstmmin")
     private Double regenerationStmMin;
-    @TableField("regeneration_stm_max")
+    @TableField("regenerationstmmax")
     private Double regenerationStmMax;
-    @TableField("add_hp_min")
+    @TableField("addhpmin")
     private Integer addHpMin;
-    @TableField("add_hp_max")
+    @TableField("addhpmax")
     private Integer addHpMax;
-    @TableField("add_mp_min")
+    @TableField("addmpmin")
     private Integer addMpMin;
-    @TableField("add_mp_max")
+    @TableField("addmpmax")
     private Integer addMpMax;
-    @TableField("add_stm_min")
+    @TableField("addstmmin")
     private Integer addStmMin;
-    @TableField("add_stm_max")
+    @TableField("addstmmax")
     private Integer addStmMax;
-    @TableField("recovery_hp_min")
+    @TableField("recoveryhpmin")
     private Integer recoveryHpMin;
-    @TableField("recovery_hp_max")
+    @TableField("recoveryhpmax")
     private Integer recoveryHpMax;
-    @TableField("recovery_mp_min")
+    @TableField("recoverympmin")
     private Integer recoveryMpMin;
-    @TableField("recovery_mp_max")
+    @TableField("recoverympmax")
     private Integer recoveryMpMax;
-    @TableField("recovery_stm_min")
+    @TableField("recoverystmmin")
     private Integer recoveryStmMin;
-    @TableField("recovery_stm_max")
+    @TableField("recoverystmmax")
     private Integer recoveryStmMax;
-    @TableField("run_speed_min")
+    @TableField("runspeedmin")
     private Double runSpeedMin;
-    @TableField("run_speed_max")
+    @TableField("runspeedmax")
     private Double runSpeedMax;
-    @TableField("primary_spec")
+    @TableField("primaryspec")
     private Integer primarySpec;
-    @TableField("add_spec_class1")
+    @TableField("addspecclass1")
     private Integer addSpecClass1;
-    @TableField("add_spec_class2")
+    @TableField("addspecclass2")
     private Integer addSpecClass2;
-    @TableField("add_spec_class3")
+    @TableField("addspecclass3")
     private Integer addSpecClass3;
-    @TableField("add_spec_class4")
+    @TableField("addspecclass4")
     private Integer addSpecClass4;
-    @TableField("add_spec_class5")
+    @TableField("addspecclass5")
     private Integer addSpecClass5;
-    @TableField("add_spec_class6")
+    @TableField("addspecclass6")
     private Integer addSpecClass6;
-    @TableField("add_spec_class7")
+    @TableField("addspecclass7")
     private Integer addSpecClass7;
-    @TableField("add_spec_class8")
+    @TableField("addspecclass8")
     private Integer addSpecClass8;
-    @TableField("add_spec_class9")
+    @TableField("addspecclass9")
     private Integer addSpecClass9;
-    @TableField("add_spec_class10")
+    @TableField("addspecclass10")
     private Integer addSpecClass10;
-    @TableField("add_spec_class11")
+    @TableField("addspecclass11")
     private Integer addSpecClass11;
-    @TableField("add_spec_class12")
+    @TableField("addspecclass12")
     private Integer addSpecClass12;
-    @TableField("add_spec_run_speed_min")
+    @TableField("addspecrunspeedmin")
     private Double addSpecRunSpeedMin;
-    @TableField("add_spec_run_speed_max")
+    @TableField("addspecrunspeedmax")
     private Double addSpecRunSpeedMax;
-    @TableField("add_spec_absorb_min")
+    @TableField("addspecabsorbmin")
     private Double addSpecAbsorbMin;
-    @TableField("add_spec_absorb_max")
+    @TableField("addspecabsorbmax")
     private Double addSpecAbsorbMax;
-    @TableField("add_spec_defense_min")
+    @TableField("addspecdefensemin")
     private Integer addSpecDefenseMin;
-    @TableField("add_spec_defense_max")
+    @TableField("addspecdefensemax")
     private Integer addSpecDefenseMax;
-    @TableField("add_spec_atk_speed")
+    @TableField("addspecatkspeed")
     private Integer addSpecAtkSpeed;
-    @TableField("add_spec_critical")
+    @TableField("addspeccritical")
     private Integer addSpecCritical;
-    @TableField("add_spec_atk_power_min")
+    @TableField("addspecatkpowermin")
     private Integer addSpecAtkPowerMin;
-    @TableField("add_spec_atk_power_max")
+    @TableField("addspecatkpowermax")
     private Integer addSpecAtkPowerMax;
-    @TableField("add_spec_atk_rating_min")
+    @TableField("addspecatkratingmin")
     private Integer addSpecAtkRatingMin;
-    @TableField("add_spec_atk_rating_max")
+    @TableField("addspecatkratingmax")
     private Integer addSpecAtkRatingMax;
-    @TableField("add_spec_hp_regen")
+    @TableField("addspechpregen")
     private Double addSpecHpRegen;
-    @TableField("add_spec_mp_regen_min")
+    @TableField("addspecmpregenmin")
     private Double addSpecMpRegenMin;
-    @TableField("add_spec_mp_regen_max")
+    @TableField("addspecmpregenmax")
     private Double addSpecMpRegenMax;
-    @TableField("add_spec_stm_regen")
+    @TableField("addspecstmregen")
     private Double addSpecStmRegen;
-    @TableField("add_spec_block")
+    @TableField("addspecblock")
     private Double addSpecBlock;
-    @TableField("add_spec_range")
+    @TableField("addspecrange")
     private Integer addSpecRange;
-    @TableField("cannot_drop")
+    @TableField("cannotdrop")
     private Integer cannotDrop;
 }

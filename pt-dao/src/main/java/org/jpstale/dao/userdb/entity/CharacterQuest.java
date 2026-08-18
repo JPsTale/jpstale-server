@@ -17,30 +17,30 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "character_quest")
+@TableName(schema = "userdb", value = "characterquest")
 public class CharacterQuest {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("quest_id")
+    @TableField("questid")
     private Integer questId;
-    @TableField("quest_reward_id")
+    @TableField("questrewardid")
     private Integer questRewardId;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
-    @TableField("start_date")
+    @TableField("startdate")
     private LocalDateTime startDate;
-    @TableField("end_date")
+    @TableField("enddate")
     private LocalDateTime endDate;
-    @TableField("monster_count")
+    @TableField("monstercount")
     private String monsterCount;
-    @TableField("item_count")
+    @TableField("itemcount")
     private String itemCount;
-    @TableField("time_left")
+    @TableField("timeleft")
     private Integer timeLeft;
     @TableField("counter")
     private Integer counter;

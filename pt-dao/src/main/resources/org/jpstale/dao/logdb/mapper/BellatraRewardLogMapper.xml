@@ -4,7 +4,7 @@
 
     <!-- C++ bellatraserver.cpp:2557 -->
     <insert id="insertBellatraRewardLog" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.bellatra_reward_log (account_name, name, item_name, quantity, date) VALUES (#{accountName}, #{name}, #{itemName}, #{quantity}, CURRENT_TIMESTAMP)
+        INSERT INTO logdb.bellatrarewardlog (account_name, name, item_name, quantity, date) VALUES (#{accountName}, #{name}, #{itemName}, #{quantity}, CURRENT_TIMESTAMP)
     </insert>
 
 </mapper>

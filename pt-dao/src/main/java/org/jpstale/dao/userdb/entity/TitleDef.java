@@ -15,17 +15,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "title_def")
+@TableName(schema = "userdb", value = "titledef")
 public class TitleDef {
 
     @TableId("title_id")
     private Integer titleId;
-    @TableField("title_category")
+    @TableField("titlecategory")
     private String titleCategory;
-    @TableField("sub_category")
+    @TableField("subcategory")
     private String subCategory;
     @TableField("title")
     private String title;
-    @TableField("title_rarity")
+    @TableField("titlerarity")
     private Short titleRarity;
 }

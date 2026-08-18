@@ -16,11 +16,11 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "cheat_modules")
+@TableName(schema = "gamedb", value = "cheatmodules")
 public class CheatModules {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("module_name")
+    @TableField("modulename")
     private String moduleName;
 }

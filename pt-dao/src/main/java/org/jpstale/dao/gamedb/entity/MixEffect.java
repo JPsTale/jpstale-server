@@ -16,15 +16,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "mix_effect")
+@TableName(schema = "gamedb", value = "mixeffect")
 public class MixEffect {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("code")
     private Integer code;
-    @TableField("before_value")
+    @TableField("beforevalue")
     private String beforeValue;
-    @TableField("after_value")
+    @TableField("aftervalue")
     private String afterValue;
 }

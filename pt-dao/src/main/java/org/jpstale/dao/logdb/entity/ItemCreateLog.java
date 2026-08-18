@@ -17,12 +17,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "item_create_log")
+@TableName(schema = "logdb", value = "itemcreatelog")
 public class ItemCreateLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("item_id")
+    @TableField("itemid")
     private Integer itemId;
     @TableField("code1")
     private Integer code1;

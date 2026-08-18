@@ -17,18 +17,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "regeneration_field")
+@TableName(schema = "skilldb", value = "regenerationfield")
 public class RegenerationField {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_hprecovery")
+    @TableField("addedhprecovery")
     private Integer addedHprecovery;
-    @TableField("added_mprecovery")
+    @TableField("addedmprecovery")
     private Integer addedMprecovery;
-    @TableField("duration_seconds")
+    @TableField("durationseconds")
     private Integer durationSeconds;
     @TableField("area")
     private Integer area;
@@ -36,6 +36,6 @@ public class RegenerationField {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

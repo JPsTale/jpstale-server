@@ -16,7 +16,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "function_checksum_list")
+@TableName(schema = "serverdb", value = "functionchecksumlist")
 public class FunctionChecksumList {
 
     @TableId(value = "id", type = IdType.AUTO)

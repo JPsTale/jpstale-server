@@ -16,18 +16,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "map_monster")
+@TableName(schema = "gamedb", value = "mapmonster")
 public class MapMonster {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("stage")
     private String stage;
-    @TableField("max_monsters")
+    @TableField("maxmonsters")
     private Integer maxMonsters;
     @TableField("interval")
     private Integer interval;
-    @TableField("max_enemy_flag")
+    @TableField("maxenemyflag")
     private Integer maxEnemyFlag;
     @TableField("monster1")
     private String monster1;
@@ -77,28 +77,28 @@ public class MapMonster {
     private String monster12;
     @TableField("count12")
     private Integer count12;
-    @TableField("boss_monster1")
+    @TableField("bossmonster1")
     private String bossMonster1;
-    @TableField("hours_boss_monster1")
+    @TableField("hoursbossmonster1")
     private String hoursBossMonster1;
-    @TableField("sub_monster1")
+    @TableField("submonster1")
     private String subMonster1;
-    @TableField("count_sub1")
+    @TableField("countsub1")
     private Integer countSub1;
-    @TableField("boss_monster2")
+    @TableField("bossmonster2")
     private String bossMonster2;
-    @TableField("hours_boss_monster2")
+    @TableField("hoursbossmonster2")
     private String hoursBossMonster2;
-    @TableField("sub_monster2")
+    @TableField("submonster2")
     private String subMonster2;
-    @TableField("count_sub2")
+    @TableField("countsub2")
     private Integer countSub2;
-    @TableField("boss_monster3")
+    @TableField("bossmonster3")
     private String bossMonster3;
-    @TableField("hours_boss_monster3")
+    @TableField("hoursbossmonster3")
     private String hoursBossMonster3;
-    @TableField("sub_monster3")
+    @TableField("submonster3")
     private String subMonster3;
-    @TableField("count_sub3")
+    @TableField("countsub3")
     private Integer countSub3;
 }

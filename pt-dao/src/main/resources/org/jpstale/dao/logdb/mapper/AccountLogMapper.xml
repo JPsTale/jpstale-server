@@ -4,7 +4,7 @@
 
     <!-- C++ accountserver.cpp:141, characterserver.cpp:2234 -->
     <insert id="insertAccountLog" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.account_log (ip, account_name, log_id, description, date, server_id)
+        INSERT INTO logdb.accountlog (ip, account_name, log_id, description, date, server_id)
         VALUES (#{ip}, #{accountName}, #{logId}, #{description}, CURRENT_TIMESTAMP, #{serverId})
     </insert>
 

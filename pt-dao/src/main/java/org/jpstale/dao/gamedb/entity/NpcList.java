@@ -16,14 +16,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "npc_list")
+@TableName(schema = "gamedb", value = "npclist")
 public class NpcList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("name")
     private String name;
-    @TableField("game_file")
+    @TableField("gamefile")
     private String gameFile;
     @TableField("message1")
     private String message1;
@@ -33,24 +33,24 @@ public class NpcList {
     private String message3;
     @TableField("message4")
     private String message4;
-    @TableField("event_type")
+    @TableField("eventtype")
     private Integer eventType;
-    @TableField("event_param")
+    @TableField("eventparam")
     private Integer eventParam;
-    @TableField("skill_quests")
+    @TableField("skillquests")
     private Integer skillQuests;
-    @TableField("quest_id")
+    @TableField("questid")
     private Integer questId;
-    @TableField("quest_type_id")
+    @TableField("questtypeid")
     private Integer questTypeId;
-    @TableField("quest_type_sub_id")
+    @TableField("questtypesubid")
     private Integer questTypeSubId;
-    @TableField("teleport_id")
+    @TableField("teleportid")
     private Integer teleportId;
-    @TableField("weapon_shop")
+    @TableField("weaponshop")
     private String weaponShop;
-    @TableField("defense_shop")
+    @TableField("defenseshop")
     private String defenseShop;
-    @TableField("misc_shop")
+    @TableField("miscshop")
     private String miscShop;
 }

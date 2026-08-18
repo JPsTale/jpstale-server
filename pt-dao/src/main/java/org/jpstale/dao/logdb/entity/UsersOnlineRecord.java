@@ -17,18 +17,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "users_online_record")
+@TableName(schema = "logdb", value = "usersonlinerecord")
 public class UsersOnlineRecord {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("users_online_sub_server1")
+    @TableField("usersonlinesubserver1")
     private Integer usersOnlineSubServer1;
-    @TableField("users_online_sub_server2")
+    @TableField("usersonlinesubserver2")
     private Integer usersOnlineSubServer2;
-    @TableField("users_online_sub_server3")
+    @TableField("usersonlinesubserver3")
     private Integer usersOnlineSubServer3;
-    @TableField("total_users_online")
+    @TableField("totalusersonline")
     private Integer totalUsersOnline;
     @TableField("date")
     private LocalDateTime date;

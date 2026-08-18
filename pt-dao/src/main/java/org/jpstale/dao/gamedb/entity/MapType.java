@@ -12,7 +12,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "map_type")
+@TableName(schema = "gamedb", value = "maptype")
 public class MapType {
 
     @TableId(value = "id")

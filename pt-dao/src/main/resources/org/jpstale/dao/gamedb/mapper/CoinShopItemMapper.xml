@@ -4,7 +4,7 @@
 
     <!-- C++ CoinShopHandler.cpp:148 -->
     <select id="selectByTabIdAndDisabled0" resultType="org.jpstale.dao.gamedb.entity.CoinShopItem">
-        SELECT id, name, description, code, image, value, discount, bulk, max_bulk, is_spec, is_quantity FROM gamedb.coin_shop_item WHERE tab_id = #{tabId} AND disabled = 0 ORDER BY list_order ASC
+        SELECT id, name, description, code, image, value, discount, bulk, max_bulk, is_spec, is_quantity FROM gamedb.coinshopitem WHERE tab_id = #{tabId} AND disabled = 0 ORDER BY list_order ASC
     </select>
 
 </mapper>

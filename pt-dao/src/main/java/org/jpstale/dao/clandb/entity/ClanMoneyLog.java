@@ -15,26 +15,26 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_money_log")
+@TableName(schema = "clandb", value = "clanmoneylog")
 public class ClanMoneyLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("cidx")
     private Integer cidx;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("ch_name")
+    @TableField("chname")
     private String chName;
-    @TableField("server_name")
+    @TableField("servername")
     private String serverName;
     @TableField("operator")
     private String operator;
-    @TableField("oper_code")
+    @TableField("opercode")
     private String operCode;
-    @TableField("clan_money")
+    @TableField("clanmoney")
     private Long clanMoney;
-    @TableField("regist_day")
+    @TableField("registday")
     private LocalDateTime registDay;
     @TableField("note")
     private String note;

@@ -15,32 +15,32 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_sub_view")
+@TableName(schema = "clandb", value = "clansubview")
 public class ClanSubView {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("midx")
     private Integer midx;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("ch_name")
+    @TableField("chname")
     private String chName;
-    @TableField("ch_type")
+    @TableField("chtype")
     private Integer chType;
-    @TableField("ch_lv")
+    @TableField("chlv")
     private Integer chLv;
-    @TableField("clan_name")
+    @TableField("clanname")
     private String clanName;
     @TableField("permi")
     private String permi;
-    @TableField("join_date")
+    @TableField("joindate")
     private LocalDateTime joinDate;
-    @TableField("del_active")
+    @TableField("delactive")
     private String delActive;
-    @TableField("p_flag")
+    @TableField("pflag")
     private Integer pFlag;
-    @TableField("k_flag")
+    @TableField("kflag")
     private Integer kFlag;
     @TableField("server")
     private String server;

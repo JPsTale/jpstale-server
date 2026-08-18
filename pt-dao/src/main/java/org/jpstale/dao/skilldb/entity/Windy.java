@@ -22,16 +22,16 @@ public class Windy {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("attack_rating_boost")
+    @TableField("attackratingboost")
     private Integer attackRatingBoost;
-    @TableField("added_range")
+    @TableField("addedrange")
     private Integer addedRange;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

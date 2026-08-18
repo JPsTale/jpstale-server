@@ -14,17 +14,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "mimic_spawn")
+@TableName(schema = "gamedb", value = "mimicspawn")
 public class MimicSpawn {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("map_id")
+    @TableField("mapid")
     private Integer mapId;
-    @TableField("mimic_name")
+    @TableField("mimicname")
     private Integer mimicName;
-    @TableField("spawn_chance")
+    @TableField("spawnchance")
     private Integer spawnChance;
-    @TableField("min_delay_between_spawn")
+    @TableField("mindelaybetweenspawn")
     private Integer minDelayBetweenSpawn;
 }

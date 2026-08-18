@@ -17,15 +17,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "boost_health")
+@TableName(schema = "skilldb", value = "boosthealth")
 public class BoostHealth {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_hp")
+    @TableField("addedhp")
     private Integer addedHp;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

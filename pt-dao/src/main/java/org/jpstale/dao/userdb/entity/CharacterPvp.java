@@ -16,19 +16,19 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "character_pvp")
+@TableName(schema = "userdb", value = "characterpvp")
 public class CharacterPvp {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
     @TableField("kills")
     private Integer kills;
     @TableField("deaths")
     private Integer deaths;
-    @TableField("kill_streak")
+    @TableField("killstreak")
     private Integer killStreak;
-    @TableField("top_pvp")
+    @TableField("toppvp")
     private Integer topPvp;
 }

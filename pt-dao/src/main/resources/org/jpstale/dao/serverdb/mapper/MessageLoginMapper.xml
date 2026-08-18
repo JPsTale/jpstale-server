@@ -4,7 +4,7 @@
 
     <!-- C++ userserver.cpp:2653 -->
     <select id="selectMessage" resultType="org.jpstale.dao.serverdb.entity.MessageLogin">
-        SELECT * FROM serverdb.message_login
+        SELECT * FROM serverdb.messagelogin
     </select>
 
 </mapper>

@@ -4,7 +4,7 @@
 
     <!-- C++ CoinShopHandler.cpp:23 -->
     <insert id="insertCoinLog" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.coin_log (account_name, description, date) VALUES (#{accountName}, #{description}, CURRENT_TIMESTAMP)
+        INSERT INTO logdb.coinlog (account_name, description, date) VALUES (#{accountName}, #{description}, CURRENT_TIMESTAMP)
     </insert>
 
 </mapper>

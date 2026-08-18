@@ -4,7 +4,7 @@
 
     <!-- C++ itemserver.cpp -->
     <select id="selectByAgeNumber" resultType="org.jpstale.dao.gamedb.entity.AgeList">
-        SELECT * FROM gamedb.age_list WHERE age_number = #{ageNumber}
+        SELECT * FROM gamedb.agelist WHERE age_number = #{ageNumber}
     </select>
 
 </mapper>

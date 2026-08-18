@@ -15,34 +15,34 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_ticket")
+@TableName(schema = "clandb", value = "clanticket")
 public class ClanTicket {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("s_no")
+    @TableField("sno")
     private Integer sNo;
-    @TableField("server_name")
+    @TableField("servername")
     private String serverName;
     @TableField("midx")
     private Integer midx;
-    @TableField("clan_name")
+    @TableField("clanname")
     private String clanName;
-    @TableField("clan_jang")
+    @TableField("clanjang")
     private Integer clanJang;
-    @TableField("clan_image")
+    @TableField("clanimage")
     private String clanImage;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("ch_name")
+    @TableField("chname")
     private String chName;
-    @TableField("gp_code")
+    @TableField("gpcode")
     private String gpCode;
-    @TableField("logon_time")
+    @TableField("logontime")
     private LocalDateTime logonTime;
     @TableField("ip")
     private String ip;
-    @TableField("r_no")
+    @TableField("rno")
     private Integer rNo;
     @TableField("flag")
     private Integer flag;

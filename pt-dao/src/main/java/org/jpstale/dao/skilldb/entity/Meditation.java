@@ -22,10 +22,10 @@ public class Meditation {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_mprecovery")
+    @TableField("addedmprecovery")
     private Integer addedMprecovery;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

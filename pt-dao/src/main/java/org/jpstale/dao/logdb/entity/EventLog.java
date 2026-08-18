@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "event_log")
+@TableName(schema = "logdb", value = "eventlog")
 public class EventLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
-    @TableField("event_type")
+    @TableField("eventtype")
     private Integer eventType;
     @TableField("value1")
     private Integer value1;

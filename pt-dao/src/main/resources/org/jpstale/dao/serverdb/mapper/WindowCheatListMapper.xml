@@ -4,7 +4,7 @@
 
     <!-- C++ cheatserver.cpp:87 -->
     <select id="selectTop50OrderByIdDesc" resultType="org.jpstale.dao.serverdb.entity.WindowCheatList">
-        SELECT * FROM serverdb.window_cheat_list ORDER BY id DESC LIMIT 50
+        SELECT * FROM serverdb.windowcheatlist ORDER BY id DESC LIMIT 50
     </select>
 
 </mapper>

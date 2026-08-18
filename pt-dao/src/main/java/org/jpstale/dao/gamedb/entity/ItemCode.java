@@ -13,7 +13,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_code")
+@TableName(schema = "gamedb", value = "itemcode")
 public class ItemCode {
 
     @TableId("code")

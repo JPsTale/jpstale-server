@@ -15,17 +15,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "pr_bbs_file")
+@TableName(schema = "clandb", value = "prbbsfile")
 public class PrBbsFile {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("mindex")
     private Integer mindex;
-    @TableField("file_name")
+    @TableField("filename")
     private String fileName;
-    @TableField("file_size")
+    @TableField("filesize")
     private String fileSize;
-    @TableField("regi_date")
+    @TableField("regidate")
     private LocalDateTime regiDate;
 }

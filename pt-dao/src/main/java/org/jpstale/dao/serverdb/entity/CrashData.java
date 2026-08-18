@@ -17,12 +17,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "crash_data")
+@TableName(schema = "serverdb", value = "crashdata")
 public class CrashData {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("ip")
     private String ip;
@@ -52,6 +52,6 @@ public class CrashData {
     private Integer edi;
     @TableField("eip")
     private Integer eip;
-    @TableField("date_received")
+    @TableField("datereceived")
     private LocalDateTime dateReceived;
 }

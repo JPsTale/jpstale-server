@@ -14,12 +14,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "map_boss_hour")
+@TableName(schema = "gamedb", value = "mapbosshour")
 public class MapBossHour {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("boss_id")
+    @TableField("bossid")
     private Integer bossId;
     @TableField("hour")
     private Integer hour;

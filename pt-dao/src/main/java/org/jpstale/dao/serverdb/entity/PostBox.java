@@ -16,15 +16,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "post_box")
+@TableName(schema = "serverdb", value = "postbox")
 public class PostBox {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("item")
     private String item;
-    @TableField("spec_or_count")
+    @TableField("specorcount")
     private Integer specOrCount;
 }

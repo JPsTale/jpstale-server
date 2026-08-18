@@ -16,48 +16,48 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "itemdb", value = "item_dump")
+@TableName(schema = "itemdb", value = "itemdump")
 public class ItemDump {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("char_name")
+    @TableField("charname")
     private String charName;
-    @TableField("item_name")
+    @TableField("itemname")
     private String itemName;
-    @TableField("item_level")
+    @TableField("itemlevel")
     private Integer itemLevel;
-    @TableField("item_id")
+    @TableField("itemid")
     private Integer itemId;
-    @TableField("item_type_id")
+    @TableField("itemtypeid")
     private Integer itemTypeId;
-    @TableField("item_base_id")
+    @TableField("itembaseid")
     private Integer itemBaseId;
-    @TableField("item_header")
+    @TableField("itemheader")
     private Integer itemHeader;
-    @TableField("item_checksum")
+    @TableField("itemchecksum")
     private Integer itemChecksum;
-    @TableField("item_backup_header")
+    @TableField("itembackupheader")
     private Integer itemBackupHeader;
-    @TableField("item_backup_checksum")
+    @TableField("itembackupchecksum")
     private Integer itemBackupChecksum;
-    @TableField("mix_effect")
+    @TableField("mixeffect")
     private Integer mixEffect;
-    @TableField("mix_id")
+    @TableField("mixid")
     private Integer mixId;
-    @TableField("age_level")
+    @TableField("agelevel")
     private Integer ageLevel;
-    @TableField("attack_range")
+    @TableField("attackrange")
     private Integer attackRange;
-    @TableField("attack_speed")
+    @TableField("attackspeed")
     private Integer attackSpeed;
-    @TableField("attack_rating")
+    @TableField("attackrating")
     private Integer attackRating;
-    @TableField("atk_pow_min")
+    @TableField("atkpowmin")
     private Short atkPowMin;
-    @TableField("atk_pow_max")
+    @TableField("atkpowmax")
     private Short atkPowMax;
     @TableField("critical")
     private Integer critical;
@@ -77,54 +77,54 @@ public class ItemDump {
     private Short lighting;
     @TableField("poison")
     private Short poison;
-    @TableField("strength_req")
+    @TableField("strengthreq")
     private Integer strengthReq;
-    @TableField("spirit_req")
+    @TableField("spiritreq")
     private Integer spiritReq;
-    @TableField("talent_req")
+    @TableField("talentreq")
     private Integer talentReq;
-    @TableField("agility_req")
+    @TableField("agilityreq")
     private Integer agilityReq;
-    @TableField("health_req")
+    @TableField("healthreq")
     private Integer healthReq;
-    @TableField("mp_regen")
+    @TableField("mpregen")
     private Double mpRegen;
-    @TableField("hp_regen")
+    @TableField("hpregen")
     private Double hpRegen;
-    @TableField("sp_regen")
+    @TableField("spregen")
     private Double spRegen;
-    @TableField("add_hp")
+    @TableField("addhp")
     private Double addHp;
-    @TableField("add_mp")
+    @TableField("addmp")
     private Double addMp;
-    @TableField("add_sp")
+    @TableField("addsp")
     private Double addSp;
-    @TableField("item_spec")
+    @TableField("itemspec")
     private Integer itemSpec;
-    @TableField("spec_absorb")
+    @TableField("specabsorb")
     private Double specAbsorb;
-    @TableField("spec_def")
+    @TableField("specdef")
     private Integer specDef;
-    @TableField("spec_block_rating")
+    @TableField("specblockrating")
     private Double specBlockRating;
-    @TableField("spec_attack_speed")
+    @TableField("specattackspeed")
     private Integer specAttackSpeed;
-    @TableField("spec_critical")
+    @TableField("speccritical")
     private Integer specCritical;
-    @TableField("spec_attack_rating_div")
+    @TableField("specattackratingdiv")
     private Short specAttackRatingDiv;
-    @TableField("spec_attack_power_div")
+    @TableField("specattackpowerdiv")
     private Short specAttackPowerDiv;
-    @TableField("spec_mp_regen")
+    @TableField("specmpregen")
     private Double specMpRegen;
-    @TableField("spec_hp_regen")
+    @TableField("spechpregen")
     private Double specHpRegen;
-    @TableField("spec_sp_regen")
+    @TableField("specspregen")
     private Double specSpRegen;
-    @TableField("item_unique_id")
+    @TableField("itemuniqueid")
     private Integer itemUniqueId;
-    @TableField("sale_price")
+    @TableField("saleprice")
     private Integer salePrice;
-    @TableField("created_date")
+    @TableField("createddate")
     private Integer createdDate;
 }

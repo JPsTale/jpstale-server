@@ -15,24 +15,24 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_fixes")
+@TableName(schema = "gamedb", value = "itemfixes")
 public class ItemFixes {
 
     @TableId("id")
     private Integer id;
     @TableField("name")
     private String name;
-    @TableField("min_level")
+    @TableField("minlevel")
     private Integer minLevel;
-    @TableField("max_level")
+    @TableField("maxlevel")
     private Integer maxLevel;
-    @TableField("min_rarity")
+    @TableField("minrarity")
     private Integer minRarity;
-    @TableField("max_rarity")
+    @TableField("maxrarity")
     private Integer maxRarity;
-    @TableField("is_prefix")
+    @TableField("isprefix")
     private Integer isPrefix;
-    @TableField("is_suffix")
+    @TableField("issuffix")
     private Integer isSuffix;
     @TableField("chance")
     private Integer chance;
@@ -74,72 +74,72 @@ public class ItemFixes {
     private Integer shields;
     @TableField("orbs")
     private Integer orbs;
-    @TableField("organic_min")
+    @TableField("organicmin")
     private Integer organicMin;
-    @TableField("organic_max")
+    @TableField("organicmax")
     private Integer organicMax;
-    @TableField("fire_min")
+    @TableField("firemin")
     private Integer fireMin;
-    @TableField("fire_max")
+    @TableField("firemax")
     private Integer fireMax;
-    @TableField("frost_min")
+    @TableField("frostmin")
     private Integer frostMin;
-    @TableField("frost_max")
+    @TableField("frostmax")
     private Integer frostMax;
-    @TableField("lightning_min")
+    @TableField("lightningmin")
     private Integer lightningMin;
-    @TableField("lightning_max")
+    @TableField("lightningmax")
     private Integer lightningMax;
-    @TableField("poison_min")
+    @TableField("poisonmin")
     private Integer poisonMin;
-    @TableField("poison_max")
+    @TableField("poisonmax")
     private Integer poisonMax;
-    @TableField("atk_pow_min")
+    @TableField("atkpowmin")
     private Integer atkPowMin;
-    @TableField("atk_pow_max")
+    @TableField("atkpowmax")
     private Integer atkPowMax;
-    @TableField("range_min")
+    @TableField("rangemin")
     private Integer rangeMin;
-    @TableField("range_max")
+    @TableField("rangemax")
     private Integer rangeMax;
-    @TableField("atk_rating_min")
+    @TableField("atkratingmin")
     private Integer atkRatingMin;
-    @TableField("atk_rating_max")
+    @TableField("atkratingmax")
     private Integer atkRatingMax;
-    @TableField("critical_min")
+    @TableField("criticalmin")
     private Double criticalMin;
-    @TableField("critical_max")
+    @TableField("criticalmax")
     private Double criticalMax;
-    @TableField("block_min")
+    @TableField("blockmin")
     private Double blockMin;
-    @TableField("block_max")
+    @TableField("blockmax")
     private Double blockMax;
-    @TableField("absorb_min")
+    @TableField("absorbmin")
     private Double absorbMin;
-    @TableField("absorb_max")
+    @TableField("absorbmax")
     private Double absorbMax;
-    @TableField("defense_min")
+    @TableField("defensemin")
     private Integer defenseMin;
-    @TableField("defense_max")
+    @TableField("defensemax")
     private Integer defenseMax;
-    @TableField("regeneration_hp_min")
+    @TableField("regenerationhpmin")
     private Double regenerationHpMin;
-    @TableField("regeneration_hp_max")
+    @TableField("regenerationhpmax")
     private Double regenerationHpMax;
-    @TableField("regeneration_mp_min")
+    @TableField("regenerationmpmin")
     private Double regenerationMpMin;
-    @TableField("regeneration_mp_max")
+    @TableField("regenerationmpmax")
     private Double regenerationMpMax;
-    @TableField("add_hp_min")
+    @TableField("addhpmin")
     private Integer addHpMin;
-    @TableField("add_hp_max")
+    @TableField("addhpmax")
     private Integer addHpMax;
-    @TableField("add_mp_min")
+    @TableField("addmpmin")
     private Integer addMpMin;
-    @TableField("add_mp_max")
+    @TableField("addmpmax")
     private Integer addMpMax;
-    @TableField("run_speed_min")
+    @TableField("runspeedmin")
     private Double runSpeedMin;
-    @TableField("run_speed_max")
+    @TableField("runspeedmax")
     private Double runSpeedMax;
 }

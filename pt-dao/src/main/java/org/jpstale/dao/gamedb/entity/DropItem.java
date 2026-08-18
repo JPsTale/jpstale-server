@@ -16,19 +16,19 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "drop_item")
+@TableName(schema = "gamedb", value = "dropitem")
 public class DropItem {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("drop_id")
+    @TableField("dropid")
     private Integer dropId;
     @TableField("items")
     private String items;
     @TableField("chance")
     private Integer chance;
-    @TableField("gold_min")
+    @TableField("goldmin")
     private Integer goldMin;
-    @TableField("gold_max")
+    @TableField("goldmax")
     private Integer goldMax;
 }

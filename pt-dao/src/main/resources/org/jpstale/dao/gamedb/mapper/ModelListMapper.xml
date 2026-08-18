@@ -4,22 +4,22 @@
 
     <!-- C++ unitinfo.cpp -->
     <select id="selectIdByModel" resultType="java.lang.Integer">
-        SELECT id FROM gamedb.model_list WHERE model = #{model}
+        SELECT id FROM gamedb.modellist WHERE model = #{model}
     </select>
     <select id="selectDeathModelIdByModel" resultType="java.lang.Integer">
-        SELECT death_model_id FROM gamedb.model_list WHERE model = #{model}
+        SELECT death_model_id FROM gamedb.modellist WHERE model = #{model}
     </select>
     <select id="selectWidthHeightById" resultType="org.jpstale.dao.gamedb.entity.ModelList">
-        SELECT width, height FROM gamedb.model_list WHERE id = #{id}
+        SELECT width, height FROM gamedb.modellist WHERE id = #{id}
     </select>
     <select id="selectModelById" resultType="java.lang.String">
-        SELECT model FROM gamedb.model_list WHERE id = #{id}
+        SELECT model FROM gamedb.modellist WHERE id = #{id}
     </select>
     <insert id="insertModelList" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO gamedb.model_list (model, width, height, death_model_id) VALUES (#{model}, #{width}, #{height}, #{deathModelId})
+        INSERT INTO gamedb.modellist (model, width, height, death_model_id) VALUES (#{model}, #{width}, #{height}, #{deathModelId})
     </insert>
     <select id="selectTop1IdOrderByIdDesc" resultType="java.lang.Integer">
-        SELECT id FROM gamedb.model_list ORDER BY id DESC LIMIT 1
+        SELECT id FROM gamedb.modellist ORDER BY id DESC LIMIT 1
     </select>
 
 </mapper>

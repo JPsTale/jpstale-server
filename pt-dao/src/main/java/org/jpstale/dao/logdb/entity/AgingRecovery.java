@@ -17,25 +17,25 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "aging_recovery")
+@TableName(schema = "logdb", value = "agingrecovery")
 public class AgingRecovery {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
     @TableField("date")
     private LocalDateTime date;
-    @TableField("item_name")
+    @TableField("itemname")
     private String itemName;
-    @TableField("age_number")
+    @TableField("agenumber")
     private Integer ageNumber;
     @TableField("code1")
     private Integer code1;
     @TableField("code2")
     private Integer code2;
-    @TableField("date_recovered")
+    @TableField("daterecovered")
     private LocalDateTime dateRecovered;
 }

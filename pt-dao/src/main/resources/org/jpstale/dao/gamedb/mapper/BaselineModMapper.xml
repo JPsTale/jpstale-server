@@ -4,7 +4,7 @@
 
     <!-- C++ itemserver.cpp:4398 -->
     <select id="selectClassAndPercentBaseline" resultType="org.jpstale.dao.gamedb.entity.BaselineMod">
-        SELECT clazz, percent_baseline_strength, percent_baseline_spirit, percent_baseline_talent, percent_baseline_agility, percent_baseline_health FROM gamedb.baseline_mod
+        SELECT clazz, percent_baseline_strength, percent_baseline_spirit, percent_baseline_talent, percent_baseline_agility, percent_baseline_health FROM gamedb.baselinemod
     </select>
 
 </mapper>

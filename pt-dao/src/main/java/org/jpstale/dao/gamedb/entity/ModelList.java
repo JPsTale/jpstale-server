@@ -16,7 +16,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "model_list")
+@TableName(schema = "gamedb", value = "modellist")
 public class ModelList {
 
     @TableId(value = "id", type = IdType.AUTO)
@@ -27,6 +27,6 @@ public class ModelList {
     private Integer width;
     @TableField("height")
     private Integer height;
-    @TableField("death_model_id")
+    @TableField("deathmodelid")
     private Integer deathModelId;
 }

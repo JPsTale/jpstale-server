@@ -17,15 +17,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "character_title_list")
+@TableName(schema = "userdb", value = "charactertitlelist")
 public class CharacterTitleList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
-    @TableField("title_id")
+    @TableField("titleid")
     private Integer titleId;
-    @TableField("date_acquired")
+    @TableField("dateacquired")
     private LocalDateTime dateAcquired;
 }

@@ -17,24 +17,24 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "bellatra_personal_score_new")
+@TableName(schema = "clandb", value = "bellatrapersonalscorenew")
 public class BellatraPersonalScoreNew {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
-    @TableField("character_class")
+    @TableField("characterclass")
     private Integer characterClass;
-    @TableField("character_level")
+    @TableField("characterlevel")
     private Integer characterLevel;
     @TableField("kills")
     private Integer kills;
     @TableField("score")
     private Integer score;
-    @TableField("unix_time")
+    @TableField("unixtime")
     private Integer unixTime;
     @TableField("date")
     private LocalDateTime date;

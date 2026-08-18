@@ -22,18 +22,18 @@ public class Avalanche {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_atk_spd")
+    @TableField("addedatkspd")
     private Integer addedAtkSpd;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
-    @TableField("numberof_arrows")
+    @TableField("numberofarrows")
     private Integer numberofArrows;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

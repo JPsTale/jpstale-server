@@ -17,18 +17,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "magnetic_sphere")
+@TableName(schema = "skilldb", value = "magneticsphere")
 public class MagneticSphere {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("sphere_dmg")
+    @TableField("spheredmg")
     private Integer sphereDmg;
     @TableField("range")
     private Integer range;
-    @TableField("attack_interval")
+    @TableField("attackinterval")
     private Integer attackInterval;
     @TableField("duration")
     private Integer duration;
@@ -36,6 +36,6 @@ public class MagneticSphere {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

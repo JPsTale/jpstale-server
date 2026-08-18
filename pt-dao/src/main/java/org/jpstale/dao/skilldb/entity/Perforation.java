@@ -22,13 +22,13 @@ public class Perforation {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_atk_range")
+    @TableField("addedatkrange")
     private Integer addedAtkRange;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
-    @TableField("added_critical")
+    @TableField("addedcritical")
     private Integer addedCritical;
     @TableField("area")
     private Integer area;
@@ -36,6 +36,6 @@ public class Perforation {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

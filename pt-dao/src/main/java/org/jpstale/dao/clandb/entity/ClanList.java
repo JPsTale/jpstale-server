@@ -16,41 +16,41 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_list")
+@TableName(schema = "clandb", value = "clanlist")
 public class ClanList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("clan_name")
+    @TableField("clanname")
     private String clanName;
-    @TableField("clan_leader")
+    @TableField("clanleader")
     private String clanLeader;
     @TableField("note")
     private String note;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("members_count")
+    @TableField("memberscount")
     private Integer membersCount;
-    @TableField("icon_id")
+    @TableField("iconid")
     private Integer iconId;
-    @TableField("regis_date")
+    @TableField("regisdate")
     private Integer regisDate;
-    @TableField("limit_date")
+    @TableField("limitdate")
     private Integer limitDate;
-    @TableField("delete_active")
+    @TableField("deleteactive")
     private Integer deleteActive;
     @TableField("flag")
     private Integer flag;
-    @TableField("siege_war_points")
+    @TableField("siegewarpoints")
     private Integer siegeWarPoints;
-    @TableField("bellatra_points")
+    @TableField("bellatrapoints")
     private Integer bellatraPoints;
-    @TableField("siege_war_gold")
+    @TableField("siegewargold")
     private Integer siegeWarGold;
-    @TableField("bellatra_gold")
+    @TableField("bellatragold")
     private Integer bellatraGold;
-    @TableField("bellatra_date")
+    @TableField("bellatradate")
     private Long bellatraDate;
-    @TableField("login_message")
+    @TableField("loginmessage")
     private String loginMessage;
 }

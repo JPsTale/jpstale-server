@@ -15,27 +15,27 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "siege_clan_list")
+@TableName(schema = "clandb", value = "siegeclanlist")
 public class SiegeClanList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("char_name")
+    @TableField("charname")
     private String charName;
-    @TableField("clan_name")
+    @TableField("clanname")
     private String clanName;
-    @TableField("tax_rate")
+    @TableField("taxrate")
     private Integer taxRate;
-    @TableField("server_name")
+    @TableField("servername")
     private String serverName;
     @TableField("server")
     private Integer server;
-    @TableField("oper_from")
+    @TableField("operfrom")
     private LocalDateTime operFrom;
-    @TableField("oper_to")
+    @TableField("operto")
     private LocalDateTime operTo;
-    @TableField("regist_day")
+    @TableField("registday")
     private LocalDateTime registDay;
 }

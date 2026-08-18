@@ -17,12 +17,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "holy_reflection")
+@TableName(schema = "skilldb", value = "holyreflection")
 public class HolyReflection {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
     @TableField("reflect")
     private Integer reflect;
@@ -32,6 +32,6 @@ public class HolyReflection {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

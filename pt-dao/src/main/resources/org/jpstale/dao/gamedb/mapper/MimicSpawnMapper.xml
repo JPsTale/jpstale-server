@@ -4,7 +4,7 @@
 
     <!-- C++ eventserver.cpp:119 -->
     <select id="selectMapIdMimicNameSpawnChanceMinDelay" resultType="org.jpstale.dao.gamedb.entity.MimicSpawn">
-        SELECT map_id, mimic_name, spawn_chance, min_delay_between_spawn FROM gamedb.mimic_spawn
+        SELECT map_id, mimic_name, spawn_chance, min_delay_between_spawn FROM gamedb.mimicspawn
     </select>
 
 </mapper>

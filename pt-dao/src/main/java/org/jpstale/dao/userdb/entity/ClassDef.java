@@ -15,11 +15,11 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "class_def")
+@TableName(schema = "userdb", value = "classdef")
 public class ClassDef {
 
     @TableId("class_id")
     private Integer classId;
-    @TableField("class_name")
+    @TableField("classname")
     private String className;
 }

@@ -22,9 +22,9 @@ public class Wisp {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("reduce_attack_power")
+    @TableField("reduceattackpower")
     private Integer reduceAttackPower;
     @TableField("range")
     private Integer range;
@@ -32,6 +32,6 @@ public class Wisp {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

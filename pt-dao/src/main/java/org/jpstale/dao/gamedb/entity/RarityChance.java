@@ -14,12 +14,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "rarity_chance")
+@TableName(schema = "gamedb", value = "raritychance")
 public class RarityChance {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("rarity_chance_group")
+    @TableField("raritychancegroup")
     private Integer rarityChanceGroup;
     @TableField("rarity")
     private Integer rarity;

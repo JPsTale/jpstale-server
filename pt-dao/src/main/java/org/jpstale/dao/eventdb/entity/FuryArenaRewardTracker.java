@@ -16,13 +16,13 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "eventdb", value = "fury_arena_reward_tracker")
+@TableName(schema = "eventdb", value = "furyarenarewardtracker")
 public class FuryArenaRewardTracker {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("fury_event_id")
+    @TableField("furyeventid")
     private Integer furyEventId;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
 }

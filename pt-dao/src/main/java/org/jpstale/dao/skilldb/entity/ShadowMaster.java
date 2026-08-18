@@ -17,21 +17,21 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "shadow_master")
+@TableName(schema = "skilldb", value = "shadowmaster")
 public class ShadowMaster {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
-    @TableField("numberof_hits")
+    @TableField("numberofhits")
     private Integer numberofHits;
-    @TableField("mp_usage")
+    @TableField("mpusage")
     private Integer mpUsage;
-    @TableField("stm_usage")
+    @TableField("stmusage")
     private Integer stmUsage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

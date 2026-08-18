@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "glacial_spike")
+@TableName(schema = "skilldb", value = "glacialspike")
 public class GlacialSpike {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_min")
+    @TableField("damagemin")
     private Integer damageMin;
-    @TableField("damage_max")
+    @TableField("damagemax")
     private Integer damageMax;
     @TableField("area")
     private Integer area;
@@ -36,6 +36,6 @@ public class GlacialSpike {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -16,17 +16,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "quest_window_list")
+@TableName(schema = "gamedb", value = "questwindowlist")
 public class QuestWindowList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("npc_id")
+    @TableField("npcid")
     private Integer npcId;
-    @TableField("quest_list_id")
+    @TableField("questlistid")
     private String questListId;
-    @TableField("main_image")
+    @TableField("mainimage")
     private String mainImage;
-    @TableField("main_text")
+    @TableField("maintext")
     private String mainText;
 }

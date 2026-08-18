@@ -15,25 +15,25 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "siege_current_list")
+@TableName(schema = "clandb", value = "siegecurrentlist")
 public class SiegeCurrentList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("cidx")
     private Integer cidx;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("ch_name")
+    @TableField("chname")
     private String chName;
-    @TableField("server_name")
+    @TableField("servername")
     private String serverName;
     @TableField("operator")
     private String operator;
-    @TableField("oper_code")
+    @TableField("opercode")
     private String operCode;
-    @TableField("siege_money")
+    @TableField("siegemoney")
     private Long siegeMoney;
-    @TableField("regist_day")
+    @TableField("registday")
     private LocalDateTime registDay;
 }

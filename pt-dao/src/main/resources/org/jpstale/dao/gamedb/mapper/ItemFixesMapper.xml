@@ -9,7 +9,7 @@
                organic_min, organic_max, fire_min, fire_max, frost_min, frost_max, lightning_mix, lightning_max, poison_min, poison_max,
                atk_pow_min, atk_pow_max, range_min, range_max, atk_rating_min, atk_rating_max, critical_min, critical_max, block_min, block_max, absorb_min, absorb_max, defense_min, defense_max,
                regeneration_hp_min, regeneration_hp_max, regeneration_mp_min, regeneration_mp_max, add_hp_min, add_hp_max, add_mp_min, add_mp_max, run_speed_min, run_speed_max
-        FROM gamedb.item_fixes
+        FROM gamedb.itemfixes
     </select>
 
 </mapper>

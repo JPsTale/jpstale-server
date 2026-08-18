@@ -4,15 +4,15 @@
 
     <!-- C++ bellatraserver -->
     <delete id="deleteAll">
-        DELETE FROM clandb.bellatra_team_score
+        DELETE FROM clandb.bellatrateamscore
     </delete>
     <insert id="insertBellatraTeamScore" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO clandb.bellatra_team_score (account_name, character_name, job_code, level, clan_code, score, kills, total_point, total_user, success_user, code, date)
+        INSERT INTO clandb.bellatrateamscore (account_name, character_name, job_code, level, clan_code, score, kills, total_point, total_user, success_user, code, date)
         VALUES (#{accountName}, #{characterName}, #{jobCode}, #{level}, #{clanCode}, #{score}, #{kills}, #{totalPoint}, #{totalUser}, #{successUser}, #{code}, #{date})
     </insert>
     <!-- characterserver:335 - rename -->
     <update id="updateCharacterNameByCharacterName">
-        UPDATE clandb.bellatra_team_score SET character_name = #{newName} WHERE character_name = #{oldName}
+        UPDATE clandb.bellatrateamscore SET character_name = #{newName} WHERE character_name = #{oldName}
     </update>
 
 </mapper>

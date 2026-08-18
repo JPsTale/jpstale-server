@@ -14,12 +14,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "npc_message")
+@TableName(schema = "gamedb", value = "npcmessage")
 public class NpcMessage {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("npc_id")
+    @TableField("npcid")
     private Integer npcId;
     @TableField("message")
     private String message;

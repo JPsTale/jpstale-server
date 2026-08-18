@@ -2,9 +2,10 @@ package org.jpstale.server.game.network;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.ChannelHandler.Sharable;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.game.validation.ValidationInterceptor;
-import org.jpstale.server.game.validation.ValidationResult;
+import org.jpstale.server.game.common.ValidationInterceptor;
+import org.jpstale.server.game.common.ValidationResult;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@Sharable
 public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProto.ClientMessage> {
 
     @Autowired
@@ -50,7 +52,7 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
         }
 
         // 路由消息到对应的处理器
-        packetRouter.route(ctx.channel(), msg);
+        packetRouter.route(session, msg);
     }
 
     @Override

@@ -5,6 +5,11 @@ import org.jpstale.dao.userdb.entity.CharacterInfo;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
+import org.jpstale.server.game.network.GamePacketHandler;
+import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.proto.base.CommonProto;
+import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +18,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 账号服务
@@ -141,5 +147,247 @@ public class AccountService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("MD5 algorithm not found", e);
         }
+    }
+
+    // ======== 报文入口（方案1：handler 并入 service） ========
+
+    @Autowired
+    private SessionManager sessionManager;
+
+    /**
+     * 报文入口：登录
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.LOGIN_REQUEST_FIELD_NUMBER)
+    public void handleLogin(PlayerSession session, MessageProto.ClientMessage message) {
+        MessageProto.C2S_LoginRequest request = message.getLoginRequest();
+
+        if (session == null) {
+            log.error("No session for login request");
+            return;
+        }
+
+        // 检查是否已登录
+        if (session.isLoggedIn()) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.ALREADY_LOGIN, "Already logged in"));
+            return;
+        }
+
+        String username = request.getUsername();
+        String password = request.getPassword();
+
+        log.info("Login attempt from account: {}", username);
+
+        // 查找账号
+        UserInfo user = findByUsername(username);
+        if (user == null) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.INVALID_PASSWORD, "Invalid credentials"));
+            return;
+        }
+
+        // 验证密码
+        if (!verifyPassword(user, password)) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.INVALID_PASSWORD, "Invalid credentials"));
+            return;
+        }
+
+        // 检查封禁
+        if (isBanned(user.getId())) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.ACCOUNT_BANNED, "Account is banned"));
+            return;
+        }
+
+        // 检查是否已在线（顶号）
+        PlayerSession existingSession = sessionManager.getSessionByAccountId(user.getId().longValue());
+        if (existingSession != null && existingSession != session) {
+            existingSession.send(MessageProto.ServerMessage.newBuilder()
+                .setDisconnect(MessageProto.S2C_Disconnect.newBuilder()
+                    .setReason("Account logged in from another location")
+                    .build())
+                .build());
+            existingSession.close();
+        }
+
+        // 绑定账号
+        session.setAccountId(user.getId().longValue());
+        session.setLoggedIn(true);
+        sessionManager.bindAccountId(session.getChannel(), user.getId().longValue());
+
+        // 获取角色列表
+        List<CharacterInfo> characters = getCharacters(username);
+
+        // 发送登录成功 + 角色列表
+        MessageProto.S2C_LoginResponse.Builder responseBuilder = MessageProto.S2C_LoginResponse.newBuilder()
+            .setSuccess(true)
+            .setAccountId(user.getId());
+
+        MessageProto.S2C_CharacterList.Builder characterListBuilder = MessageProto.S2C_CharacterList.newBuilder();
+        for (CharacterInfo character : characters) {
+            characterListBuilder.addCharacters(MessageProto.CharacterInfo.newBuilder()
+                .setCharacterId(character.getId())
+                .setName(character.getName())
+                .setClassId(character.getJobCode() != null ? character.getJobCode() : 0)
+                .setLevel(character.getLevel() != null ? character.getLevel() : 1)
+                .setMapId(character.getLastStage() != null ? character.getLastStage() : 1)
+                .setGold(character.getGold() != null ? character.getGold() : 0)
+                .build());
+        }
+
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setLoginResponse(responseBuilder.build())
+            .build());
+
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setCharacterList(characterListBuilder.build())
+            .build());
+
+        log.info("Login successful for account: {}, characters: {}", username, characters.size());
+    }
+
+    /**
+     * 报文入口：创建角色
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.CREATE_CHARACTER_FIELD_NUMBER)
+    public void handleCreateCharacter(PlayerSession session, MessageProto.ClientMessage message) {
+        MessageProto.C2S_CreateCharacter request = message.getCreateCharacter();
+
+        if (session == null || !session.isLoggedIn()) {
+            return;
+        }
+
+        String name = request.getName();
+        int classId = request.getClassId();
+
+        // 验证角色名称
+        if (name == null || !NAME_PATTERN.matcher(name).matches()) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.INVALID_NAME, "Invalid character name"));
+            return;
+        }
+
+        // 检查名称是否已存在
+        if (isCharacterNameExists(name)) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.NAME_EXISTS, "Character name already exists"));
+            return;
+        }
+
+        // 检查角色数量限制
+        String accountName = getAccountName(session);
+        long characterCount = getCharacterCount(accountName);
+        if (characterCount >= MAX_CHARACTERS) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.CHARACTER_LIMIT, "Character limit reached"));
+            return;
+        }
+
+        // 创建角色
+        CharacterInfo character = createCharacter(accountName, name, classId);
+
+        // 发送创建成功
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setCreateCharacterResult(MessageProto.S2C_CreateCharacterResult.newBuilder()
+                .setSuccess(true)
+                .setCharacterId(character.getId())
+                .build())
+            .build());
+
+        log.info("Character created: {} for account: {}", name, accountName);
+    }
+
+    /**
+     * 报文入口：选择角色
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.SELECT_CHARACTER_FIELD_NUMBER)
+    public void handleSelectCharacter(PlayerSession session, MessageProto.ClientMessage message) {
+        MessageProto.C2S_SelectCharacter request = message.getSelectCharacter();
+
+        if (session == null || !session.isLoggedIn()) {
+            return;
+        }
+
+        long characterId = request.getCharacterId();
+
+        // 获取账号名
+        String accountName = getAccountName(session);
+        if (accountName == null) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.NOT_LOGIN, "Not logged in"));
+            return;
+        }
+
+        // 验证角色归属
+        if (!isCharacterOwned(accountName, (int) characterId)) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.CHARACTER_NOT_FOUND, "Character not found"));
+            return;
+        }
+
+        // 获取角色信息
+        CharacterInfo character = getCharacterById((int) characterId);
+        if (character == null) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.CHARACTER_NOT_FOUND, "Character not found"));
+            return;
+        }
+
+        // 绑定角色到 Session
+        session.setCharacterId(characterId);
+        session.setCharacterName(character.getName());
+        session.setPlaying(true);
+        sessionManager.bindCharacterId(session.getChannel(), characterId, character.getName());
+
+        // 发送角色状态
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setPlayerState(MessageProto.S2C_PlayerState.newBuilder()
+                .setPlayerId(characterId)
+                .setMapId(character.getLastStage() != null ? character.getLastStage() : 1)
+                .setHp(100) // 默认HP
+                .setMp(50)  // 默认MP
+                .setMaxHp(100)
+                .setMaxMp(50)
+                .setLevel(character.getLevel() != null ? character.getLevel() : 1)
+                .setGold(character.getGold() != null ? character.getGold() : 0)
+                .setExp(character.getExperience() != null ? character.getExperience() : 0)
+                .build())
+            .build());
+
+        log.info("Character selected: {} ({}) for account: {}",
+            character.getName(), characterId, accountName);
+    }
+
+    /**
+     * 报文入口：登出
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.LOGOUT_FIELD_NUMBER)
+    public void handleLogout(PlayerSession session, MessageProto.ClientMessage message) {
+        if (session == null) {
+            return;
+        }
+
+        String characterName = session.getCharacterName();
+
+        // TODO: 保存角色数据
+        // playerSaveService.saveOnLogout(session);
+
+        // 清除角色绑定
+        session.setCharacterId(null);
+        session.setCharacterName(null);
+        session.setPlaying(false);
+
+        log.info("Character logged out: {}", characterName);
+    }
+
+    private static final Pattern NAME_PATTERN = Pattern.compile("^[\\u4e00-\\u9fa5a-zA-Z0-9]{2,12}$");
+    private static final int MAX_CHARACTERS = 4;
+
+    private String getAccountName(PlayerSession session) {
+        if (session.getAccountId() != null) {
+            UserInfo user = findById(session.getAccountId().intValue());
+            return user != null ? user.getAccountName() : null;
+        }
+        return null;
+    }
+
+    private MessageProto.ServerMessage buildErrorResponse(CommonProto.ErrorCode errorCode, String message) {
+        return MessageProto.ServerMessage.newBuilder()
+            .setError(MessageProto.S2C_Error.newBuilder()
+                .setErrorCode(errorCode)
+                .setErrorMessage(message)
+                .build())
+            .build();
     }
 }

@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "spark_shield")
+@TableName(schema = "skilldb", value = "sparkshield")
 public class SparkShield {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("reflect_dmg")
+    @TableField("reflectdmg")
     private Integer reflectDmg;
-    @TableField("added_defense_rtg")
+    @TableField("addeddefensertg")
     private Integer addedDefenseRtg;
     @TableField("duration")
     private Integer duration;
@@ -34,6 +34,6 @@ public class SparkShield {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

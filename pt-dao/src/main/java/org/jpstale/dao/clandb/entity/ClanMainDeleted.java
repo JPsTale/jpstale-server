@@ -15,40 +15,40 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_main_deleted")
+@TableName(schema = "clandb", value = "clanmaindeleted")
 public class ClanMainDeleted {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("midx")
     private Integer midx;
-    @TableField("clan_name")
+    @TableField("clanname")
     private String clanName;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("clan_zang")
+    @TableField("clanzang")
     private String clanZang;
     @TableField("flag")
     private Integer flag;
-    @TableField("mem_cnt")
+    @TableField("memcnt")
     private Integer memCnt;
-    @TableField("m_icon_cnt")
+    @TableField("miconcnt")
     private Integer mIconCnt;
-    @TableField("regi_date")
+    @TableField("regidate")
     private LocalDateTime regiDate;
-    @TableField("limit_date")
+    @TableField("limitdate")
     private LocalDateTime limitDate;
-    @TableField("del_date")
+    @TableField("deldate")
     private LocalDateTime delDate;
-    @TableField("del_active")
+    @TableField("delactive")
     private String delActive;
-    @TableField("p_flag")
+    @TableField("pflag")
     private Integer pFlag;
-    @TableField("k_flag")
+    @TableField("kflag")
     private Integer kFlag;
-    @TableField("del_state")
+    @TableField("delstate")
     private String delState;
-    @TableField("del_case")
+    @TableField("delcase")
     private String delCase;
     @TableField("server")
     private Integer server;

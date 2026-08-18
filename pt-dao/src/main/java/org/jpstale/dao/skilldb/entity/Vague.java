@@ -22,16 +22,16 @@ public class Vague {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
     @TableField("evasion")
     private Integer evasion;
     @TableField("duration")
     private Integer duration;
-    @TableField("mp_usage")
+    @TableField("mpusage")
     private Integer mpUsage;
-    @TableField("stm_usage")
+    @TableField("stmusage")
     private Integer stmUsage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -17,15 +17,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "physical_training")
+@TableName(schema = "skilldb", value = "physicaltraining")
 public class PhysicalTraining {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("stamina_boost")
+    @TableField("staminaboost")
     private Integer staminaBoost;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

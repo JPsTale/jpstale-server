@@ -17,21 +17,21 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "swift_axe")
+@TableName(schema = "skilldb", value = "swiftaxe")
 public class SwiftAxe {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("weapon_atk_speed_boost")
+    @TableField("weaponatkspeedboost")
     private Integer weaponAtkSpeedBoost;
     @TableField("duration")
     private Integer duration;
-    @TableField("mp_usage")
+    @TableField("mpusage")
     private Integer mpUsage;
-    @TableField("stm_usage")
+    @TableField("stmusage")
     private Integer stmUsage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

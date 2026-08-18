@@ -14,33 +14,33 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "spawn_camera")
+@TableName(schema = "serverdb", value = "spawncamera")
 public class SpawnCamera {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("map_number")
+    @TableField("mapnumber")
     private Integer mapNumber;
-    @TableField("spawn_x")
+    @TableField("spawnx")
     private Integer spawnX;
-    @TableField("spawn_y")
+    @TableField("spawny")
     private Integer spawnY;
-    @TableField("spawn_z")
+    @TableField("spawnz")
     private Integer spawnZ;
-    @TableField("cam_x_coord")
+    @TableField("camxcoord")
     private Integer camXCoord;
-    @TableField("cam_z_coord")
+    @TableField("camzcoord")
     private Integer camZCoord;
-    @TableField("cam_turn")
+    @TableField("camturn")
     private Integer camTurn;
-    @TableField("cam_angle")
+    @TableField("camangle")
     private Integer camAngle;
-    @TableField("cam_zoom")
+    @TableField("camzoom")
     private Integer camZoom;
-    @TableField("min_player_count")
+    @TableField("minplayercount")
     private Integer minPlayerCount;
-    @TableField("search_radius")
+    @TableField("searchradius")
     private Integer searchRadius;
-    @TableField("spawn_type")
+    @TableField("spawntype")
     private Integer spawnType;
 }

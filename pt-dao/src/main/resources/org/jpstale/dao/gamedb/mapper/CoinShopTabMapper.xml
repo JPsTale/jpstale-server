@@ -4,7 +4,7 @@
 
     <!-- C++ CoinShopHandler.cpp:103 -->
     <select id="selectByCoinShopId" resultType="org.jpstale.dao.gamedb.entity.CoinShopTab">
-        SELECT id, name, parent_id, discount, bulk, max_bulk FROM gamedb.coin_shop_tab WHERE coin_shop_id = #{coinShopId} ORDER BY parent_id ASC, list_order ASC
+        SELECT id, name, parent_id, discount, bulk, max_bulk FROM gamedb.coinshoptab WHERE coin_shop_id = #{coinShopId} ORDER BY parent_id ASC, list_order ASC
     </select>
 
 </mapper>

@@ -6,11 +6,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Method;
 import java.util.Map;
 
 /**
  * PacketRouter 初始化器
- * 自动扫描所有 @GamePacketHandler 注解的类并注册到 PacketRouter
+ * 自动扫描所有标注 @GamePacketHandler 方法并注册到 PacketRouter
  */
 @Slf4j
 @Component
@@ -24,28 +25,25 @@ public class PacketRouterInitializer {
 
     @PostConstruct
     public void init() {
-        // 自动扫描并注册所有 Handler
         registerAnnotatedHandlers();
-
         log.info("PacketRouter initialized with {} handlers", packetRouter.getHandlerCount());
     }
 
     private void registerAnnotatedHandlers() {
-        // 获取所有实现了 PacketHandler 的 Bean
-        Map<String, PacketHandler> handlerBeans = applicationContext.getBeansOfType(PacketHandler.class);
+        // 扫描所有 Bean，找到标注 @GamePacketHandler 的方法
+        String[] beanNames = applicationContext.getBeanDefinitionNames();
+        for (String beanName : beanNames) {
+            Object bean = applicationContext.getBean(beanName);
+            Class<?> beanClass = bean.getClass();
 
-        for (Map.Entry<String, PacketHandler> entry : handlerBeans.entrySet()) {
-            PacketHandler handler = entry.getValue();
-            GamePacketHandler annotation = handler.getClass().getAnnotation(GamePacketHandler.class);
-
-            if (annotation != null) {
-                int messageType = annotation.value();
-                packetRouter.register(messageType, handler);
-                log.debug("Auto-registered handler: {} for message type: {}", 
-                    handler.getClass().getSimpleName(), messageType);
-            } else {
-                log.warn("Handler {} does not have @GamePacketHandler annotation", 
-                    handler.getClass().getSimpleName());
+            for (Method method : beanClass.getMethods()) {
+                GamePacketHandler annotation = method.getAnnotation(GamePacketHandler.class);
+                if (annotation != null) {
+                    int messageType = annotation.value();
+                    packetRouter.register(messageType, bean, method);
+                    log.debug("Auto-registered handler: {}.{} for message type: {}",
+                        beanClass.getSimpleName(), method.getName(), messageType);
+                }
             }
         }
     }

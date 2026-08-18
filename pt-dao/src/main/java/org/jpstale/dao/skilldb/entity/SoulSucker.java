@@ -17,12 +17,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "soul_sucker")
+@TableName(schema = "skilldb", value = "soulsucker")
 public class SoulSucker {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
     @TableField("hpabsorption")
     private Integer hpabsorption;
@@ -30,6 +30,6 @@ public class SoulSucker {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

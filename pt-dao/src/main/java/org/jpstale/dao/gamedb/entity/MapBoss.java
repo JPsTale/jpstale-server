@@ -16,17 +16,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "map_boss")
+@TableName(schema = "gamedb", value = "mapboss")
 public class MapBoss {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("map_id")
+    @TableField("mapid")
     private Integer mapId;
-    @TableField("boss_monster_id")
+    @TableField("bossmonsterid")
     private Integer bossMonsterId;
-    @TableField("minion_monster_id")
+    @TableField("minionmonsterid")
     private Integer minionMonsterId;
-    @TableField("minion_count")
+    @TableField("minioncount")
     private Integer minionCount;
 }

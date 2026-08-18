@@ -4,7 +4,7 @@
 
     <!-- C++ lootserver.cpp:30 -->
     <select id="selectAllByDropIdGt0" resultType="org.jpstale.dao.gamedb.entity.DropItem">
-        SELECT * FROM gamedb.drop_item WHERE drop_id &gt; 0 ORDER BY drop_id ASC, chance DESC
+        SELECT * FROM gamedb.dropitem WHERE drop_id &gt; 0 ORDER BY drop_id ASC, chance DESC
     </select>
 
 </mapper>

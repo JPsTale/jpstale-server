@@ -22,9 +22,9 @@ public class Maximize {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("max_damage_boost")
+    @TableField("maxdamageboost")
     private Integer maxDamageBoost;
     @TableField("duration")
     private Integer duration;
@@ -32,6 +32,6 @@ public class Maximize {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -17,14 +17,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "extreme_shield")
+@TableName(schema = "skilldb", value = "extremeshield")
 public class ExtremeShield {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_block_rtg")
+    @TableField("addedblockrtg")
     private Integer addedBlockRtg;
     @TableField("duration")
     private Integer duration;
@@ -32,6 +32,6 @@ public class ExtremeShield {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

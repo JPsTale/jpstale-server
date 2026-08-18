@@ -4,7 +4,7 @@
 
     <!-- C++ writeServerField.cpp:49, mapserver.cpp:778 -->
     <select id="selectAllOrderById" resultType="org.jpstale.dao.gamedb.entity.MapList">
-        SELECT * FROM gamedb.map_list ORDER BY id ASC
+        SELECT * FROM gamedb.maplist ORDER BY id ASC
     </select>
 
 </mapper>

@@ -4,7 +4,7 @@
 
     <!-- C++ eventserver.cpp:1242 - ORDER BY NEWID() -> random in PostgreSQL -->
     <select id="selectItemCodeQuantityPercentOrderByRandom" resultType="org.jpstale.dao.serverdb.entity.OnlineReward">
-        SELECT item_code, quantity, percent FROM serverdb.online_reward ORDER BY RANDOM()
+        SELECT item_code, quantity, percent FROM serverdb.onlinereward ORDER BY RANDOM()
     </select>
 
 </mapper>

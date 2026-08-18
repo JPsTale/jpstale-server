@@ -17,19 +17,19 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "storm_javelin")
+@TableName(schema = "skilldb", value = "stormjavelin")
 public class StormJavelin {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

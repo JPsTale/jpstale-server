@@ -4,12 +4,12 @@
 
     <!-- C++ accountserver.cpp:1365 -->
     <select id="selectMessageByAccountNameUnchecked" resultType="org.jpstale.dao.userdb.entity.NotificationData">
-        SELECT id, message FROM userdb.notification_data WHERE account_name = #{accountName} AND checked = 0 ORDER BY id ASC
+        SELECT id, message FROM userdb.notificationdata WHERE account_name = #{accountName} AND checked = 0 ORDER BY id ASC
     </select>
 
     <!-- C++ accountserver.cpp:1384 -->
     <update id="updateCheckedByAccountName">
-        UPDATE userdb.notification_data SET checked = 1 WHERE account_name = #{accountName}
+        UPDATE userdb.notificationdata SET checked = 1 WHERE account_name = #{accountName}
     </update>
 
 </mapper>

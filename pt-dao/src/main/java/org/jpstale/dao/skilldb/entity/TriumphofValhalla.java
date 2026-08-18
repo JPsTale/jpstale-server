@@ -17,14 +17,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "triumphof_valhalla")
+@TableName(schema = "skilldb", value = "triumphofvalhalla")
 public class TriumphofValhalla {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_max_atk_power")
+    @TableField("addedmaxatkpower")
     private Integer addedMaxAtkPower;
     @TableField("duration")
     private Integer duration;
@@ -32,6 +32,6 @@ public class TriumphofValhalla {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -16,15 +16,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "quest_event_list")
+@TableName(schema = "gamedb", value = "questeventlist")
 public class QuestEventList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("quest_id")
+    @TableField("questid")
     private Integer questId;
-    @TableField("percent_increase_exp")
+    @TableField("percentincreaseexp")
     private Integer percentIncreaseExp;
-    @TableField("drop_reduction")
+    @TableField("dropreduction")
     private Integer dropReduction;
 }

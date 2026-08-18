@@ -18,47 +18,47 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "user_info")
+@TableName(schema = "userdb", value = "userinfo")
 public class UserInfo {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("password")
     private String password;
     /** 注册时间，UTC 存库，展示时按用户时区格式化 */
-    @TableField("regis_day")
+    @TableField("regisday")
     private Instant regisDay;
     @TableField("flag")
     private Integer flag;
     @TableField("active")
     private Integer active;
-    @TableField("active_code")
+    @TableField("activecode")
     private String activeCode;
     @TableField("coins")
     private Integer coins;
     @TableField("email")
     private String email;
-    @TableField("game_master_type")
+    @TableField("gamemastertype")
     private Integer gameMasterType;
-    @TableField("game_master_level")
+    @TableField("gamemasterlevel")
     private Integer gameMasterLevel;
-    @TableField("game_master_mac_address")
+    @TableField("gamemastermacaddress")
     private String gameMasterMacAddress;
-    @TableField("coins_traded")
+    @TableField("coinstraded")
     private Integer coinsTraded;
-    @TableField("ban_status")
+    @TableField("banstatus")
     private Integer banStatus;
-    @TableField("unban_date")
+    @TableField("unbandate")
     private LocalDateTime unbanDate;
-    @TableField("is_muted")
+    @TableField("ismuted")
     private Integer isMuted;
-    @TableField("mute_count")
+    @TableField("mutecount")
     private Integer muteCount;
-    @TableField("unmute_date")
+    @TableField("unmutedate")
     private LocalDateTime unmuteDate;
     /** Web 系统管理员：true 可访问 /api/admin/** */
-    @TableField("web_admin")
+    @TableField(exist = false)
     private Boolean webAdmin;
 }

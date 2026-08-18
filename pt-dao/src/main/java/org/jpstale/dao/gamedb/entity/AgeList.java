@@ -16,23 +16,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "age_list")
+@TableName(schema = "gamedb", value = "agelist")
 public class AgeList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("age_number")
+    @TableField("agenumber")
     private Integer ageNumber;
-    @TableField("fail_chance")
+    @TableField("failchance")
     private Integer failChance;
-    @TableField("plus2_chance")
+    @TableField("plus2chance")
     private Integer plus2Chance;
-    @TableField("minus2_chance")
+    @TableField("minus2chance")
     private Integer minus2Chance;
-    @TableField("minus1_chance")
+    @TableField("minus1chance")
     private Integer minus1Chance;
-    @TableField("broken_chance")
+    @TableField("brokenchance")
     private Integer brokenChance;
-    @TableField("age_stone")
+    @TableField("agestone")
     private Integer ageStone;
 }

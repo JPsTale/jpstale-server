@@ -16,15 +16,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "quest_swap_list")
+@TableName(schema = "gamedb", value = "questswaplist")
 public class QuestSwapList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("quest_race1")
+    @TableField("questrace1")
     private Integer questRace1;
-    @TableField("quest_race2")
+    @TableField("questrace2")
     private Integer questRace2;
-    @TableField("quest_race3")
+    @TableField("questrace3")
     private Integer questRace3;
 }

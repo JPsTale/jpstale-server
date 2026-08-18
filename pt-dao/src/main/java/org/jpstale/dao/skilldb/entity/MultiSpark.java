@@ -17,23 +17,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "multi_spark")
+@TableName(schema = "skilldb", value = "multispark")
 public class MultiSpark {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("static_damage")
+    @TableField("staticdamage")
     private Integer staticDamage;
     @TableField("damage")
     private Integer damage;
-    @TableField("numberof_sparks")
+    @TableField("numberofsparks")
     private Integer numberofSparks;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

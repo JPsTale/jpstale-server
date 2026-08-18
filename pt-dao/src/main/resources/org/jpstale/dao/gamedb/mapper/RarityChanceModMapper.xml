@@ -4,7 +4,7 @@
 
     <!-- C++ itemserver.cpp:4322 -->
     <select id="selectTypeAndMods" resultType="org.jpstale.dao.gamedb.entity.RarityChanceMod">
-        SELECT type, mod_common, mod_uncommon, mod_rare, mod_epic, mod_legendary FROM gamedb.rarity_chance_mod
+        SELECT type, mod_common, mod_uncommon, mod_rare, mod_epic, mod_legendary FROM gamedb.raritychancemod
     </select>
 
 </mapper>

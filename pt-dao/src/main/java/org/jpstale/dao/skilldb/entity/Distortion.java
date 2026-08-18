@@ -22,11 +22,11 @@ public class Distortion {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("speed_reduction")
+    @TableField("speedreduction")
     private Integer speedReduction;
-    @TableField("damage_reduction")
+    @TableField("damagereduction")
     private Integer damageReduction;
     @TableField("duration")
     private Integer duration;
@@ -36,6 +36,6 @@ public class Distortion {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -4,7 +4,7 @@
 
     <!-- C++ logserver.cpp - 8 columns -->
     <insert id="insertItemLog" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.item_log (ip, account_name, log_id, description, code1, code2, date, server_id)
+        INSERT INTO logdb.itemlog (ip, account_name, log_id, description, code1, code2, date, server_id)
         VALUES (#{ip}, #{accountName}, #{logId}, #{description}, #{code1}, #{code2}, CURRENT_TIMESTAMP, #{serverId})
     </insert>
 

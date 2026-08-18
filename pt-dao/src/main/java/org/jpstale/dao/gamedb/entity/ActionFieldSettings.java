@@ -14,7 +14,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "action_field_settings")
+@TableName(schema = "gamedb", value = "actionfieldsettings")
 public class ActionFieldSettings {
 
     @TableId(value = "id", type = IdType.AUTO)

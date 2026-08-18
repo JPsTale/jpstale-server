@@ -12,41 +12,41 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_spec_mod")
+@TableName(schema = "gamedb", value = "itemspecmod")
 public class ItemSpecMod {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("add_spec_class01")
+    @TableField("addspecclass01")
     private Integer addSpecClass01;
-    @TableField("add_spec_class02")
+    @TableField("addspecclass02")
     private Integer addSpecClass02;
-    @TableField("add_spec_class03")
+    @TableField("addspecclass03")
     private Integer addSpecClass03;
-    @TableField("add_spec_class04")
+    @TableField("addspecclass04")
     private Integer addSpecClass04;
-    @TableField("add_spec_class05")
+    @TableField("addspecclass05")
     private Integer addSpecClass05;
-    @TableField("add_spec_class06")
+    @TableField("addspecclass06")
     private Integer addSpecClass06;
-    @TableField("add_spec_class07")
+    @TableField("addspecclass07")
     private Integer addSpecClass07;
-    @TableField("add_spec_class08")
+    @TableField("addspecclass08")
     private Integer addSpecClass08;
-    @TableField("add_spec_class09")
+    @TableField("addspecclass09")
     private Integer addSpecClass09;
-    @TableField("add_spec_class10")
+    @TableField("addspecclass10")
     private Integer addSpecClass10;
-    @TableField("item_type")
+    @TableField("itemtype")
     private String itemType;
-    @TableField("percent_req_strength")
+    @TableField("percentreqstrength")
     private Integer percentReqStrength;
-    @TableField("percent_req_spirit")
+    @TableField("percentreqspirit")
     private Integer percentReqSpirit;
-    @TableField("percent_req_talent")
+    @TableField("percentreqtalent")
     private Integer percentReqTalent;
-    @TableField("percent_req_agility")
+    @TableField("percentreqagility")
     private Integer percentReqAgility;
-    @TableField("percent_req_health")
+    @TableField("percentreqhealth")
     private Integer percentReqHealth;
 }

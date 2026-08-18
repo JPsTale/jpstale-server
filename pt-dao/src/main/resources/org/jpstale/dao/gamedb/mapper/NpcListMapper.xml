@@ -4,7 +4,7 @@
 
     <!-- servercommand.cpp:3940 -->
     <select id="selectCountById" resultType="java.lang.Integer">
-        SELECT COUNT(id) FROM gamedb.npc_list WHERE id = #{id}
+        SELECT COUNT(id) FROM gamedb.npclist WHERE id = #{id}
     </select>
 
 </mapper>

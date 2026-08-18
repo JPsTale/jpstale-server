@@ -17,14 +17,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "chain_lightning")
+@TableName(schema = "skilldb", value = "chainlightning")
 public class ChainLightning {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("lightning_damage")
+    @TableField("lightningdamage")
     private Integer lightningDamage;
     @TableField("bolts")
     private Integer bolts;
@@ -34,6 +34,6 @@ public class ChainLightning {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -17,23 +17,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "item_box")
+@TableName(schema = "userdb", value = "itembox")
 public class ItemBox {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("item_code")
+    @TableField("itemcode")
     private String itemCode;
     @TableField("item")
     private String item;
-    @TableField("item_spec")
+    @TableField("itemspec")
     private Integer itemSpec;
-    @TableField("coin_shop")
+    @TableField("coinshop")
     private Integer coinShop;
-    @TableField("has_item")
+    @TableField("hasitem")
     private Integer hasItem;
-    @TableField("date_received")
+    @TableField("datereceived")
     private LocalDateTime dateReceived;
 }

@@ -17,15 +17,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "dions_eye")
+@TableName(schema = "skilldb", value = "dionseye")
 public class DionsEye {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("weapon_attack_rating_boost")
+    @TableField("weaponattackratingboost")
     private Integer weaponAttackRatingBoost;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

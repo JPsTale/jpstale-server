@@ -16,17 +16,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "eventdb", value = "wanted_wolf_drops")
+@TableName(schema = "eventdb", value = "wantedwolfdrops")
 public class WantedWolfDrops {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("char_id")
+    @TableField("charid")
     private Integer charId;
-    @TableField("map_id")
+    @TableField("mapid")
     private Integer mapId;
-    @TableField("item_name")
+    @TableField("itemname")
     private String itemName;
-    @TableField("unix_time")
+    @TableField("unixtime")
     private Integer unixTime;
 }

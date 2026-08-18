@@ -4,7 +4,7 @@
 
     <!-- C++ eventserver.cpp:697 -->
     <delete id="deleteAll">
-        DELETE FROM eventdb.wanted_moriph_kills
+        DELETE FROM eventdb.wantedmoriphkills
     </delete>
 
 </mapper>

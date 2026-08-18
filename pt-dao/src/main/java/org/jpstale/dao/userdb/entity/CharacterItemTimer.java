@@ -16,21 +16,21 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "character_item_timer")
+@TableName(schema = "userdb", value = "characteritemtimer")
 public class CharacterItemTimer {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
-    @TableField("item_timer_type")
+    @TableField("itemtimertype")
     private Integer itemTimerType;
-    @TableField("item_id")
+    @TableField("itemid")
     private Integer itemId;
-    @TableField("time_left")
+    @TableField("timeleft")
     private Integer timeLeft;
-    @TableField("time_total")
+    @TableField("timetotal")
     private Integer timeTotal;
 }

@@ -16,23 +16,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "mute_player_log")
+@TableName(schema = "logdb", value = "muteplayerlog")
 public class MutePlayerLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
-    @TableField("unix_mute_start")
+    @TableField("unixmutestart")
     private Integer unixMuteStart;
-    @TableField("unix_mute_end")
+    @TableField("unixmuteend")
     private Integer unixMuteEnd;
-    @TableField("mute_count")
+    @TableField("mutecount")
     private Integer muteCount;
-    @TableField("mute_reason")
+    @TableField("mutereason")
     private String muteReason;
-    @TableField("muted_by")
+    @TableField("mutedby")
     private String mutedBy;
 }

@@ -16,15 +16,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "pet_system")
+@TableName(schema = "gamedb", value = "petsystem")
 public class PetSystem {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("pet_owner_name")
+    @TableField("petownername")
     private String petOwnerName;
-    @TableField("pet_name")
+    @TableField("petname")
     private String petName;
-    @TableField("pet_skin_id")
+    @TableField("petskinid")
     private Integer petSkinId;
 }

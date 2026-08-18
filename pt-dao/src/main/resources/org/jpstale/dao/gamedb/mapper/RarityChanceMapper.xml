@@ -4,11 +4,11 @@
 
     <!-- C++ itemserver.cpp:4474 -->
     <update id="updateChanceByGroupAndRarity">
-        UPDATE gamedb.rarity_chance SET chance = #{chance} WHERE rarity_chance_group = #{rarityChanceGroup} AND rarity = #{rarity}
+        UPDATE gamedb.raritychance SET chance = #{chance} WHERE rarity_chance_group = #{rarityChanceGroup} AND rarity = #{rarity}
     </update>
     <!-- itemserver.cpp:4526 -->
     <select id="selectRarityChanceGroupRarityChance" resultType="org.jpstale.dao.gamedb.entity.RarityChance">
-        SELECT rarity_chance_group, rarity, chance FROM gamedb.rarity_chance
+        SELECT rarity_chance_group, rarity, chance FROM gamedb.raritychance
     </select>
 
 </mapper>

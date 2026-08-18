@@ -3,13 +3,13 @@
 <mapper namespace="org.jpstale.dao.gamedb.mapper.CoinShopMapper">
 
     <select id="selectActive" resultType="org.jpstale.dao.gamedb.entity.CoinShop">
-        SELECT id, name, message, discount FROM gamedb.coin_shop WHERE active = 1
+        SELECT id, name, message, discount FROM gamedb.coinshop WHERE active = 1
     </select>
     <update id="updateActive0">
-        UPDATE gamedb.coin_shop SET active = 0
+        UPDATE gamedb.coinshop SET active = 0
     </update>
     <update id="updateActive1ById">
-        UPDATE gamedb.coin_shop SET active = 1 WHERE id = #{id}
+        UPDATE gamedb.coinshop SET active = 1 WHERE id = #{id}
     </update>
 
 </mapper>

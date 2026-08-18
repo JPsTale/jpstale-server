@@ -16,7 +16,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_type")
+@TableName(schema = "gamedb", value = "itemtype")
 public class ItemType {
 
     @TableId(value = "id", type = IdType.AUTO)

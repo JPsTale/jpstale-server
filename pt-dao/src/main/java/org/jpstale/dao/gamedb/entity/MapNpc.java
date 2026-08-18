@@ -16,7 +16,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "map_npc")
+@TableName(schema = "gamedb", value = "mapnpc")
 public class MapNpc {
 
     @TableId(value = "id", type = IdType.AUTO)
@@ -31,10 +31,10 @@ public class MapNpc {
     private Integer z;
     @TableField("angle")
     private Integer angle;
-    @TableField("id_npc")
+    @TableField("idnpc")
     private Integer idNpc;
     @TableField("enabled")
     private Integer enabled;
-    @TableField("only_gm")
+    @TableField("onlygm")
     private Integer onlyGm;
 }

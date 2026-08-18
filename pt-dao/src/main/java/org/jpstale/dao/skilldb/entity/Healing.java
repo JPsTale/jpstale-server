@@ -22,9 +22,9 @@ public class Healing {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("static_damage")
+    @TableField("staticdamage")
     private Integer staticDamage;
     @TableField("hprestored")
     private Integer hprestored;
@@ -32,6 +32,6 @@ public class Healing {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

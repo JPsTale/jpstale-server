@@ -16,11 +16,11 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "cheat_exception_list")
+@TableName(schema = "gamedb", value = "cheatexceptionlist")
 public class CheatExceptionList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("exception_name")
+    @TableField("exceptionname")
     private String exceptionName;
 }

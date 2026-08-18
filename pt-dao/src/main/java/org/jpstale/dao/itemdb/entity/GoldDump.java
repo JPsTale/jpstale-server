@@ -17,19 +17,19 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "itemdb", value = "gold_dump")
+@TableName(schema = "itemdb", value = "golddump")
 public class GoldDump {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("char_name")
+    @TableField("charname")
     private String charName;
-    @TableField("warehouse_gold")
+    @TableField("warehousegold")
     private Integer warehouseGold;
-    @TableField("character_gold")
+    @TableField("charactergold")
     private Integer characterGold;
-    @TableField("date_time")
+    @TableField("datetime")
     private LocalDateTime dateTime;
 }

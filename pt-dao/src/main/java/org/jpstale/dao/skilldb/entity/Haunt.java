@@ -22,7 +22,7 @@ public class Haunt {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
     @TableField("hpabsorption")
     private Integer hpabsorption;
@@ -30,6 +30,6 @@ public class Haunt {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

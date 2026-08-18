@@ -17,14 +17,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "physical_absorption")
+@TableName(schema = "skilldb", value = "physicalabsorption")
 public class PhysicalAbsorption {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_absorb_rtg")
+    @TableField("addedabsorbrtg")
     private Integer addedAbsorbRtg;
     @TableField("duration")
     private Integer duration;
@@ -32,6 +32,6 @@ public class PhysicalAbsorption {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

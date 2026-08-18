@@ -14,14 +14,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_home")
+@TableName(schema = "clandb", value = "clanhome")
 public class ClanHome {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("midx")
     private Integer midx;
-    @TableField("sel_server")
+    @TableField("selserver")
     private Integer selServer;
     @TableField("intro")
     private String intro;
@@ -29,10 +29,10 @@ public class ClanHome {
     private String image;
     @TableField("skin")
     private Integer skin;
-    @TableField("priv_home")
+    @TableField("privhome")
     private Integer privHome;
-    @TableField("priv_mem")
+    @TableField("privmem")
     private Integer privMem;
-    @TableField("priv_board")
+    @TableField("privboard")
     private Integer privBoard;
 }

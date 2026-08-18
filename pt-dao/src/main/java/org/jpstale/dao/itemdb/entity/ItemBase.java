@@ -15,15 +15,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "itemdb", value = "item_base")
+@TableName(schema = "itemdb", value = "itembase")
 public class ItemBase {
 
     @TableId("item_base_id")
     private Integer itemBaseId;
-    @TableField("item_base_name")
+    @TableField("itembasename")
     private String itemBaseName;
-    @TableField("item_base_hex")
+    @TableField("itembasehex")
     private byte[] itemBaseHex;
-    @TableField("item_base_abbrv")
+    @TableField("itembaseabbrv")
     private String itemBaseAbbrv;
 }

@@ -17,23 +17,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "packet_log")
+@TableName(schema = "logdb", value = "packetlog")
 public class PacketLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("server_type")
+    @TableField("servertype")
     private Integer serverType;
-    @TableField("packet_id")
+    @TableField("packetid")
     private Integer packetId;
-    @TableField("total_count")
+    @TableField("totalcount")
     private Integer totalCount;
-    @TableField("total_duration_ms")
+    @TableField("totaldurationms")
     private Long totalDurationMs;
-    @TableField("min_duration_ms")
+    @TableField("mindurationms")
     private Integer minDurationMs;
-    @TableField("max_duration_ms")
+    @TableField("maxdurationms")
     private Integer maxDurationMs;
-    @TableField("date_time")
+    @TableField("datetime")
     private LocalDateTime dateTime;
 }

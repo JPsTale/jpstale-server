@@ -16,46 +16,46 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "bellatra_team_score")
+@TableName(schema = "clandb", value = "bellatrateamscore")
 public class BellatraTeamScore {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
-    @TableField("job_code")
+    @TableField("jobcode")
     private Integer jobCode;
     @TableField("level")
     private Integer level;
-    @TableField("clan_code")
+    @TableField("clancode")
     private Integer clanCode;
     @TableField("score")
     private Integer score;
     @TableField("kills")
     private Integer kills;
-    @TableField("total_point")
+    @TableField("totalpoint")
     private Integer totalPoint;
-    @TableField("total_user")
+    @TableField("totaluser")
     private Integer totalUser;
-    @TableField("success_user")
+    @TableField("successuser")
     private Integer successUser;
     @TableField("code")
     private Integer code;
     @TableField("quake")
     private Integer quake;
-    @TableField("stun_seal")
+    @TableField("stunseal")
     private Integer stunSeal;
-    @TableField("freeze_seal")
+    @TableField("freezeseal")
     private Integer freezeSeal;
-    @TableField("rabie_seal")
+    @TableField("rabieseal")
     private Integer rabieSeal;
-    @TableField("stygian_seal")
+    @TableField("stygianseal")
     private Integer stygianSeal;
-    @TableField("guardian_saint_seal")
+    @TableField("guardiansaintseal")
     private Integer guardianSaintSeal;
-    @TableField("point_bag")
+    @TableField("pointbag")
     private Integer pointBag;
     @TableField("date")
     private String date;

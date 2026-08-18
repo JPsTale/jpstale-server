@@ -22,9 +22,9 @@ public class Berserker {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_atk_power")
+    @TableField("addedatkpower")
     private Integer addedAtkPower;
     @TableField("absorption")
     private Integer absorption;
@@ -34,6 +34,6 @@ public class Berserker {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

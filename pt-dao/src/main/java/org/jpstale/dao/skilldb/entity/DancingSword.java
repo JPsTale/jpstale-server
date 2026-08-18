@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "dancing_sword")
+@TableName(schema = "skilldb", value = "dancingsword")
 public class DancingSword {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("fire_damage")
+    @TableField("firedamage")
     private Integer fireDamage;
-    @TableField("ice_damage")
+    @TableField("icedamage")
     private Integer iceDamage;
     @TableField("duration")
     private Integer duration;
@@ -34,6 +34,6 @@ public class DancingSword {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

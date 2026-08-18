@@ -16,12 +16,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "coin_shop_item")
+@TableName(schema = "gamedb", value = "coinshopitem")
 public class CoinShopItem {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("tab_id")
+    @TableField("tabid")
     private Integer tabId;
     @TableField("name")
     private String name;
@@ -37,14 +37,14 @@ public class CoinShopItem {
     private Integer discount;
     @TableField("bulk")
     private Integer bulk;
-    @TableField("max_bulk")
+    @TableField("maxbulk")
     private Integer maxBulk;
-    @TableField("is_spec")
+    @TableField("isspec")
     private Integer isSpec;
-    @TableField("is_quantity")
+    @TableField("isquantity")
     private Integer isQuantity;
     @TableField("disabled")
     private Integer disabled;
-    @TableField("list_order")
+    @TableField("listorder")
     private Integer listOrder;
 }

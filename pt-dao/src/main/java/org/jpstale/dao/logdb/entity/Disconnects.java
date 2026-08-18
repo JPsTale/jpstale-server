@@ -24,19 +24,19 @@ public class Disconnects {
     private Integer id;
     @TableField("ip")
     private String ip;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("net_server")
+    @TableField("netserver")
     private Integer netServer;
-    @TableField("keep_alive")
+    @TableField("keepalive")
     private Integer keepAlive;
-    @TableField("server_type")
+    @TableField("servertype")
     private String serverType;
     @TableField("location")
     private String location;
-    @TableField("return_address")
+    @TableField("returnaddress")
     private String returnAddress;
-    @TableField("return_address_call")
+    @TableField("returnaddresscall")
     private String returnAddressCall;
     @TableField("date")
     private LocalDateTime date;

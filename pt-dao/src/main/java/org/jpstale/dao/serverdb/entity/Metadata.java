@@ -22,6 +22,6 @@ public class Metadata {
     private String key;
     @TableField("value")
     private Integer value;
-    @TableField("is_public")
+    @TableField("ispublic")
     private Integer isPublic;
 }

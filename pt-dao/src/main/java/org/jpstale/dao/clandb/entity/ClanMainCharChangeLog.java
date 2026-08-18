@@ -15,19 +15,19 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_main_char_change_log")
+@TableName(schema = "clandb", value = "clanmaincharchangelog")
 public class ClanMainCharChangeLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("before_char_name")
+    @TableField("beforecharname")
     private String beforeCharName;
-    @TableField("after_char_name")
+    @TableField("aftercharname")
     private String afterCharName;
-    @TableField("c_server")
+    @TableField("cserver")
     private Integer cServer;
-    @TableField("regi_date")
+    @TableField("regidate")
     private LocalDateTime regiDate;
 }

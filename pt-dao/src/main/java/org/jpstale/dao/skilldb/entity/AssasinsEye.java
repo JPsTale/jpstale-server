@@ -17,23 +17,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "assasins_eye")
+@TableName(schema = "skilldb", value = "assasinseye")
 public class AssasinsEye {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("critical_damage")
+    @TableField("criticaldamage")
     private Integer criticalDamage;
-    @TableField("critical_monster")
+    @TableField("criticalmonster")
     private Integer criticalMonster;
     @TableField("duration")
     private Integer duration;
-    @TableField("mp_usage")
+    @TableField("mpusage")
     private Integer mpUsage;
-    @TableField("stm_usage")
+    @TableField("stmusage")
     private Integer stmUsage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

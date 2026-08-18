@@ -16,20 +16,20 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "gm_command")
+@TableName(schema = "serverdb", value = "gmcommand")
 public class GmCommand {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("command")
     private String command;
-    @TableField("unix_time")
+    @TableField("unixtime")
     private Integer unixTime;
-    @TableField("unix_time_to_execute")
+    @TableField("unixtimetoexecute")
     private Integer unixTimeToExecute;
-    @TableField("is_active")
+    @TableField("isactive")
     private Integer isActive;
     @TableField("result")
     private Integer result;

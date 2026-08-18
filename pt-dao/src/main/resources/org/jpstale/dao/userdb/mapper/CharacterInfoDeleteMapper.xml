@@ -4,7 +4,7 @@
 
     <!-- C++ accountserver.cpp:1556 - INSERT ... SELECT from CharacterInfo -->
     <insert id="insertFromCharacterInfoByName">
-        INSERT INTO userdb.character_info_delete SELECT * FROM userdb.character_info WHERE name = #{name}
+        INSERT INTO userdb.characterinfodelete SELECT * FROM userdb.characterinfo WHERE name = #{name}
     </insert>
 
 </mapper>

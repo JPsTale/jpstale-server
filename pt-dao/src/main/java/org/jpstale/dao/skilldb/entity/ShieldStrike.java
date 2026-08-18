@@ -17,21 +17,21 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "shield_strike")
+@TableName(schema = "skilldb", value = "shieldstrike")
 public class ShieldStrike {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_min")
+    @TableField("damagemin")
     private Integer damageMin;
-    @TableField("damage_max")
+    @TableField("damagemax")
     private Integer damageMax;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -16,11 +16,11 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "window_cheat_list")
+@TableName(schema = "serverdb", value = "windowcheatlist")
 public class WindowCheatList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("window_name")
+    @TableField("windowname")
     private String windowName;
 }

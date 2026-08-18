@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "metal_golem")
+@TableName(schema = "skilldb", value = "metalgolem")
 public class MetalGolem {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("attack_power")
+    @TableField("attackpower")
     private Integer attackPower;
-    @TableField("attack_rating")
+    @TableField("attackrating")
     private Integer attackRating;
     @TableField("defense")
     private Integer defense;
@@ -40,6 +40,6 @@ public class MetalGolem {
     private String name;
     @TableField("duration")
     private Integer duration;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

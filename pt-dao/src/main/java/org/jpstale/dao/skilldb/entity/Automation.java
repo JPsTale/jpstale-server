@@ -22,11 +22,11 @@ public class Automation {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
-    @TableField("added_atk_spd")
+    @TableField("addedatkspd")
     private Integer addedAtkSpd;
     @TableField("duration")
     private Integer duration;
@@ -34,6 +34,6 @@ public class Automation {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

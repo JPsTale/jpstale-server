@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "holy_incantation")
+@TableName(schema = "skilldb", value = "holyincantation")
 public class HolyIncantation {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("success_rate")
+    @TableField("successrate")
     private Integer successRate;
-    @TableField("increase_undead_hp")
+    @TableField("increaseundeadhp")
     private Integer increaseUndeadHp;
     @TableField("duration")
     private Integer duration;
@@ -34,6 +34,6 @@ public class HolyIncantation {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

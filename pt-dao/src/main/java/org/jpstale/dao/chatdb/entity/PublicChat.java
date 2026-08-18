@@ -16,17 +16,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "chatdb", value = "public_chat")
+@TableName(schema = "chatdb", value = "publicchat")
 public class PublicChat {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("map_id")
+    @TableField("mapid")
     private Integer mapId;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
     @TableField("message")
     private String message;
-    @TableField("unix_time")
+    @TableField("unixtime")
     private Integer unixTime;
 }

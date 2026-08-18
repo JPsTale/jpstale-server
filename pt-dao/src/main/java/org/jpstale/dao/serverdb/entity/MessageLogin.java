@@ -16,7 +16,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "message_login")
+@TableName(schema = "serverdb", value = "messagelogin")
 public class MessageLogin {
 
     @TableId(value = "id", type = IdType.AUTO)

@@ -16,11 +16,11 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "mix_effect_type")
+@TableName(schema = "gamedb", value = "mixeffecttype")
 public class MixEffectType {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("after_text")
+    @TableField("aftertext")
     private String afterText;
 }

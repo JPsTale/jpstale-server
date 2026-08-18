@@ -15,28 +15,28 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "game_notice_group")
+@TableName(schema = "clandb", value = "gamenoticegroup")
 public class GameNoticeGroup {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("group_cd")
+    @TableField("groupcd")
     private Integer groupCd;
-    @TableField("main_cd")
+    @TableField("maincd")
     private Integer mainCd;
-    @TableField("detail_cd")
+    @TableField("detailcd")
     private Integer detailCd;
     @TableField("title")
     private String title;
     @TableField("content")
     private String content;
-    @TableField("from_day")
+    @TableField("fromday")
     private LocalDateTime fromDay;
-    @TableField("to_day")
+    @TableField("today")
     private LocalDateTime toDay;
-    @TableField("regist_day")
+    @TableField("registday")
     private LocalDateTime registDay;
-    @TableField("del_active")
+    @TableField("delactive")
     private Integer delActive;
     @TableField("hit")
     private Integer hit;

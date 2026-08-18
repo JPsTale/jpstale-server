@@ -4,7 +4,7 @@
 
     <!-- C++ userserver.cpp:536,566 -->
     <insert id="insertGoldLog" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.gold_log (account_name, source, gold, inventory_gold, str, date, is_game_server)
+        INSERT INTO logdb.goldlog (account_name, source, gold, inventory_gold, str, date, is_game_server)
         VALUES (#{accountName}, #{source}, #{gold}, #{inventoryGold}, #{str}, CURRENT_TIMESTAMP, #{isGameServer})
     </insert>
 

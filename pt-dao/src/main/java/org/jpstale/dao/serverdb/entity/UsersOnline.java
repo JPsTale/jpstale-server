@@ -15,23 +15,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "users_online")
+@TableName(schema = "serverdb", value = "usersonline")
 public class UsersOnline {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
     @TableField("ip")
     private String ip;
-    @TableField("character_class")
+    @TableField("characterclass")
     private Integer characterClass;
-    @TableField("character_level")
+    @TableField("characterlevel")
     private Integer characterLevel;
     @TableField("ticket")
     private Integer ticket;
-    @TableField("login_time")
+    @TableField("logintime")
     private LocalDateTime loginTime;
 }

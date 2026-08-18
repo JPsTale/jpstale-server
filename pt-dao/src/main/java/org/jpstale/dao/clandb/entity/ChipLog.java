@@ -15,21 +15,21 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "chip_log")
+@TableName(schema = "clandb", value = "chiplog")
 public class ChipLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("cidx")
     private Integer cidx;
-    @TableField("c_server")
+    @TableField("cserver")
     private Integer cServer;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("ch_name")
+    @TableField("chname")
     private String chName;
     @TableField("permi")
     private String permi;
-    @TableField("regi_date")
+    @TableField("regidate")
     private LocalDateTime regiDate;
 }

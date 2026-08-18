@@ -4,26 +4,26 @@
 
     <!-- C++ unitinfo.cpp -->
     <select id="selectCountByStage" resultType="java.lang.Integer">
-        SELECT COUNT(id) FROM gamedb.map_spawn_point WHERE stage = #{stage}
+        SELECT COUNT(id) FROM gamedb.mapspawnpoint WHERE stage = #{stage}
     </select>
     <select id="selectByStage" resultType="org.jpstale.dao.gamedb.entity.MapSpawnPoint">
-        SELECT * FROM gamedb.map_spawn_point WHERE stage = #{stage}
+        SELECT * FROM gamedb.mapspawnpoint WHERE stage = #{stage}
     </select>
     <select id="selectCountByStageAndXAndZ" resultType="java.lang.Integer">
-        SELECT COUNT(*) FROM gamedb.map_spawn_point WHERE stage = #{stage} AND x = #{x} AND z = #{z}
+        SELECT COUNT(*) FROM gamedb.mapspawnpoint WHERE stage = #{stage} AND x = #{x} AND z = #{z}
     </select>
     <select id="selectTop1IdOrderByIdDesc" resultType="java.lang.Integer">
-        SELECT id FROM gamedb.map_spawn_point ORDER BY id DESC LIMIT 1
+        SELECT id FROM gamedb.mapspawnpoint ORDER BY id DESC LIMIT 1
     </select>
     <insert id="insertMapSpawnPoint">
-        INSERT INTO gamedb.map_spawn_point (id, stage, x, z, description) VALUES (#{id}, #{stage}, #{x}, #{z}, #{description})
+        INSERT INTO gamedb.mapspawnpoint (id, stage, x, z, description) VALUES (#{id}, #{stage}, #{x}, #{z}, #{description})
     </insert>
     <delete id="deleteByXAndZ">
-        DELETE FROM gamedb.map_spawn_point WHERE x = #{x} AND z = #{z}
+        DELETE FROM gamedb.mapspawnpoint WHERE x = #{x} AND z = #{z}
     </delete>
     <!-- mapserver.cpp:3651 -->
     <select id="selectXZByStage" resultType="org.jpstale.dao.gamedb.entity.MapSpawnPoint">
-        SELECT x, z FROM gamedb.map_spawn_point WHERE stage = #{stage}
+        SELECT x, z FROM gamedb.mapspawnpoint WHERE stage = #{stage}
     </select>
 
 </mapper>

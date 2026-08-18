@@ -16,17 +16,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "character_monster_kill_tracker")
+@TableName(schema = "userdb", value = "charactermonsterkilltracker")
 public class CharacterMonsterKillTracker {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("character_id")
+    @TableField("characterid")
     private Integer characterId;
-    @TableField("monster_id")
+    @TableField("monsterid")
     private Integer monsterId;
-    @TableField("monster_name")
+    @TableField("monstername")
     private String monsterName;
-    @TableField("kill_count")
+    @TableField("killcount")
     private Integer killCount;
 }

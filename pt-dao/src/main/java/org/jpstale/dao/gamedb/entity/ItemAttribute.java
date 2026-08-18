@@ -16,7 +16,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_attribute")
+@TableName(schema = "gamedb", value = "itemattribute")
 public class ItemAttribute {
 
     @TableId(value = "id", type = IdType.AUTO)
@@ -25,12 +25,12 @@ public class ItemAttribute {
     private Integer code;
     @TableField("name")
     private String name;
-    @TableField("before_value")
+    @TableField("beforevalue")
     private String beforeValue;
-    @TableField("after_value")
+    @TableField("aftervalue")
     private String afterValue;
-    @TableField("before_value_spec")
+    @TableField("beforevaluespec")
     private String beforeValueSpec;
-    @TableField("after_value_spec")
+    @TableField("aftervaluespec")
     private String afterValueSpec;
 }

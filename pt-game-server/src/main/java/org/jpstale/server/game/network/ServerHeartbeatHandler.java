@@ -2,6 +2,7 @@ package org.jpstale.server.game.network;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@Sharable
 public class ServerHeartbeatHandler extends ChannelInboundHandlerAdapter {
 
     @Autowired

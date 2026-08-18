@@ -17,23 +17,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "grand_healing")
+@TableName(schema = "skilldb", value = "grandhealing")
 public class GrandHealing {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("static_damage")
+    @TableField("staticdamage")
     private Integer staticDamage;
     @TableField("hprestored")
     private Integer hprestored;
-    @TableField("party_range")
+    @TableField("partyrange")
     private Integer partyRange;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -17,14 +17,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "elemental_shot")
+@TableName(schema = "skilldb", value = "elementalshot")
 public class ElementalShot {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("static_damage")
+    @TableField("staticdamage")
     private Integer staticDamage;
     @TableField("damage")
     private Integer damage;
@@ -34,6 +34,6 @@ public class ElementalShot {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

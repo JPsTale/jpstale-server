@@ -4,7 +4,7 @@
 
     <!-- C++ eventserver.cpp:505 -->
     <insert id="insertOnlineRewardLog" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.online_reward_log (account_name, name, item_name, quantity, date) VALUES (#{accountName}, #{name}, #{itemName}, #{quantity}, CURRENT_TIMESTAMP)
+        INSERT INTO logdb.onlinerewardlog (account_name, name, item_name, quantity, date) VALUES (#{accountName}, #{name}, #{itemName}, #{quantity}, CURRENT_TIMESTAMP)
     </insert>
 
 </mapper>

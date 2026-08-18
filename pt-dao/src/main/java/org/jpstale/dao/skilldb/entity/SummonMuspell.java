@@ -17,25 +17,25 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "summon_muspell")
+@TableName(schema = "skilldb", value = "summonmuspell")
 public class SummonMuspell {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
     @TableField("damage")
     private Integer damage;
     @TableField("duration")
     private Integer duration;
-    @TableField("absorbs_undead_damage")
+    @TableField("absorbsundeaddamage")
     private Integer absorbsUndeadDamage;
-    @TableField("added_evasion")
+    @TableField("addedevasion")
     private Integer addedEvasion;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

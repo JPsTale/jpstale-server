@@ -17,7 +17,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "fury_arena_log")
+@TableName(schema = "logdb", value = "furyarenalog")
 public class FuryArenaLog {
 
     @TableId(value = "id", type = IdType.AUTO)

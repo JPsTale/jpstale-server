@@ -4,7 +4,7 @@
 
     <!-- C++ server.cpp:601,664 -->
     <delete id="deleteAll">
-        DELETE FROM itemdb.item_dump
+        DELETE FROM itemdb.itemdump
     </delete>
 
 </mapper>

@@ -15,20 +15,20 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "quest_list")
+@TableName(schema = "gamedb", value = "questlist")
 public class QuestList {
 
     @TableId("id")
     private Integer id;
     @TableField("name")
     private String name;
-    @TableField("short_description")
+    @TableField("shortdescription")
     private String shortDescription;
     @TableField("description")
     private String description;
-    @TableField("progress_text")
+    @TableField("progresstext")
     private String progressText;
-    @TableField("conclusion_text")
+    @TableField("conclusiontext")
     private String conclusionText;
     @TableField("party")
     private Integer party;
@@ -36,47 +36,47 @@ public class QuestList {
     private Integer multiple;
     @TableField("pvp")
     private Integer pvp;
-    @TableField("min_level")
+    @TableField("minlevel")
     private Integer minLevel;
-    @TableField("max_level")
+    @TableField("maxlevel")
     private Integer maxLevel;
-    @TableField("max_duration")
+    @TableField("maxduration")
     private Integer maxDuration;
-    @TableField("duration_type")
+    @TableField("durationtype")
     private Integer durationType;
-    @TableField("wait_time")
+    @TableField("waittime")
     private Integer waitTime;
-    @TableField("map_id")
+    @TableField("mapid")
     private String mapId;
-    @TableField("monster_id")
+    @TableField("monsterid")
     private String monsterId;
-    @TableField("required_items")
+    @TableField("requireditems")
     private String requiredItems;
-    @TableField("quest_type")
+    @TableField("questtype")
     private Integer questType;
-    @TableField("required_quest_ids")
+    @TableField("requiredquestids")
     private String requiredQuestIds;
-    @TableField("inclusion_quest_ids")
+    @TableField("inclusionquestids")
     private String inclusionQuestIds;
-    @TableField("npc_id")
+    @TableField("npcid")
     private Integer npcId;
-    @TableField("progress_npc_id")
+    @TableField("progressnpcid")
     private Integer progressNpcId;
-    @TableField("conclusion_npc_id")
+    @TableField("conclusionnpcid")
     private Integer conclusionNpcId;
-    @TableField("auto_start_quest_id")
+    @TableField("autostartquestid")
     private Integer autoStartQuestId;
-    @TableField("class_restriction")
+    @TableField("classrestriction")
     private String classRestriction;
-    @TableField("area_type")
+    @TableField("areatype")
     private Integer areaType;
-    @TableField("min_x")
+    @TableField("minx")
     private Integer minX;
-    @TableField("max_x")
+    @TableField("maxx")
     private Integer maxX;
-    @TableField("min_z")
+    @TableField("minz")
     private Integer minZ;
-    @TableField("max_z")
+    @TableField("maxz")
     private Integer maxZ;
     @TableField("radius")
     private Integer radius;

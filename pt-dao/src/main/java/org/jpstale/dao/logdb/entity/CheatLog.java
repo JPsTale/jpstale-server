@@ -17,23 +17,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "cheat_log")
+@TableName(schema = "logdb", value = "cheatlog")
 public class CheatLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     @TableField("ip")
     private String ip;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("action")
     private Integer action;
-    @TableField("log_id")
+    @TableField("logid")
     private Integer logId;
     @TableField("description")
     private String description;
     @TableField("date")
     private LocalDateTime date;
-    @TableField("server_id")
+    @TableField("serverid")
     private Integer serverId;
 }

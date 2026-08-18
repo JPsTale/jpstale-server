@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "item_log")
+@TableName(schema = "logdb", value = "itemlog")
 public class ItemLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     @TableField("ip")
     private String ip;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
-    @TableField("log_id")
+    @TableField("logid")
     private Integer logId;
     @TableField("description")
     private String description;
@@ -36,6 +36,6 @@ public class ItemLog {
     private Integer code2;
     @TableField("date")
     private LocalDateTime date;
-    @TableField("server_id")
+    @TableField("serverid")
     private Integer serverId;
 }

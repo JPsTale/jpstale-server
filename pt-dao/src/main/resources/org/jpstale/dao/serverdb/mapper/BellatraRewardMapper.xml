@@ -4,7 +4,7 @@
 
     <!-- C++ bellatraserver.cpp:2805 -->
     <select id="selectItemCodeQuantityPercentOrderByPercentDesc" resultType="org.jpstale.dao.serverdb.entity.BellatraReward">
-        SELECT item_code, quantity, percent FROM serverdb.bellatra_reward ORDER BY percent DESC
+        SELECT item_code, quantity, percent FROM serverdb.bellatrareward ORDER BY percent DESC
     </select>
 
 </mapper>

@@ -14,13 +14,13 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "userdb", value = "character_exp_def")
+@TableName(schema = "userdb", value = "characterexpdef")
 public class CharacterExpDef {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("level")
     private Integer level;
-    @TableField("exp_required")
+    @TableField("exprequired")
     private Long expRequired;
 }

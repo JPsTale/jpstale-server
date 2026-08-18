@@ -22,7 +22,7 @@ public class Command {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("command_type_id")
+    @TableField("commandtypeid")
     private Integer commandTypeId;
     @TableField("parameter1")
     private String parameter1;
@@ -30,6 +30,6 @@ public class Command {
     private String parameter2;
     @TableField("parameter3")
     private String parameter3;
-    @TableField("date_processed")
+    @TableField("dateprocessed")
     private LocalDateTime dateProcessed;
 }

@@ -17,18 +17,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "ground_pike")
+@TableName(schema = "skilldb", value = "groundpike")
 public class GroundPike {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_min")
+    @TableField("damagemin")
     private Integer damageMin;
-    @TableField("damage_max")
+    @TableField("damagemax")
     private Integer damageMax;
-    @TableField("freeze_time")
+    @TableField("freezetime")
     private Integer freezeTime;
     @TableField("range")
     private Integer range;
@@ -36,6 +36,6 @@ public class GroundPike {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

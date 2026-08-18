@@ -14,7 +14,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "character_class")
+@TableName(schema = "gamedb", value = "characterclass")
 public class CharacterClass {
 
     @TableId(value = "id", type = IdType.AUTO)
@@ -23,6 +23,6 @@ public class CharacterClass {
     private Integer id2;
     @TableField("name")
     private String name;
-    @TableField("short_name")
+    @TableField("shortname")
     private String shortName;
 }

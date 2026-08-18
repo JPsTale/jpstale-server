@@ -16,35 +16,35 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "quest_reward_list")
+@TableName(schema = "gamedb", value = "questrewardlist")
 public class QuestRewardList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("quest_id")
+    @TableField("questid")
     private Integer questId;
     @TableField("name")
     private String name;
-    @TableField("monster_quantities")
+    @TableField("monsterquantities")
     private String monsterQuantities;
-    @TableField("required_drop_quantities")
+    @TableField("requireddropquantities")
     private String requiredDropQuantities;
-    @TableField("exp_reward")
+    @TableField("expreward")
     private Long expReward;
-    @TableField("exp_pot_bonus")
+    @TableField("exppotbonus")
     private Integer expPotBonus;
-    @TableField("exp_level_difference")
+    @TableField("expleveldifference")
     private Integer expLevelDifference;
-    @TableField("item_reward_select")
+    @TableField("itemrewardselect")
     private Integer itemRewardSelect;
-    @TableField("items_reward")
+    @TableField("itemsreward")
     private String itemsReward;
-    @TableField("items_reward_quantities")
+    @TableField("itemsrewardquantities")
     private String itemsRewardQuantities;
-    @TableField("extra_reward_type")
+    @TableField("extrarewardtype")
     private String extraRewardType;
-    @TableField("extra_reward_values")
+    @TableField("extrarewardvalues")
     private String extraRewardValues;
-    @TableField("time_multiplier")
+    @TableField("timemultiplier")
     private Integer timeMultiplier;
 }

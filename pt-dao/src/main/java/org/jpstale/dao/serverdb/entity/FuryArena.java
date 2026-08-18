@@ -16,15 +16,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "serverdb", value = "fury_arena")
+@TableName(schema = "serverdb", value = "furyarena")
 public class FuryArena {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("item_code")
+    @TableField("itemcode")
     private String itemCode;
     @TableField("percent")
     private Integer percent;
-    @TableField("boss_id")
+    @TableField("bossid")
     private Integer bossId;
 }

@@ -18,6 +18,12 @@ public class PlayerSession {
     private boolean loggedIn;
     private boolean playing;
 
+    // 玩家位置（用于怪物刷怪proximity check）
+    private int currentMapId;
+    private float x;
+    private float y;
+    private float z;
+
     public PlayerSession(Channel channel) {
         this.channel = channel;
         this.loggedIn = false;

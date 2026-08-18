@@ -17,15 +17,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "ice_attribute")
+@TableName(schema = "skilldb", value = "iceattribute")
 public class IceAttribute {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("added_ice_resistance")
+    @TableField("addediceresistance")
     private Integer addedIceResistance;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

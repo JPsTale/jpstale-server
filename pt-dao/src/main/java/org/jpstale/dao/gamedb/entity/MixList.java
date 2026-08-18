@@ -16,18 +16,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "mix_list")
+@TableName(schema = "gamedb", value = "mixlist")
 public class MixList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("mix_unique_id")
+    @TableField("mixuniqueid")
     private Integer mixUniqueId;
-    @TableField("group_mix_id")
+    @TableField("groupmixid")
     private Integer groupMixId;
-    @TableField("type_mix")
+    @TableField("typemix")
     private Integer typeMix;
-    @TableField("type_mix_name")
+    @TableField("typemixname")
     private String typeMixName;
     @TableField("description")
     private String description;
@@ -59,56 +59,56 @@ public class MixList {
     private Integer bellum;
     @TableField("oredo")
     private Integer oredo;
-    @TableField("new_sheltom14")
+    @TableField("newsheltom14")
     private Integer newSheltom14;
-    @TableField("new_sheltom15")
+    @TableField("newsheltom15")
     private Integer newSheltom15;
-    @TableField("type_atributte")
+    @TableField("typeatributte")
     private Integer typeAtributte;
     @TableField("atributte")
     private Double atributte;
-    @TableField("per_atributte")
+    @TableField("peratributte")
     private Integer perAtributte;
-    @TableField("type_atributte2")
+    @TableField("typeatributte2")
     private Integer typeAtributte2;
     @TableField("atributte2")
     private Double atributte2;
-    @TableField("per_atributte2")
+    @TableField("peratributte2")
     private Integer perAtributte2;
-    @TableField("type_atributte3")
+    @TableField("typeatributte3")
     private Integer typeAtributte3;
     @TableField("atributte3")
     private Double atributte3;
-    @TableField("per_atributte3")
+    @TableField("peratributte3")
     private Integer perAtributte3;
-    @TableField("type_atributte4")
+    @TableField("typeatributte4")
     private Integer typeAtributte4;
     @TableField("atributte4")
     private Double atributte4;
-    @TableField("per_atributte4")
+    @TableField("peratributte4")
     private Integer perAtributte4;
-    @TableField("type_atributte5")
+    @TableField("typeatributte5")
     private Integer typeAtributte5;
     @TableField("atributte5")
     private Double atributte5;
-    @TableField("per_atributte5")
+    @TableField("peratributte5")
     private Integer perAtributte5;
-    @TableField("type_atributte6")
+    @TableField("typeatributte6")
     private Integer typeAtributte6;
     @TableField("atributte6")
     private Double atributte6;
-    @TableField("per_atributte6")
+    @TableField("peratributte6")
     private Integer perAtributte6;
-    @TableField("type_atributte7")
+    @TableField("typeatributte7")
     private Integer typeAtributte7;
     @TableField("atributte7")
     private Double atributte7;
-    @TableField("per_atributte7")
+    @TableField("peratributte7")
     private Integer perAtributte7;
-    @TableField("type_atributte8")
+    @TableField("typeatributte8")
     private Integer typeAtributte8;
     @TableField("atributte8")
     private Double atributte8;
-    @TableField("per_atributte8")
+    @TableField("peratributte8")
     private Integer perAtributte8;
 }

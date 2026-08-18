@@ -17,14 +17,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "holy_mind")
+@TableName(schema = "skilldb", value = "holymind")
 public class HolyMind {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("reduce_attack_power")
+    @TableField("reduceattackpower")
     private Integer reduceAttackPower;
     @TableField("duration")
     private Integer duration;
@@ -32,6 +32,6 @@ public class HolyMind {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

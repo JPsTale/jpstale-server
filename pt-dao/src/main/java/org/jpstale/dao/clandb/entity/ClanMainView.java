@@ -15,48 +15,48 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "clan_main_view")
+@TableName(schema = "clandb", value = "clanmainview")
 public class ClanMainView {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("clan_name")
+    @TableField("clanname")
     private String clanName;
     @TableField("note")
     private String note;
-    @TableField("note_cnt")
+    @TableField("notecnt")
     private Integer noteCnt;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("clan_zang")
+    @TableField("clanzang")
     private String clanZang;
     @TableField("flag")
     private Integer flag;
-    @TableField("mem_cnt")
+    @TableField("memcnt")
     private Integer memCnt;
-    @TableField("m_icon_cnt")
+    @TableField("miconcnt")
     private Integer mIconCnt;
-    @TableField("regi_date")
+    @TableField("regidate")
     private LocalDateTime regiDate;
-    @TableField("limit_date")
+    @TableField("limitdate")
     private LocalDateTime limitDate;
-    @TableField("del_active")
+    @TableField("delactive")
     private String delActive;
-    @TableField("p_flag")
+    @TableField("pflag")
     private Integer pFlag;
-    @TableField("k_flag")
+    @TableField("kflag")
     private Integer kFlag;
-    @TableField("c_point")
+    @TableField("cpoint")
     private Integer cPoint;
-    @TableField("c_win")
+    @TableField("cwin")
     private Integer cWin;
-    @TableField("c_fail")
+    @TableField("cfail")
     private Integer cFail;
-    @TableField("clan_money")
+    @TableField("clanmoney")
     private Long clanMoney;
-    @TableField("cn_flag")
+    @TableField("cnflag")
     private Integer cnFlag;
-    @TableField("siege_money")
+    @TableField("siegemoney")
     private Long siegeMoney;
     @TableField("server")
     private String server;

@@ -16,7 +16,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "eventdb", value = "bellatra_monster")
+@TableName(schema = "eventdb", value = "bellatramonster")
 public class BellatraMonster {
 
     @TableId(value = "id", type = IdType.AUTO)
@@ -41,18 +41,18 @@ public class BellatraMonster {
     private Integer count4;
     @TableField("boss")
     private String boss;
-    @TableField("boss_appear")
+    @TableField("bossappear")
     private Integer bossAppear;
-    @TableField("view_sight")
+    @TableField("viewsight")
     private Integer viewSight;
-    @TableField("start_round")
+    @TableField("startround")
     private Integer startRound;
     @TableField("gold")
     private Integer gold;
-    @TableField("delay_round")
+    @TableField("delayround")
     private Integer delayRound;
-    @TableField("percent_monsters")
+    @TableField("percentmonsters")
     private Integer percentMonsters;
-    @TableField("max_monsters")
+    @TableField("maxmonsters")
     private Integer maxMonsters;
 }

@@ -17,16 +17,16 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "skilldb", value = "golden_falcon")
+@TableName(schema = "skilldb", value = "goldenfalcon")
 public class GoldenFalcon {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("damage_boost")
+    @TableField("damageboost")
     private Integer damageBoost;
-    @TableField("added_hp_recovery")
+    @TableField("addedhprecovery")
     private Integer addedHpRecovery;
     @TableField("duration")
     private Integer duration;
@@ -34,6 +34,6 @@ public class GoldenFalcon {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

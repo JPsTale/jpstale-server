@@ -14,18 +14,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_value")
+@TableName(schema = "gamedb", value = "itemvalue")
 public class ItemValue {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("item_list_id")
+    @TableField("itemlistid")
     private Integer itemListId;
-    @TableField("attribute_id")
+    @TableField("attributeid")
     private Integer attributeId;
-    @TableField("min_value")
+    @TableField("minvalue")
     private Double minValue;
-    @TableField("max_value")
+    @TableField("maxvalue")
     private Double maxValue;
     @TableField("spec")
     private Integer spec;

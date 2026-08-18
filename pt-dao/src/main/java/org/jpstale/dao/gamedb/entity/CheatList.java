@@ -16,17 +16,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "cheat_list")
+@TableName(schema = "gamedb", value = "cheatlist")
 public class CheatList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("cheat_type")
+    @TableField("cheattype")
     private Integer cheatType;
-    @TableField("cheat_id")
+    @TableField("cheatid")
     private Integer cheatId;
-    @TableField("cheat_name")
+    @TableField("cheatname")
     private String cheatName;
-    @TableField("cheat_signature")
+    @TableField("cheatsignature")
     private Integer cheatSignature;
 }

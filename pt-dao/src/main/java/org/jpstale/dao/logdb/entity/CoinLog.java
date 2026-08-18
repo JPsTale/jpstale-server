@@ -17,12 +17,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "coin_log")
+@TableName(schema = "logdb", value = "coinlog")
 public class CoinLog {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("account_name")
+    @TableField("accountname")
     private String accountName;
     @TableField("description")
     private String description;

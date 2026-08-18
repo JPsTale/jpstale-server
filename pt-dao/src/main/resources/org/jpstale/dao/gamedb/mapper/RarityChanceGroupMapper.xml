@@ -4,7 +4,7 @@
 
     <!-- C++ itemserver.cpp:4358 -->
     <select id="selectIdMinLevelMaxLevel" resultType="org.jpstale.dao.gamedb.entity.RarityChanceGroup">
-        SELECT id, min_level, max_level FROM gamedb.rarity_chance_group
+        SELECT id, min_level, max_level FROM gamedb.raritychancegroup
     </select>
 
 </mapper>

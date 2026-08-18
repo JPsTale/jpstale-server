@@ -16,13 +16,13 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "mix_item")
+@TableName(schema = "gamedb", value = "mixitem")
 public class MixItem {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("mix_id")
+    @TableField("mixid")
     private Integer mixId;
-    @TableField("item_sub_type_id")
+    @TableField("itemsubtypeid")
     private Integer itemSubTypeId;
 }

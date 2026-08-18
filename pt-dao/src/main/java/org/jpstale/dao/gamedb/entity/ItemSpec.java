@@ -14,15 +14,15 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "item_spec")
+@TableName(schema = "gamedb", value = "itemspec")
 public class ItemSpec {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("item_id")
+    @TableField("itemid")
     private Integer itemId;
-    @TableField("character_class_id")
+    @TableField("characterclassid")
     private Integer characterClassId;
-    @TableField("main_spec")
+    @TableField("mainspec")
     private Integer mainSpec;
 }

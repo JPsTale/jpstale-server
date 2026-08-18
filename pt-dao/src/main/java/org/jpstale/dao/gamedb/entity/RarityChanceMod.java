@@ -15,19 +15,19 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "rarity_chance_mod")
+@TableName(schema = "gamedb", value = "raritychancemod")
 public class RarityChanceMod {
 
     @TableId("type")
     private Integer type;
-    @TableField("mod_common")
+    @TableField("modcommon")
     private Double modCommon;
-    @TableField("mod_uncommon")
+    @TableField("moduncommon")
     private Double modUncommon;
-    @TableField("mod_rare")
+    @TableField("modrare")
     private Double modRare;
-    @TableField("mod_epic")
+    @TableField("modepic")
     private Double modEpic;
-    @TableField("mod_legendary")
+    @TableField("modlegendary")
     private Double modLegendary;
 }

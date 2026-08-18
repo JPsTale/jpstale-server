@@ -17,7 +17,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "logdb", value = "server_log")
+@TableName(schema = "logdb", value = "serverlog")
 public class ServerLog {
 
     @TableId(value = "id", type = IdType.AUTO)
@@ -28,7 +28,7 @@ public class ServerLog {
     private Integer server;
     @TableField("message")
     private String message;
-    @TableField("unix_time")
+    @TableField("unixtime")
     private Integer unixTime;
     @TableField("date")
     private LocalDateTime date;

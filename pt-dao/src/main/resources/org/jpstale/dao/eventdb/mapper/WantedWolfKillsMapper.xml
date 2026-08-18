@@ -4,7 +4,7 @@
 
     <!-- C++ eventserver.cpp:631 -->
     <delete id="deleteAll">
-        DELETE FROM eventdb.wanted_wolf_kills
+        DELETE FROM eventdb.wantedwolfkills
     </delete>
 
 </mapper>

@@ -14,7 +14,7 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "achievement_list")
+@TableName(schema = "gamedb", value = "achievementlist")
 public class AchievementList {
 
     @TableId(value = "id", type = IdType.AUTO)

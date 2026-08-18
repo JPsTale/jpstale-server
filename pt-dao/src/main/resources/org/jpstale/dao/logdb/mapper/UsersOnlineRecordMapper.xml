@@ -4,7 +4,7 @@
 
     <!-- C++ logserver.cpp:1246 -->
     <insert id="insertUsersOnlineRecord" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO logdb.users_online_record (users_online_sub_server1, users_online_sub_server2, users_online_sub_server3, total_users_online, date)
+        INSERT INTO logdb.usersonlinerecord (users_online_sub_server1, users_online_sub_server2, users_online_sub_server3, total_users_online, date)
         VALUES (#{usersOnlineSubServer1}, #{usersOnlineSubServer2}, #{usersOnlineSubServer3}, #{totalUsersOnline}, CURRENT_TIMESTAMP)
     </insert>
 

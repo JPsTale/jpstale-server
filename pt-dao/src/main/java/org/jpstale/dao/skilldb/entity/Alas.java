@@ -22,12 +22,12 @@ public class Alas {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
     @TableField("evasion")
     private Integer evasion;
     @TableField("duration")
     private Integer duration;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

@@ -4,7 +4,7 @@
 
     <!-- C++ itemserver.cpp:4433 -->
     <select id="selectAddSpecClassAndPercentReq" resultType="org.jpstale.dao.gamedb.entity.ItemSpecMod">
-        SELECT add_spec_class01, add_spec_class02, add_spec_class03, add_spec_class04, add_spec_class05, add_spec_class06, add_spec_class07, add_spec_class08, add_spec_class09, add_spec_class10, item_type, percent_req_strength, percent_req_spirit, percent_req_talent, percent_req_agility, percent_req_health FROM gamedb.item_spec_mod
+        SELECT add_spec_class01, add_spec_class02, add_spec_class03, add_spec_class04, add_spec_class05, add_spec_class06, add_spec_class07, add_spec_class08, add_spec_class09, add_spec_class10, item_type, percent_req_strength, percent_req_spirit, percent_req_talent, percent_req_agility, percent_req_health FROM gamedb.itemspecmod
     </select>
 
 </mapper>

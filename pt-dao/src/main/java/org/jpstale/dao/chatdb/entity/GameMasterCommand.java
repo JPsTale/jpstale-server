@@ -16,17 +16,17 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "chatdb", value = "game_master_command")
+@TableName(schema = "chatdb", value = "gamemastercommand")
 public class GameMasterCommand {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("ip")
     private String ip;
-    @TableField("character_name")
+    @TableField("charactername")
     private String characterName;
     @TableField("command")
     private String command;
-    @TableField("unix_time")
+    @TableField("unixtime")
     private Integer unixTime;
 }

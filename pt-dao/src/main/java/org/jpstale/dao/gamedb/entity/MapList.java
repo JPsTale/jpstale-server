@@ -16,21 +16,21 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "map_list")
+@TableName(schema = "gamedb", value = "maplist")
 public class MapList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("name")
     private String name;
-    @TableField("short_name")
+    @TableField("shortname")
     private String shortName;
-    @TableField("type_map")
+    @TableField("typemap")
     private String typeMap;
-    @TableField("level_req")
+    @TableField("levelreq")
     private Integer levelReq;
     @TableField("pvp")
     private Integer pvp;
-    @TableField("stage_file")
+    @TableField("stagefile")
     private String stageFile;
 }

@@ -22,16 +22,16 @@ public class Spark {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("spark_dmg")
+    @TableField("sparkdmg")
     private Integer sparkDmg;
-    @TableField("area_range")
+    @TableField("arearange")
     private Integer areaRange;
     @TableField("mpusage")
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

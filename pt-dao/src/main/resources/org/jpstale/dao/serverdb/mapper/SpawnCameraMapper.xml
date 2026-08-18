@@ -4,7 +4,7 @@
 
     <!-- C++ servercommand.cpp:5249 -->
     <select id="selectAllSpawnCamera" resultType="org.jpstale.dao.serverdb.entity.SpawnCamera">
-        SELECT map_number, spawn_x, spawn_y, spawn_z, cam_x_coord, cam_z_coord, cam_turn, cam_angle, cam_zoom, min_player_count, search_radius, spawn_type FROM serverdb.spawn_camera
+        SELECT map_number, spawn_x, spawn_y, spawn_z, cam_x_coord, cam_z_coord, cam_turn, cam_angle, cam_zoom, min_player_count, search_radius, spawn_type FROM serverdb.spawncamera
     </select>
 
 </mapper>

@@ -4,10 +4,10 @@
 
     <!-- C++ unitinfo.cpp -->
     <select id="selectCountStageByStage" resultType="java.lang.Integer">
-        SELECT COUNT(stage) FROM gamedb.map_monster WHERE stage = #{stage}
+        SELECT COUNT(stage) FROM gamedb.mapmonster WHERE stage = #{stage}
     </select>
     <select id="selectByStage" resultType="org.jpstale.dao.gamedb.entity.MapMonster">
-        SELECT * FROM gamedb.map_monster WHERE stage = #{stage}
+        SELECT * FROM gamedb.mapmonster WHERE stage = #{stage}
     </select>
 
 </mapper>

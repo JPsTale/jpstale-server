@@ -16,14 +16,14 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "gamedb", value = "monster_list")
+@TableName(schema = "gamedb", value = "monsterlist")
 public class MonsterList {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("name")
     private String name;
-    @TableField("model_file")
+    @TableField("modelfile")
     private String modelFile;
     @TableField("level")
     private Integer level;
@@ -31,65 +31,65 @@ public class MonsterList {
     private Integer glow;
     @TableField("size")
     private Double size;
-    @TableField("camera_y")
+    @TableField("cameray")
     private Integer cameraY;
-    @TableField("camera_z")
+    @TableField("cameraz")
     private Integer cameraZ;
-    @TableField("monster_id")
+    @TableField("monsterid")
     private Integer monsterId;
-    @TableField("drop_is_public")
+    @TableField("dropispublic")
     private Integer dropIsPublic;
-    @TableField("drop_quantity")
+    @TableField("dropquantity")
     private Integer dropQuantity;
-    @TableField("spawn_time")
+    @TableField("spawntime")
     private String spawnTime;
-    @TableField("spawn_min")
+    @TableField("spawnmin")
     private Integer spawnMin;
-    @TableField("spawn_max")
+    @TableField("spawnmax")
     private Integer spawnMax;
     @TableField("inteligence")
     private Integer inteligence;
-    @TableField("monster_type")
+    @TableField("monstertype")
     private String monsterType;
-    @TableField("view_sight")
+    @TableField("viewsight")
     private Integer viewSight;
     @TableField("hp")
     private Integer hp;
     @TableField("exp")
     private String exp;
-    @TableField("special_skill_type")
+    @TableField("specialskilltype")
     private String specialSkillType;
-    @TableField("special_skill_hit")
+    @TableField("specialskillhit")
     private String specialSkillHit;
-    @TableField("special_hit_rate")
+    @TableField("specialhitrate")
     private Integer specialHitRate;
-    @TableField("special_hit_scope")
+    @TableField("specialhitscope")
     private Integer specialHitScope;
-    @TableField("special_hit_power_min")
+    @TableField("specialhitpowermin")
     private Integer specialHitPowerMin;
-    @TableField("special_hit_power_max")
+    @TableField("specialhitpowermax")
     private Integer specialHitPowerMax;
-    @TableField("atk_pow_min")
+    @TableField("atkpowmin")
     private Integer atkPowMin;
-    @TableField("atk_pow_max")
+    @TableField("atkpowmax")
     private Integer atkPowMax;
     @TableField("absorb")
     private Integer absorb;
-    @TableField("stun_chance")
+    @TableField("stunchance")
     private Integer stunChance;
     @TableField("block")
     private Integer block;
     @TableField("defense")
     private Integer defense;
-    @TableField("attack_speed")
+    @TableField("attackspeed")
     private Integer attackSpeed;
-    @TableField("attack_rating")
+    @TableField("attackrating")
     private Integer attackRating;
-    @TableField("attack_range")
+    @TableField("attackrange")
     private Integer attackRange;
-    @TableField("perfect_attack_rate")
+    @TableField("perfectattackrate")
     private Integer perfectAttackRate;
-    @TableField("size_shadow")
+    @TableField("sizeshadow")
     private String sizeShadow;
     @TableField("organic")
     private Integer organic;
@@ -103,24 +103,24 @@ public class MonsterList {
     private Integer poison;
     @TableField("magic")
     private Integer magic;
-    @TableField("property_mon")
+    @TableField("propertymon")
     private String propertyMon;
-    @TableField("move_speed")
+    @TableField("movespeed")
     private Integer moveSpeed;
-    @TableField("potion_percent")
+    @TableField("potionpercent")
     private Integer potionPercent;
     @TableField("potions")
     private Integer potions;
     @TableField("effect")
     private String effect;
-    @TableField("quest_item_drop")
+    @TableField("questitemdrop")
     private String questItemDrop;
-    @TableField("quest_id")
+    @TableField("questid")
     private Integer questId;
-    @TableField("quest_map")
+    @TableField("questmap")
     private Integer questMap;
     @TableField("stage")
     private String stage;
-    @TableField("health_point")
+    @TableField("healthpoint")
     private Integer healthPoint;
 }

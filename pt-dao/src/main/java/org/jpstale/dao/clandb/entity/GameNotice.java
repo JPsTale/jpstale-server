@@ -14,18 +14,18 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "game_notice")
+@TableName(schema = "clandb", value = "gamenotice")
 public class GameNotice {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("ch_name")
+    @TableField("chname")
     private String chName;
     @TableField("server")
     private Integer server;
-    @TableField("p_flag")
+    @TableField("pflag")
     private Integer pFlag;
     @TableField("txt")
     private String txt;

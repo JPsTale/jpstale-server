@@ -15,23 +15,23 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "bbs_sub")
+@TableName(schema = "clandb", value = "bbssub")
 public class BbsSub {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
     @TableField("mindex")
     private Integer mindex;
-    @TableField("user_id")
+    @TableField("userid")
     private String userId;
-    @TableField("write_name")
+    @TableField("writename")
     private String writeName;
     @TableField("content")
     private String content;
-    @TableField("regi_date")
+    @TableField("regidate")
     private LocalDateTime regiDate;
-    @TableField("regi_ip")
+    @TableField("regiip")
     private String regiIp;
-    @TableField("nick_name")
+    @TableField("nickname")
     private String nickName;
 }

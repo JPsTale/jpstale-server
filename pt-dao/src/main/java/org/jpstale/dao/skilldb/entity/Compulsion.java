@@ -22,11 +22,11 @@ public class Compulsion {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("skill_level")
+    @TableField("skilllevel")
     private Integer skillLevel;
-    @TableField("extra_absorb")
+    @TableField("extraabsorb")
     private Integer extraAbsorb;
-    @TableField("magnetic_range")
+    @TableField("magneticrange")
     private Integer magneticRange;
     @TableField("duration")
     private Integer duration;
@@ -34,6 +34,6 @@ public class Compulsion {
     private Integer mpusage;
     @TableField("stmusage")
     private Integer stmusage;
-    @TableField("create_time")
+    @TableField("createtime")
     private LocalDateTime createTime;
 }

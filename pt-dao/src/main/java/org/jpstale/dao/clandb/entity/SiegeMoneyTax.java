@@ -15,12 +15,12 @@ import lombok.Data;
  * @since 2026-03-15
  */
 @Data
-@TableName(schema = "clandb", value = "siege_money_tax")
+@TableName(schema = "clandb", value = "siegemoneytax")
 public class SiegeMoneyTax {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Integer id;
-    @TableField("d_no")
+    @TableField("dno")
     private Integer dNo;
     @TableField("mixing")
     private Long mixing;
@@ -44,8 +44,8 @@ public class SiegeMoneyTax {
     private Long total;
     @TableField("tax")
     private Long tax;
-    @TableField("server_name")
+    @TableField("servername")
     private String serverName;
-    @TableField("regist_day")
+    @TableField("registday")
     private LocalDateTime registDay;
 }
