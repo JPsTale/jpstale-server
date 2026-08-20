@@ -10,10 +10,12 @@ import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.SelectorNode;
 import org.jpstale.server.game.model.SequenceNode;
 import org.jpstale.server.game.service.AOIManager;
+import org.jpstale.server.game.network.PlayerSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -52,11 +54,74 @@ public class AiEngine {
             return;
         }
 
+        // 仇恨检测：无目标时寻找附近玩家，超出视野则放弃目标
+        updateTarget(monster, context);
+
         // 获取行为树
         BehaviorTree tree = behaviorTrees.get(0); // 默认使用攻击型
         if (tree != null) {
             tree.tick(monster, context);
             context.updateDecisionTime();
+        }
+    }
+
+    /**
+     * 仇恨检测：
+     * 1. 无目标：扫描视野范围内（viewsight）的玩家，主动型怪物（intelligence>0）锁定最近玩家
+     * 2. 已有目标：玩家脱离视野（1.5 倍视野）则放弃目标，怪物回归巡逻/归位
+     */
+    private void updateTarget(Monster monster, AiContext context) {
+        PlayerSession currentTarget = context.getTargetPlayer();
+        if (currentTarget != null) {
+            float dx = monster.getX() - currentTarget.getX();
+            float dz = monster.getZ() - currentTarget.getZ();
+            float distSq = dx * dx + dz * dz;
+            // EU：怪物追击中，目标脱离 CONNECT 视野（1086）则放弃（对齐 DIST_TRANSLEVEL_DISCONNECT=1810 边界）
+            float loseRange = AOIManager.VIEW_RANGE_DISCONNECT;
+            if (distSq > loseRange * loseRange || !currentTarget.isPlaying()
+                    || currentTarget.getCurrentMapId() != monster.getMapId()) {
+                clearTarget(monster);
+            } else {
+                // 刷新目标位置（玩家在移动）
+                context.setTargetX(currentTarget.getX());
+                context.setTargetY(currentTarget.getY());
+                context.setTargetZ(currentTarget.getZ());
+            }
+            return;
+        }
+
+        if (monster.getIntelligence() <= 0 || monster.getViewsight() <= 0) {
+            return;
+        }
+
+        // EU（OnSever.cpp）：扫描范围 = min(viewsight, CONNECT 1086)，且高度差 |rY| < 140
+        float sight = Math.min(monster.getViewsight(), AOIManager.VIEW_RANGE);
+        Set<PlayerSession> nearby = aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), sight);
+        PlayerSession nearest = null;
+        float nearestDistSq = Float.MAX_VALUE;
+        for (PlayerSession session : nearby) {
+            if (!session.isPlaying() || session.getCurrentMapId() != monster.getMapId()) {
+                continue;
+            }
+            float dy = monster.getY() - session.getY();
+            if (Math.abs(dy) > 140) {
+                continue;
+            }
+            float dx = monster.getX() - session.getX();
+            float dz = monster.getZ() - session.getZ();
+            float distSq = dx * dx + dz * dz;
+            if (distSq < nearestDistSq) {
+                nearestDistSq = distSq;
+                nearest = session;
+            }
+        }
+
+        if (nearest != null) {
+            context.setTargetPlayer(nearest);
+            context.setTargetX(nearest.getX());
+            context.setTargetY(nearest.getY());
+            context.setTargetZ(nearest.getZ());
+            monster.setTargetPlayerId(nearest.getCharacterId());
         }
     }
 

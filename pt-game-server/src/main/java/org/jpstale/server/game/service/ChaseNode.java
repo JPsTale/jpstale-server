@@ -19,6 +19,10 @@ public class ChaseNode extends BehaviorNode {
             return NodeStatus.FAILURE;
         }
 
+        // 持续跟随目标最新位置
+        context.setTargetX(target.getX());
+        context.setTargetZ(target.getZ());
+
         // 获取目标位置
         float targetX = context.getTargetX();
         float targetZ = context.getTargetZ();

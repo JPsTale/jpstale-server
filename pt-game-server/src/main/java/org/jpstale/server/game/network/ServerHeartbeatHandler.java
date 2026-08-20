@@ -34,11 +34,18 @@ public class ServerHeartbeatHandler extends ChannelInboundHandlerAdapter {
                 
                 PlayerSession session = sessionManager.getSession(ctx.channel());
                 if (session != null && session.isPlaying()) {
-                    // 生成重连 Token
+                    // 生成重连 Token 并下发给客户端
                     String token = reconnectionManager.generateReconnectToken(session);
+                    session.setReconnectTokenIssued(true);
                     log.info("Generated reconnect token for player: {}", session.getCharacterName());
+                    // 先发送 token，确认写入完成后再关闭，避免帧丢失
+                    io.netty.handler.codec.http.websocketx.TextWebSocketFrame frame =
+                        new io.netty.handler.codec.http.websocketx.TextWebSocketFrame(
+                            "{\"type\":\"reconnect.token\",\"data\":{\"token\":\"" + token + "\"}}");
+                    ctx.writeAndFlush(frame).addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+                    return;
                 }
-                
+
                 ctx.close();
             }
         } else {

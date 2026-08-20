@@ -2,6 +2,7 @@
 spring:
   main:
     web-application-type: none
+    allow-circular-references: true
   datasource:
     dynamic:
       primary: master
@@ -19,5 +20,10 @@ spring:
 pt:
   game:
     port: 10007
+    ws-port: 10008
     loop:
       tick-interval-ms: 50
+  field:
+    # 地图区域数据（对齐 EU InitField 顺序，mapId 0-43）
+    # smd 根目录：地图碰撞网格文件位置（.smd 头 RECT 提供地图 AABB）
+    smd-root: ${PT_SMD_ROOT:/data/PristonTale/exm/run}

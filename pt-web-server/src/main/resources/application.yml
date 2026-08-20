@@ -1,5 +1,7 @@
 server:
   port: ${PT_WEB_PORT:8080}
+  servlet:
+    context-path: ${PT_WEB_CONTEXT_PATH:/pt}
 
 spring:
   application:
@@ -10,9 +12,9 @@ spring:
       strict: false
       datasource:
         master:
-          url: jdbc:postgresql://localhost:5432/pt
-          username: ${DB_USER:postgres}
-          password: ${DB_PASSWORD:123456}
+          url: jdbc:postgresql://localhost:5432/pristontale
+          username: ${DB_USER:sa}
+          password: ${DB_PASSWORD:632514Go}
           driver-class-name: org.postgresql.Driver
   flyway:
     enabled: true

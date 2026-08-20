@@ -21,7 +21,12 @@ import java.util.concurrent.ConcurrentSkipListMap;
 @Component
 public class AOIManager {
 
-    public static final int VIEW_RANGE = 100;
+    // EU 原始实现（exm/smType.h + character.h）：
+    // DIST_TRANSLEVEL_CONNECT = 0x120000（平方距离，定点数已除 FLOATNS=8）→ √ ≈ 1086 单位
+    // DIST_TRANSLEVEL_DISCONNECT = 0x320000 → √ ≈ 1810 单位
+    // 出现/消失用双阈值避免抖动；服务端不裁剪，视野内全部可见。
+    public static final float VIEW_RANGE = 1086f;
+    public static final float VIEW_RANGE_DISCONNECT = 1810f;
     private static final int GRID_SIZE = 10;
 
     @Autowired

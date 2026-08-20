@@ -30,11 +30,20 @@ public class ReconnectionManager {
             session.getAccountId(),
             session.getCharacterId(),
             session.getCharacterName(),
+            session.getCurrentMapId(),
+            session.getX(),
+            session.getY(),
+            session.getZ(),
+            session.getHp(),
+            session.getMaxHp(),
+            session.getMp(),
+            session.getMaxMp(),
+            session.getLevel(),
             System.currentTimeMillis()
         );
-        
+
         pendingReconnections.put(token, pending);
-        
+
         // 5分钟后过期
         scheduler.schedule(() -> {
             PendingReconnection removed = pendingReconnections.remove(token);
@@ -42,7 +51,7 @@ public class ReconnectionManager {
                 log.info("Reconnect token expired for character: {}", removed.characterName);
             }
         }, 5, TimeUnit.MINUTES);
-        
+
         log.info("Generated reconnect token for character: {}", session.getCharacterName());
         return token;
     }
@@ -61,6 +70,15 @@ public class ReconnectionManager {
         Long accountId,
         Long characterId,
         String characterName,
+        int mapId,
+        float x,
+        float y,
+        float z,
+        int hp,
+        int maxHp,
+        int mp,
+        int maxMp,
+        int level,
         long disconnectTime
     ) {}
 }

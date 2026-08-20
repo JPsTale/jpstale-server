@@ -34,6 +34,8 @@ public class Monster {
     private int absorption;     // 吸收率 (%)
     private int exp;            // 击杀经验
     private int gold;           // 掉落金币
+    private float viewsight;    // 视野/仇恨范围
+    private int intelligence;   // AI 类型（0=被动，>0=主动攻击）
 
     // 出生点信息（归位用）
     private int spawnPointIndex = -1;  // 所属出生点索引

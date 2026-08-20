@@ -6,6 +6,7 @@ import io.netty.channel.ChannelHandler.Sharable;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.common.ValidationInterceptor;
 import org.jpstale.server.game.common.ValidationResult;
+import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,12 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
 
     @Autowired
     private ValidationInterceptor validationInterceptor;
+
+    @Autowired
+    private AOIManager aoiManager;
+
+    @Autowired
+    private ReconnectionManager reconnectionManager;
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, MessageProto.ClientMessage msg) throws Exception {
@@ -67,6 +74,14 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.info("Client disconnected: {}", ctx.channel().remoteAddress());
         // 移除 Session
+        PlayerSession session = sessionManager.getSession(ctx.channel());
+        if (session != null) {
+            if (session.isPlaying() && session.isAllowReconnect() && !session.isReconnectTokenIssued()) {
+                // 断线重连兜底：READER_IDLE 未触发（如客户端直接断网）时，生成 token 供 5 分钟内重连
+                reconnectionManager.generateReconnectToken(session);
+            }
+            aoiManager.removePlayer(session);
+        }
         sessionManager.removeSession(ctx.channel());
         super.channelInactive(ctx);
     }

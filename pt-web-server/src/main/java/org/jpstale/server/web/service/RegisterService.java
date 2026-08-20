@@ -7,8 +7,6 @@ import org.jpstale.server.common.enums.account.BanStatus;
 import org.jpstale.server.web.dto.RegisterResponse;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-
 /**
  * 注册：写入 userdb.user_info。密码由前端按 SHA256(UPPERCASE(account)+":"+明文) 算出十六进制大写后传入，后端直接存库。
  */
@@ -44,7 +42,7 @@ public class RegisterService {
         UserInfo user = new UserInfo();
         user.setAccountName(accountName);
         user.setPassword(passwordHash);
-        user.setRegisDay(Instant.now());
+        user.setRegisDay(java.time.LocalDate.now().toString());
         user.setFlag(AccountFlag.ACTIVATED.getValue() | AccountFlag.SUPPORTER.getValue()
                 | AccountFlag.ACCEPTED_LATEST_TOA.getValue() | AccountFlag.APPROVED.getValue()); // 114，与登录兼容
         user.setActive(1);

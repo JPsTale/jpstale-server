@@ -26,6 +26,9 @@ public class WorldService {
     @Autowired
     private MapManager mapManager;
 
+    @Autowired
+    private MapRegionService mapRegionService;
+
     /**
      * 报文入口：玩家移动
      */
@@ -48,7 +51,7 @@ public class WorldService {
         session.setZ(newZ);
 
         // 验证位置是否有效
-        int mapId = session.getCurrentMapId() > 0 ? session.getCurrentMapId() : 1;
+        int mapId = session.getCurrentMapId();
         if (!mapManager.isValidPosition(mapId, newX, newZ)) {
             log.warn("Invalid position for player {}: ({}, {}, {})",
                 session.getCharacterName(), newX, newY, newZ);
@@ -57,6 +60,15 @@ public class WorldService {
 
         // 更新 AOI
         aoiManager.onPlayerMove(session, newX, newZ);
+
+        // 跨图检测：AABB 快速反查 + 重叠时 GetHeight 精确判定
+        // （对齐原版 FindStageField：先 AABB 粗筛，交界处用地形面精确判定）
+        int currentMapId = session.getCurrentMapId();
+        int targetMap = mapRegionService.findMapPrecise(currentMapId, newX, newZ);
+        if (targetMap >= 0 && targetMap != currentMapId) {
+            switchMap(session, targetMap);
+            return;
+        }
 
         // 广播移动给视野内的玩家
         MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
@@ -76,5 +88,35 @@ public class WorldService {
                 nearbySession.send(moveMessage);
             }
         }
+    }
+
+/**
+     * 切换地图：无缝大世界，玩家坐标不变（从边界走/跑进入），只更新 mapId + AOI 换图 + 通知客户端。
+     */
+    private void switchMap(PlayerSession session, int newMapId) {
+        int oldMapId = session.getCurrentMapId();
+        log.info("Player {} switching map {} -> {} at ({}, {})",
+            session.getCharacterName(), oldMapId, newMapId,
+            Math.round(session.getX()), Math.round(session.getZ()));
+
+        float newX = session.getX();
+        float newZ = session.getZ();
+
+        // 移出旧图 AOI
+        aoiManager.removePlayer(session);
+
+        // 更新地图（坐标保持连续不变）
+        session.setCurrentMapId(newMapId);
+
+        // 重新加入 AOI
+        aoiManager.addPlayer(session, newX, newZ);
+
+        // 通知客户端切图（前端切换地图背景/刷怪，坐标不变）
+        session.sendText("{\"type\":\"game.mapSwitched\",\"data\":{"
+            + "\"fromMapId\":" + oldMapId
+            + ",\"mapId\":" + newMapId
+            + ",\"x\":" + newX
+            + ",\"z\":" + newZ
+            + "}}");
     }
 }

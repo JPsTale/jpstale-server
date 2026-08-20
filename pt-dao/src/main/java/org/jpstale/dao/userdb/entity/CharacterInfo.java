@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -43,7 +44,7 @@ public class CharacterInfo {
     @TableField("clanleavedate")
     private Integer clanLeaveDate;
     @TableField("lastseendate")
-    private LocalDateTime lastSeenDate;
+    private OffsetDateTime lastSeenDate;
     @TableField("blesscastlescore")
     private Integer blessCastleScore;
     @TableField("fsp")

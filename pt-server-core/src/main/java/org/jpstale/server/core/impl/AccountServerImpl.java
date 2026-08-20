@@ -33,7 +33,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
@@ -116,8 +116,8 @@ public class AccountServerImpl implements AccountServer {
                 if (banStatus == BanStatus.BANNED) {
                     code = AccountLogin.BANNED;
                 } else if (banStatus == BanStatus.TEMP_BANNED) {
-                    LocalDateTime unbanDate = userInfo.getUnbanDate();
-                    if (unbanDate != null && LocalDateTime.now().isBefore(unbanDate)) {
+                    OffsetDateTime unbanDate = userInfo.getUnbanDate();
+                    if (unbanDate != null && OffsetDateTime.now().isBefore(unbanDate)) {
                         code = AccountLogin.TEMP_BANNED;
                     } else {
                         if (userInfo.getId() != null) {
@@ -128,8 +128,8 @@ public class AccountServerImpl implements AccountServer {
             }
 
             if (code == AccountLogin.LOGIN_PENDING && userInfo.getIsMuted() != null && userInfo.getIsMuted() != 0) {
-                LocalDateTime unmuteDate = userInfo.getUnmuteDate();
-                if (unmuteDate != null && LocalDateTime.now().isBefore(unmuteDate)) {
+                OffsetDateTime unmuteDate = userInfo.getUnmuteDate();
+                if (unmuteDate != null && OffsetDateTime.now().isBefore(unmuteDate)) {
                     // 仍处于禁言期，C++ 会设置 pcUser->bMuted，登录服仅放行
                 } else {
                     if (userInfo.getId() != null) {
@@ -178,7 +178,7 @@ public class AccountServerImpl implements AccountServer {
             if (userInfo.getIsMuted() != null && userInfo.getIsMuted() != 0) {
                 userData.setMuted(true);
                 if (userInfo.getUnmuteDate() != null) {
-                    userData.setUnmuteExpiry(userInfo.getUnmuteDate().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli());
+                    userData.setUnmuteExpiry(userInfo.getUnmuteDate().toInstant().toEpochMilli());
                 }
             } else {
                 userData.setMuted(false);

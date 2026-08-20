@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serializable;
 import java.time.Instant;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -27,9 +27,9 @@ public class UserInfo {
     private String accountName;
     @TableField("password")
     private String password;
-    /** 注册时间，UTC 存库，展示时按用户时区格式化 */
+    /** 注册时间（text 列，历史数据为 SQL Server 遗留格式，故按字符串处理） */
     @TableField("regisday")
-    private Instant regisDay;
+    private String regisDay;
     @TableField("flag")
     private Integer flag;
     @TableField("active")
@@ -51,13 +51,13 @@ public class UserInfo {
     @TableField("banstatus")
     private Integer banStatus;
     @TableField("unbandate")
-    private LocalDateTime unbanDate;
+    private OffsetDateTime unbanDate;
     @TableField("ismuted")
     private Integer isMuted;
     @TableField("mutecount")
     private Integer muteCount;
     @TableField("unmutedate")
-    private LocalDateTime unmuteDate;
+    private OffsetDateTime unmuteDate;
     /** Web 系统管理员：true 可访问 /api/admin/** */
     @TableField(exist = false)
     private Boolean webAdmin;

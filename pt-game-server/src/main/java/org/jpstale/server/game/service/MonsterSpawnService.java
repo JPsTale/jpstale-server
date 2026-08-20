@@ -281,6 +281,8 @@ public class MonsterSpawnService {
         monster.setSpeed(template.getMoveSpeed() != null ? template.getMoveSpeed() : 1);
         monster.setAttackRange(template.getAttackRange() != null ? template.getAttackRange() : 90);
         monster.setAbsorption(template.getAbsorb() != null ? template.getAbsorb() : 0);
+        monster.setViewsight(template.getViewSight() != null ? template.getViewSight() : 200);
+        monster.setIntelligence(template.getInteligence() != null ? template.getInteligence() : 0);
         monster.setMapId(mapId);
         monster.setState(MonsterState.IDLE);
         monster.setLastTransTime(System.currentTimeMillis());

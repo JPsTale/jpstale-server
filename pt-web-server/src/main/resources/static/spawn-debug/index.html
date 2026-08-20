@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Priston Tale Spawn Debug</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #141414; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif; font-size: 13px; }
+
+#top { padding: 10px 16px; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+#top h1 { font-size: 15px; color: #ffd479; }
+#top .conn { font-size: 12px; color: #888; }
+#connStatus { padding: 2px 8px; border-radius: 3px; font-size: 12px; }
+#connStatus.on { background: #1d4d1d; color: #7cd47c; }
+#connStatus.off { background: #4d1d1d; color: #f85149; }
+
+#body { display: flex; align-items: flex-start; padding: 12px 16px; gap: 14px; }
+#panel { flex: 0 0 250px; display: flex; flex-direction: column; gap: 10px; }
+#maparea { flex: 1; min-width: 0; }
+
+.box { background: #1d1d1d; border: 1px solid #333; padding: 10px; }
+.box h2 { font-size: 13px; color: #9db8d9; margin-bottom: 8px; font-weight: bold; }
+.box label { display: block; font-size: 12px; color: #9db8d9; margin: 6px 0 3px; }
+.box input, .box select { width: 100%; background: #141414; color: #e8e8e8; border: 1px solid #555; padding: 4px 6px; font-size: 13px; }
+.btn { display: inline-block; background: #2a2a2a; color: #e8e8e8; border: 1px solid #555; padding: 5px 12px; margin-top: 8px; cursor: pointer; font-size: 13px; }
+.btn:hover { background: #3a3a3a; border-color: #ffd479; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+#charList { list-style: none; }
+#charList li { padding: 5px 8px; cursor: pointer; border-bottom: 1px solid #2c2c2c; }
+#charList li:hover, #charList li.sel { background: #35455a; }
+#charList .lv { color: #9db8d9; margin-left: 6px; }
+
+#serverList { list-style: none; }
+#serverList li { padding: 5px 8px; cursor: pointer; border-bottom: 1px solid #2c2c2c; }
+#serverList li:hover, #serverList li.sel { background: #35455a; }
+#serverList .sv { color: #7cd47c; margin-left: 6px; }
+
+#mapSel { margin-top: 4px; }
+#logBox { background: #0d0d0d; border: 1px solid #333; height: 140px; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; padding: 6px; color: #9db8d9; }
+#logBox .err { color: #f85149; }
+#logBox .ok { color: #7cd47c; }
+
+canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display: block; width: 100%; min-width: 800px; }
+#statusBar { display: flex; gap: 14px; margin-top: 6px; font-size: 12px; color: #9db8d9; flex-wrap: wrap; }
+#statusBar b { color: #e8e8e8; }
+.hp { color: #f85149; }
+.legend { font-size: 11px; color: #888; margin-top: 4px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div id="top">
+  <h1>Spawn Debug</h1>
+  <span id="connStatus" class="off">DISCONNECTED</span>
+  <span class="conn" id="wsUrl"></span>
+</div>
+<div id="body">
+  <div id="panel">
+    <div class="box">
+      <h2>Login</h2>
+      <label>Account</label><input id="acc" value="test_fs_20">
+      <label>Password</label><input id="pwd" type="password" value="123">
+      <button class="btn" id="btnLogin">Login</button>
+      <button class="btn" id="btnLogout" style="display:none">Logout</button>
+    </div>
+    <div class="box" id="serverBox" style="display:none">
+      <h2>Server</h2>
+      <ul id="serverList"></ul>
+    </div>
+    <div class="box" id="charBox" style="display:none">
+      <h2>Character</h2>
+      <ul id="charList"></ul>
+    </div>
+    <div class="box" id="mapBox" style="display:none">
+      <h2>Enter Map</h2>
+      <select id="mapSel"></select>
+      <button class="btn" id="btnEnter">Enter Map</button>
+    </div>
+    <div class="box">
+      <h2>Status</h2>
+      <div id="statusBar">
+        <span>Lv <b id="stLevel">-</b></span>
+        <span>HP <b class="hp" id="stHp">-</b></span>
+        <span>MP <b id="stMp">-</b></span>
+        <span>Monsters <b id="stMobs">0</b></span>
+        <span>Scale <b id="stScale">-</b></span>
+        <span>View <b id="stView">-</b></span>
+      </div>
+      <div class="legend">
+        <span style="color:#ff6b6b">&#9679; spawn point (active)</span><br>
+        <span style="color:#555">&#9679; spawn point (idle)</span><br>
+        <span style="color:#4dabff">&#9679; player</span><br>
+        <span style="color:#c7a5ff">&#9679; other player</span><br>
+        <span style="color:#7cd47c">&#9679; monster (patrol)</span><br>
+        <span style="color:#ffd479">&#9679; monster (chase/attack)</span><br>
+        <span style="color:#f85149">&#9679; monster (low hp)</span>
+      </div>
+    </div>
+    <div class="box">
+      <h2>Log</h2>
+      <div id="logBox"></div>
+    </div>
+  </div>
+  <div id="maparea">
+    <canvas id="cv"></canvas>
+  </div>
+</div>
+
+<script>
+(function() {
+  const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const logBox = document.getElementById('logBox');
+  const connStatus = document.getElementById('connStatus');
+  const wsUrlText = wsProto + '://' + location.host + '/pt/ws';
+  document.getElementById('wsUrl').textContent = wsUrlText;
+
+  let ws = null;
+  let state = {
+    step: 'login',
+    accountId: null,
+    servers: [],
+    selectedServer: null,
+    characters: [],
+    selectedChar: null,
+    mapId: null,
+    player: { x: 0, z: 0, hp: 100, maxHp: 100 },
+    spawnPoints: [],
+    monsters: [],
+    otherPlayers: [],
+    mapConfig: null,
+    mapName: '',
+    bounds: null,
+    mapAabbs: {},      // 全部地图 AABB {mapId: {name,xMin,xMax,zMin,zMax}}
+    mapMeshes: {},      // mesh 背景 {mapId: {vertices:[...], indices:[...]}}
+    mapImages: {}       // 地图背景图缓存 {mapId: Image}
+  };
+  let reconnectToken = null;   // 断线重连 token
+  let reconnectTimer = null;   // 自动重连定时器
+
+  function computeBounds() {
+    const xs = state.spawnPoints.map(p => p.x);
+    const zs = state.spawnPoints.map(p => p.z);
+    if (xs.length === 0) return null;
+    return {
+      minX: Math.min.apply(null, xs),
+      maxX: Math.max.apply(null, xs),
+      minZ: Math.min.apply(null, zs),
+      maxZ: Math.max.apply(null, zs)
+    };
+  }
+
+  // ---- view transform ----
+  let view = { minX: -1, minZ: -1, maxX: 1, maxZ: 1, scale: 1, ox: 0, oz: 0 };
+  // 视野宽(游戏单位)。镜头跟随玩家，宽不变则比例尺恒定；滚轮缩放改变它。
+  // 对齐 EU：默认 1800（≈ DISCONNECT 1810），覆盖玩家互见范围
+  let viewSpan = 1800;
+  function computeView() {
+    if (state.player.x === 0 && state.player.z === 0 && state.spawnPoints.length === 0) {
+      view.minX = -viewSpan / 2; view.maxX = viewSpan / 2;
+      view.minZ = -viewSpan / 2; view.maxZ = viewSpan / 2;
+    } else {
+      view.minX = state.player.x - viewSpan / 2;
+      view.maxX = state.player.x + viewSpan / 2;
+      view.minZ = state.player.z - viewSpan / 2;
+      view.maxZ = state.player.z + viewSpan / 2;
+    }
+    const cw = cv.width, ch = cv.height;
+    const sx = cw / (view.maxX - view.minX), sz = ch / (view.maxZ - view.minZ);
+    view.scale = Math.min(sx, sz);
+    view.ox = (cw - (view.maxX - view.minX) * view.scale) / 2 - view.minX * view.scale;
+    // z 正方向为北(上)：z 增大时屏幕 y 减小
+    view.oz = ch / 2 + (view.minZ + view.maxZ) * view.scale / 2;
+  }
+  function wx(worldX) { return worldX * view.scale + view.ox; }
+  function wz(worldZ) { return -worldZ * view.scale + view.oz; }
+  function wxi(screenX) { return (screenX - view.ox) / view.scale; }
+  function wzi(screenY) { return (view.oz - screenY) / view.scale; }
+
+  // ---- colors ----
+  const mobColors = {};
+  function mobColor(name) {
+    if (!name) return '#7cd47c';
+    if (mobColors[name]) return mobColors[name];
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    const hue = h % 360;
+    mobColors[name] = 'hsl(' + hue + ',70%,55%)';
+    return mobColors[name];
+  }
+
+  // ---- logging ----
+  function log(msg, cls) {
+    const div = document.createElement('div');
+    div.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+    if (cls) div.className = cls;
+    logBox.appendChild(div);
+    logBox.scrollTop = logBox.scrollHeight;
+    while (logBox.children.length > 80) logBox.removeChild(logBox.firstChild);
+  }
+
+  // ---- ws ----
+  function connect() {
+    const url = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/pt/ws';
+    ws = new WebSocket(url);
+    ws.onopen = () => {
+      connStatus.textContent = 'CONNECTED'; connStatus.className = 'on'; log('connected', 'ok');
+      // 断线重连：若持有 token 且之前在游戏中，自动重连
+      if (reconnectToken && state.step === 'game') {
+        log('auto reconnecting with token...');
+        send('auth.reconnect', { token: reconnectToken });
+      }
+    };
+    ws.onclose = () => {
+      connStatus.textContent = 'DISCONNECTED'; connStatus.className = 'off'; log('disconnected', 'err');
+      // 在游戏中且持有 token → 尝试自动重连
+      if (reconnectToken && state.step === 'game') {
+        scheduleReconnect();
+      }
+    };
+    ws.onerror = () => log('ws error', 'err');
+    ws.onmessage = (ev) => { try { handleMessage(JSON.parse(ev.data)); } catch (e) { log('bad msg: ' + e.message, 'err'); } };
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    log('attempting reconnect in 3s...');
+    reconnectTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) { clearInterval(reconnectTimer); reconnectTimer = null; return; }
+      if (reconnectTimer && ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+      connect();
+    }, 3000);
+  }
+  function send(type, data) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: type, data: data || {} })); }
+
+  // ---- protocol ----
+  function handleMessage(msg) {
+    const t = msg.type, d = msg.data || {};
+    switch (t) {
+      case 'auth.loginResult':
+        if (d.success) {
+          state.step = 'server';
+          state.accountId = d.accountId;
+          log('login OK, accountId=' + d.accountId + ' → select server', 'ok');
+          showLoginUi();
+          document.getElementById('btnLogin').style.display = 'none';
+          document.getElementById('btnLogout').style.display = 'inline-block';
+          // 服务器会自动下发 auth.serverList
+        } else {
+          log('login failed: ' + d.errorMessage, 'err');
+        }
+        break;
+      case 'auth.serverList':
+        state.servers = d.servers || [];
+        renderServers();
+        log('server list: ' + state.servers.map(s => s.name).join(', '));
+        break;
+      case 'auth.selectServer':
+        if (d.success) {
+          state.step = 'char';
+          state.selectedServer = d.serverId != null ? d.serverId : 1;
+          document.getElementById('serverBox').style.display = 'none';
+          log('server selected (id=' + d.serverId + '), loading characters...', 'ok');
+          // 服务器会随后下发 auth.characterList
+        } else {
+          log('server select failed', 'err');
+        }
+        break;
+      case 'reconnect.token':
+        reconnectToken = d.token;
+        log('reconnect token received');
+        break;
+      case 'auth.reconnected':
+        if (d.success) {
+          state.step = 'game';
+          state.player = { x: d.x, z: d.z, hp: 100, maxHp: 100, mp: 50, maxMp: 50, level: 1 };
+          state.mapId = d.mapId;
+          log('reconnected to map ' + d.mapId + ' at (' + Math.round(d.x) + ',' + Math.round(d.z) + ')', 'ok');
+          document.getElementById('mapBox').style.display = 'block';
+          populateMaps();
+        } else {
+          log('reconnect failed', 'err');
+        }
+        break;
+      case 'auth.logout':
+        if (d.success) {
+          reconnectToken = null;
+          resetToLogin();
+          log('logged out', 'ok');
+        }
+        break;
+      case 'auth.characterList':
+        state.characters = d.characters || [];
+        renderChars();
+        break;
+      case 'auth.createResult':
+        if (d.success) { log('character created', 'ok'); send('auth.selectServer', { serverId: state.selectedServer || 1 }); }
+        else log('create failed code=' + d.errorCode, 'err');
+        break;
+      case 'auth.enterGame':
+        log('enter game: char ' + d.playerId + ' lv' + d.level);
+        state.player = { x: 0, z: 0, hp: d.hp, maxHp: d.maxHp, mp: d.mp, maxMp: d.maxMp, level: d.level };
+        document.getElementById('mapBox').style.display = 'block';
+        populateMaps();
+        break;
+      case 'map.list':
+        const sel = document.getElementById('mapSel');
+        sel.innerHTML = '';
+        (d.maps || []).forEach(m => {
+          const o = document.createElement('option');
+          o.value = m.mapId;
+          o.textContent = m.name + ' (' + m.shortName + ')';
+          sel.appendChild(o);
+        });
+        break;
+      case 'game.mapEntered':
+        state.mapId = d.mapId;
+        state.mapName = d.mapName;
+        state.spawnPoints = d.spawnPoints || [];
+        state.mapConfig = d.config || null;
+        state.player.x = d.player.x;
+        state.player.z = d.player.z;
+        state.bounds = computeBounds();
+        log('entered map ' + d.mapId + ' [' + d.mapName + '] ' + state.spawnPoints.length + ' spawn points, max=' + (state.mapConfig.maxMonsters), 'ok');
+        draw();
+        updateStatus();
+        if (Object.keys(state.mapAabbs).length === 0) send('map.aabbs');
+        break;
+      case 'map.aabbs':
+        state.mapAabbs = d.aabbs || {};
+        preloadMapImages();
+        draw();
+        break;
+      case 'game.mapSwitched':
+        // 跨图：从 fromMapId 切到 mapId（坐标已更新），重新拉取新地图数据
+        state.mapId = d.mapId;
+        state.player.x = d.x;
+        state.player.z = d.z;
+        log('map switched ' + d.fromMapId + ' -> ' + d.mapId + ' at (' + Math.round(d.x) + ',' + Math.round(d.z) + ')', 'ok');
+        draw();
+        updateStatus();
+        // 带当前坐标重新请求地图数据，避免被重置到出生点
+        send('game.enterMap', { mapId: d.mapId, x: d.x, z: d.z });
+        break;
+      case 'game.moveAck':
+        break;
+      case 'game.snapshot':
+        // 客户端预测：移动中不覆盖本地预测位置，只更新 HP/MP/level；
+        // 静止时采用服务器权威位置（纠偏）
+        if (!moving) {
+          state.player.x = d.player.x;
+          state.player.z = d.player.z;
+        }
+        state.player.hp = d.player.hp;
+        state.player.maxHp = d.player.maxHp;
+        state.player.mp = d.player.mp;
+        state.player.maxMp = d.player.maxMp;
+        state.player.level = d.player.level;
+        state.monsters = d.monsters || [];
+        state.otherPlayers = d.players || [];
+        if (d.spawnPoints) state.spawnPoints = d.spawnPoints;
+        draw();
+        updateStatus();
+        break;
+      case 'error':
+        log('server error ' + d.code + ': ' + d.message, 'err');
+        break;
+      default:
+        log('recv ' + t + ' ' + JSON.stringify(d).slice(0, 120));
+    }
+  }
+
+  // ---- UI ----
+  function showLoginUi() {
+    document.getElementById('serverBox').style.display = 'none';
+    document.getElementById('charBox').style.display = 'none';
+    document.getElementById('mapBox').style.display = 'none';
+  }
+  function resetToLogin() {
+    state.step = 'login';
+    state.accountId = null;
+    state.servers = [];
+    state.selectedServer = null;
+    state.characters = [];
+    state.selectedChar = null;
+    state.mapId = null;
+    state.spawnPoints = [];
+    state.monsters = [];
+    state.otherPlayers = [];
+    state.bounds = null;
+    document.getElementById('btnLogin').style.display = 'inline-block';
+    document.getElementById('btnLogout').style.display = 'none';
+    document.getElementById('serverBox').style.display = 'none';
+    document.getElementById('charBox').style.display = 'none';
+    document.getElementById('mapBox').style.display = 'none';
+    state.player = { x: 0, z: 0, hp: 100, maxHp: 100 };
+    draw();
+  }
+  function preloadMapImages() {
+    // 预加载所有地图背景图（PNG 已在 static/spawn-debug/maps/，按 URL 直接加载）
+    for (const mapId in state.mapAabbs) {
+      if (state.mapImages[mapId]) continue;
+      const img = new Image();
+      img.src = '/pt/spawn-debug/maps/map' + mapId + '.png';
+      state.mapImages[mapId] = img;
+    }
+  }
+  function renderServers() {
+    const ul = document.getElementById('serverList');
+    ul.innerHTML = '';
+    (state.servers || []).forEach(s => {
+      const li = document.createElement('li');
+      li.textContent = s.name;
+      const sv = document.createElement('span');
+      sv.className = 'sv';
+      sv.textContent = s.online ? '● online' : '○ offline';
+      li.appendChild(sv);
+      li.onclick = () => {
+        if (!s.online) return;
+        document.querySelectorAll('#serverList li').forEach(x => x.classList.remove('sel'));
+        li.classList.add('sel');
+        send('auth.selectServer', { serverId: s.id });
+      };
+      ul.appendChild(li);
+    });
+    document.getElementById('serverBox').style.display = 'block';
+  }
+  function renderChars() {
+    const ul = document.getElementById('charList');
+    ul.innerHTML = '';
+    (state.characters || []).forEach(c => {
+      const li = document.createElement('li');
+      li.textContent = c.name;
+      const lv = document.createElement('span');
+      lv.className = 'lv';
+      lv.textContent = 'Lv ' + c.level + ' (class ' + c.classId + ')';
+      li.appendChild(lv);
+      li.onclick = () => {
+        document.querySelectorAll('#charList li').forEach(x => x.classList.remove('sel'));
+        li.classList.add('sel');
+        state.selectedChar = c;
+        send('auth.selectCharacter', { characterId: c.characterId });
+      };
+      ul.appendChild(li);
+    });
+    document.getElementById('charBox').style.display = 'block';
+  }
+  function populateMaps() {
+    send('map.list');
+  }
+  function updateStatus() {
+    const p = state.player || {};
+    document.getElementById('stLevel').textContent = p.level != null ? p.level : '-';
+    document.getElementById('stHp').textContent = p.hp + '/' + p.maxHp;
+    document.getElementById('stMp').textContent = (p.mp != null ? p.mp : '-') + '/' + (p.maxMp != null ? p.maxMp : '-');
+    document.getElementById('stMobs').textContent = state.monsters.length;
+    const sc = document.getElementById('stScale');
+    if (sc) sc.textContent = (view.scale && isFinite(view.scale) ? view.scale.toFixed(3) : '-') + ' px/unit';
+    const sv = document.getElementById('stView');
+    if (sv) sv.textContent = '[' + Math.round(view.minX) + ',' + Math.round(view.minZ) + '] -> [' + Math.round(view.maxX) + ',' + Math.round(view.maxZ) + ']';
+  }
+
+  // ---- drawing ----
+  function draw() {
+    computeView();
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    // 地图背景（mesh PNG，按 AABB 定位；图在视野外则跳过）
+    for (const mapId in state.mapAabbs) {
+      const a = state.mapAabbs[mapId];
+      const img = state.mapImages[mapId];
+      if (!a || !img || !img.complete || img.naturalWidth === 0) continue;
+      const sx1 = wx(a.xMin), szTop = wz(a.zMax);
+      const sx2 = wx(a.xMax), szBottom = wz(a.zMin);
+      // 视野外剔除
+      if (sx2 < 0 || szBottom < 0 || sx1 > cv.width || szTop > cv.height) continue;
+      ctx.drawImage(img, sx1, szTop, sx2 - sx1, szBottom - szTop);
+    }
+
+    // 全部地图 AABB 框（当前图高亮）
+    for (const mapId in state.mapAabbs) {
+      const a = state.mapAabbs[mapId];
+      if (!a) continue;
+      const x1 = wx(a.xMin), zTop = wz(a.zMax);
+      const x2 = wx(a.xMax), zBottom = wz(a.zMin);
+      if (x2 < 0 || zBottom < 0 || x1 > cv.width || zTop > cv.height) continue;
+      const isCur = String(state.mapId) === mapId;
+      ctx.strokeStyle = isCur ? 'rgba(255,212,121,0.8)' : 'rgba(157,184,217,0.35)';
+      ctx.lineWidth = isCur ? 2 : 1;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(x1, zTop, x2 - x1, zBottom - zTop);
+      ctx.setLineDash([]);
+      ctx.font = '10px Consolas';
+      ctx.fillStyle = isCur ? 'rgba(255,212,121,0.9)' : 'rgba(157,184,217,0.6)';
+      ctx.fillText(a.name || ('Map ' + mapId), x1 + 4, zTop - 4);
+    }
+
+    // spawn points
+    for (const sp of state.spawnPoints) {
+      const x = wx(sp.x), z = wz(sp.z);
+      ctx.beginPath();
+      ctx.arc(x, z, 4, 0, Math.PI * 2);
+      ctx.fillStyle = sp.active ? '#ff6b6b' : '#555';
+      ctx.fill();
+      if (sp.active && sp.monsterCount != null) {
+        ctx.font = '9px Consolas';
+        ctx.fillStyle = '#ff6b6b';
+        ctx.fillText(sp.monsterCount + '/' + sp.maxMonsters, x + 5, z - 5);
+      }
+    }
+
+    // monsters
+    for (const m of state.monsters) {
+      const x = wx(m.x), z = wz(m.z);
+      let color;
+      if (m.state === 'CHASE' || m.state === 'ATTACK') color = '#ffd479';
+      else if (m.hp > 0 && m.hp < m.maxHp * 0.3) color = '#f85149';
+      else color = mobColor(m.name);
+      ctx.beginPath();
+      ctx.arc(x, z, 6, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      if (m.targetPlayerId != null) {
+        ctx.beginPath();
+        ctx.arc(x, z, 9, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ffd479';
+        ctx.stroke();
+      }
+      ctx.font = '9px Consolas';
+      ctx.fillStyle = '#bbb';
+      ctx.fillText(m.name, x + 8, z + 3);
+      ctx.fillStyle = '#999';
+      ctx.fillText('Lv' + m.level, x + 8, z + 13);
+    }
+
+    // other players
+    for (const op of state.otherPlayers) {
+      const x = wx(op.x), z = wz(op.z);
+      ctx.beginPath();
+      ctx.arc(x, z, 8, 0, Math.PI * 2);
+      ctx.fillStyle = '#c7a5ff';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, z, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(199,165,255,0.5)';
+      ctx.stroke();
+      ctx.font = '10px Consolas';
+      ctx.fillStyle = '#c7a5ff';
+      ctx.fillText(op.name, x + 12, z + 4);
+    }
+
+    // player
+    const px = wx(state.player.x), pz = wz(state.player.z);
+    ctx.beginPath();
+    ctx.arc(px, pz, 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#4dabff';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(px, pz, 12, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(77,171,255,0.5)';
+    ctx.stroke();
+    ctx.font = '10px Consolas';
+    ctx.fillStyle = '#4dabff';
+    ctx.fillText('YOU', px + 12, pz + 4);
+  }
+
+  // ---- canvas resize ----
+  function resize() {
+    const area = document.getElementById('maparea');
+    const w = Math.max(300, area.clientWidth - 2);
+    const h = Math.max(400, window.innerHeight - 120);
+    cv.width = w;
+    cv.height = h;
+    if (state.mapId != null) draw();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ---- hold-to-move ----
+  const MOVE_SPEED = 1200; // 游戏单位/秒
+  let moveTarget = null;   // {x, z}
+  let moving = false;
+  let moveTimer = null;
+
+  cv.addEventListener('mousedown', (e) => {
+    if (state.mapId == null) return;
+    moveTarget = screenToWorld(e);
+    moving = true;
+    if (!moveTimer) moveTimer = setInterval(moveStep, 50);
+  });
+  cv.addEventListener('wheel', (e) => {
+    if (state.mapId == null) return;
+    e.preventDefault();
+    viewSpan *= (e.deltaY > 0) ? 1.25 : 0.8;
+    viewSpan = Math.max(200, Math.min(8000, viewSpan));
+    draw();
+    updateStatus();
+  }, { passive: false });
+  window.addEventListener('mousemove', (e) => {
+    if (moving && e.buttons & 1) moveTarget = screenToWorld(e);
+  });
+  window.addEventListener('mouseup', () => { stopMove(); });
+  window.addEventListener('mouseleave', () => { stopMove(); });
+
+  function screenToWorld(e) {
+    const rect = cv.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) * (cv.width / rect.width);
+    const sy = (e.clientY - rect.top) * (cv.height / rect.height);
+    return { x: wxi(sx), z: wzi(sy) };
+  }
+  function stopMove() {
+    moving = false;
+    if (moveTimer) { clearInterval(moveTimer); moveTimer = null; }
+  }
+  function moveStep() {
+    if (!moving || !moveTarget) { stopMove(); return; }
+    const p = state.player;
+    const dx = moveTarget.x - p.x, dz = moveTarget.z - p.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < 1) { stopMove(); return; }
+    const step = MOVE_SPEED * 0.05;
+    const r = Math.min(step, dist) / dist;
+    const nx = p.x + dx * r, nz = p.z + dz * r;
+    state.player.x = nx;
+    state.player.z = nz;
+    send('game.move', { x: nx, z: nz });
+    draw();
+    updateStatus();
+  }
+
+  // ---- buttons ----
+  document.getElementById('btnLogin').onclick = () => {
+    if (!ws || ws.readyState !== 1) connect();
+    const acc = document.getElementById('acc').value.trim();
+    const pwd = document.getElementById('pwd').value;
+    send('auth.login', { username: acc, password: pwd });
+  };
+  document.getElementById('btnLogout').onclick = () => {
+    stopMove();
+    send('auth.logout', {});
+  };
+  document.getElementById('btnEnter').onclick = () => {
+    const mapId = parseInt(document.getElementById('mapSel').value, 10);
+    send('game.enterMap', { mapId: mapId });
+  };
+
+  // auto connect on load
+  connect();
+})();
+</script>
+</body>
+</html>

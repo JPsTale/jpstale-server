@@ -15,8 +15,13 @@ public class PlayerSession {
     private Long accountId;
     private Long characterId;
     private String characterName;
-    private boolean loggedIn;
-    private boolean playing;
+    private SessionState state = SessionState.CONNECTED;
+
+    /** 断线后是否允许重连（顶号踢人时置 false） */
+    private boolean allowReconnect = true;
+
+    /** 断线时是否已下发过重连 token（避免 READER_IDLE 与 channelInactive 双路径重复生成） */
+    private boolean reconnectTokenIssued = false;
 
     // 玩家位置（用于怪物刷怪proximity check）
     private int currentMapId;
@@ -24,10 +29,25 @@ public class PlayerSession {
     private float y;
     private float z;
 
+    // 玩家战斗状态（调试工具用）
+    private int hp = 100;
+    private int maxHp = 100;
+    private int mp = 50;
+    private int maxMp = 50;
+    private int level = 1;
+
     public PlayerSession(Channel channel) {
         this.channel = channel;
-        this.loggedIn = false;
-        this.playing = false;
+    }
+
+    /** 是否已登录（状态机：非 CONNECTED） */
+    public boolean isLoggedIn() {
+        return state.isLoggedIn();
+    }
+
+    /** 是否已在游戏中（状态机：PLAYING） */
+    public boolean isPlaying() {
+        return state.isPlaying();
     }
 
     /**
@@ -36,6 +56,15 @@ public class PlayerSession {
     public void send(MessageProto.ServerMessage message) {
         if (channel != null && channel.isActive()) {
             channel.writeAndFlush(message);
+        }
+    }
+
+    /**
+     * 发送原始文本（WebSocket JSON 调试通道用）
+     */
+    public void sendText(String text) {
+        if (channel != null && channel.isActive()) {
+            channel.writeAndFlush(new io.netty.handler.codec.http.websocketx.TextWebSocketFrame(text));
         }
     }
 

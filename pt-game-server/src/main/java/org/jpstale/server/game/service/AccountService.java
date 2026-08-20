@@ -8,6 +8,7 @@ import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.game.network.SessionState;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +17,6 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -33,6 +33,12 @@ public class AccountService {
 
     @Autowired
     private CharacterInfoMapper characterInfoMapper;
+
+    @Autowired
+    private SessionManager sessionManager;
+
+    @Autowired
+    private AOIManager aoiManager;
 
     /**
      * 根据账号名查找用户
@@ -57,14 +63,14 @@ public class AccountService {
 
     /**
      * 验证密码
+     * 与 web 注册/登录约定一致：SHA256(UPPERCASE(account)+":"+明文密码) 十六进制大写
      */
     public boolean verifyPassword(UserInfo user, String password) {
-        if (user == null || user.getPassword() == null) {
+        if (user == null || user.getPassword() == null || user.getAccountName() == null) {
             return false;
         }
-        // 数据库中存储的是 Base64 编码的 MD5 哈希
-        String hashedPassword = hashPassword(password);
-        return user.getPassword().equals(hashedPassword);
+        String hashedPassword = hashPassword(user.getAccountName(), password);
+        return user.getPassword().equalsIgnoreCase(hashedPassword);
     }
 
     /**
@@ -137,22 +143,23 @@ public class AccountService {
     }
 
     /**
-     * 密码哈希（MD5 + Base64）
+     * 密码哈希（与 web 端一致）：SHA256(UPPERCASE(account)+":"+password) 十六进制大写
      */
-    private String hashPassword(String password) {
+    private String hashPassword(String account, String password) {
         try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] digest = md.digest(password.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(digest);
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest((account.toUpperCase() + ":" + password).getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                sb.append(String.format("%02X", b));
+            }
+            return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("MD5 algorithm not found", e);
+            throw new RuntimeException("SHA-256 algorithm not found", e);
         }
     }
 
     // ======== 报文入口（方案1：handler 并入 service） ========
-
-    @Autowired
-    private SessionManager sessionManager;
 
     /**
      * 报文入口：登录
@@ -199,6 +206,8 @@ public class AccountService {
         // 检查是否已在线（顶号）
         PlayerSession existingSession = sessionManager.getSessionByAccountId(user.getId().longValue());
         if (existingSession != null && existingSession != session) {
+            // 顶号：禁止旧会话断线重连
+            existingSession.setAllowReconnect(false);
             existingSession.send(MessageProto.ServerMessage.newBuilder()
                 .setDisconnect(MessageProto.S2C_Disconnect.newBuilder()
                     .setReason("Account logged in from another location")
@@ -209,16 +218,48 @@ public class AccountService {
 
         // 绑定账号
         session.setAccountId(user.getId().longValue());
-        session.setLoggedIn(true);
+        session.setState(SessionState.LOGGED_IN);
         sessionManager.bindAccountId(session.getChannel(), user.getId().longValue());
 
-        // 获取角色列表
-        List<CharacterInfo> characters = getCharacters(username);
-
-        // 发送登录成功 + 角色列表
+        // 发送登录成功
         MessageProto.S2C_LoginResponse.Builder responseBuilder = MessageProto.S2C_LoginResponse.newBuilder()
             .setSuccess(true)
             .setAccountId(user.getId());
+
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setLoginResponse(responseBuilder.build())
+            .build());
+
+        // 登录成功 → 下发服务器列表（进入"选择服务器"阶段）
+        sendServerList(session);
+
+        log.info("Login successful for account: {}, waiting server selection", username);
+    }
+
+    /**
+     * 发送服务器列表（Web JSON 命令 auth.serverList）
+     */
+    public void sendServerList(PlayerSession session) {
+        if (session == null || !session.isLoggedIn()) {
+            return;
+        }
+        session.sendText("{\"type\":\"auth.serverList\",\"data\":{\"servers\":["
+            + "{\"id\":1,\"name\":\"Local Game Server\",\"online\":true}"
+            + "]}}");
+    }
+
+    /**
+     * 发送角色列表（选服成功后进入"选择角色"阶段）
+     */
+    public void sendCharacterList(PlayerSession session) {
+        if (session == null || !session.isLoggedIn()) {
+            return;
+        }
+        String accountName = getAccountName(session);
+        if (accountName == null) {
+            return;
+        }
+        List<CharacterInfo> characters = getCharacters(accountName);
 
         MessageProto.S2C_CharacterList.Builder characterListBuilder = MessageProto.S2C_CharacterList.newBuilder();
         for (CharacterInfo character : characters) {
@@ -233,14 +274,8 @@ public class AccountService {
         }
 
         session.send(MessageProto.ServerMessage.newBuilder()
-            .setLoginResponse(responseBuilder.build())
-            .build());
-
-        session.send(MessageProto.ServerMessage.newBuilder()
             .setCharacterList(characterListBuilder.build())
             .build());
-
-        log.info("Login successful for account: {}, characters: {}", username, characters.size());
     }
 
     /**
@@ -254,10 +289,14 @@ public class AccountService {
             return;
         }
 
+        // 状态校验：须先选择服务器
+        if (!session.getState().atLeast(SessionState.SERVER_SELECTED)) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.NOT_LOGIN, "Select a server first"));
+            return;
+        }
+
         String name = request.getName();
         int classId = request.getClassId();
-
-        // 验证角色名称
         if (name == null || !NAME_PATTERN.matcher(name).matches()) {
             session.send(buildErrorResponse(CommonProto.ErrorCode.INVALID_NAME, "Invalid character name"));
             return;
@@ -302,6 +341,16 @@ public class AccountService {
             return;
         }
 
+        // 状态校验：须先选择服务器，且不能在游戏中重复选角
+        if (!session.getState().atLeast(SessionState.SERVER_SELECTED)) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.NOT_LOGIN, "Select a server first"));
+            return;
+        }
+        if (session.getState().is(SessionState.PLAYING)) {
+            session.send(buildErrorResponse(CommonProto.ErrorCode.ALREADY_LOGIN, "Already in game"));
+            return;
+        }
+
         long characterId = request.getCharacterId();
 
         // 获取账号名
@@ -327,7 +376,11 @@ public class AccountService {
         // 绑定角色到 Session
         session.setCharacterId(characterId);
         session.setCharacterName(character.getName());
-        session.setPlaying(true);
+        session.setHp(100);
+        session.setMaxHp(100);
+        session.setMp(50);
+        session.setMaxMp(50);
+        session.setLevel(character.getLevel() != null ? character.getLevel() : 1);
         sessionManager.bindCharacterId(session.getChannel(), characterId, character.getName());
 
         // 发送角色状态
@@ -359,16 +412,23 @@ public class AccountService {
         }
 
         String characterName = session.getCharacterName();
+        Long accountId = session.getAccountId();
 
         // TODO: 保存角色数据
         // playerSaveService.saveOnLogout(session);
 
-        // 清除角色绑定
-        session.setCharacterId(null);
-        session.setCharacterName(null);
-        session.setPlaying(false);
+        // 移出 AOI（若在游戏中）
+        if (session.isPlaying()) {
+            aoiManager.removePlayer(session);
+        }
 
-        log.info("Character logged out: {}", characterName);
+        // 清除账号/角色绑定，状态回 CONNECTED
+        sessionManager.unbind(session.getChannel());
+
+        // 通知客户端登出成功
+        session.sendText("{\"type\":\"auth.logout\",\"data\":{\"success\":true}}");
+
+        log.info("Character logged out: {}, account: {}", characterName, accountId);
     }
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\u4e00-\\u9fa5a-zA-Z0-9]{2,12}$");

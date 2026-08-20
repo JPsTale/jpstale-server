@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Priston Tale Item Simulator</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #141414; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif; font-size: 13px; }
+a { color: #a0c8ff; text-decoration: none; }
+
+/* 顶部导航 */
+#top_box { padding: 14px 18px 6px; border-bottom: 1px solid #333; }
+.links_box a { color: #9db8d9; margin: 0 4px; cursor: pointer; }
+.links_box a:hover, .links_box a.active { color: #ffd479; }
+.subtype-line { margin-top: 8px; }
+.subtype-line a { font-size: 12px; }
+.subtype-line .sep { color: #555; margin: 0 3px; }
+
+/* 布局 */
+#body { display: flex; align-items: flex-start; padding: 16px 18px; gap: 16px; }
+#left_box { flex: 0 0 340px; }
+#right_box { flex: 1; min-width: 0; }
+
+/* 物品列表 */
+.item_list_table { width: 100%; border-collapse: collapse; background: #1d1d1d; }
+.item_list_table .table_header td { background: #2a2a2a; color: #9db8d9; font-weight: bold; padding: 6px 8px; border-bottom: 1px solid #444; }
+.item_list_table td { padding: 4px 8px; border-bottom: 1px solid #2c2c2c; }
+.item_list_table .row0 { background: #1d1d1d; cursor: pointer; }
+.item_list_table .row1 { background: #242424; cursor: pointer; }
+.item_list_table .row_hl { background: #35455a; cursor: pointer; }
+.item_name { color: #e8e8e8; }
+.item_list_table td:hover .item_name { color: #ffd479; }
+
+/* 详情框 */
+.item_box { background: #1d1d1d; border: 1px solid #444; }
+.item_box_header { background: #2a2a2a; padding: 8px 10px; color: #ffd479; font-weight: bold; font-size: 15px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.item_box_header .controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.item_box_header .controls select { background: #141414; color: #e8e8e8; border: 1px solid #555; padding: 3px 5px; font-size: 12px; }
+.item_box_header .controls label { color: #9db8d9; font-size: 12px; font-weight: normal; }
+.item_box_header .close { cursor: pointer; color: #888; padding: 0 4px; font-size: 14px; }
+.item_box_header .close:hover { color: #f85149; }
+.item_box_img { padding: 10px; text-align: center; border-bottom: 1px solid #333; min-height: 60px; }
+.item_box_img img { max-width: 120px; max-height: 90px; }
+
+.item_box_table { width: 100%; border-collapse: collapse; }
+.item_box_table td { padding: 5px 10px; vertical-align: top; }
+.item_box_subheadline { background: #2a2a2a; color: #9db8d9; font-weight: bold; font-size: 13px; padding: 6px 10px !important; }
+.item_box_text_left { color: #9db8d9; width: 160px; }
+.item_box_table .val { color: #e8e8e8; }
+.item_box_table .val .mod { font-weight: bold; }
+.item_box_table .val .mod-mix { color: #c77dff; font-weight: bold; }
+.item_box_table .val .mod-age { color: #6ea8ff; font-weight: bold; }
+.item_box_table .val .mod-spec { color: #7cd47c; font-weight: bold; }
+.item_box_table .val .mod-req-up { color: #f85149; font-weight: bold; }
+.item_box_table .val .mod-req-down { color: #7cd47c; font-weight: bold; }
+.item_box_table_hr { border-bottom: 1px solid #333; padding: 0 !important; height: 1px; }
+
+/* 空状态 */
+.empty { color: #666; padding: 20px; text-align: center; }
+.hidden { display: none; }
+
+.attribs { color: #b8b8b8; font-size: 12px; }
+</style>
+</head>
+<body onload="init()">
+<div id="top_box">
+    <p>
+        <span class="links_box">
+            <a href="#" id="type_1" onclick="showSubtypes(1);">Weapons</a> |
+            <a href="#" id="type_2" onclick="showSubtypes(2);">Defenses</a> |
+            <a href="#" id="type_3" onclick="showSubtypes(3);">Accessories</a>
+        </span>
+    </p>
+    <p class="subtype-line">
+        <span id="subtype_1" class="links_box hidden"></span>
+        <span id="subtype_2" class="links_box hidden"></span>
+        <span id="subtype_3" class="links_box hidden"></span>
+    </p>
+</div>
+
+<div id="body">
+    <div id="left_box">
+        <div id="items_container"></div>
+    </div>
+    <div id="right_box"></div>
+</div>
+
+<script>
+const API = '/pt/api/simulator';
+const TYPES = ['', 'Weapons', 'Defenses', 'Accessories'];
+const SUBTYPES = {
+    1: ['Axes', 'Bows', 'Claws', 'Daggers', 'Fists', 'Hammers', 'Javelins', 'Phantoms', 'Scythes', 'Swords', 'Wands & Staffs'],
+    2: ['Armors', 'Robes', 'Shields', 'Orbs', 'Bracelets', 'Gauntlets', 'Boots'],
+    3: ['Amulets', 'Belts', 'Earrings', 'Rings', 'Sheltoms']
+};
+let counts = {};       // typeIdx -> {subtype -> count}
+let currentType = null;
+let currentSubtype = null;
+let currentItems = [];
+let currentDetail = null;
+let currentMixes = [];
+let currentSpec = '0';
+let currentMixId = 0;
+let currentAge = 0;
+
+async function init() {
+    const res = await fetch(API + '/categories');
+    const data = await res.json();
+    const tree = data.tree;
+    for (let t = 1; t <= 3; t++) {
+        counts[t] = {};
+        (tree[TYPES[t]] || []).forEach(s => { counts[t][s.name] = s.count; });
+    }
+    // 默认选中 Weapons
+    showSubtypes(1);
+}
+
+function showSubtypes(t) {
+    currentType = TYPES[t];
+    for (let i = 1; i <= 3; i++) {
+        document.getElementById('subtype_' + i).classList.add('hidden');
+        document.getElementById('type_' + i).classList.remove('active');
+    }
+    document.getElementById('type_' + t).classList.add('active');
+    const el = document.getElementById('subtype_' + t);
+    el.innerHTML = SUBTYPES[t].map((s, idx) => {
+        const cnt = counts[t][s];
+        return `<a href="#" class="${s === currentSubtype ? 'active' : ''}" onclick="showItems('${s}');">${s}</a>` +
+            (idx < SUBTYPES[t].length - 1 ? ' | ' : '');
+    }).join('');
+    el.classList.remove('hidden');
+    showItems(SUBTYPES[t][0]);
+}
+
+async function showItems(subtype) {
+    currentSubtype = subtype;
+    document.getElementById('right_box').innerHTML = '';
+    // 高亮当前子类
+    for (let t = 1; t <= 3; t++) {
+        const el = document.getElementById('subtype_' + t);
+        [...el.querySelectorAll('a')].forEach(a => a.classList.remove('active'));
+    }
+    const links = document.querySelectorAll('#subtype_' + [1,2,3].find(t => TYPES[t] === currentType) + ' a');
+    links.forEach(a => { if (a.textContent === subtype) a.classList.add('active'); });
+
+    const res = await fetch(`${API}/items?type=${encodeURIComponent(currentType)}&subtype=${encodeURIComponent(subtype)}&page=1&size=1000`);
+    const data = await res.json();
+    currentItems = data.items;
+
+    // 按需求等级排序（wartale 列表按 Level 升序）
+    currentItems.sort((a, b) => (a.reqLevel || 0) - (b.reqLevel || 0));
+
+    const el = document.getElementById('items_container');
+    if (!currentItems.length) {
+        el.innerHTML = '<div class="empty">No items</div>';
+        return;
+    }
+    let html = `<table class="item_list_table" cellspacing="0" cellpadding="0">
+        <colgroup><col width="210"><col width="60"><col width="50"></colgroup>
+        <tr class="table_header"><td>Item Name</td><td>Compare</td><td align="right">Level</td></tr>`;
+    currentItems.forEach((it, i) => {
+        const row = i % 2 === 0 ? 'row0' : 'row1';
+        html += `<tr class="${row}" onmouseover="this.className='row_hl';" onmouseout="this.className='${row}';">
+            <td onclick="loadItem(${it.id}, 1);"><span class="item_name">${it.name}</span></td>
+            <td onclick="loadItem(${it.id}, 2);" class="extra_box_cell"></td>
+            <td onclick="loadItem(${it.id}, 1);" align="right">${it.reqLevel || 0}</td>
+        </tr>`;
+    });
+    html += `<tr class="table_header"><td>Item Name</td><td>Compare</td><td align="right">Level</td></tr></table>`;
+    el.innerHTML = html;
+}
+
+// ---------- 详情 ----------
+async function loadItem(id, slot) {
+    const [detailRes, mixRes] = await Promise.all([
+        fetch(API + '/item/' + id),
+        (async () => {
+            const d = await fetch(API + '/item/' + id).then(r => r.json());
+            const m = await fetch(`${API}/mixes?type=${encodeURIComponent(d.group)}&subtype=${encodeURIComponent(d.category)}`);
+            return m.json();
+        })()
+    ]);
+    const d = await detailRes.json();
+    currentDetail = d;
+    currentMixes = mixRes;
+    currentSpec = '0';
+    currentMixId = 0;
+    currentAge = 0;
+    document.getElementById('right_box').innerHTML = renderItemBox(d);
+}
+
+function renderItemBox(base) {
+    const d = JSON.parse(JSON.stringify(base));
+    const mix = (currentMixes || []).find(m => m.id === currentMixId);
+    const mixFields = {};
+    applyMixEffects(d, mix, mixFields);
+    const ageFields = {};
+    applyAge(d, currentAge, ageFields);
+    d.__mixFields = mixFields;
+    d.__ageFields = ageFields;
+    return `<div id="item_box_1">
+        <div class="item_box">
+            <div class="item_box_header">
+                ${d.name}
+                <div class="controls">
+                    ${renderSpecSelect(d)}
+                    ${renderMixSelect(d)}
+                    ${renderAgeSelect(d)}
+                    <span class="close" onclick="document.getElementById('right_box').innerHTML='';">X</span>
+                </div>
+            </div>
+            <div class="item_box_img">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='70'%3E%3Crect width='90' height='70' fill='%23222'/%3E%3Ctext x='45' y='38' font-size='13' fill='%23666' text-anchor='middle'%3E${d.name}%3C/text%3E%3C/svg%3E">
+            </div>
+            <div class="item_box_content">
+                <table class="item_box_table" cellspacing="0" cellpadding="0">
+                    <colgroup><col width="170"><col width="330"></colgroup>
+                    ${renderRequirements(d)}
+                    ${renderBaseStats(d)}
+                    ${renderSpecStats(d)}
+                    ${renderMisc(d)}
+                </table>
+            </div>
+        </div>
+    </div>`;
+}
+
+// EU shared/character.h:1063 saItemRequeriments —— 职业特效的属性需求调整百分比 [min, max]
+// 0:None 1:Fighter 2:Mechanician 3:Archer 4:Pikeman 5:Atalanta 6:Knight 7:Magician 8:Priestess 9:Assassin 10:Shaman
+const REQ_MOD = {
+    1: { str: [20, 25], spr: [-20, -10], tal: [0, 0], agi: [-20, -15], hp: [0, 0] },
+    2: { str: [15, 25], spr: [-20, -10], tal: [0, 0], agi: [-20, -15], hp: [0, 0] },
+    3: { str: [-25, -15], spr: [-20, -10], tal: [0, 0], agi: [20, 30], hp: [0, 0] },
+    4: { str: [20, 25], spr: [-20, -10], tal: [0, 0], agi: [-20, -15], hp: [0, 0] },
+    5: { str: [-20, -15], spr: [-20, -10], tal: [0, 0], agi: [20, 30], hp: [0, 0] },
+    6: { str: [15, 25], spr: [-15, -10], tal: [5, 10], agi: [-20, -15], hp: [0, 0] },
+    7: { str: [-30, -25], spr: [25, 30], tal: [-15, -10], agi: [-20, -15], hp: [0, 0] },
+    8: { str: [-30, -25], spr: [25, 30], tal: [-15, -10], agi: [-20, -15], hp: [0, 0] },
+    9: { str: [20, 25], spr: [-20, -10], tal: [0, 0], agi: [-20, -15], hp: [0, 0] },
+    10: { str: [-30, -25], spr: [25, 30], tal: [-15, -10], agi: [-20, -15], hp: [0, 0] },
+    11: { str: [0, 0], spr: [0, 0], tal: [0, 0], agi: [0, 0], hp: [0, 0] }
+};
+
+// EU itemserver.cpp:2056 CheckAndAdjustItemRequirements —— base + base*percent/100，返回 [min, max]
+function reqAdjust(base, pct) {
+    if (!base) return null;
+    return [base + Math.floor(base * pct[0] / 100), base + Math.floor(base * pct[1] / 100)];
+}
+
+// 数值单元格包装：有来源颜色时用 span 包裹（mod-mix 紫 / mod-age 蓝 / mod-spec 绿，均加粗）
+function valWrap(v, cls) {
+    cls = (cls || '').trim();
+    return cls ? `<span class="${cls}">${v}</span>` : String(v);
+}
+
+function renderRequirements(d) {
+    const rows = [];
+    const specIdx = parseInt(currentSpec, 10);
+    const mod = specIdx > 0 ? (REQ_MOD[specIdx] || null) : null;
+    const adj = (v, pct) => {
+        if (!v) return v;
+        if (!mod) return String(v);
+        const [lo, hi] = reqAdjust(v, pct);
+        return lo === hi ? `${lo}` : `${lo} - ${hi}`;
+    };
+    // 需求调整方向：提高红色 / 降低绿色（无变化无颜色）
+    const rc = (v, pct) => {
+        if (!mod || !v) return '';
+        const [lo, hi] = reqAdjust(v, pct);
+        if (lo > v || hi > v) return 'mod-req-up';
+        if (lo < v || hi < v) return 'mod-req-down';
+        return '';
+    };
+    if (d.reqLevel > 0) rows.push(['Level', d.reqLevel, '']);
+    if (d.reqStrength > 0) rows.push(['Strength', adj(d.reqStrength, mod ? mod.str : [0, 0]), rc(d.reqStrength, mod ? mod.str : [0, 0])]);
+    if (d.reqSpirit > 0) rows.push(['Spirit', adj(d.reqSpirit, mod ? mod.spr : [0, 0]), rc(d.reqSpirit, mod ? mod.spr : [0, 0])]);
+    if (d.reqTalent > 0) rows.push(['Talent', adj(d.reqTalent, mod ? mod.tal : [0, 0]), rc(d.reqTalent, mod ? mod.tal : [0, 0])]);
+    if (d.reqAgility > 0) rows.push(['Agility', adj(d.reqAgility, mod ? mod.agi : [0, 0]), rc(d.reqAgility, mod ? mod.agi : [0, 0])]);
+    if (d.reqHealth > 0) rows.push(['Health', adj(d.reqHealth, mod ? mod.hp : [0, 0]), rc(d.reqHealth, mod ? mod.hp : [0, 0])]);
+    if (!rows.length) rows.push(['', '', '']);
+    return `<tr><td colspan="2" class="item_box_subheadline">Requirements</td></tr>
+        <tr><td class="item_box_text_left">${rows.map(r => r[0] + '<br>').join('')}</td>
+            <td class="val">${rows.map(r => valWrap(r[1], r[2]) + '<br>').join('')}</td></tr>
+        <tr><td colspan="2" class="item_box_table_hr"></td></tr>`;
+}
+
+function renderBaseStats(d) {
+    const mf = d.__mixFields || {};
+    const af = d.__ageFields || {};
+    const cls = (...fs) => {
+        const c = [];
+        if (fs.some(f => mf[f])) c.push('mod-mix');
+        if (fs.some(f => af[f])) c.push('mod-age');
+        return c.join(' ');
+    };
+    const rows = [];
+    if (d.atkPow1Min || d.atkPow2Min) rows.push(['Min Damage', range(d.atkPow1Min, d.atkPow2Min), cls('atkPow1Min', 'atkPow2Min')]);
+    if (d.atkPow1Max || d.atkPow2Max) rows.push(['Max Damage', range(d.atkPow1Max, d.atkPow2Max), cls('atkPow1Max', 'atkPow2Max')]);
+    if (d.atkSpeed > 0) rows.push(['Attack Speed', d.atkSpeed, cls('atkSpeed')]);
+    if (d.critical > 0) rows.push(['Critical', d.critical + '%', cls('critical')]);
+    if (d.atkRatingMin || d.atkRatingMax) rows.push(['Attack Rating', range(d.atkRatingMin, d.atkRatingMax), cls('atkRatingMin', 'atkRatingMax')]);
+    if (d.integrityMin || d.integrityMax) rows.push(['Integrity', range(d.integrityMin, d.integrityMax), cls('integrityMin', 'integrityMax')]);
+    if (d.defenseMin || d.defenseMax) rows.push(['Defense', range(d.defenseMin, d.defenseMax), cls('defenseMin', 'defenseMax')]);
+    if (d.blockMin || d.blockMax) rows.push(['Block', range(d.blockMin, d.blockMax), cls('blockMin', 'blockMax')]);
+    if (d.absorbMin || d.absorbMax) rows.push(['Absorb', range(d.absorbMin, d.absorbMax), cls('absorbMin', 'absorbMax')]);
+    if (d.runSpeedMin || d.runSpeedMax) rows.push(['Speed', range(d.runSpeedMin, d.runSpeedMax), cls('runSpeedMin', 'runSpeedMax')]);
+    if (d.organicMin || d.organicMax) rows.push(['Organic Res', range(d.organicMin, d.organicMax), cls('organicMin', 'organicMax')]);
+    if (d.fireMin || d.fireMax) rows.push(['Fire Res', range(d.fireMin, d.fireMax), cls('fireMin', 'fireMax')]);
+    if (d.frostMin || d.frostMax) rows.push(['Ice Res', range(d.frostMin, d.frostMax), cls('frostMin', 'frostMax')]);
+    if (d.lightningMin || d.lightningMax) rows.push(['Lightning Res', range(d.lightningMin, d.lightningMax), cls('lightningMin', 'lightningMax')]);
+    if (d.poisonMin || d.poisonMax) rows.push(['Poison Res', range(d.poisonMin, d.poisonMax), cls('poisonMin', 'poisonMax')]);
+    if (d.addHpMin || d.addHpMax) rows.push(['Add HP', range(d.addHpMin, d.addHpMax), cls('addHpMin', 'addHpMax')]);
+    if (d.addMpMin || d.addMpMax) rows.push(['Add MP', range(d.addMpMin, d.addMpMax), cls('addMpMin', 'addMpMax')]);
+    if (d.addStmMin || d.addStmMax) rows.push(['Add SP', range(d.addStmMin, d.addStmMax), cls('addStmMin', 'addStmMax')]);
+    if (d.regenerationHpMin || d.regenerationHpMax) rows.push(['HP Regen', range(d.regenerationHpMin, d.regenerationHpMax), cls('regenerationHpMin', 'regenerationHpMax')]);
+    if (d.regenerationMpMin || d.regenerationMpMax) rows.push(['MP Regen', range(d.regenerationMpMin, d.regenerationMpMax), cls('regenerationMpMin', 'regenerationMpMax')]);
+    if (d.regenerationStmMin || d.regenerationStmMax) rows.push(['SP Regen', range(d.regenerationStmMin, d.regenerationStmMax), cls('regenerationStmMin', 'regenerationStmMax')]);
+    if (!rows.length) return '';
+    return `<tr><td colspan="2" class="item_box_subheadline">Base Stats</td></tr>
+        <tr><td class="item_box_text_left">${rows.map(r => r[0] + '<br>').join('')}</td>
+            <td class="val">${rows.map(r => valWrap(r[1], r[2]) + '<br>').join('')}</td></tr>
+        <tr><td colspan="2" class="item_box_table_hr"></td></tr>`;
+}
+
+function renderSpecStats(d) {
+    if (!specApplies(d, currentSpec)) return '';
+    const af = d.__ageFields || {};
+    const cls = (...fs) => 'mod-spec' + (fs.some(f => af[f]) ? ' mod-age' : '');
+    const rows = [];
+    if (d.addSpecCritical > 0) rows.push(['Critical', d.addSpecCritical + '%', cls('addSpecCritical')]);
+    if (d.addSpecAtkPowerMin || d.addSpecAtkPowerMax) rows.push(['Attack Power', lvDiv(d.addSpecAtkPowerMin, d.addSpecAtkPowerMax), cls('addSpecAtkPowerMin', 'addSpecAtkPowerMax')]);
+    if (d.addSpecAtkRatingMin || d.addSpecAtkRatingMax) rows.push(['Attack Rating', lvDiv(d.addSpecAtkRatingMin, d.addSpecAtkRatingMax), cls('addSpecAtkRatingMin', 'addSpecAtkRatingMax')]);
+    if (d.addSpecDefenseMin || d.addSpecDefenseMax) rows.push(['Defense', range(d.addSpecDefenseMin, d.addSpecDefenseMax), cls('addSpecDefenseMin', 'addSpecDefenseMax')]);
+    if (d.addSpecRunSpeedMin || d.addSpecRunSpeedMax) rows.push(['Speed', range(d.addSpecRunSpeedMin, d.addSpecRunSpeedMax), cls('addSpecRunSpeedMin', 'addSpecRunSpeedMax')]);
+    if (d.addSpecAbsorbMin || d.addSpecAbsorbMax) rows.push(['Absorb', range(d.addSpecAbsorbMin, d.addSpecAbsorbMax), cls('addSpecAbsorbMin', 'addSpecAbsorbMax')]);
+    if (d.addSpecAtkSpeed > 0) rows.push(['Attack Speed', d.addSpecAtkSpeed, cls('addSpecAtkSpeed')]);
+    if (d.addSpecHpRegen > 0) rows.push(['HP Regen', d.addSpecHpRegen, cls('addSpecHpRegen')]);
+    if (d.addSpecMpRegenMin || d.addSpecMpRegenMax) rows.push(['MP Regen', range(d.addSpecMpRegenMin, d.addSpecMpRegenMax), cls('addSpecMpRegenMin', 'addSpecMpRegenMax')]);
+    if (d.addSpecStmRegen > 0) rows.push(['SP Regen', d.addSpecStmRegen, cls('addSpecStmRegen')]);
+    if (d.addSpecBlock > 0) rows.push(['Block', d.addSpecBlock, cls('addSpecBlock')]);
+    if (d.addSpecRange > 0) rows.push(['Range', d.addSpecRange, cls('addSpecRange')]);
+    if (!rows.length) return '';
+    return `<tr><td colspan="2" class="item_box_subheadline">Spec. Stats</td></tr>
+        <tr><td class="item_box_text_left">${rows.map(r => r[0] + '<br>').join('')}</td>
+            <td class="val">${rows.map(r => valWrap(r[1], r[2]) + '<br>').join('')}</td></tr>
+        <tr><td colspan="2" class="item_box_table_hr"></td></tr>`;
+}
+
+function renderMisc(d) {
+    const rows = [];
+    const ps = SPEC_JOBS[d.primarySpec];
+    if (ps) rows.push(['Primary Spec', ps[1], '']);
+    const secs = specClassList(d);
+    if (secs.length) rows.push(['Secondary Spec', secs.join(' / '), '']);
+    if (d.weight > 0) rows.push(['Weight', d.weight, '']);
+    const hasSpec = parseInt(currentSpec, 10) > 0;
+    rows.push(['Price', hasSpec ? Math.round(d.price * 1.2) : d.price, hasSpec ? 'mod-spec' : '']);
+    return `<tr><td colspan="2" class="item_box_subheadline">Misc</td></tr>
+        <tr><td class="item_box_text_left">${rows.map(r => r[0] + '<br>').join('')}</td>
+            <td class="val">${rows.map(r => valWrap(r[1], r[2]) + '<br>').join('')}</td></tr>`;
+}
+
+// ---------- Spec 职业特效 ----------
+// 职业编号 = ECharacterClass（packets.h L160-171）：1=Fighter..10=Shaman, 11=Brawler
+const SPEC_JOBS = {
+    1: ['Fighter', 'FS'],
+    2: ['Mechanician', 'MS'],
+    3: ['Archer', 'AS'],
+    4: ['Pikeman', 'PS'],
+    5: ['Atalanta', 'ATS'],
+    6: ['Knight', 'KS'],
+    7: ['Magician', 'MGS'],
+    8: ['Priestess', 'PRS'],
+    9: ['Assassin', 'ASS'],
+    10: ['Shaman', 'SS'],
+    11: ['Brawler', 'BS']
+};
+
+// 物品特效适用职业 = Primary Spec（primaryspec）+ Secondary Spec（addspecclass 位）
+function specClassValues(d) {
+    const vals = [];
+    const push = (v) => { if (v > 0 && vals.indexOf(v) === -1) vals.push(v); };
+    push(d.primarySpec);
+    [d.addSpecClass1, d.addSpecClass2, d.addSpecClass3, d.addSpecClass4,
+     d.addSpecClass5, d.addSpecClass6, d.addSpecClass7, d.addSpecClass8,
+     d.addSpecClass9, d.addSpecClass10, d.addSpecClass11, d.addSpecClass12]
+        .forEach((v, i) => { if (v > 0) push(i + 1); });
+    return vals;
+}
+
+// 所选职业是否为该物品特效适用职业（Primary Spec 或 Secondary Spec 位命中）
+function specApplies(d, val) {
+    const idx = parseInt(val, 10);
+    if (idx <= 0) return false; // No Spec 不显示特效
+    return specClassValues(d).indexOf(idx) !== -1;
+}
+
+function renderSpecSelect(d) {
+    const opts = [`<option value="0" ${String(currentSpec) === '0' ? 'selected' : ''}>No Spec (NS)</option>`];
+    specClassValues(d).forEach(v => {
+        const j = SPEC_JOBS[v];
+        if (!j) return;
+        opts.push(`<option value="${v}" ${String(currentSpec) === String(v) ? 'selected' : ''}>${j[0]} Spec (${j[1]})</option>`);
+    });
+    return `<label>Spec</label><select onchange="onSpecChange(this.value);">` + opts.join('') + `</select>`;
+}
+
+function onSpecChange(val) {
+    currentSpec = String(val);
+    renderCurrent();
+}
+
+// ---------- Mix 合成配方 ----------
+function renderMixSelect(d) {
+    return `<label>Mix</label><select onchange="onMixChange(this.value);">` +
+        `<option value="0">No Mix</option>` +
+        (currentMixes || []).map(m => `<option value="${m.id}" ${String(currentMixId) === String(m.id) ? 'selected' : ''}>${m.description}</option>`).join('') +
+        `</select>`;
+}
+
+function onMixChange(val) {
+    currentMixId = parseInt(val, 10) || 0;
+    renderCurrent();
+}
+
+// ---------- Age 锻造等级 ----------
+function renderAgeSelect(d) {
+    const opts = ['No'];
+    for (let i = 1; i <= 20; i++) opts.push('+' + i);
+    return `<label>Age</label><select onchange="onAgeChange(this.value);">` +
+        opts.map((v, i) => `<option value="${i}" ${currentAge === i ? 'selected' : ''}>${v}</option>`).join('') + `</select>`;
+}
+
+function onAgeChange(level) {
+    currentAge = parseInt(level, 10) || 0;
+    renderCurrent();
+}
+
+// 统一渲染：基础详情 → 叠加 Age 加成 → 叠加 Mix 加成
+function renderCurrent() {
+    if (!currentDetail) return;
+    document.getElementById('right_box').innerHTML = renderItemBox(currentDetail);
+}
+
+function applyMixEffects(d, mix, touched) {
+    if (!mix) return;
+    const mark = (...fs) => fs.forEach(f => { if (touched) touched[f] = true; });
+    mix.effects.forEach(e => {
+        switch (e.attr) {
+            case 'Fire Res': d.fireMin = (d.fireMin || 0) + e.value; d.fireMax = (d.fireMax || 0) + e.value; mark('fireMin', 'fireMax'); break;
+            case 'Ice Res': d.frostMin = (d.frostMin || 0) + e.value; d.frostMax = (d.frostMax || 0) + e.value; mark('frostMin', 'frostMax'); break;
+            case 'Lightning Res': d.lightningMin = (d.lightningMin || 0) + e.value; d.lightningMax = (d.lightningMax || 0) + e.value; mark('lightningMin', 'lightningMax'); break;
+            case 'Poison Res': d.poisonMin = (d.poisonMin || 0) + e.value; d.poisonMax = (d.poisonMax || 0) + e.value; mark('poisonMin', 'poisonMax'); break;
+            case 'Organic Res': d.organicMin = (d.organicMin || 0) + e.value; d.organicMax = (d.organicMax || 0) + e.value; mark('organicMin', 'organicMax'); break;
+            case 'Critical': d.critical = (d.critical || 0) + e.value; mark('critical'); break;
+            case 'Attack Rating': d.atkRatingMin = (d.atkRatingMin || 0) + e.value; d.atkRatingMax = (d.atkRatingMax || 0) + e.value; mark('atkRatingMin', 'atkRatingMax'); break;
+            case 'Min DMG': d.atkPow1Min = (d.atkPow1Min || 0) + e.value; d.atkPow2Min = (d.atkPow2Min || 0) + e.value; mark('atkPow1Min', 'atkPow2Min'); break;
+            case 'Max DMG': d.atkPow1Max = (d.atkPow1Max || 0) + e.value; d.atkPow2Max = (d.atkPow2Max || 0) + e.value; mark('atkPow1Max', 'atkPow2Max'); break;
+            case 'Absorb': d.absorbMin = (d.absorbMin || 0) + e.value; d.absorbMax = (d.absorbMax || 0) + e.value; mark('absorbMin', 'absorbMax'); break;
+            case 'Defense': d.defenseMin = (d.defenseMin || 0) + e.value; d.defenseMax = (d.defenseMax || 0) + e.value; mark('defenseMin', 'defenseMax'); break;
+            case 'Block': d.blockMin = (d.blockMin || 0) + e.value; d.blockMax = (d.blockMax || 0) + e.value; mark('blockMin', 'blockMax'); break;
+            case '+HP': d.addHpMin = (d.addHpMin || 0) + e.value; d.addHpMax = (d.addHpMax || 0) + e.value; mark('addHpMin', 'addHpMax'); break;
+            case '+MP': d.addMpMin = (d.addMpMin || 0) + e.value; d.addMpMax = (d.addMpMax || 0) + e.value; mark('addMpMin', 'addMpMax'); break;
+            case '+SP': d.addStmMin = (d.addStmMin || 0) + e.value; d.addStmMax = (d.addStmMax || 0) + e.value; mark('addStmMin', 'addStmMax'); break;
+            case 'HP Regen': d.regenerationHpMin = (d.regenerationHpMin || 0) + e.value; d.regenerationHpMax = (d.regenerationHpMax || 0) + e.value; mark('regenerationHpMin', 'regenerationHpMax'); break;
+            case 'MP Regen': d.regenerationMpMin = (d.regenerationMpMin || 0) + e.value; d.regenerationMpMax = (d.regenerationMpMax || 0) + e.value; mark('regenerationMpMin', 'regenerationMpMax'); break;
+            case 'SP Regen': d.regenerationStmMin = (d.regenerationStmMin || 0) + e.value; d.regenerationStmMax = (d.regenerationStmMax || 0) + e.value; mark('regenerationStmMin', 'regenerationStmMax'); break;
+            case 'Potion Storage': d.potionSpace = (d.potionSpace || 0) + e.value; mark('potionSpace'); break;
+        }
+    });
+}
+
+function applyAge(d, level, touched) {
+    if (level <= 0) return;
+    const rate = 1 + level * 0.02;
+    const scale = (a, b) => [a, b].map(x => x ? Math.round(x * rate) : x);
+    const sr = (a, b) => [a, b].map(x => x ? Math.round(x * rate * 100) / 100 : x);
+    const mark = (...fs) => fs.forEach(f => { if (touched) touched[f] = true; });
+    [d.atkPow1Min, d.atkPow1Max] = scale(d.atkPow1Min, d.atkPow1Max); mark('atkPow1Min', 'atkPow1Max');
+    [d.atkPow2Min, d.atkPow2Max] = scale(d.atkPow2Min, d.atkPow2Max); mark('atkPow2Min', 'atkPow2Max');
+    [d.atkRatingMin, d.atkRatingMax] = scale(d.atkRatingMin, d.atkRatingMax); mark('atkRatingMin', 'atkRatingMax');
+    [d.defenseMin, d.defenseMax] = scale(d.defenseMin, d.defenseMax); mark('defenseMin', 'defenseMax');
+    [d.blockMin, d.blockMax] = sr(d.blockMin, d.blockMax); mark('blockMin', 'blockMax');
+    [d.absorbMin, d.absorbMax] = sr(d.absorbMin, d.absorbMax); mark('absorbMin', 'absorbMax');
+    [d.runSpeedMin, d.runSpeedMax] = sr(d.runSpeedMin, d.runSpeedMax); mark('runSpeedMin', 'runSpeedMax');
+    [d.addHpMin, d.addHpMax] = scale(d.addHpMin, d.addHpMax); mark('addHpMin', 'addHpMax');
+    [d.addMpMin, d.addMpMax] = scale(d.addMpMin, d.addMpMax); mark('addMpMin', 'addMpMax');
+    [d.addStmMin, d.addStmMax] = scale(d.addStmMin, d.addStmMax); mark('addStmMin', 'addStmMax');
+    [d.regenerationHpMin, d.regenerationHpMax] = sr(d.regenerationHpMin, d.regenerationHpMax); mark('regenerationHpMin', 'regenerationHpMax');
+    [d.regenerationMpMin, d.regenerationMpMax] = sr(d.regenerationMpMin, d.regenerationMpMax); mark('regenerationMpMin', 'regenerationMpMax');
+    [d.regenerationStmMin, d.regenerationStmMax] = sr(d.regenerationStmMin, d.regenerationStmMax); mark('regenerationStmMin', 'regenerationStmMax');
+    [d.addSpecDefenseMin, d.addSpecDefenseMax] = scale(d.addSpecDefenseMin, d.addSpecDefenseMax); mark('addSpecDefenseMin', 'addSpecDefenseMax');
+    // 注：addSpecAtkPower/addSpecAtkRating 是 Lv 除数（玩家等级/除数），age 不改变除数，故不缩放
+    [d.addSpecRunSpeedMin, d.addSpecRunSpeedMax] = sr(d.addSpecRunSpeedMin, d.addSpecRunSpeedMax); mark('addSpecRunSpeedMin', 'addSpecRunSpeedMax');
+    [d.addSpecAbsorbMin, d.addSpecAbsorbMax] = sr(d.addSpecAbsorbMin, d.addSpecAbsorbMax); mark('addSpecAbsorbMin', 'addSpecAbsorbMax');
+    [d.addSpecMpRegenMin, d.addSpecMpRegenMax] = sr(d.addSpecMpRegenMin, d.addSpecMpRegenMax); mark('addSpecMpRegenMin', 'addSpecMpRegenMax');
+}
+
+// ---------- 工具 ----------
+function range(a, b) {
+    if ((a === null || a === undefined || a === 0) && (b === null || b === undefined || b === 0)) return null;
+    if (b === null || b === undefined || b === 0) return a;
+    if (a === null || a === undefined || a === 0) a = 0;
+    return `${a} - ${b}`;
+}
+
+// Lv 除数显示：值为 Lv/x（玩家等级 / 除数）。单值显示 "Lv/6"，范围显示 "Lv/1 - 3"
+function lvDiv(min, max) {
+    if ((!min && !max)) return null;
+    if (!min) return `Lv/${max}`;
+    if (!max || min === max) return `Lv/${min}`;
+    return `Lv/${min} - ${max}`;
+}
+
+function specClassList(d) {
+    const names = [];
+    [d.addSpecClass1, d.addSpecClass2, d.addSpecClass3, d.addSpecClass4,
+     d.addSpecClass5, d.addSpecClass6, d.addSpecClass7, d.addSpecClass8,
+     d.addSpecClass9, d.addSpecClass10, d.addSpecClass11, d.addSpecClass12]
+        .forEach((v, i) => {
+            const j = SPEC_JOBS[i + 1];
+            if (v > 0 && j) names.push(j[1]);
+        });
+    return names;
+}
+</script>
+</body>
+</html>

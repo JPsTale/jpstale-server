@@ -79,11 +79,33 @@ public class SessionManager {
         if (session != null) {
             session.setCharacterId(characterId);
             session.setCharacterName(characterName);
-            session.setPlaying(true);
+            session.setState(SessionState.CHARACTER_SELECTED);
             sessionsByCharacterId.put(characterId, session);
             sessionsByCharacterName.put(characterName, session);
             log.debug("Bound character {} ({}) to channel: {}", characterId, characterName, channel.remoteAddress());
         }
+    }
+
+    /**
+     * 解除账号/角色绑定（登出用），但保留 channel session
+     */
+    public void unbind(Channel channel) {
+        PlayerSession session = sessions.get(channel);
+        if (session == null) {
+            return;
+        }
+        if (session.getAccountId() != null) {
+            sessionsByAccountId.remove(session.getAccountId());
+        }
+        if (session.getCharacterId() != null) {
+            sessionsByCharacterId.remove(session.getCharacterId());
+            sessionsByCharacterName.remove(session.getCharacterName());
+        }
+        session.setAccountId(null);
+        session.setCharacterId(null);
+        session.setCharacterName(null);
+        session.setState(SessionState.CONNECTED);
+        log.debug("Unbound account/character for channel: {}", channel.remoteAddress());
     }
 
     /**
