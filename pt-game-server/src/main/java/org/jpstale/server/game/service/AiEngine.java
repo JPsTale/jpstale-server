@@ -29,6 +29,15 @@ public class AiEngine {
     @Autowired
     private AOIManager aoiManager;
 
+    @Autowired
+    private DamageCalculator damageCalculator;
+
+    @Autowired
+    private PlayerService playerService;
+
+    @Autowired
+    private CombatService combatService;
+
     private final Map<Long, AiContext> monsterContexts = new ConcurrentHashMap<>();
     private final Map<Integer, BehaviorTree> behaviorTrees = new ConcurrentHashMap<>();
 
@@ -76,8 +85,8 @@ public class AiEngine {
             float dx = monster.getX() - currentTarget.getX();
             float dz = monster.getZ() - currentTarget.getZ();
             float distSq = dx * dx + dz * dz;
-            // EU：怪物追击中，目标脱离 CONNECT 视野（1086）则放弃（对齐 DIST_TRANSLEVEL_DISCONNECT=1810 边界）
-            float loseRange = AOIManager.VIEW_RANGE_DISCONNECT;
+            // 追击丢失：目标跑出活动范围（MoveRange 1.5 倍视野）或跨地图 → 放弃并归位
+            float loseRange = Math.max(monster.getMoveRange(), AOIManager.VIEW_RANGE_DISCONNECT);
             if (distSq > loseRange * loseRange || !currentTarget.isPlaying()
                     || currentTarget.getCurrentMapId() != monster.getMapId()) {
                 clearTarget(monster);
@@ -90,7 +99,8 @@ public class AiEngine {
             return;
         }
 
-        if (monster.getIntelligence() <= 0 || monster.getViewsight() <= 0) {
+        // 无目标：仅 Evil（主动）怪扫描视野内玩家；Neutral/Good 不主动（Neutral 靠受击反击）
+        if (monster.getNature() != 1 || monster.getViewsight() <= 0) {
             return;
         }
 
@@ -137,6 +147,17 @@ public class AiEngine {
     }
 
     /**
+     * 受击反击/仇恨指定：将怪物目标设为指定玩家（含 PlayerSession，使行为树可追击）
+     */
+    public void setTargetPlayer(Monster monster, PlayerSession session, float targetX, float targetZ) {
+        AiContext context = monsterContexts.computeIfAbsent(monster.getId(), k -> new AiContext());
+        context.setTargetPlayer(session);
+        context.setTargetX(targetX);
+        context.setTargetZ(targetZ);
+        monster.setTargetPlayerId(session.getCharacterId());
+    }
+
+    /**
      * 清除怪物目标
      */
     public void clearTarget(Monster monster) {
@@ -154,6 +175,13 @@ public class AiEngine {
         monsterContexts.remove(monsterId);
     }
 
+    /**
+     * 获取怪物 AI 上下文（MovementService 读取 targetX/targetZ/patrolX/patrolZ）
+     */
+    public AiContext getContext(long monsterId) {
+        return monsterContexts.get(monsterId);
+    }
+
     private BehaviorTree buildDefaultTree() {
         return new BehaviorTree(
             new SelectorNode(
@@ -168,7 +196,7 @@ public class AiEngine {
                     new SelectorNode(
                         new SequenceNode(
                             new InAttackRangeNode(),
-                            new AttackNode()
+                            new AttackNode(damageCalculator, playerService, combatService)
                         ),
                         new ChaseNode()
                     )

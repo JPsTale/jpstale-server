@@ -8,7 +8,6 @@ import org.jpstale.server.game.model.SpawnPoint;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -22,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 刷怪调试快照推送。
  * <p>
- * 每 500ms 向所有 WebSocket 调试客户端推送 game.snapshot，
+ * 由 GameServer.tick() 每 tick 驱动，每 3 tick（~150ms）向所有 WebSocket 调试客户端推送 game.snapshot，
  * 包含：玩家位置、该地图所有怪物（位置/状态/血量）、刷怪点状态（active/计数/上限）。
  */
 @Slf4j
@@ -30,6 +29,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SnapshotPushService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /** 推送间隔 tick 数（3 tick ≈ 150ms @20 tick/s，与怪物位移同步足够平滑） */
+    private static final int PUSH_INTERVAL_TICKS = 3;
+    private long tickCounter = 0;
 
     @Autowired
     private SessionManager sessionManager;
@@ -46,7 +49,14 @@ public class SnapshotPushService {
     // 每个观察者当前可见的其他玩家 id（EU 双阈值滞后：出现用 CONNECT，消失用 DISCONNECT）
     private final Map<Long, Set<Long>> visiblePlayers = new ConcurrentHashMap<>();
 
-    @Scheduled(fixedRate = 500)
+    /**
+     * 由 GameServer.tick() 调用，每 PUSH_INTERVAL_TICKS 次执行一次推送。
+     */
+    public void tick() {
+        if (++tickCounter % PUSH_INTERVAL_TICKS != 0) return;
+        pushSnapshots();
+    }
+
     public void pushSnapshots() {
         for (PlayerSession session : sessionManager.getAllSessions()) {
             if (!session.isPlaying() || session.getCurrentMapId() < 0) {

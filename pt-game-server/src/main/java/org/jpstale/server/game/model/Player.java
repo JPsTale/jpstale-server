@@ -28,6 +28,7 @@ public class Player {
     private int talent;
     private int agility;
     private int health;
+    private int statePoint; // 未分配的属性点（每级 +5，对齐 exm ReformCharStatePoint）
 
     // 状态
     private int hp;
@@ -46,6 +47,9 @@ public class Player {
     // 物品
     private Inventory inventory;
     private Equipment equipment;
+
+    /** 元素抗性 [8]：0生物 1大地 2火 3冰 4雷 5毒 6水 7风（来自装备实例） */
+    private int[] resistances = new int[8];
 
     public Player(PlayerSession session, int slotIndex) {
         this.session = session;

@@ -40,6 +40,12 @@ public class AccountService {
     @Autowired
     private AOIManager aoiManager;
 
+    @Autowired
+    private PlayerStatCalculator statCalculator;
+
+    @Autowired
+    private PlayerService playerService;
+
     /**
      * 根据账号名查找用户
      */
@@ -116,6 +122,18 @@ public class AccountService {
      * 创建角色
      */
     public CharacterInfo createCharacter(String accountName, String name, int jobCode) {
+        return createCharacter(accountName, name, jobCode, null);
+    }
+
+    /**
+     * 创建角色（对齐原版创建逻辑）：
+     * <ul>
+     *   <li>1 级属性 = 职业初始值（99 点固定分配，TempNewCharacterInit/MorNewCharacterInit）</li>
+     *   <li>StatePoint = 0（1 级 99 点已分配完）</li>
+     *   <li>头像模型路径存 OldHead（每职业 3 个头）</li>
+     * </ul>
+     */
+    public CharacterInfo createCharacter(String accountName, String name, int jobCode, String headModel) {
         CharacterInfo character = new CharacterInfo();
         character.setAccountName(accountName);
         character.setName(name);
@@ -123,15 +141,91 @@ public class AccountService {
         character.setLevel(1);
         character.setExperience(0L);
         character.setGold(0);
-        character.setLastStage(1); // 默认地图
+        character.setOldHead(headModel != null ? headModel : "");
+        // 出生地图按种族（对齐原版 START_FIELD_NUM/MORYON）：坦普族→ric(3)，魔灵族→pilai(21)
+        character.setLastStage(jobCode <= 4 ? START_FIELD_NUM : START_FIELD_MORYON);
         character.setIsOnline(0);
         character.setSeasonal(0);
         character.setGmLevel(0);
         character.setBanned(0);
+        character.setClanId(0);
+        character.setClanPermission(0);
+        character.setClanLeaveDate(0);
+        character.setBlessCastleScore(0);
+        character.setFsp(0);
+        character.setLastSeenDate(java.time.OffsetDateTime.now());
+
+        // 1 级职业初始属性（99 点固定分配）
+        int[] init = statCalculator.getInitialStats(jobCode);
+        character.setStrength(init[0]);
+        character.setSpirit(init[1]);
+        character.setTalent(init[2]);
+        character.setAgility(init[3]);
+        character.setHealth(init[4]);
+        character.setStatePoint(0);
 
         characterInfoMapper.insert(character);
-        log.info("Created character: {} for account: {}", name, accountName);
+        log.info("Created character: {} (job={}, head={}) for account: {}",
+            name, jobCode, character.getOldHead(), accountName);
         return character;
+    }
+
+    /**
+     * JSON 创建角色：完整校验（登录态/名字/重名/数量上限）+ 创建（属性=职业初始值）。
+     *
+     * @return 错误码（0 = 成功）
+     */
+    public int createCharacterForSession(PlayerSession session, String name, int classId, String head) {
+        if (session == null || !session.isLoggedIn()) {
+            return CommonProto.ErrorCode.NOT_LOGIN.getNumber();
+        }
+        if (!session.getState().atLeast(SessionState.SERVER_SELECTED)) {
+            return CommonProto.ErrorCode.NOT_LOGIN.getNumber();
+        }
+        if (name == null || !NAME_PATTERN.matcher(name).matches()) {
+            return CommonProto.ErrorCode.INVALID_NAME.getNumber();
+        }
+        if (isCharacterNameExists(name)) {
+            return CommonProto.ErrorCode.NAME_EXISTS.getNumber();
+        }
+        String accountName = getAccountName(session);
+        if (accountName == null) {
+            return CommonProto.ErrorCode.NOT_LOGIN.getNumber();
+        }
+        if (getCharacterCount(accountName) >= MAX_CHARACTERS) {
+            return CommonProto.ErrorCode.CHARACTER_LIMIT.getNumber();
+        }
+        createCharacter(accountName, name, classId, head);
+        return 0;
+    }
+
+    /**
+     * JSON 角色列表（带属性/属性点/头像），供前端角色选择页展示
+     */
+    public List<java.util.Map<String, Object>> listCharactersForSession(PlayerSession session) {
+        List<java.util.Map<String, Object>> list = new java.util.ArrayList<>();
+        String accountName = getAccountName(session);
+        if (accountName == null) {
+            return list;
+        }
+        for (CharacterInfo c : getCharacters(accountName)) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("characterId", c.getId());
+            m.put("name", c.getName());
+            m.put("classId", c.getJobCode() != null ? c.getJobCode() : 0);
+            m.put("level", c.getLevel() != null ? c.getLevel() : 1);
+            m.put("gold", c.getGold() != null ? c.getGold() : 0);
+            m.put("mapId", c.getLastStage() != null ? c.getLastStage() : 1);
+            m.put("strength", c.getStrength() != null ? c.getStrength() : 0);
+            m.put("spirit", c.getSpirit() != null ? c.getSpirit() : 0);
+            m.put("talent", c.getTalent() != null ? c.getTalent() : 0);
+            m.put("agility", c.getAgility() != null ? c.getAgility() : 0);
+            m.put("health", c.getHealth() != null ? c.getHealth() : 0);
+            m.put("statePoint", c.getStatePoint() != null ? c.getStatePoint() : 0);
+            m.put("head", c.getOldHead() != null ? c.getOldHead() : "");
+            list.add(m);
+        }
+        return list;
     }
 
     /**
@@ -422,6 +516,11 @@ public class AccountService {
             aoiManager.removePlayer(session);
         }
 
+        // 存档角色数据（属性/属性点/经验/金币落库）
+        if (session.getCharacterId() != null) {
+            playerService.persistAndRemove(session.getCharacterId());
+        }
+
         // 清除账号/角色绑定，状态回 CONNECTED
         sessionManager.unbind(session.getChannel());
 
@@ -432,7 +531,16 @@ public class AccountService {
     }
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\u4e00-\\u9fa5a-zA-Z0-9]{2,12}$");
-    private static final int MAX_CHARACTERS = 4;
+    /** 角色数量上限（对齐原版 EU CharacterCreate：6 个） */
+    private static final int MAX_CHARACTERS = 6;
+
+    public int getMaxCharacters() {
+        return MAX_CHARACTERS;
+    }
+
+    /** 出生地图（对齐 exm START_FIELD_NUM/MORYON）：坦普族→3 ric，魔灵族→21 pilai */
+    private static final int START_FIELD_NUM = 3;
+    private static final int START_FIELD_MORYON = 21;
 
     private String getAccountName(PlayerSession session) {
         if (session.getAccountId() != null) {

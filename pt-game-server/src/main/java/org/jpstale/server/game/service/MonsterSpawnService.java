@@ -15,7 +15,6 @@ import org.jpstale.server.game.model.MonsterSpawnConfig;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.model.SpawnPoint;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -49,6 +48,9 @@ public class MonsterSpawnService {
     private MapManager mapManager;
 
     @Autowired
+    private MapRegionService mapRegionService;
+
+    @Autowired
     private AOIManager aoiManager;
 
     @Autowired
@@ -56,6 +58,9 @@ public class MonsterSpawnService {
 
     @Autowired
     private AiEngine aiEngine;
+
+    @Autowired
+    private MovementService movementService;
 
     @Autowired
     private MonsterListMapper monsterListMapper;
@@ -133,10 +138,9 @@ public class MonsterSpawnService {
         }
     }
 
-    // ======== 主 tick 循环 ========
+    // ======== 主 tick 循环（由 GameServer.tick() 驱动，20 tick/s） ========
 
-    @Scheduled(fixedRate = 62) // ~16次/秒，与原版一致
-    public void tick() {
+    public void tick(long currentTimeMillis) {
         tickCounter++;
 
         for (Map.Entry<Integer, GameMap> entry : mapManager.getMaps().entrySet()) {
@@ -146,10 +150,6 @@ public class MonsterSpawnService {
             if (config == null) continue;
 
             int aliveCount = getAliveMonsterCount(mapId);
-
-            // 频率控制（位掩码，与原版一致）
-            int intervalMask = config.getInterval() > 0 ? (1 << config.getInterval()) - 1 : 3;
-            if ((tickCounter & intervalMask) != 0) continue;
 
             // 刷新出生点的 active 状态
             updateSpawnPointActive(gameMap);
@@ -190,7 +190,7 @@ public class MonsterSpawnService {
         }
 
         // AI 更新 + 清理死亡怪物
-        updateAndCleanup();
+        updateAndCleanup(currentTimeMillis);
     }
 
     // ======== 出生点 active 状态更新 ========
@@ -283,6 +283,17 @@ public class MonsterSpawnService {
         monster.setAbsorption(template.getAbsorb() != null ? template.getAbsorb() : 0);
         monster.setViewsight(template.getViewSight() != null ? template.getViewSight() : 200);
         monster.setIntelligence(template.getInteligence() != null ? template.getInteligence() : 0);
+        // 本性（原版 Nature）：Evil 主动攻击；Neutral/Normal 被动（受击反击）；Good 中立
+        monster.setNature(natureOf(template.getMonsterType()));
+        // 活动/归位范围：以视野 1.5 倍为界（原版 MoveRange，monsterlist 无此列）
+        monster.setMoveRange(monster.getViewsight() * 1.5f);
+        // 攻击间隔（毫秒）：对齐原版 GetAttackSpeedFrame —— frame = 80 + 10*clamp(attackSpeed-6,0,6)，按 60fps 换算
+        monster.setAttackSpeed(attackIntervalMs(template.getAttackSpeed() != null ? template.getAttackSpeed() : 6));
+        // 击杀经验：monsterlist.exp（单值数字字符串）
+        monster.setExp(parseExp(template.getExp()));
+        // 金币：按等级简单推导（后续接 dropitem 精确掉落）
+        int lvl = template.getLevel() != null ? template.getLevel() : 1;
+        monster.setGold(lvl * ThreadLocalRandom.current().nextInt(5, 15));
         monster.setMapId(mapId);
         monster.setState(MonsterState.IDLE);
         monster.setLastTransTime(System.currentTimeMillis());
@@ -290,8 +301,9 @@ public class MonsterSpawnService {
         // 在出生点附近随机偏移
         int offsetRange = point.getRange() > 0 ? point.getRange() : 200;
         monster.setX(point.getX() + ThreadLocalRandom.current().nextInt(offsetRange * 2) - offsetRange);
-        monster.setY(point.getY());
         monster.setZ(point.getZ() + ThreadLocalRandom.current().nextInt(offsetRange * 2) - offsetRange);
+        // Y 权威用地形高度（怪物视野高度差判定用，SpawnPoint 无 Y）
+        monster.setY(mapRegionService.getHeight(mapId, monster.getX(), monster.getZ()));
 
         // 记录出生点（归位用）
         monster.setSpawnPointIndex(point.getId());
@@ -301,9 +313,40 @@ public class MonsterSpawnService {
         return monster;
     }
 
+    private static int parseExp(String exp) {
+        if (exp == null || exp.isBlank()) {
+            return 0;
+        }
+        try {
+            // "105" / "1000" 单值；形如 "1 10" 时取第一个
+            return Integer.parseInt(exp.trim().split("\\s+")[0]);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static int natureOf(String monsterType) {
+        if (monsterType == null) return 0;
+        String t = monsterType.trim();
+        if (t.equalsIgnoreCase("Evil")) return 1;
+        if (t.equalsIgnoreCase("Good")) return 2;
+        return 0; // Neutral / Normal → 被动
+    }
+
+    /**
+     * 攻击间隔毫秒（对齐原版 GetAttackSpeedFrame）：
+     * frame = 80 + 10*clamp(attackSpeed-6, 0, 6)，按 60fps 换算。
+     * attackSpeed 7-8 → 90-100 帧 → 1.5-1.67s
+     */
+    private static long attackIntervalMs(int attackSpeed) {
+        int cnt = Math.max(0, Math.min(6, attackSpeed - 6));
+        int frames = 80 + 10 * cnt;
+        return Math.round(frames * 1000.0 / 60.0);
+    }
+
     // ======== AI 更新 + 清理 ========
 
-    private void updateAndCleanup() {
+    private void updateAndCleanup(long now) {
         for (Map.Entry<Integer, List<Monster>> entry : monstersByMap.entrySet()) {
             int mapId = entry.getKey();
             GameMap gameMap = mapManager.getMap(mapId);
@@ -311,16 +354,18 @@ public class MonsterSpawnService {
 
             for (Monster monster : monsters) {
                 if (monster.isAlive()) {
+                    // AI 决策（每500ms一次，设状态+目标）
                     aiEngine.update(monster);
+                    // 移动执行（每 tick 一次，根据状态更新位置）
+                    movementService.updateMonster(monster);
                     // 更新 lastTransTime（有仇恨目标时）
                     if (monster.getTargetPlayerId() != null) {
-                        monster.setLastTransTime(System.currentTimeMillis());
+                        monster.setLastTransTime(now);
                     }
                 }
             }
 
             // 清理死亡怪物（5分钟无玩家交互则移除）
-            long now = System.currentTimeMillis();
             monsters.removeIf(m -> {
                 if (!m.isAlive()) {
                     // 5分钟超时或死亡时间超过respawnTime → 从列表移除

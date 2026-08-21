@@ -65,6 +65,12 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
     @Autowired
     private MapRegionService mapRegionService;
 
+    @Autowired
+    private org.jpstale.server.game.service.PlayerService playerService;
+
+    @Autowired
+    private org.jpstale.server.game.service.CombatService combatService;
+
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (!(msg instanceof WebSocketFrame frame)) {
@@ -105,6 +111,55 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
                 handleSelectServer(ctx, session, data);
                 return;
             }
+            case "auth.createCharacter" -> {
+                if (session == null) {
+                    sendError(ctx, -1, "Not logged in");
+                    return;
+                }
+                String name = data.path("name").asText("");
+                int classId = data.path("classId").asInt(1);
+                String head = data.path("head").asText("");
+                int code = accountService.createCharacterForSession(session, name, classId, head);
+                String errorMsg;
+                if (code == 0) {
+                    errorMsg = "";
+                } else if (code == CommonProto.ErrorCode.NOT_LOGIN.getNumber()) {
+                    errorMsg = "Not logged in";
+                } else if (code == CommonProto.ErrorCode.INVALID_NAME.getNumber()) {
+                    errorMsg = "Invalid name (2-12 chars, letters/digits)";
+                } else if (code == CommonProto.ErrorCode.NAME_EXISTS.getNumber()) {
+                    errorMsg = "Character name already exists";
+                } else if (code == CommonProto.ErrorCode.CHARACTER_LIMIT.getNumber()) {
+                    errorMsg = "Character limit reached (max " + accountService.getMaxCharacters() + ")";
+                } else {
+                    errorMsg = "Unknown error " + code;
+                }
+                sendJson(ctx, Map.of("type", "auth.createCharacter", "data", Map.of(
+                    "success", code == 0,
+                    "errorCode", code,
+                    "name", name,
+                    "errorMessage", errorMsg)));
+                if (code == 0) {
+                    // 创建成功 → 前端主动拉取新列表
+                    sendCharacterListJson(ctx, session);
+                }
+                return;
+            }
+            case "auth.characterList" -> {
+                sendCharacterListJson(ctx, session);
+                return;
+            }
+            case "game.characterInfo" -> {
+                if (session == null || !session.isPlaying()) {
+                    sendError(ctx, -1, "Not playing");
+                    return;
+                }
+                org.jpstale.server.game.model.Player player = playerService.getOrCreate(session);
+                if (player != null) {
+                    sendJson(ctx, Map.of("type", "game.characterInfo", "data", playerService.characterPanel(player)));
+                }
+                return;
+            }
             case "game.enterMap" -> {
                 handleEnterMap(ctx, session, data);
                 return;
@@ -132,6 +187,58 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
                     session.setState(SessionState.CHARACTER_SELECTED);
                 }
                 sendJson(ctx, Map.of("type", "game.leave", "success", true));
+                return;
+            }
+            case "game.attack" -> {
+                if (session == null || !session.isPlaying()) {
+                    sendJson(ctx, Map.of("type", "error", "data", Map.of("code", -1, "message", "Not playing")));
+                    return;
+                }
+                org.jpstale.server.game.model.Player player = playerService.getOrCreate(session);
+                if (player != null) {
+                    long targetId = data.path("targetId").asLong(0);
+                    combatService.playerAttackMonster(player, targetId, 0);
+                }
+                return;
+            }
+            case "game.allocateStat" -> {
+                if (session == null || !session.isPlaying()) {
+                    sendJson(ctx, Map.of("type", "error", "data", Map.of("code", -1, "message", "Not playing")));
+                    return;
+                }
+                org.jpstale.server.game.model.Player player = playerService.getOrCreate(session);
+                if (player != null) {
+                    String stat = data.path("stat").asText("");
+                    int points = data.path("points").asInt(1);
+                    boolean ok = playerService.allocateStat(player, stat, points);
+                    sendJson(ctx, Map.of("type", "game.allocateStat", "data", Map.of(
+                        "success", ok,
+                        "stat", stat,
+                        "points", points,
+                        "statePoint", player.getStatePoint())));
+                }
+                return;
+            }
+            case "game.moveInput" -> {
+                if (session == null || !session.isPlaying()) {
+                    sendJson(ctx, Map.of("type", "error", "data", Map.of("code", -1, "message", "Not playing")));
+                    return;
+                }
+                // 客户端上报移动意图（方向+奔跑），服务端权威计算位置
+                double angle = data.path("angle").asDouble(0);
+                boolean run = data.path("running").asBoolean(false);
+                session.setMoveAngle(angle);
+                session.setMoveState(run ? PlayerMoveState.RUN : PlayerMoveState.WALK);
+                sendJson(ctx, Map.of("type", "game.moveInput", "data", Map.of("ack", true)));
+                return;
+            }
+            case "game.moveStop" -> {
+                if (session == null) {
+                    sendJson(ctx, Map.of("type", "error", "data", Map.of("code", -1, "message", "Not playing")));
+                    return;
+                }
+                session.setMoveState(PlayerMoveState.IDLE);
+                sendJson(ctx, Map.of("type", "game.moveStop", "data", Map.of("ack", true)));
                 return;
             }
             default -> {
@@ -358,6 +465,15 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
     /**
      * 处理选服命令：校验状态 → 设 SERVER_SELECTED → 下发角色列表
      */
+    private void sendCharacterListJson(ChannelHandlerContext ctx, PlayerSession session) {
+        if (session == null || !session.isLoggedIn()) {
+            sendError(ctx, CommonProto.ErrorCode.NOT_LOGIN.getNumber(), "Not logged in");
+            return;
+        }
+        sendJson(ctx, Map.of("type", "auth.characterList", "data", Map.of(
+            "characters", accountService.listCharactersForSession(session))));
+    }
+
     private void handleSelectServer(ChannelHandlerContext ctx, PlayerSession session, JsonNode data) {
         if (session == null || !session.isLoggedIn()) {
             sendError(ctx, CommonProto.ErrorCode.NOT_LOGIN.getNumber(), "Not logged in");
@@ -488,9 +604,21 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
             session.setX((float) data.path("x").asDouble(session.getX()));
             session.setZ((float) data.path("z").asDouble(session.getZ()));
         }
+        // Y 权威用地形高度（怪物视野高度差判定用）
+        session.setY(mapRegionService.getHeight(mapId, session.getX(), session.getZ()));
 
         aoiManager.addPlayer(session, session.getX(), session.getZ());
         session.setState(SessionState.PLAYING);
+
+        // 权威加载角色属性/装备，并把真实 HP/MP/等级同步到会话（供快照下发）
+        org.jpstale.server.game.model.Player player = playerService.getOrCreate(session);
+        if (player != null) {
+            session.setHp(player.getHp());
+            session.setMaxHp(player.getMaxHp());
+            session.setMp(player.getMp());
+            session.setMaxMp(player.getMaxMp());
+            session.setLevel(player.getLevel());
+        }
 
         List<Map<String, Object>> spawnPoints = new ArrayList<>();
         for (SpawnPoint sp : gameMap.getSpawnPoints()) {

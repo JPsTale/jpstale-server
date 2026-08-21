@@ -6,6 +6,8 @@ import org.jpstale.server.game.service.MonsterSpawnService;
 import org.jpstale.server.game.model.DamageResult;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GameMessageSender;
+import org.jpstale.server.game.network.GamePacketHandler;
+import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,8 +35,49 @@ public class CombatService {
     @Autowired
     private GameMessageSender messageSender;
 
+    @Autowired
+    private PlayerService playerService;
+
+    @Autowired
+    private MapRegionService mapRegionService;
+
+    @Autowired
+    private AiEngine aiEngine;
+
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
     private static final long ATTACK_COOLDOWN_MS = 1000;
+
+    /**
+     * 报文入口：玩家普通攻击
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.ATTACK_FIELD_NUMBER)
+    public void handleAttack(PlayerSession session, MessageProto.ClientMessage message) {
+        if (session == null || !session.isPlaying()) {
+            return;
+        }
+        Player player = playerService.getOrCreate(session);
+        if (player == null) {
+            return;
+        }
+        MessageProto.C2S_Attack attack = message.getAttack();
+        playerAttackMonster(player, attack.getTargetId(), 0);
+    }
+
+    /**
+     * 报文入口：玩家使用技能（暂按普攻伤害处理，技能表后续接入）
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.USE_SKILL_FIELD_NUMBER)
+    public void handleUseSkill(PlayerSession session, MessageProto.ClientMessage message) {
+        if (session == null || !session.isPlaying()) {
+            return;
+        }
+        Player player = playerService.getOrCreate(session);
+        if (player == null) {
+            return;
+        }
+        MessageProto.C2S_UseSkill skill = message.getUseSkill();
+        playerAttackMonster(player, skill.getTargetId(), skill.getSkillId());
+    }
 
     /**
      * 玩家攻击怪物
@@ -44,7 +87,7 @@ public class CombatService {
             return;
         }
 
-        Monster monster = findMonsterById(monsterId, player.getCurrentMapId());
+        Monster monster = findMonsterById(monsterId, player.getSession().getCurrentMapId());
         if (monster == null || !monster.isAlive()) {
             return;
         }
@@ -52,14 +95,21 @@ public class CombatService {
         DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
 
         if (result.isMissed()) {
-            log.debug("Player {} missed monster {}", player.getName(), monster.getName());
+            log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
             return;
         }
 
         monster.setHp(monster.getHp() - result.getFinalDamage());
 
-        log.debug("Player {} hit monster {} for {} damage (crit={})",
-            player.getName(), monster.getName(), result.getFinalDamage(), result.isCritical());
+        log.info("COMBAT {} attacks {}#{} -> {} dmg (raw={} crit={}), hp {}/{}",
+            player.getName(), monster.getName(), monsterId,
+            result.getFinalDamage(), result.getRawDamage(), result.isCritical(),
+            monster.getHp(), monster.getMaxHp());
+
+        // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）
+        if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {
+            aiEngine.setTargetPlayer(monster, player.getSession(), player.getX(), player.getZ());
+        }
 
         // 发送攻击结果给攻击者
         MessageProto.ServerMessage attackMsg = MessageProto.ServerMessage.newBuilder()
@@ -97,6 +147,25 @@ public class CombatService {
         log.info("Monster {} killed by {}, exp={}, gold={}",
             monster.getName(), killer.getName(), exp, gold);
 
+        // 升级检测：经验反算等级（对齐原版 GetLevelFromExp），每级 +5 自由属性点
+        int newLevel = playerService.getLevelFromExp(killer.getExp());
+        if (newLevel > killer.getLevel()) {
+            int gained = (newLevel - killer.getLevel()) * 5;
+            killer.setLevel(newLevel);
+            killer.setStatePoint(killer.getStatePoint() + gained);
+            playerService.recalcPanel(killer);
+            // 同步会话等级（快照/状态栏用）
+            killer.getSession().setLevel(newLevel);
+            log.info("{} leveled up {} -> {} (+{} stat points, total {})",
+                killer.getName(), newLevel - gained / 5, newLevel, gained, killer.getStatePoint());
+            // 通知客户端升级（JSON，刷新面板）
+            killer.getSession().sendText("{\"type\":\"game.levelUp\",\"data\":{\"level\":"
+                + newLevel + ",\"statePoint\":" + killer.getStatePoint() + "}}");
+        }
+
+        // 权威落库：经验/金币/等级/属性点写回 characterinfo
+        playerService.persistStats(killer);
+
         // 发送死亡消息
         MessageProto.ServerMessage deathMsg = MessageProto.ServerMessage.newBuilder()
             .setMonsterDeath(MessageProto.S2C_MonsterDeath.newBuilder()
@@ -124,5 +193,35 @@ public class CombatService {
             .filter(m -> m.getId() == monsterId)
             .findFirst()
             .orElse(null);
+    }
+
+    /**
+     * 玩家死亡重生（对齐原版 record.cpp）：半血，回种族出生地
+     * 坦普族(job1-4) → ric(3)，魔灵族 → pilai(21)；坐标用该地图出生点（安全区）
+     */
+    public void respawnPlayer(Player player) {
+        PlayerSession session = player.getSession();
+        int job = player.getJob();
+        int mapId = job <= 4 ? 3 : 21;
+        int[] start = mapRegionService.getStartPoint(mapId, 0, 0);
+        int x = start != null ? start[0] : 0;
+        int z = start != null ? start[1] : 0;
+        int half = Math.max(1, player.getMaxHp() / 2);
+
+        player.setHp(half);
+        session.setHp(half);
+        player.setX(x);
+        player.setZ(z);
+        session.setX(x);
+        session.setZ(z);
+        if (session.getCurrentMapId() != mapId) {
+            aoiManager.removePlayer(session);
+            session.setCurrentMapId(mapId);
+            aoiManager.addPlayer(session, x, z);
+        }
+        log.info("Player {} died, respawn to map {} ({},{}) hp {}", player.getName(), mapId, x, z, half);
+        // 通知前端：重新进入出生地图（半血）
+        session.sendText("{\"type\":\"game.playerRespawn\",\"data\":{\"mapId\":"
+            + mapId + ",\"x\":" + x + ",\"z\":" + z + ",\"hp\":" + half + "}}");
     }
 }

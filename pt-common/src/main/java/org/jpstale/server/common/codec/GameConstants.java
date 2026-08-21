@@ -26,6 +26,48 @@ public final class GameConstants {
     /** 服务器角色跳过 */
     public static final int SERVER_CHAR_SKIP = 4;
 
+    // ---------- 服务器 Tick Rate ----------
+    /** 服务器主循环 tick 频率（次/秒） */
+    public static final double TICK_RATE = 20.0;
+    /** 每 tick 毫秒数 */
+    public static final long TICK_MS = 50;
+
+    // ---------- 坐标缩放 ----------
+    // 世界坐标即游戏原生单位（SMD RECT / spawn point / FieldMap 同尺度）。
+    // 移动步进按「米」语义表达：speed(m/s) / TICK_RATE * POSITION_SCALE。
+    /** 坐标缩放因子：1 世界单位 = POSITION_SCALE 内部步进（原版 fONE=256） */
+    public static final int POSITION_SCALE = 256;
+
+    // ---------- 怪物移动速度（m/s，exm 源码实测） ----------
+    /** 怪物步行速度 0.25 m/s（IQ<6 的 hobby 怪只能 walk） */
+    public static final double MONSTER_WALK_SPEED = 0.25;
+    /** 怪物奔跑速度 0.50 m/s（IQ≥6 且有 run 动画时） */
+    public static final double MONSTER_RUN_SPEED = 0.50;
+
+    // ---------- 怪物每 tick 步进（step = speed / TICK_RATE * POSITION_SCALE） ----------
+    /** 怪物步行每 tick 步进 = 0.25/20*256 = 3.2 */
+    public static final double MONSTER_WALK_STEP = MONSTER_WALK_SPEED / TICK_RATE * POSITION_SCALE;
+    /** 怪物奔跑每 tick 步进 = 0.50/20*256 = 6.4 */
+    public static final double MONSTER_RUN_STEP = MONSTER_RUN_SPEED / TICK_RATE * POSITION_SCALE;
+
+    // ---------- 玩家移动速度（每 Move_Speed 点的 m/s，exm 源码实测） ----------
+    /** 玩家步行每 +1 Move_Speed 增量 0.4375 m/s */
+    public static final double PLAYER_WALK_SPEED_PER_POINT = 0.4375;
+    /** 玩家奔跑每 +1 Move_Speed 增量 1.2109 m/s */
+    public static final double PLAYER_RUN_SPEED_PER_POINT = 1.2109;
+
+    // ---------- 玩家每 tick 每 Move_Speed 点步进 ----------
+    /** 玩家步行每 tick 每点步进 = 0.4375/20*256 = 5.6 */
+    public static final double PLAYER_WALK_STEP_PER_POINT = PLAYER_WALK_SPEED_PER_POINT / TICK_RATE * POSITION_SCALE;
+    /** 玩家奔跑每 tick 每点步进 = 1.2109/20*256 = 15.5 */
+    public static final double PLAYER_RUN_STEP_PER_POINT = PLAYER_RUN_SPEED_PER_POINT / TICK_RATE * POSITION_SCALE;
+
+    // ---------- 玩家基础速度（Move_Speed=1 时） ----------
+    /** 玩家 Move_Speed=1 时步行 m/s */
+    public static final double PLAYER_BASE_WALK_SPEED = 0.4375;
+    /** 玩家 Move_Speed=1 时奔跑 m/s */
+    public static final double PLAYER_BASE_RUN_SPEED = 1.2109;
+
     // ---------- 燃烧/毒 ----------
     /** 燃烧 tick 间隔（毫秒） */
     public static final int BURNING_TICKRATE_MS = 500;

@@ -8,7 +8,10 @@ import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.network.PlayerSession;
 
 /**
- * 动作节点：追击目标
+ * 条件+动作节点：追击目标
+ *
+ * 只负责设置怪物状态为 CHASE 并刷新目标位置。
+ * 实际位移由 MovementService 每 tick 执行。
  */
 public class ChaseNode extends BehaviorNode {
 
@@ -19,31 +22,20 @@ public class ChaseNode extends BehaviorNode {
             return NodeStatus.FAILURE;
         }
 
-        // 持续跟随目标最新位置
+        // 刷新目标位置（玩家可能在移动）
         context.setTargetX(target.getX());
         context.setTargetZ(target.getZ());
 
-        // 获取目标位置
-        float targetX = context.getTargetX();
-        float targetZ = context.getTargetZ();
+        // 设置追击状态（MovementService 每 tick 据此以 run 速度移向目标）
+        monster.setState(MonsterState.CHASE);
 
-        // 计算移动方向
-        float dx = targetX - monster.getX();
-        float dz = targetZ - monster.getZ();
-        float distance = (float) Math.sqrt(dx * dx + dz * dz);
-
-        if (distance <= 0.5f) {
-            // 已到达目标位置
+        // 到达判定：距离 ≤ 0.5 时视为进入攻击范围（由 InAttackRangeNode 处理）
+        float dx = target.getX() - monster.getX();
+        float dz = target.getZ() - monster.getZ();
+        float distSq = dx * dx + dz * dz;
+        if (distSq <= 0.5f * 0.5f) {
             return NodeStatus.SUCCESS;
         }
-
-        // 移动向目标
-        float moveDistance = Math.min(monster.getSpeed(), distance);
-        float ratio = moveDistance / distance;
-        monster.setX(monster.getX() + dx * ratio);
-        monster.setZ(monster.getZ() + dz * ratio);
-        monster.setState(MonsterState.CHASE);
-        monster.setLastMoveTime(System.currentTimeMillis());
 
         return NodeStatus.RUNNING;
     }

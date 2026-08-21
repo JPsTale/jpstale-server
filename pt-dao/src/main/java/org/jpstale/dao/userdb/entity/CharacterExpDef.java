@@ -17,9 +17,7 @@ import lombok.Data;
 @TableName(schema = "userdb", value = "characterexpdef")
 public class CharacterExpDef {
 
-    @TableId(value = "id", type = IdType.AUTO)
-    private Integer id;
-    @TableField("level")
+    @TableId(value = "level", type = IdType.INPUT)
     private Integer level;
     @TableField("exprequired")
     private Long expRequired;

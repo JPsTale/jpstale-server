@@ -59,6 +59,18 @@ public class CharacterInfo {
     private Integer gmLevel;
     @TableField("banned")
     private Integer banned;
+    @TableField("strength")
+    private Integer strength;
+    @TableField("spirit")
+    private Integer spirit;
+    @TableField("talent")
+    private Integer talent;
+    @TableField("agility")
+    private Integer agility;
+    @TableField("health")
+    private Integer health;
+    @TableField("statepoint")
+    private Integer statePoint;
     @TableField("title")
     private Integer title;
     @TableField("dialogskin")

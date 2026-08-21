@@ -29,6 +29,12 @@ public class PlayerSession {
     private float y;
     private float z;
 
+    // ======== 服务端权威移动状态 ========
+    /** 移动方向（弧度，0=Z+方向，atan2(dx,dz)） */
+    private double moveAngle;
+    /** 移动状态机（IDLE/WALK/RUN/ATTACK/DEAD） */
+    private PlayerMoveState moveState = PlayerMoveState.IDLE;
+
     // 玩家战斗状态（调试工具用）
     private int hp = 100;
     private int maxHp = 100;

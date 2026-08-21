@@ -6,7 +6,8 @@
 <title>Priston Tale Spawn Debug</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: #141414; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif; font-size: 13px; }
+html, body { height: 100%; }
+body { background: #141414; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif; font-size: 13px; display: flex; flex-direction: column; }
 
 #top { padding: 10px 16px; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 #top h1 { font-size: 15px; color: #ffd479; }
@@ -15,9 +16,20 @@ body { background: #141414; color: #e8e8e8; font-family: Tahoma, Arial, sans-ser
 #connStatus.on { background: #1d4d1d; color: #7cd47c; }
 #connStatus.off { background: #4d1d1d; color: #f85149; }
 
-#body { display: flex; align-items: flex-start; padding: 12px 16px; gap: 14px; }
-#panel { flex: 0 0 250px; display: flex; flex-direction: column; gap: 10px; }
-#maparea { flex: 1; min-width: 0; }
+#body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+/* 阶段一：登录大厅（进游戏前） */
+#lobby { flex: 1; display: flex; justify-content: center; align-items: flex-start; padding: 40px 16px; overflow-y: auto; }
+#lobby .lobbyCol { width: 430px; display: flex; flex-direction: column; gap: 12px; }
+#lobby .backBtn { margin-top: 14px; width: 100%; }
+
+/* 阶段二：游戏视图（进游戏后） */
+#gameView { flex: 1; display: none; flex-direction: column; min-height: 0; }
+#gameToolbar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid #333; flex-wrap: wrap; }
+#gameToolbar .char { color: #ffd479; font-weight: bold; }
+#gameToolbar .view { color: #666; font-size: 11px; }
+#mapSel { background: #141414; color: #e8e8e8; border: 1px solid #555; padding: 3px 6px; font-size: 12px; }
+#gameToolbar .btn { margin-top: 0; padding: 3px 10px; }
 
 .box { background: #1d1d1d; border: 1px solid #333; padding: 10px; }
 .box h2 { font-size: 13px; color: #9db8d9; margin-bottom: 8px; font-weight: bold; }
@@ -38,15 +50,34 @@ body { background: #141414; color: #e8e8e8; font-family: Tahoma, Arial, sans-ser
 #serverList .sv { color: #7cd47c; margin-left: 6px; }
 
 #mapSel { margin-top: 4px; }
-#logBox { background: #0d0d0d; border: 1px solid #333; height: 140px; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; padding: 6px; color: #9db8d9; }
+#logBar { height: 110px; display: flex; flex-direction: column; border-top: 1px solid #333; background: #141414; }
+#logBar .legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 4px 12px; align-items: center; }
+#logBox { background: #0d0d0d; flex: 1; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; padding: 6px; color: #9db8d9; border-top: 1px solid #2c2c2c; }
 #logBox .err { color: #f85149; }
 #logBox .ok { color: #7cd47c; }
 
-canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display: block; width: 100%; min-width: 800px; }
-#statusBar { display: flex; gap: 14px; margin-top: 6px; font-size: 12px; color: #9db8d9; flex-wrap: wrap; }
-#statusBar b { color: #e8e8e8; }
+#createChar { margin-top: 10px; border-top: 1px solid #333; padding-top: 8px; }
+#createChar h3 { font-size: 12px; color: #ffd479; margin-bottom: 6px; }
+#classSel, #headSel { display: flex; gap: 4px; flex-wrap: wrap; margin: 4px 0; }
+.selBtn { background: #2a2a2a; color: #e8e8e8; border: 1px solid #555; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+.selBtn.sel { border-color: #ffd479; color: #ffd479; }
+
+#charList li .infoBtn { float: right; margin-left: 6px; font-size: 11px; }
+#charList li .st { color: #888; font-size: 11px; display: block; }
+
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 330px; background: #1d1d1d; border-left: 1px solid #444; z-index: 100; padding: 14px; overflow-y: auto; }
+.drawer.hidden { display: none; }
+.drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+#infoBody .statRow { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #2c2c2c; }
+#infoBody .statRow .name { color: #9db8d9; }
+#infoBody .statRow .val { color: #e8e8e8; font-weight: bold; }
+#infoBody .panelRow { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; color: #bbb; }
+#infoBody .panelRow b { color: #e8e8e8; }
+#infoBody .addBtn { background: #3a3a3a; color: #ffd479; border: 1px solid #666; padding: 1px 8px; cursor: pointer; }
+
+canvas { background: #0d0d0d; display: block; width: 100%; height: 100%; cursor: crosshair; }
+#maparea { flex: 1; min-height: 0; position: relative; }
 .hp { color: #f85149; }
-.legend { font-size: 11px; color: #888; margin-top: 4px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -56,55 +87,72 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
   <span class="conn" id="wsUrl"></span>
 </div>
 <div id="body">
-  <div id="panel">
-    <div class="box">
-      <h2>Login</h2>
-      <label>Account</label><input id="acc" value="test_fs_20">
-      <label>Password</label><input id="pwd" type="password" value="123">
-      <button class="btn" id="btnLogin">Login</button>
-      <button class="btn" id="btnLogout" style="display:none">Logout</button>
+  <div id="lobby">
+    <div class="lobbyCol">
+      <div class="box" id="loginBox">
+        <h2>Login</h2>
+        <label>Account</label><input id="acc" value="test_fs_20">
+        <label>Password</label><input id="pwd" type="password" value="123">
+        <button class="btn" id="btnLogin">Login</button>
+      </div>
+      <div class="box" id="serverBox" style="display:none">
+        <h2>Select Server</h2>
+        <ul id="serverList"></ul>
+      </div>
+      <div class="box" id="charBox" style="display:none">
+        <h2>Character</h2>
+        <ul id="charList"></ul>
+        <div id="createChar">
+          <h3>Create New Character</h3>
+          <label>Name</label><input id="newCharName" maxlength="12">
+          <label>Class</label>
+          <div id="classSel"></div>
+          <label>Head</label>
+          <div id="headSel"></div>
+          <button class="btn" id="btnCreate">Create</button>
+          <div id="createError" style="display:none;color:#f85149;margin-top:8px;font-size:12px"></div>
+        </div>
+        <button class="btn backBtn" id="btnBackLogin">&#8592; Back to Login</button>
+      </div>
     </div>
-    <div class="box" id="serverBox" style="display:none">
-      <h2>Server</h2>
-      <ul id="serverList"></ul>
-    </div>
-    <div class="box" id="charBox" style="display:none">
-      <h2>Character</h2>
-      <ul id="charList"></ul>
-    </div>
-    <div class="box" id="mapBox" style="display:none">
-      <h2>Enter Map</h2>
+  </div>
+  <div id="gameView">
+    <div id="gameToolbar">
+      <span class="char" id="gtChar">-</span>
+      <span id="gtStatus">
+        Lv <b id="stLevel">-</b> &nbsp; HP <b class="hp" id="stHp">-</b> &nbsp; MP <b id="stMp">-</b> &nbsp; Monsters <b id="stMobs">0</b>
+      </span>
       <select id="mapSel"></select>
       <button class="btn" id="btnEnter">Enter Map</button>
+      <button class="btn" id="btnInfo">info</button>
+      <button class="btn" id="btnLogout">Logout</button>
+      <span class="view" id="stView"></span>
+      <span class="view" id="stScale"></span>
     </div>
-    <div class="box">
-      <h2>Status</h2>
-      <div id="statusBar">
-        <span>Lv <b id="stLevel">-</b></span>
-        <span>HP <b class="hp" id="stHp">-</b></span>
-        <span>MP <b id="stMp">-</b></span>
-        <span>Monsters <b id="stMobs">0</b></span>
-        <span>Scale <b id="stScale">-</b></span>
-        <span>View <b id="stView">-</b></span>
-      </div>
+    <div id="maparea">
+      <canvas id="cv"></canvas>
+    </div>
+    <div id="logBar">
       <div class="legend">
-        <span style="color:#ff6b6b">&#9679; spawn point (active)</span><br>
-        <span style="color:#555">&#9679; spawn point (idle)</span><br>
-        <span style="color:#4dabff">&#9679; player</span><br>
-        <span style="color:#c7a5ff">&#9679; other player</span><br>
-        <span style="color:#7cd47c">&#9679; monster (patrol)</span><br>
-        <span style="color:#ffd479">&#9679; monster (chase/attack)</span><br>
-        <span style="color:#f85149">&#9679; monster (low hp)</span>
+        <span style="color:#ff6b6b">&#9679; spawn (active)</span>
+        <span style="color:#555">&#9679; spawn (idle)</span>
+        <span style="color:#4dabff">&#9679; player</span>
+        <span style="color:#c7a5ff">&#9679; other</span>
+        <span style="color:#7cd47c">&#9679; monster</span>
+        <span style="color:#ffd479">&#9679; chase/attack</span>
+        <span style="color:#f85149">&#9679; low hp</span>
       </div>
-    </div>
-    <div class="box">
-      <h2>Log</h2>
       <div id="logBox"></div>
     </div>
   </div>
-  <div id="maparea">
-    <canvas id="cv"></canvas>
+</div>
+
+<div id="infoDrawer" class="drawer hidden">
+  <div class="drawer-head">
+    <b id="infoTitle" style="color:#ffd479">Character Info</b>
+    <button class="btn" id="btnCloseInfo">Close</button>
   </div>
+  <div id="infoBody"></div>
 </div>
 
 <script>
@@ -244,8 +292,6 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
           state.accountId = d.accountId;
           log('login OK, accountId=' + d.accountId + ' → select server', 'ok');
           showLoginUi();
-          document.getElementById('btnLogin').style.display = 'none';
-          document.getElementById('btnLogout').style.display = 'inline-block';
           // 服务器会自动下发 auth.serverList
         } else {
           log('login failed: ' + d.errorMessage, 'err');
@@ -262,10 +308,30 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
           state.selectedServer = d.serverId != null ? d.serverId : 1;
           document.getElementById('serverBox').style.display = 'none';
           log('server selected (id=' + d.serverId + '), loading characters...', 'ok');
-          // 服务器会随后下发 auth.characterList
+          // 主动拉取带属性的角色列表
+          send('auth.characterList', {});
         } else {
           log('server select failed', 'err');
         }
+        break;
+      case 'auth.createCharacter':
+        if (d.success) {
+          log('character created: ' + d.name, 'ok');
+          document.getElementById('createError').style.display = 'none';
+          document.getElementById('newCharName').value = '';
+          send('auth.characterList', {});
+        } else {
+          const err = document.getElementById('createError');
+          err.textContent = 'Create failed: ' + (d.errorMessage || ('code ' + d.errorCode));
+          err.style.display = 'block';
+          log('create failed: ' + (d.errorMessage || d.errorCode), 'err');
+        }
+        break;
+      case 'game.characterInfo':
+        renderInfoDrawer(d);
+        // 缓存服务端权威速度（单位/秒），客户端预测用同一公式
+        if (typeof d.walkSpeed === 'number') state.player.walkSpeed = d.walkSpeed;
+        if (typeof d.runSpeed === 'number') state.player.runSpeed = d.runSpeed;
         break;
       case 'reconnect.token':
         reconnectToken = d.token;
@@ -277,7 +343,7 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
           state.player = { x: d.x, z: d.z, hp: 100, maxHp: 100, mp: 50, maxMp: 50, level: 1 };
           state.mapId = d.mapId;
           log('reconnected to map ' + d.mapId + ' at (' + Math.round(d.x) + ',' + Math.round(d.z) + ')', 'ok');
-          document.getElementById('mapBox').style.display = 'block';
+          showGame();
           populateMaps();
         } else {
           log('reconnect failed', 'err');
@@ -301,8 +367,9 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
       case 'auth.enterGame':
         log('enter game: char ' + d.playerId + ' lv' + d.level);
         state.player = { x: 0, z: 0, hp: d.hp, maxHp: d.maxHp, mp: d.mp, maxMp: d.maxMp, level: d.level };
-        document.getElementById('mapBox').style.display = 'block';
         populateMaps();
+        // 自动进入角色上次所在地图
+        send('game.enterMap', { mapId: (state.selectedChar && state.selectedChar.mapId != null) ? state.selectedChar.mapId : 1 });
         break;
       case 'map.list':
         const sel = document.getElementById('mapSel');
@@ -323,9 +390,12 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
         state.player.z = d.player.z;
         state.bounds = computeBounds();
         log('entered map ' + d.mapId + ' [' + d.mapName + '] ' + state.spawnPoints.length + ' spawn points, max=' + (state.mapConfig.maxMonsters), 'ok');
+        showGame();
         draw();
         updateStatus();
         if (Object.keys(state.mapAabbs).length === 0) send('map.aabbs');
+        // 拉取权威速度（客户端预测用），确保 moveStep 速度与服务端一致
+        send('game.characterInfo', {});
         break;
       case 'map.aabbs':
         state.mapAabbs = d.aabbs || {};
@@ -346,11 +416,18 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
       case 'game.moveAck':
         break;
       case 'game.snapshot':
-        // 客户端预测：移动中不覆盖本地预测位置，只更新 HP/MP/level；
-        // 静止时采用服务器权威位置（纠偏）
+        // 服务端权威位置：
+        // - 静止 → 直接采用权威位置
+        // - 移动中 → 只在漂移超过一个 tick 步进（速度发散）时轻微纠偏，
+        //   否则信任客户端预测（与服务端同公式，时序抖动引起的微小漂移不拉回，避免抖卡）
+        const px = d.player.x, pz = d.player.z;
+        const drift = Math.hypot(px - state.player.x, pz - state.player.z);
         if (!moving) {
-          state.player.x = d.player.x;
-          state.player.z = d.player.z;
+          state.player.x = px;
+          state.player.z = pz;
+        } else if (drift > 20) {
+          state.player.x += (px - state.player.x) * 0.2;
+          state.player.z += (pz - state.player.z) * 0.2;
         }
         state.player.hp = d.player.hp;
         state.player.maxHp = d.player.maxHp;
@@ -363,6 +440,27 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
         draw();
         updateStatus();
         break;
+      case 'game.allocateStat':
+        if (d.success) {
+          log('allocated ' + d.points + ' ' + d.stat + ' (pts left ' + d.statePoint + ')', 'ok');
+          send('game.characterInfo', {});
+        } else {
+          log('allocate failed: not enough points', 'err');
+        }
+        break;
+      case 'game.levelUp':
+        log('LEVEL UP! now Lv ' + d.level + ' (state points ' + d.statePoint + ')', 'ok');
+        if (!document.getElementById('infoDrawer').classList.contains('hidden')) {
+          send('game.characterInfo', {});
+        }
+        break;
+      case 'game.playerRespawn':
+        log('You died! Respawned at map ' + d.mapId + ' (' + d.x + ',' + d.z + ') hp ' + d.hp, 'err');
+        state.player.hp = d.hp;
+        state.player.maxHp = state.player.maxHp;
+        // 重新进入出生地图（带坐标，避免重置到出生点）
+        send('game.enterMap', { mapId: d.mapId, x: d.x, z: d.z });
+        break;
       case 'error':
         log('server error ' + d.code + ': ' + d.message, 'err');
         break;
@@ -372,10 +470,20 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
   }
 
   // ---- UI ----
+  function showLobby() {
+    document.getElementById('lobby').style.display = 'flex';
+    document.getElementById('gameView').style.display = 'none';
+  }
+  function showGame() {
+    document.getElementById('lobby').style.display = 'none';
+    document.getElementById('gameView').style.display = 'flex';
+    resize();
+  }
   function showLoginUi() {
-    document.getElementById('serverBox').style.display = 'none';
+    // 登录成功后进入选服阶段
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('serverBox').style.display = 'block';
     document.getElementById('charBox').style.display = 'none';
-    document.getElementById('mapBox').style.display = 'none';
   }
   function resetToLogin() {
     state.step = 'login';
@@ -389,12 +497,11 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
     state.monsters = [];
     state.otherPlayers = [];
     state.bounds = null;
-    document.getElementById('btnLogin').style.display = 'inline-block';
-    document.getElementById('btnLogout').style.display = 'none';
+    document.getElementById('loginBox').style.display = 'block';
     document.getElementById('serverBox').style.display = 'none';
     document.getElementById('charBox').style.display = 'none';
-    document.getElementById('mapBox').style.display = 'none';
     state.player = { x: 0, z: 0, hp: 100, maxHp: 100 };
+    showLobby();
     draw();
   }
   function preloadMapImages() {
@@ -431,11 +538,20 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
     ul.innerHTML = '';
     (state.characters || []).forEach(c => {
       const li = document.createElement('li');
-      li.textContent = c.name;
-      const lv = document.createElement('span');
-      lv.className = 'lv';
-      lv.textContent = 'Lv ' + c.level + ' (class ' + c.classId + ')';
-      li.appendChild(lv);
+      const top = document.createElement('div');
+      top.textContent = c.name + '  Lv ' + c.level + '  ' + (JOB_NAMES[c.classId] || ('Class ' + c.classId));
+      const infoBtn = document.createElement('button');
+      infoBtn.className = 'btn infoBtn';
+      infoBtn.textContent = 'info';
+      infoBtn.onclick = (e) => { e.stopPropagation(); openInfo(c); };
+      top.appendChild(infoBtn);
+      li.appendChild(top);
+      const st = document.createElement('span');
+      st.className = 'st';
+      st.textContent = 'STR ' + (c.strength || 0) + ' SPI ' + (c.spirit || 0)
+        + ' TAL ' + (c.talent || 0) + ' DEX ' + (c.agility || 0)
+        + ' HEA ' + (c.health || 0) + '  pts ' + (c.statePoint || 0);
+      li.appendChild(st);
       li.onclick = () => {
         document.querySelectorAll('#charList li').forEach(x => x.classList.remove('sel'));
         li.classList.add('sel');
@@ -444,7 +560,148 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
       };
       ul.appendChild(li);
     });
+    renderClassSel();
     document.getElementById('charBox').style.display = 'block';
+  }
+  const JOB_NAMES = { 1: 'Fighter', 2: 'Mechanician', 3: 'Archer', 4: 'Pikeman', 5: 'Atalanta', 6: 'Knight', 7: 'Magician', 8: 'Priestess', 9: 'Assassin', 10: 'Shaman' };
+  const HEAD_FILES = {
+    1: ['char\\tmABCD\\tmh-b01.inf', 'char\\tmABCD\\tmh-b02.inf', 'char\\tmABCD\\tmh-b03.inf'],
+    2: ['char\\tmABCD\\tmh-a01.inf', 'char\\tmABCD\\tmh-a02.inf', 'char\\tmABCD\\tmh-a03.inf'],
+    3: ['char\\tmABCD\\tfh-d01.inf', 'char\\tmABCD\\tfh-d02.inf', 'char\\tmABCD\\tfh-d03.inf'],
+    4: ['char\\tmABCD\\tmh-c01.inf', 'char\\tmABCD\\tmh-c02.inf', 'char\\tmABCD\\tmh-c03.inf'],
+    5: ['char\\tmABCD\\Mmh-D01.inf', 'char\\tmABCD\\Mmh-D02.inf', 'char\\tmABCD\\Mmh-D03.inf'],
+    6: ['char\\tmABCD\\Mfh-B01.inf', 'char\\tmABCD\\Mfh-B02.inf', 'char\\tmABCD\\Mfh-B03.inf'],
+    7: ['char\\tmABCD\\Mmh-A01.inf', 'char\\tmABCD\\Mmh-A02.inf', 'char\\tmABCD\\Mmh-A03.inf'],
+    8: ['char\\tmABCD\\Mfh-C01.inf', 'char\\tmABCD\\Mfh-C02.inf', 'char\\tmABCD\\Mfh-C03.inf']
+  };
+  let newCharClass = 1, newCharHead = 0;
+  function renderClassSel() {
+    const el = document.getElementById('classSel');
+    el.innerHTML = '';
+    // 坦普族（1-4）
+    const t = document.createElement('div');
+    t.style.cssText = 'color:#9db8d9;font-size:11px;margin:4px 0 2px';
+    t.textContent = 'Tempskron (坦普族)';
+    el.appendChild(t);
+    [1, 2, 3, 4].forEach(cid => {
+      const b = document.createElement('button');
+      b.className = 'selBtn' + (cid === newCharClass ? ' sel' : '');
+      b.textContent = JOB_NAMES[cid];
+      b.onclick = () => { newCharClass = cid; newCharHead = 0; renderClassSel(); };
+      el.appendChild(b);
+    });
+    // 魔灵族（5-8）
+    const m = document.createElement('div');
+    m.style.cssText = 'color:#9db8d9;font-size:11px;margin:6px 0 2px';
+    m.textContent = 'Morayion (魔灵族)';
+    el.appendChild(m);
+    [5, 6, 7, 8].forEach(cid => {
+      const b = document.createElement('button');
+      b.className = 'selBtn' + (cid === newCharClass ? ' sel' : '');
+      b.textContent = JOB_NAMES[cid];
+      b.onclick = () => { newCharClass = cid; newCharHead = 0; renderClassSel(); };
+      el.appendChild(b);
+    });
+    renderHeadSel();
+  }
+  function renderHeadSel() {
+    const el = document.getElementById('headSel');
+    el.innerHTML = '';
+    (HEAD_FILES[newCharClass] || []).forEach((hf, i) => {
+      const b = document.createElement('button');
+      b.className = 'selBtn' + (i === newCharHead ? ' sel' : '');
+      b.textContent = 'Head ' + (i + 1);
+      b.onclick = () => { newCharHead = i; renderHeadSel(); };
+      el.appendChild(b);
+    });
+  }
+
+  function openInfo(c) {
+    state.selectedChar = c;
+    if (state.mapId != null) {
+      send('game.characterInfo', {});
+    } else {
+      // 未进游戏：用列表属性预览
+      renderInfoDrawer({
+        name: c.name, job: c.classId, level: c.level, gold: c.gold,
+        strength: c.strength, spirit: c.spirit, talent: c.talent,
+        agility: c.agility, health: c.health, statePoint: c.statePoint,
+        _preview: true
+      });
+    }
+    document.getElementById('infoDrawer').classList.remove('hidden');
+  }
+  function renderInfoDrawer(d) {
+    const body = document.getElementById('infoBody');
+    document.getElementById('infoTitle').textContent = d.name + '  Lv' + d.level;
+    body.innerHTML = '';
+    if (d._preview) {
+      const note = document.createElement('div');
+      note.style.cssText = 'color:#888;font-size:11px;margin-bottom:8px';
+      note.textContent = 'Preview (enter game to see full panel & allocate)';
+      body.appendChild(note);
+    }
+    const stats = [
+      ['strength', 'STR', d.strength], ['spirit', 'SPI', d.spirit], ['talent', 'TAL', d.talent],
+      ['agility', 'DEX', d.agility], ['health', 'HEA', d.health]
+    ];
+    stats.forEach(([key, label, val]) => {
+      const row = document.createElement('div');
+      row.className = 'statRow';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = label;
+      const valEl = document.createElement('span');
+      valEl.className = 'val';
+      valEl.textContent = val || 0;
+      const add = document.createElement('button');
+      add.className = 'addBtn';
+      add.textContent = '+1';
+      add.disabled = !d._preview && (d.statePoint || 0) <= 0;
+      add.onclick = () => send('game.allocateStat', { stat: key, points: 1 });
+      const right = document.createElement('span');
+      right.appendChild(valEl);
+      right.appendChild(add);
+      row.appendChild(name);
+      row.appendChild(right);
+      body.appendChild(row);
+    });
+    const spRow = document.createElement('div');
+    spRow.className = 'statRow';
+    spRow.innerHTML = '<span class="name">State Points</span>'
+      + '<span class="val" style="color:#ffd479">' + (d.statePoint || 0) + '</span>';
+    body.appendChild(spRow);
+
+    if (!d._preview) {
+      const panel = document.createElement('div');
+      panel.style.marginTop = '10px';
+      const rows = [
+        '<b style="color:#ffd479">' + (JOB_NAMES[d.job] || ('Class ' + d.job)) + '</b>',
+        'EXP <b>' + (d.exp || 0) + '</b> / Next <b>' + (d.nextExp || 0) + '</b>',
+        'Gold <b>' + (d.gold || 0) + '</b>',
+        'HP <b>' + (d.hp || 0) + '/' + (d.maxHp || 0) + '</b>',
+        'MP <b>' + (d.mp || 0) + '/' + (d.maxMp || 0) + '</b>',
+        'SP <b>' + (d.sp || 0) + '/' + (d.maxSp || 0) + '</b>',
+        'Attack <b>' + (d.attackMin || 0) + '-' + (d.attackMax || 0) + '</b>',
+        'Hit <b>' + (d.attackRating || 0) + '</b>',
+        'Defense <b>' + (d.defense || 0) + '</b>',
+        'Absorb <b>' + (d.absorption || 0) + '%</b>',
+        'Move Speed <b>' + (d.moveSpeed || 0).toFixed(1) + '</b> (W:' + (d.walkSpeed||0) + ' R:' + (d.runSpeed||0) + ')',
+        'Attack Speed <b>' + (d.attackSpeed || 0) + '</b>',
+        'Critical <b>' + (d.critical || 0) + '%</b>',
+        'Block <b>' + (d.block || 0) + '%</b>',
+        'Range <b>' + (d.shootingRange || 0) + '</b>',
+        'Max Weight <b>' + (d.maxWeight || 0) + '</b>',
+        '<b style="color:#9db8d9">Element Resistance</b>',
+        'Bionic <b>' + (d.resBionic || 0) + '</b>',
+        'Poison <b>' + (d.resPoison || 0) + '</b>',
+        'Fire <b>' + (d.resFire || 0) + '</b>',
+        'Lightning <b>' + (d.resLightning || 0) + '</b>',
+        'Ice <b>' + (d.resIce || 0) + '</b>'
+      ];
+      panel.innerHTML = rows.map(h => '<div class="panelRow">' + h + '</div>').join('');
+      body.appendChild(panel);
+    }
   }
   function populateMaps() {
     send('map.list');
@@ -455,8 +712,10 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
     document.getElementById('stHp').textContent = p.hp + '/' + p.maxHp;
     document.getElementById('stMp').textContent = (p.mp != null ? p.mp : '-') + '/' + (p.maxMp != null ? p.maxMp : '-');
     document.getElementById('stMobs').textContent = state.monsters.length;
+    document.getElementById('gtChar').textContent =
+      (state.selectedChar ? state.selectedChar.name : '') + '  Lv' + (p.level != null ? p.level : '-');
     const sc = document.getElementById('stScale');
-    if (sc) sc.textContent = (view.scale && isFinite(view.scale) ? view.scale.toFixed(3) : '-') + ' px/unit';
+    if (sc) sc.textContent = (view.scale && isFinite(view.scale) ? 'scale ' + view.scale.toFixed(3) : '');
     const sv = document.getElementById('stView');
     if (sv) sv.textContent = '[' + Math.round(view.minX) + ',' + Math.round(view.minZ) + '] -> [' + Math.round(view.maxX) + ',' + Math.round(view.maxZ) + ']';
   }
@@ -465,6 +724,16 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
   function draw() {
     computeView();
     ctx.clearRect(0, 0, cv.width, cv.height);
+
+    // 血条：绿色=当前血，红色=已损失；宽度 = 图标直径 * 2
+    function drawHpBar(x, y, cur, max, width) {
+      const ratio = Math.max(0, Math.min(1, cur / (max > 0 ? max : 1)));
+      const h = 3, bx = x - width / 2, by = y + 2;
+      ctx.fillStyle = '#f85149';           // 损失部分（红）
+      ctx.fillRect(bx, by, width, h);
+      ctx.fillStyle = '#7cd47c';           // 当前血（绿）
+      ctx.fillRect(bx, by, width * ratio, h);
+    }
 
     // 地图背景（mesh PNG，按 AABB 定位；图在视野外则跳过）
     for (const mapId in state.mapAabbs) {
@@ -527,11 +796,14 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
         ctx.strokeStyle = '#ffd479';
         ctx.stroke();
       }
+      // 顶部：等级 + 名字（居中）
       ctx.font = '9px Consolas';
-      ctx.fillStyle = '#bbb';
-      ctx.fillText(m.name, x + 8, z + 3);
-      ctx.fillStyle = '#999';
-      ctx.fillText('Lv' + m.level, x + 8, z + 13);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('Lv' + m.level + ' ' + m.name, x, z - 9);
+      ctx.textAlign = 'left';
+      // 底部：血条（直径 12 × 2 = 24）
+      drawHpBar(x, z, m.hp, m.maxHp, 24);
     }
 
     // other players
@@ -563,13 +835,28 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
     ctx.font = '10px Consolas';
     ctx.fillStyle = '#4dabff';
     ctx.fillText('YOU', px + 12, pz + 4);
+    // 玩家血条（直径 16 × 2 = 32）
+    drawHpBar(px, pz, state.player.hp, state.player.maxHp, 32);
+
+    // 攻击目标高亮
+    if (attackTargetId != null) {
+      const tm = findMonster(attackTargetId);
+      if (tm) {
+        const tx = wx(tm.x), tz = wz(tm.z);
+        ctx.beginPath();
+        ctx.arc(tx, tz, 14, 0, Math.PI * 2);
+        ctx.strokeStyle = '#ff4d4d';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
   }
 
   // ---- canvas resize ----
   function resize() {
     const area = document.getElementById('maparea');
-    const w = Math.max(300, area.clientWidth - 2);
-    const h = Math.max(400, window.innerHeight - 120);
+    const w = Math.max(200, area.clientWidth);
+    const h = Math.max(200, area.clientHeight);
     cv.width = w;
     cv.height = h;
     if (state.mapId != null) draw();
@@ -577,15 +864,48 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
   window.addEventListener('resize', resize);
   resize();
 
-  // ---- hold-to-move ----
-  const MOVE_SPEED = 1200; // 游戏单位/秒
+  // ---- move & attack ----
+  let running = true;
+  window.addEventListener('keydown', (e) => { if (e.key === 'Shift') running = false; });
+  window.addEventListener('keyup', (e) => { if (e.key === 'Shift') running = true; });
+  const ATTACK_RANGE = 150; // 攻击距离（游戏单位）
+  const ATTACK_INTERVAL = 1000; // 攻击间隔（毫秒）
   let moveTarget = null;   // {x, z}
   let moving = false;
   let moveTimer = null;
+  let attackTargetId = null; // 当前攻击目标怪物 id
+  let attackTimer = null;
 
+  function dist2D(ax, az, bx, bz) {
+    const dx = bx - ax, dz = bz - az;
+    return Math.sqrt(dx * dx + dz * dz);
+  }
+  function findMonster(id) {
+    return (state.monsters || []).find(m => m.id === id);
+  }
+
+  // 点击：命中怪物则设为攻击目标并追击；点空地则移动（取消攻击）
   cv.addEventListener('mousedown', (e) => {
     if (state.mapId == null) return;
-    moveTarget = screenToWorld(e);
+    const rect = cv.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) * (cv.width / rect.width);
+    const sy = (e.clientY - rect.top) * (cv.height / rect.height);
+    const wp = { x: wxi(sx), z: wzi(sy) };
+    // 找最近怪物（屏幕距离 < 12px 视为点击到它）
+    let hit = null, hitDist = 12;
+    for (const m of (state.monsters || [])) {
+      const mxs = wx(m.x), mzs = wz(m.z);
+      const d = Math.sqrt((mxs - sx) * (mxs - sx) + (mzs - sy) * (mzs - sy));
+      if (d < hitDist) { hitDist = d; hit = m; }
+    }
+    if (hit) {
+      attackTargetId = hit.id;
+      moveTarget = { x: hit.x, z: hit.z };
+    } else {
+      stopAttack();
+      attackTargetId = null;
+      moveTarget = wp;
+    }
     moving = true;
     if (!moveTimer) moveTimer = setInterval(moveStep, 50);
   });
@@ -598,10 +918,12 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
     updateStatus();
   }, { passive: false });
   window.addEventListener('mousemove', (e) => {
-    if (moving && e.buttons & 1) moveTarget = screenToWorld(e);
+    // 追击怪物时不覆盖移动目标
+    if (moving && attackTargetId == null && e.buttons & 1) moveTarget = screenToWorld(e);
   });
-  window.addEventListener('mouseup', () => { stopMove(); });
-  window.addEventListener('mouseleave', () => { stopMove(); });
+  // 攻击目标模式下松开/离开鼠标不中断追击与攻击
+  window.addEventListener('mouseup', () => { if (attackTargetId == null) stopMove(); });
+  window.addEventListener('mouseleave', () => { if (attackTargetId == null) stopMove(); });
 
   function screenToWorld(e) {
     const rect = cv.getBoundingClientRect();
@@ -612,19 +934,65 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
   function stopMove() {
     moving = false;
     if (moveTimer) { clearInterval(moveTimer); moveTimer = null; }
+    // 通知服务端停止移动
+    send('game.moveStop', {});
+  }
+  function stopAttack() {
+    if (attackTimer) { clearInterval(attackTimer); attackTimer = null; }
+  }
+  function startAttack(monster) {
+    stopAttack();
+    const tick = () => {
+      const m = findMonster(attackTargetId);
+      if (attackTargetId == null || !m || m.hp <= 0) {
+        attackTargetId = null;
+        stopAttack();
+        return;
+      }
+      // 目标跑出范围 → 重新追击
+      if (dist2D(state.player.x, state.player.z, m.x, m.z) > ATTACK_RANGE) {
+        stopAttack();
+        moving = true;
+        moveTarget = { x: m.x, z: m.z };
+        if (!moveTimer) moveTimer = setInterval(moveStep, 50);
+        return;
+      }
+      send('game.attack', { targetId: attackTargetId });
+    };
+    tick(); // 立即攻击
+    attackTimer = setInterval(tick, ATTACK_INTERVAL);
   }
   function moveStep() {
-    if (!moving || !moveTarget) { stopMove(); return; }
+    if (!moving) { stopMove(); return; }
+    // 有攻击目标：追踪怪物，进入攻击范围后停下开打
+    if (attackTargetId != null) {
+      const m = findMonster(attackTargetId);
+      if (!m || m.hp <= 0) { attackTargetId = null; stopMove(); return; }
+      if (dist2D(state.player.x, state.player.z, m.x, m.z) <= ATTACK_RANGE) {
+        stopMove();
+        startAttack(m);
+        return;
+      }
+      moveTarget = { x: m.x, z: m.z }; // 持续追踪
+    }
+    if (!moveTarget) { stopMove(); return; }
     const p = state.player;
     const dx = moveTarget.x - p.x, dz = moveTarget.z - p.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
     if (dist < 1) { stopMove(); return; }
-    const step = MOVE_SPEED * 0.05;
-    const r = Math.min(step, dist) / dist;
-    const nx = p.x + dx * r, nz = p.z + dz * r;
-    state.player.x = nx;
-    state.player.z = nz;
-    send('game.move', { x: nx, z: nz });
+
+    // 计算移动方向角（弧度，0=Z+方向，与服务端 atan2(dx,dz) 一致）
+    const angle = Math.atan2(dx, dz);
+
+    // 上报移动意图（方向+奔跑），服务端权威计算位置
+    send('game.moveInput', { angle: angle, running: running });
+
+    // 客户端预测：用同一速度公式推算本地位置（与服务端一致）
+    const speed = running ? (p.runSpeed || 310) : (p.walkSpeed || 112);
+    const step = Math.min(speed * 0.05, dist);
+    const r = step / dist;
+    state.player.x = p.x + dx * r;
+    state.player.z = p.z + dz * r;
     draw();
     updateStatus();
   }
@@ -638,11 +1006,33 @@ canvas { background: #0d0d0d; border: 1px solid #333; cursor: crosshair; display
   };
   document.getElementById('btnLogout').onclick = () => {
     stopMove();
+    stopAttack();
+    attackTargetId = null;
+    send('auth.logout', {});
+  };
+  document.getElementById('btnBackLogin').onclick = () => {
+    stopMove();
+    stopAttack();
+    attackTargetId = null;
     send('auth.logout', {});
   };
   document.getElementById('btnEnter').onclick = () => {
     const mapId = parseInt(document.getElementById('mapSel').value, 10);
     send('game.enterMap', { mapId: mapId });
+  };
+  document.getElementById('btnInfo').onclick = () => {
+    if (state.mapId == null) return;
+    document.getElementById('infoDrawer').classList.remove('hidden');
+    send('game.characterInfo', {});
+  };
+  document.getElementById('btnCreate').onclick = () => {
+    const name = document.getElementById('newCharName').value.trim();
+    if (!name) { log('enter a character name', 'err'); return; }
+    const head = (HEAD_FILES[newCharClass] || [])[newCharHead] || '';
+    send('auth.createCharacter', { name: name, classId: newCharClass, head: head });
+  };
+  document.getElementById('btnCloseInfo').onclick = () => {
+    document.getElementById('infoDrawer').classList.add('hidden');
   };
 
   // auto connect on load

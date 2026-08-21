@@ -36,6 +36,9 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
     @Autowired
     private ReconnectionManager reconnectionManager;
 
+    @Autowired
+    private org.jpstale.server.game.service.PlayerService playerService;
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, MessageProto.ClientMessage msg) throws Exception {
         PlayerSession session = sessionManager.getSession(ctx.channel());
@@ -81,6 +84,10 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
                 reconnectionManager.generateReconnectToken(session);
             }
             aoiManager.removePlayer(session);
+            // 清理玩家缓存（重登时重新权威加载）
+            if (session.getCharacterId() != null) {
+                playerService.persistAndRemove(session.getCharacterId());
+            }
         }
         sessionManager.removeSession(ctx.channel());
         super.channelInactive(ctx);

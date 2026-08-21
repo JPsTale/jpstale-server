@@ -22,6 +22,9 @@ public class DamageCalculator {
     @Autowired
     private ItemCache itemCache;
 
+    @Autowired
+    private PlayerStatCalculator statCalculator;
+
     /**
      * 计算玩家对怪物的伤害
      */
@@ -46,9 +49,9 @@ public class DamageCalculator {
         int absorption = monster.getAbsorption();
         baseDamage = baseDamage * (100 - absorption) / 100;
 
-        // 5. 怪物等级过高保护
-        if (monster.getHp() / 4 < baseDamage && monster.getLevel() > player.getLevel()) {
-            baseDamage = ThreadLocalRandom.current().nextInt(monster.getHp() / 8, monster.getHp() / 4 + 1);
+        // 5. 怪物等级过高保护（对齐原版 Svr_Damge.cpp：用最大血量，非当前血量）
+        if (monster.getMaxHp() / 4 < baseDamage && monster.getLevel() > player.getLevel()) {
+            baseDamage = ThreadLocalRandom.current().nextInt(monster.getMaxHp() / 8, monster.getMaxHp() / 4 + 1);
         }
 
         // 6. 最小伤害为1
@@ -85,29 +88,33 @@ public class DamageCalculator {
     }
 
     /**
-     * 计算玩家基础攻击力
+     * 计算玩家基础攻击力（对齐原版 sinInvenTory.cpp）
+     * <p>
+     * 徒手：按 DamageMelee 系数用属性公式；有武器时按武器伤害 * 属性系数。
      */
     private int calculatePlayerAttack(Player player) {
-        int baseAttack = 5; // 默认拳头伤害
+        int[] base = statCalculator.baseAttack(player);
+        int min = base[0];
+        int max = base[1];
 
-        // 装备武器伤害
         Equipment equip = player.getEquipment();
         if (equip != null) {
             var weapon = equip.getEquipped(EquipmentSlotType.WEAPON);
             if (weapon != null) {
                 ItemTemplate template = itemCache.getTemplate(weapon.getItemId());
                 if (template != null) {
-                    int min = template.getAtkPow1Min();
-                    int max = template.getAtkPow1Max();
-                    baseAttack = ThreadLocalRandom.current().nextInt(min, max + 1);
+                    int wMin = template.getAtkPow1Min();
+                    int wMax = template.getAtkPow1Max();
+                    int str = player.getStrength();
+                    int dmg = statCalculator.meleeDamageFactor(player.getJob());
+                    // 原版：1 + wMin*(STR+F)/F + (TAL+DEX)/40
+                    min = 1 + wMin * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
+                    max = 3 + wMax * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
                 }
             }
         }
 
-        // 等级加成
-        baseAttack += player.getLevel() * 2;
-
-        return baseAttack;
+        return ThreadLocalRandom.current().nextInt(Math.max(1, min), Math.max(2, max + 1));
     }
 
     /**
@@ -120,12 +127,12 @@ public class DamageCalculator {
     }
 
     /**
-     * 计算玩家吸收率
+     * 计算玩家吸收率（对齐原版：Def/100 + LV/10 + (STR+TAL)/40 + 1 + 装备）
      */
     private int calculatePlayerAbsorption(Player player) {
-        int absorption = 0;
+        int absorption = statCalculator.absorption(player);
 
-        // 从装备获取吸收值
+        // 装备附加吸收
         Equipment equip = player.getEquipment();
         if (equip != null) {
             for (var slot : equip.getSlots().values()) {
@@ -140,7 +147,7 @@ public class DamageCalculator {
     }
 
     /**
-     * 计算玩家格挡率 — 对应原版 sinGetBlockRating
+     * 计算玩家格挡率 — 对应原版 sinGetBlockRating（纯装备格挡）
      */
     private int calculateBlockRate(Player player) {
         int blockRate = 0;
@@ -160,10 +167,10 @@ public class DamageCalculator {
     }
 
     /**
-     * 计算玩家防御力
+     * 计算玩家防御力（对齐原版：DEX/2 + TAL/4 + LV*1.4 + 装备）
      */
     private int calculatePlayerDefense(Player player) {
-        int defense = 0;
+        int defense = statCalculator.defense(player);
 
         // 从装备获取防御力
         Equipment equip = player.getEquipment();
@@ -175,9 +182,6 @@ public class DamageCalculator {
                 }
             }
         }
-
-        // 等级加成
-        defense += player.getLevel();
 
         return defense;
     }

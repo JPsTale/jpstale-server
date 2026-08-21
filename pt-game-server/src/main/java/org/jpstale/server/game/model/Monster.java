@@ -25,6 +25,7 @@ public class Monster {
     private float x;
     private float y;
     private float z;
+    private double angle; // 面朝方向（弧度，0=Z+方向）
     private MonsterState state;
     private Long targetPlayerId; // 当前仇恨目标
     private long lastMoveTime;
@@ -36,6 +37,8 @@ public class Monster {
     private int gold;           // 掉落金币
     private float viewsight;    // 视野/仇恨范围
     private int intelligence;   // AI 类型（0=被动，>0=主动攻击）
+    private int nature;         // 本性：1=Evil主动攻击, 0=Neutral被动(受击反击), 2=Good中立
+    private float moveRange;    // 活动/归位范围（出生点为中心）
 
     // 出生点信息（归位用）
     private int spawnPointIndex = -1;  // 所属出生点索引
