@@ -462,6 +462,9 @@ public class SimulatorService {
         s.setClassItem(e.getClassItem());
         s.setReqLevel(e.getReqLevel());
         s.setPrice(e.getPrice());
+        s.setDorpItem(e.getCodeImg1());
+        s.setDropFolder(e.getDropFolder());
+        s.setModelPosition(e.getModelPosition());
         return s;
     }
 
@@ -494,6 +497,9 @@ public class SimulatorService {
         d.setPotionCount(e.getPotionCount());
         d.setPrimarySpec(e.getPrimarySpec());
         d.setCannotDrop(e.getCannotDrop());
+        d.setDorpItem(e.getCodeImg1());
+        d.setDropFolder(e.getDropFolder());
+        d.setModelPosition(e.getModelPosition());
 
         d.setIntegrityMin(e.getIntegrityMin());
         d.setIntegrityMax(e.getIntegrityMax());

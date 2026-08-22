@@ -34,6 +34,9 @@ public class ItemDetail {
     private Integer potionCount;
     private Integer primarySpec;
     private Integer cannotDrop;
+    private String dorpItem;
+    private String dropFolder;
+    private Integer modelPosition;
 
     // 掷点区间 (min/max)
     private Integer integrityMin;

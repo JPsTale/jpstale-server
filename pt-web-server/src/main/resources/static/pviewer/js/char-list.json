@@ -1,0 +1,2666 @@
+[
+ {
+  "p": "char/npc/ahin/ahin.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/arad/arad.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/ascam/ascam.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/barba/barba.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/baurin/baurin.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/bcn01/bcn01.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/bcn02/bcn02.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/bcn03/bcn03.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/bcn04/bcn04.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/bcn05/bcn05.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/bcn06/bcn06.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/broomman/broomman.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/dailyquest/dailyquest.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/derik/derik.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/enzo/enzo.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/evenmorif/evenmorif.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/eventmolly/eventmolly.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/hermit/hermit.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/hobsanta/hobsanta.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/hosean/hosean.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/hunter/hunter.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/icen-01/icen-01.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/icen-02/icen-02.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/icen-03/icen-03.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/jin/jin.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/m_messenger/m_messenger.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mage/mage.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mapletree/mapletree.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/marina/marina.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/maskedman/maskedman.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/maskedwoman/maskedwoman.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/milter/milter.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-001/mn-001.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-002/mn-002.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-003/mn-003.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-004/mn-004.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-005/mn-005.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-006/mn-006.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-007/mn-007.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-008/mn-008.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-009/mn-009.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-010/mn-010.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-011/mn-011.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-012/mn-012.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/mn-013/mn-013.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/nadia/nadia.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/packjjangpy/packjjangpy.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/pcmanager/pcmanager.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/phl/phl.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/quest_ray/quest_ray.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/rpt_guard_01/rpt_guard_01.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/sakura/sakura.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/salon/salon.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/sambagirl/sambagirl.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/shunter/shunter.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/skadi/skadi.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/skillmaster/skillmaster.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/sn-001/sn-001.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/sn-002/sn-002.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/sn-003/sn-003.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/sn-004/sn-004.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/sn-005/sn-005.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/stella/stella.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/t_messenger/t_messenger.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-001/tn-001.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-002/tn-002.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-003/tn-003.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-004/tn-004.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-005/tn-005.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-006/tn-006.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-007/tn-007.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-008/tn-008.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-009/tn-009.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-010/tn-010.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-011/tn-011.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-012/tn-012.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-014/tn-014.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-015/tn-015.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-016/tn-016.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/tn-017/tn-017.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/wickedbunny/wickedbunny.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/npc/zarad/zarad.inx",
+  "cat": "NPC"
+ },
+ {
+  "p": "char/monster/acero/acero.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/adevayo/world_togo.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/adevayo/worldtogo_attack.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/amesyst/amesyst.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/amonk/amonk.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ancientgolem/ancientgolem_d.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ancientgolem/ancientgolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/aragonian/aragonian.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/arcuda/arcuda.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/arhdyra/arhdyra.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/arhdyra/arhdyra1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/armbeetle/armbeetle.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/badwolf/badwolf.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bal_crystal/bal_crystal_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bal_crystal/bal_crystal.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bear/ginkgobear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bear/maplebear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bebechick/bebechick.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/beetle/beetle.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bguardian/bguardian.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/billy_s/billy_s.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/billy/billy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/blizzardgiant/blizzardgiant.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bloodyknight/bknight.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/boitata/boitata.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/brazilbear/apple_bear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/brazilbear/banana_bear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/brazilbear/jaboti_bear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/brazilbear/maracuja_bear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/brazilbear/pittangka_bear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/brazilbear/strawberry_bear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bs_midranda/bs_midranda.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/bsnake/bsnake.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/buma/buma.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/buma/monbuma-boss.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/castledoor/castledoor.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/cavemush/cmush.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/chaingolem/chaingolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/chalybs/chalybs.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/chaoscara/chaoscara.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/chimera/kimera_a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/cokris/cokris.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/coldeye/coldeye.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/coldeye/redeye.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/coma/coma.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/crios/crios.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/crios/crios1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/crow/crow_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/crow/crow.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/crystalwrath/crystalwrath.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/cstone/cstone.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/cyclopswarrior/cyclopswarrior.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_ar/dar.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_atal/datal.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_fi/dfi.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_kn/dkn.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_magi/dmagi.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_meca/dmeca.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_pa/dpike.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/d_pr/dpr.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/darkguard/skullac_a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/darkguard/skullac.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/darkmage/skullma_a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/darkmage/skullma.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/darkphalanx/darkphalanx.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/darkstalker/darkstalker.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/deadhopy/deadhopy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/deadkinghopy/deadkinghopy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/deadzone/deadzone.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/deadzone/deadzoned.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/death_knight/death_knight.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/decoy/decoy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/decoy/mondecoy-boss.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/devilbird/devilbird.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/devilshy/devilshy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/dey/dey.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/dey/dey1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/doral/doral.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/draxos/draxos.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/esnail/esnail.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/evilmaple/evilmaple.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/evilplant/evilplant.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/evilspirit/evilspirit.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/evilspirit/evilspiritd.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/faugn/faugn.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/faugn/faugn1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/figon/figon-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/figon/figon.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/figon/inferno-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/figon/inferno.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/figon/monfigon-boss-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/figon/monfigon-boss.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/firechick/firechick.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/firegolem/firegolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/firegolem/firegolemd.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/fireworm/fireworm.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/flamemaiden/flamemaiden.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/flamo/flamo.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/frost/frost.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/frozen/frozen.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/g_pig/buma.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/g_wolverin/wolverin_a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ghost/ghost.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/goblinchief/goblinchief.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/goblinchief/noschief.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/goblinshaman/goblinshaman.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/golem/golem-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/golem/golem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/gorgon/gorgon.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/great_greven/great_greven.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/greedy/greedy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/grotesque/grotesque.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/guardian/guardian.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/gurkob/gurkob.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hammer_decoy/hammer_decoy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hammer_goblin/hammer_goblin.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hammer_plant/hammer_plant.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/headcut/headcut.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/headcut/headcutaxe.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hellhound/bonehound-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hellhound/bonehound.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hellhound/hellhound-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hellhound/hellhound.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hellplant/hellplant.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hest/hest.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hestian/hestian.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hobogolem/hobogolem-d.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hobogolem/hobogolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hongky/hongky.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hopy/hopy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hopy/mopy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hopyking/hopyking.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hound_s/hound_s.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hound/hound.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/hyper/hyper.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ibomber/ibomber.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/icegoblin/icegoblin.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/icegolem/icegolem-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/icegolem/icegolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/iceserpent/iceserpent.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/iceworm/iceworm.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ielite/ielite.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/igniculus/igniculus.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ignis/ignis.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/igolation/igolation.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/incubussummer/incubussummer.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/insec/insec.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ironfist/ironfist.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/isoldier/isoldier.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/itechnician/itechnician.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/kakoa/kakoa.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/kelvezu/kelvezu.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/khandoor/khandoor.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/kingbat/kingbat.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/koon/koon.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/koon/koon1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/korpion/korpion.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lavaarcher/lavaarcher.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lavaarmor/lavaarmor.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lavagiant/lavagiant.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lavagolem/lavagolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/leech/leech.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lena_s/lena_s.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lena/lena.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lengineer_1/lengineer.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lengineer/lengineer.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lguardian/lguardian.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_bigmama/lizard_bigmama_blue.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_bigmama/lizard_bigmama_green.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_bigmama/lizard_bigmama.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_commander/lizard_commander_blue.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_commander/lizard_commander_green.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_commander/lizard_commander.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_doctor/lizard_doctor_blue.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_doctor/lizard_doctor_red.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_doctor/lizard_doctor.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_elder/lizard_elder_blue.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_elder/lizard_elder_red.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_elder/lizard_elder.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_papa/lizard papa_blue.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_papa/lizard papa_green.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_papa/lizard papa.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_soldier/lizard_soldier_blue.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_soldier/lizard_soldier_green.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizard_soldier/lizard_soldier.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizarddoor/lizarddoor.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/lizardfolk/lizardfolk.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ltechnician_1/ltechnician.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ltechnician/ltechnician.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/m_lord/m_load_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/m_lord/m_load.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/marionette_s/marionette_s.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/marionette/marionette.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/metalgolem/metalgolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/metalgolem/metalgolemd.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/midranda/midranda.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mimic/mimic.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/minebat/minebat.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/minegolem/minegolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mirekeeper/mirekeeper.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monavellriskbow/monavelriskbow.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monavellriskstf/monavelriskstf.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monavelrisk/monavelrisk-mass.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monavelrisk/monavelrisk-spear.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monavelrisk/monavelrisk-sword.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbabyhulk/monbabyhulk.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbagon/monbagon-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbagon/monbagon-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbagon/monbagon-boss.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbagon/monbagon-c.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbagon/monbagon-die-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbagon/monbagon-die-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbeechief/monbeechief.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monbeedog/monbeedog.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monberserker/monberserker.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monburntree/monburntree.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/moncavemummy/moncavemummy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monclip/monclip-boss.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monclip/monclip.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/moncyclops/moncyclops-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/moncyclops/moncyclops-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/moncyclops/moncyclops-c.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/moncyclops/moncyclops-d.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mondawlin/mondawlin.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mondirebee/mondirebee.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mondmachine/mondmachine.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monegan/monegan.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/moneye/eye.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monfury/monfury.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mongknight/mong2knight-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mongknight/mong2knight.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mongknight/mongknight-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mongknight/mongknight.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mongreven/mongreven.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monhauntplant/monhauntmaple.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monhauntplant/monhauntplant.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monheavygoblin/monheavygoblin.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monhobgoblin/monhobgoblin-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monhobgoblin/monhobgoblin-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monhobsanta/monhobsanta.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monhulk-1/monhulk-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monhulk/monhulk.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monigad/monigad.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monigad/rguard.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monimp/monimp-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monimp/monimp-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monimp/monimp-c.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monkingspider/ks.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmetron/monmetron.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmightygoblin/monmightygoblin.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monminig/monminig-a1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monminig/monminig-a2.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monminig/monminig-b1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monminig/monminig-b2.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monminig/monminig-c1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monminig/monminig-c2.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmokova/mokova.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmudy/monmudy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmudy/monmudyjel.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmummy/monmummy_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmummy/monmummy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmushroom-mo/monmushroom-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmushroom-mo/monmushroom.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmushroom/monmushroom-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monmushroom/monmushroom.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monnazz-1/monnazz-1-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monnazz-1/monnazz-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monnazz/monnazz-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monnazz/monnazz.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monomicron-1/monomicron-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monomicron/monomicron.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monplant/monplant-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monplant/monplant-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monplant/monplant-c.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monplant/monplant-d.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monplant/mudygolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monrafra/monrafra.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monratoo-1/monratoo-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monratoo/monaratoo.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monrebi/monrebi-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monrebi/monrebi.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monrebion/monrebion-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monrebion/monrebion.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsarcher/monsarcher-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsarcher/monsarcher.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsen/monsen.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monseto/seto.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsguard/mondoomguard-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsguard/mondoomguard.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsguard/monhauntguard-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsguard/monhauntguard.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monshadow-1/dmystery-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monshadow-1/dmystery.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monshadow-1/monshadow-1-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monshadow-1/monshadow-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monshadow/monshadow-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monshadow/monshadow.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monskeleton/monskeleton-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monskeleton/monskeleton-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monskeleton/monskeleton-die-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monskeleton/monskeleton-die-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsknight/monsknight-b-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsknight/monsknight-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsknight/monsknight-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsknight/monsknight.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsliver/monsliver-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsliver/monsliver.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsrazorarcher/monsrazorarcher-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monsrazorarcher/monsrazorarcher.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monstonegolem/monstonegolem-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monstonegolem/monstonegolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monstygianlord-1/monstygianlord-1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monstygianlord/monstygianlord.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monswarrior/monswarrior-die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monswarrior/monswarrior.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/montempleguard/templeguard.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monthorncrowler/monthorncrowler.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monwitch/monwitch.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monwitch/monwitch1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monwitch/monwitch2.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monwolverin/monwolverin-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monwolverin/monwolverin-02.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monwolverin/monwolverin-03.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monzombi/monzombi-a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monzombi/monzombi-b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/monzombi/monzombi-c.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/morgon/morgon.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/morgon/morgonia.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mountain/b_mountain.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mountain/mountain.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mouse/mouse.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mystic/mystic_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/mystic/mystic.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/najan/najan.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/nazsenior/nazsenior-01.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/nazsenior/nazsenior.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/nihil/nihil_1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/nihil/nihil.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/nihil/nihil1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/niken/niken.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/omicronos/omicronos.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/omu/omu.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/omu/omud.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/papachick/papachick.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/pumpkinghost/pumpkinghost.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/quartzbat/quartzbat.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/quartzsaurus/quartzsaurus.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/rampage/rampage.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ribbonhopy/ribbonhopy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/royalmummy/royalmummy_d.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/royalmummy/royalmummy.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ruca/ruca.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/runicguardian/gurdian.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/s_bloodyknight/s_bknight.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sadness/sadness.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sakura/sakura.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sandlem/monsandlem-boss.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sandlem/sandlem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sathla/sathla.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sathla/sathla1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/scorpion/scorpion.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sealcrasher/sealcrasher_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sealcrasher/sealcrasher.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sendelost/world_swi.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sendelost/worldswi_attack.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/shogoth/shogoth.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/slayer/slayer_d.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/slayer/slayer.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/snowman/snowman.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/soldier_a/soldier_a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/soldier_b/soldier_b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/soldier_c/soldier_c.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/soldier_d/soldier_d.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/spider/spider.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/sprin/sprin.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ssnail/ssnail.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/stingray/stingray.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/strider/strider.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_b/t_crystal_b_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_b/t_crystal_b.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_g/t_crystal_g_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_g/t_crystal_g.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_n/t_crystal_n_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_n/t_crystal_n.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_r/t_crystal_r_die.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/t_crystal_r/t_crystal_r.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/tarantulika/tarantulika.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/tbomber/tbomber.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/telite/telite.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/towergolem/towergolem.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/towergolem/towergolemd.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/tsoldier/tsoldier.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ttechnician/ttechnician.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/tulla/tulla.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/turtlecannon/turtlecannon.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/turtlecannon/turtledragon.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/undeadmanager/undeadmanager.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/undeadmaple/undeadmaple.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/undeadminer/undeadminer.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/undeadslave/undeadslave.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/undeadstalker_s/undeadstalker_s.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/undeadstalker/undeadstalker.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/v_bee/v_bee.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/vampiric/vemp.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/vampiricbat/vampiricbat.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/watermelon/watermelon.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/web/web.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/wlord/wlord.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/wlord/wlord1.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/wolverin/wolverin_a.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/xetan/xetan.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/yagditha/yagditha.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ziddane/world_fran.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/monster/ziddane/worldfran_attack.inx",
+  "cat": "怪物"
+ },
+ {
+  "p": "char/tmabcd/a001.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a002.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a003.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a004.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a005.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a006.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a007.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a008.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a009.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a010.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a011.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a012.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a013.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a014.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a015.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a016.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a017.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a018.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a019.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a020.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a021.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a022.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a023.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a024.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a025.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a026.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a027.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a028.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a029.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a030.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a031.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a032.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a034.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/a301.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b001.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b002.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b003.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b004.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b005.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b006.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b007.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b008.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b009.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b010.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b011.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b012.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b013.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b014.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b015.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b016.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b017.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b018.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b019.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b020.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b021.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b022.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b023.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b024.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b025.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b026.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b027.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b028.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b029.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b030.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b031.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b032.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b034.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/b301.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c001.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c002.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c003.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c004.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c005.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c006.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c007.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c008.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c009.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c010.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c011.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c012.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c013.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c014.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c015.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c016.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c017.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c018.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c019.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c020.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c021.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c022.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c023.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c024.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c025.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c026.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c027.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c028.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c029.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c030.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c031.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c032.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c034.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/c301.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d001.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d002.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d003.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d004.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d005.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d006.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d007.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d008.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d009.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d010.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d011.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d012.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d013.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d014.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d015.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d016.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d017.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d018.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d019.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d020.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d021.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d022.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d023.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d024.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d025.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d026.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d027.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d028.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d029.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d030.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d031.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d032.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d034.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/d301.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e001.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e002.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e003.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e004.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e005.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e006.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e007.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e008.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e009.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e010.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e011.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e012.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e013.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e014.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e015.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e016.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e017.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e018.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e019.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e020.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e021.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e022.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e023.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e024.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e025.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e026.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e027.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e028.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e029.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e030.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e031.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e032.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e034.inx",
+  "cat": "角色"
+ },
+ {
+  "p": "char/tmabcd/e301.inx",
+  "cat": "角色"
+ }
+]

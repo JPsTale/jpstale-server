@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PT 3D 模型查看器</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif; font-size: 13px; display: flex; flex-direction: column; }
+
+/* ===== 顶部工具栏 ===== */
+#toolbar {
+  padding: 8px 14px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #1a1a1a;
+}
+#toolbar h1 { font-size: 15px; color: #ffd479; margin-right: 10px; }
+.tool-group { display: flex; align-items: center; gap: 8px; }
+.tool-group label { color: #9db8d9; }
+.tool-group .sep { width: 1px; height: 22px; background: #444; margin: 0 4px; }
+
+/* ===== 主体三栏 ===== */
+#body { flex: 1; display: flex; min-height: 0; }
+
+.panel {
+  width: 260px;
+  min-width: 220px;
+  background: #161616;
+  border-right: 1px solid #333;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#rightPanel {
+  border-right: none;
+  border-left: 1px solid #333;
+}
+.panel h2 { font-size: 13px; color: #ffd479; border-bottom: 1px solid #333; padding-bottom: 6px; margin-bottom: 4px; }
+.panel label { display: block; font-size: 12px; color: #9db8d9; margin: 8px 0 3px; }
+.panel select, .panel input[type=text] {
+  width: 100%; background: #141414; color: #e8e8e8;
+  border: 1px solid #555; padding: 4px 6px; font-size: 13px;
+}
+.panel .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn {
+  background: #2a2a2a; color: #e8e8e8; border: 1px solid #555;
+  padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+.btn:hover { background: #3a3a3a; border-color: #ffd479; }
+.btn.active, .btn.sel { background: #35455a; border-color: #ffd479; color: #ffd479; }
+.btn.small { padding: 2px 8px; font-size: 11px; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+.opt-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.opt-list .opt {
+  padding: 5px 8px; border: 1px solid #444; cursor: pointer; font-size: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.opt-list .opt:hover { background: #2a2a2a; }
+.opt-list .opt.sel { background: #35455a; border-color: #ffd479; color: #ffd479; }
+.opt-list .opt .fn { color: #888; font-size: 11px; }
+
+/* 中间 3D 画布 */
+#viewport { flex: 1; min-width: 0; position: relative; background: #0d0d0d; }
+#viewport canvas { display: block; width: 100%; height: 100%; }
+#status {
+  position: absolute; top: 8px; left: 10px; color: #9db8d9;
+  font-family: Consolas, monospace; font-size: 11px; line-height: 1.5;
+  background: rgba(0,0,0,0.6); padding: 6px 10px; border-radius: 3px;
+  pointer-events: none; white-space: pre;
+}
+
+/* ===== 底部时间轴 ===== */
+#timeline {
+  border-top: 1px solid #333; background: #1a1a1a; padding: 10px 14px;
+  display: flex; align-items: center; gap: 14px;
+}
+#timeline .info { color: #9db8d9; font-size: 12px; min-width: 120px; font-family: Consolas, monospace; }
+#timeline input[type=range] { flex: 1; }
+#timeline input[type=number] { width: 60px; background: #141414; color: #e8e8e8; border: 1px solid #555; padding: 3px; }
+
+#logBar { height: 90px; display: flex; flex-direction: column; border-top: 1px solid #333; background: #141414; }
+#logBox { background: #0d0d0d; flex: 1; overflow-y: auto; font-family: Consolas, monospace; font-size: 11px; padding: 6px; color: #9db8d9; }
+#logBox .err { color: #f85149; }
+#logBox .ok { color: #7cd47c; }
+
+/* ===== 装备弹框 ===== */
+.modal-tab { transition: color 0.15s, border-color 0.15s; }
+.modal-tab:hover { color: #e8e8e8; }
+.modal-tab.active { color: #ffd479; border-bottom-color: #ffd479; }
+.armor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; max-height: 400px; overflow-y: auto; padding: 4px; }
+.armor-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 4px; border: 1px solid #444; cursor: pointer; border-radius: 3px;
+  font-size: 11px; text-align: center; transition: background 0.12s, border-color 0.12s;
+}
+.armor-cell:hover { background: #2a2a2a; border-color: #ffd479; }
+.armor-cell.sel { background: #35455a; border-color: #ffd479; color: #ffd479; }
+.armor-cell .icon { width: 48px; height: 48px; object-fit: contain; image-rendering: pixelated; background: #222; border-radius: 2px; }
+.armor-cell .name { color: #e8e8e8; line-height: 1.2; word-break: break-all; }
+.armor-cell .lvl { color: #888; font-size: 10px; }
+.armor-cell.sel .name { color: #ffd479; }
+.armor-loading { color: #888; padding: 20px; text-align: center; }
+.weapon-type-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+.weapon-type-tab { padding: 4px 10px; border: 1px solid #444; cursor: pointer; font-size: 11px; border-radius: 3px; }
+.weapon-type-tab:hover { background: #2a2a2a; }
+.weapon-type-tab.active { background: #35455a; border-color: #ffd479; color: #ffd479; }
+#weaponModalList { display: flex; flex-direction: column; gap: 4px; max-height: 350px; overflow-y: auto; border: 1px solid #333; border-radius: 3px; padding: 4px; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>PT 3D Viewer</h1>
+  <div class="tool-group">
+    <label><input type="checkbox" id="chkShowChar" checked> 显示角色</label>
+    <label><input type="checkbox" id="chkShowBone"> 显示骨骼</label>
+    <label><input type="checkbox" id="chkWireframe"> 线框</label>
+    <label><input type="checkbox" id="chkSkinned" checked> 绑定蒙皮</label>
+    <label><input type="checkbox" id="chkAxis" checked> 坐标轴</label>
+    <label><input type="checkbox" id="chkRaw"> 原始数据</label>
+  </div>
+  <div class="tool-group sep"></div>
+  <div class="tool-group">
+    <label>渲染</label>
+    <select id="renderMode">
+      <option value="normal">正常光照</option>
+      <option value="unlit">无光照</option>
+      <option value="wireframe">线框</option>
+    </select>
+  </div>
+  <div class="tool-group sep"></div>
+  <div class="tool-group">
+    <span class="conn" id="connStatus">加载中...</span>
+  </div>
+</div>
+
+<div id="body">
+  <!-- 左：种族/职业/头 -->
+  <div class="panel" id="leftPanel">
+    <h2>加载 .inx（测试）</h2>
+    <label>模型路径（/pt/exm-run/...）</label>
+    <input type="text" id="inxPath" value="char/tmabcd/ma001.inx">
+    <div class="btn-row">
+      <button class="btn" id="btnParseInx">解析 .inx</button>
+    </div>
+    <div id="inxResult" style="font-size:11px;color:#9db8d9;line-height:1.6;white-space:pre;word-break:break-all;"></div>
+
+    <hr style="border-color:#333;margin:6px 0">
+    <h2>纸娃娃系统</h2>
+
+    <label>种族</label>
+    <div class="btn-row">
+      <button class="btn small" id="btnRaceTempskron" data-race="0">坦普族</button>
+      <button class="btn small" id="btnRaceMorion" data-race="1">魔灵族</button>
+    </div>
+
+    <label>职业</label>
+    <div class="opt-list" id="jobList"></div>
+
+    <label>头型</label>
+    <div class="btn-row" id="headBtns"></div>
+
+    <label>转职阶段</label>
+    <div class="btn-row" id="tierBtns"></div>
+
+    <label>装备</label>
+    <div class="btn-row">
+      <button class="btn small" id="btnOpenArmor">选择铠甲</button>
+      <button class="btn small" id="btnOpenWeapon">选择武器</button>
+    </div>
+    <div style="font-size:11px;color:#888;min-height:16px;">
+      <div id="armorLabel">铠甲: #1</div>
+      <div id="weaponLabel">武器: 无</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" id="btnLoadChar" disabled>加载角色</button>
+    </div>
+    <div id="charStatus" style="font-size:11px;color:#888;min-height:16px;"></div>
+
+    <hr style="border-color:#333;margin:6px 0">
+    <h2>模型浏览</h2>
+    <label>分类
+      <select id="charCatSel" style="width:auto">
+        <option value="全部">全部</option>
+        <option value="怪物" selected>怪物</option>
+        <option value="NPC">NPC</option>
+        <option value="角色">角色</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="chkShowAllMonster" style="width:auto"> 显示全部</label>
+    <div class="opt-list" id="monsterList"></div>
+  </div>
+
+  <!-- 中：3D 视口 -->
+  <div id="viewport">
+    <div id="status">加载模型中...</div>
+  </div>
+
+  <!-- 右：动画控制 -->
+  <div class="panel" id="rightPanel">
+    <h2>动画</h2>
+    <label>动画列表</label>
+    <select id="animSel" disabled>
+      <option value="">(加载角色后)</option>
+    </select>
+
+    <div class="btn-row">
+      <button class="btn small" id="btnPlay">播放</button>
+      <button class="btn small" id="btnPause">暂停</button>
+      <button class="btn small" id="btnStop">停止</button>
+    </div>
+
+    <label>速度 <span id="speedVal">1.0x</span></label>
+    <input type="range" id="speedSlider" min="0.1" max="4" step="0.1" value="1">
+
+    <label><input type="checkbox" id="chkLoop" checked> 循环播放</label>
+
+    <hr style="border-color:#333;margin:6px 0">
+    <h2>骨骼信息</h2>
+    <div id="boneInfo" style="font-size:11px;color:#888;line-height:1.6">
+      未加载
+    </div>
+  </div>
+</div>
+
+<!-- 底部时间轴 -->
+<div id="timeline">
+  <span class="info" id="frameInfo">frame: 0 / 0</span>
+  <input type="range" id="frameSlider" min="0" max="100" value="0" disabled>
+  <label>帧</label>
+  <input type="number" id="frameInput" value="0" min="0" disabled>
+</div>
+
+<div id="logBar">
+  <div id="logBox"></div>
+</div>
+
+<!-- 装备选择弹框 -->
+<div id="equipModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);">
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;max-height:80vh;background:#1a1a1a;border:1px solid #555;border-radius:6px;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #333;">
+      <div id="modalTitle" style="font-size:14px;color:#ffd479;font-weight:bold;">选择装备</div>
+      <button id="btnCloseModal" style="background:none;border:none;color:#888;font-size:18px;cursor:pointer;">&times;</button>
+    </div>
+    <div id="modalTabs" style="display:flex;border-bottom:1px solid #333;padding:0 14px;">
+      <div class="modal-tab active" data-tab="armor" style="padding:8px 16px;cursor:pointer;font-size:12px;color:#ffd479;border-bottom:2px solid #ffd479;">铠甲</div>
+      <div class="modal-tab" data-tab="weapon" style="padding:8px 16px;cursor:pointer;font-size:12px;color:#888;border-bottom:2px solid transparent;">武器</div>
+    </div>
+    <div id="modalBody" style="flex:1;overflow-y:auto;padding:14px;min-height:300px;">
+      <div id="armorTab"></div>
+      <div id="weaponTab" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Three.js -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  import { parseInx, motionStateName } from './js/inx-parser.js?v=3';
+  import { parseSmb } from './js/smb-parser.js?v=3';
+  import { buildSkinnedMesh, buildSkeleton } from './js/skinned-builder.js?v=9';
+  import { loadTexture, decodeImage, pixelsToDataURL } from './js/texture.js?v=7';
+  import { buildRawMesh, buildBoneLines } from './js/builders.js?v=2';
+  import { evalSkeleton, applyToBones } from './js/animation.js?v=4';
+  import { JOB_DATA, RACE_CLASSES, RACE_TEMPSKRON, RACE_MORION, JOB_NAMES_CN, JOB_NAMES_EN, TIER_NAMES_CN, getHeadInxPath } from './js/job-data.js?v=1';
+  import { loadCharacterModel } from './js/char-loader.js?v=1';
+  import { loadWeaponModel, findBone, WEAPON_BONES } from './js/weapon-loader.js?v=1';
+
+  const CHRMOTION_EXT_MIN = 10;
+
+  // ===== 日志 =====
+  const logBox = document.getElementById('logBox');
+  function log(msg, cls) {
+    const d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.textContent = msg;
+    logBox.appendChild(d);
+    while (logBox.children.length > 200) logBox.removeChild(logBox.firstChild);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  // ===== Three.js 场景 =====
+  const viewport = document.getElementById('viewport');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x111122);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+  camera.position.set(0, 120, 200);
+  camera.lookAt(0, 60, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = false;
+  viewport.appendChild(renderer.domElement);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 60, 0);
+  controls.enableDamping = true;
+
+  // 灯光
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444466, 1.0);
+  scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+  dir.position.set(100, 200, 100);
+  scene.add(dir);
+  const dir2 = new THREE.DirectionalLight(0x8888ff, 0.5);
+  dir2.position.set(-100, 100, -100);
+  scene.add(dir2);
+
+  // 地面网格
+  const grid = new THREE.GridHelper(400, 40, 0x555566, 0x333344);
+  grid.position.y = 0;
+  scene.add(grid);
+
+  // 坐标轴箭头（X=红, Y=绿, Z=蓝），用 Mesh 保证可见（WebGL line 不支持宽度）
+  const axisGroup = new THREE.Group();
+  const axisLen = 50;
+  const axisColors = [0xff3333, 0x33ff33, 0x3333ff];
+  const axisDirs = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)];
+  const axisLabels = ['X', 'Y', 'Z'];
+  axisDirs.forEach((dir, i) => {
+    // 轴：细长圆柱（沿 dir 方向）
+    const cyl = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.5, 0.5, axisLen, 8),
+      new THREE.MeshBasicMaterial({ color: axisColors[i] })
+    );
+    cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+    cyl.position.copy(dir.clone().multiplyScalar(axisLen/2));
+    axisGroup.add(cyl);
+    // 箭头头：锥体
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(1.4, 5, 10),
+      new THREE.MeshBasicMaterial({ color: axisColors[i] })
+    );
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+    cone.position.copy(dir.clone().multiplyScalar(axisLen));
+    axisGroup.add(cone);
+  });
+  // 轴标签（用 Sprite 文字）
+  axisDirs.forEach((dir, i) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 40px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(axisLabels[i], 32, 32);
+    const tex = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+    sprite.position.copy(dir).multiplyScalar(axisLen + 3);
+    sprite.scale.set(6, 6, 1);
+    axisGroup.add(sprite);
+  });
+  axisGroup.visible = true;
+  scene.add(axisGroup);
+
+  const resize = () => {
+    const w = viewport.clientWidth, h = viewport.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  };
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ===== 状态 =====
+  const state = {
+    smbLoaded: false,
+    animClips: [],
+    currentClip: null,
+    currentAction: null,
+    playing: false,
+    skeletonGroup: null,
+    currentLod: 'high',       // 当前 LOD：high/medium/low
+    skinnedGroup: null,
+    rawGroup: null,      // 未蒙皮原始网格（骨骼局部空间，调试用）
+    skeleton: null,
+    mesh: null,
+    charMesh: null,    // 原始网格（无蒙皮，调试用）
+    boneLines: null,   // 骨骼线条（调试用）
+    // 动画系统（evalSkeleton 驱动）
+    animSmb: null,          // .smb 骨骼数据
+    animMotions: [],        // .inx 动画条目
+    currentMotion: null,    // 当前动画 {state,startFrame,endFrame,repeat}
+    animFrame: 0,           // 当前 tick 帧
+    animPlaying: false,
+    animSpeed: 1.0,
+    animLoop: true,
+    animTmp: null,          // 临时矩阵（applyToBones 用）
+    rawMode: false,         // 原始数据模式（不做坐标转换）
+    currentInxPath: null,   // 当前加载的 .inx 路径
+    curArmor: 1,            // 当前铠甲编号（1=默认身体）
+    currentArmorDorp: null, // 当前铠甲的 dorpItem 码
+  };
+  state.axisGroup = axisGroup;
+
+  // ===== 渲染循环 =====
+  const clock = new THREE.Clock();
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    controls.update();
+
+    // 动画驱动：播放中累加 tick 帧，evalSkeleton 更新骨骼
+    if (state.animPlaying && state.animSmb && state.currentMotion && state.skeleton) {
+      state.animFrame += dt * state.animSpeed * 35;
+      // 速率推导（对照 C++）：逻辑帧 70fps（GameUpdate while 1/70）x 每次 frame+=FrameStep(80)
+      // = 每秒 5600 实际帧；1 tick = 160 帧 → 5600/160 = 35 tick/秒
+      const m = state.currentMotion;
+      if (state.animFrame >= m.endFrame) {
+        if (m.repeat || state.animLoop) {
+          state.animFrame = m.startFrame + ((state.animFrame - m.startFrame) % (m.endFrame - m.startFrame));
+        } else {
+          state.animFrame = m.endFrame;
+          state.animPlaying = false;
+          document.getElementById('btnPlay').textContent = '播放';
+        }
+      }
+      applyAnimationFrame();
+    }
+
+        // 更新时间轴显示
+    if (state.currentMotion) {
+      updateFrameUI();
+    }
+
+    // LOD 切换：按摄像机距模型中心距离选高/中/低（触发时整模型重新加载）
+    if (state.currentInxPath && state.skinnedGroup && state.modelDiag) {
+      const dist = camera.position.distanceTo(controls.target);
+      // 阈值基于模型尺寸比例（初始相机距离≈diag*1.2 保持高模，滚轮拉远才切换）
+      const diag = state.modelDiag;
+      let want = state.currentLod || 'high';
+      if (dist < diag * 3) want = 'high';
+      else if (dist < diag * 8) want = 'medium';
+      else want = 'low';
+      if (want !== state.currentLod) {
+        // 切换前记住相机位置，避免重新加载后跳走
+        const camPos = camera.position.clone();
+        const camTarget = controls.target.clone();
+        state.currentLod = want;
+        window.PTViewer.loadModel(state.currentInxPath, want).then(() => {
+          if (state.skinnedGroup) {
+            camera.position.copy(camPos);
+            controls.target.copy(camTarget);
+            controls.update();
+          }
+        });
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+
+
+  animate();
+
+  // 应用当前动画帧到骨骼
+  function applyAnimationFrame() {
+    if (!state.animSmb || !state.skeleton) return;
+    const skel = evalSkeleton(state.animSmb, Math.round(state.animFrame * 160), state.rawMode);
+    if (!state.animTmp) {
+      state.animTmp = {
+        tmp: new THREE.Matrix4(),
+        p: new THREE.Vector3(),
+        q: new THREE.Quaternion(),
+        s: new THREE.Vector3(),
+      };
+    }
+    applyToBones(state.skeleton.bones, skel, state.animTmp.tmp, state.animTmp.p, state.animTmp.q, state.animTmp.s);
+    state.skeleton.bones.forEach(b => b.updateMatrixWorld(true));
+  }
+
+  // ===== 模型列表（怪物/NPC/角色，带分类） =====
+  const monsterListEl = document.getElementById('monsterList');
+  const chkShowAll = document.getElementById('chkShowAllMonster');
+  const charCatSel = document.getElementById('charCatSel');
+  let allModels = [];
+  async function loadMonsterList() {
+    try {
+      const resp = await fetch('/pt/pviewer/js/char-list.json');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      allModels = await resp.json();
+      renderMonsterList();
+      log('模型清单加载：' + allModels.length + ' 个 .inx', 'ok');
+    } catch (e) {
+      log('模型清单加载失败: ' + e.message, 'err');
+    }
+  }
+  function renderMonsterList() {
+    const cat = charCatSel.value;
+    const filtered = cat === '全部' ? allModels : allModels.filter(m => m.cat === cat);
+    // 默认显示前 30 个，勾选"显示全部"则全显示
+    const list = chkShowAll.checked ? filtered : filtered.slice(0, 30);
+    monsterListEl.innerHTML = '';
+    list.forEach(m => {
+      const p = m.p;
+      const name = p.split('/').pop().replace('.inx', '');
+      const d = document.createElement('div');
+      d.className = 'opt';
+      d.innerHTML = '<span>' + name + '</span><span class="fn">' + p + '</span>';
+      d.onclick = () => {
+        document.getElementById('inxPath').value = p;
+        document.getElementById('btnParseInx').click();
+        // 同时加载 .smd/.smb 模型并显示骨骼信息
+        window.PTViewer.loadModel(p);
+        // 高亮选中
+        monsterListEl.querySelectorAll('.opt').forEach(o => o.classList.remove('sel'));
+        d.classList.add('sel');
+      };
+      monsterListEl.appendChild(d);
+    });
+    document.getElementById('chkShowAllMonster').nextSibling.textContent = ' 显示全部（' + filtered.length + '）';
+  }
+  charCatSel.onchange = renderMonsterList;
+  chkShowAll.onchange = renderMonsterList;
+  loadMonsterList();
+
+  // ===== 纸娃娃系统 — 角色创建 UI =====
+  {
+    const raceBtns = document.querySelectorAll('[data-race]');
+    const jobListEl = document.getElementById('jobList');
+    const headBtnsEl = document.getElementById('headBtns');
+    const tierBtnsEl = document.getElementById('tierBtns');
+    const btnLoadChar = document.getElementById('btnLoadChar');
+    const charStatus = document.getElementById('charStatus');
+
+    let curRace = RACE_TEMPSKRON;
+    let curJob = 1;
+    let curFace = 0;
+    let curTier = 0;
+
+    // 种族按钮
+    raceBtns.forEach(btn => {
+      btn.onclick = () => {
+        curRace = parseInt(btn.dataset.race);
+        raceBtns.forEach(b => b.classList.toggle('sel', b === btn));
+        renderJobList();
+      };
+    });
+    // 默认选中坦普族
+    document.getElementById('btnRaceTempskron').classList.add('sel');
+
+    // 渲染职业列表
+    function renderJobList() {
+      const jobs = RACE_CLASSES[curRace] || [];
+      jobListEl.innerHTML = '';
+      jobs.forEach(jid => {
+        const d = document.createElement('div');
+        d.className = 'opt' + (jid === curJob ? ' sel' : '');
+        d.innerHTML = `<span>${JOB_NAMES_CN[jid]} ${JOB_NAMES_EN[jid]}</span><span class="fn">Job ${jid}</span>`;
+        d.onclick = () => {
+          curJob = jid;
+          curFace = 0;
+          state.curArmor = 1;
+          state.currentArmorDorp = null;
+          armorLabel.textContent = '铠甲: 默认';
+          renderJobList();
+          renderHeadBtns();
+          renderTierBtns();
+          if (window.PTViewer.renderArmorGrid) window.PTViewer.renderArmorGrid();
+          autoLoad();
+        };
+        jobListEl.appendChild(d);
+      });
+      renderHeadBtns();
+      renderTierBtns();
+    }
+
+    // 渲染头型按钮（3个）
+    function renderHeadBtns() {
+      headBtnsEl.innerHTML = '';
+      for (let i = 0; i < 3; i++) {
+        const b = document.createElement('button');
+        b.className = 'btn small' + (i === curFace ? ' sel' : '');
+        b.textContent = '头型 ' + (i + 1);
+        b.onclick = () => {
+          curFace = i;
+          renderHeadBtns();
+          autoLoad();
+        };
+        headBtnsEl.appendChild(b);
+      }
+    }
+
+    // 渲染转职阶段按钮（0-3，4级Q版不显示）
+    function renderTierBtns() {
+      tierBtnsEl.innerHTML = '';
+      for (let t = 0; t < 4; t++) {
+        const b = document.createElement('button');
+        b.className = 'btn small' + (t === curTier ? ' sel' : '');
+        b.textContent = TIER_NAMES_CN[t];
+        b.onclick = () => {
+          curTier = t;
+          renderTierBtns();
+          autoLoad();
+        };
+        tierBtnsEl.appendChild(b);
+      }
+    }
+
+    // 自动加载角色模型
+    let loadCharAbort = null;
+    async function autoLoad() {
+      btnLoadChar.disabled = false;
+      charStatus.textContent = '加载中...';
+      if (loadCharAbort) loadCharAbort.abort();
+      loadCharAbort = new AbortController();
+      const mySignal = loadCharAbort.signal; // 本地保存本次调用的 signal
+
+      try {
+        clearModel();
+        const result = await loadCharacterModel(curJob, curFace, curTier, 'high', state.curArmor || 1);
+        if (mySignal.aborted) return;
+
+        // 添加到场景
+        const group = new THREE.Group();
+        group.add(result.bodyGroup);
+        group.add(result.headGroup);
+        scene.add(group);
+        state.skinnedGroup = group;
+        state.skeleton = result.skeleton;
+        state.animSmb = result.animSmb;
+        // 骨骼也要加入场景（否则 matrixWorld 不更新）
+        if (result.skeletonGroup) {
+          scene.add(result.skeletonGroup);
+          state.skeletonGroup = result.skeletonGroup;
+        }
+        state.animFrame = 0;
+        state.animPlaying = false;
+
+        // 添加骨骼线条（可选）
+        if (document.getElementById('chkShowBone').checked) {
+          const bl = buildBoneLines(result.animSmb);
+          scene.add(bl);
+          state.boneLines = bl;
+        }
+
+        // 加载纹理（复用怪物加载的 .then() 回调模式）
+        [...result.bodyTextures, ...result.headTextures].forEach(t => {
+          const texPath = t.url.replace(/\\/g, '/').toLowerCase();
+          const url = texPath.startsWith('/') ? '/pt/exm-run' + texPath : '/pt/exm-run/' + texPath;
+          loadTexture(url).then(tex => {
+            if (tex && t.mat) {
+              t.mat.map = tex;
+              t.mat.color.set(0xffffff);
+              const fmt = tex.userData ? tex.userData.format : '';
+              if (fmt === 'tga' || fmt === 'png') {
+                t.mat.alphaTest = 0.75;
+                t.mat.transparent = true;
+              } else if (fmt === 'bmp') {
+                t.mat.alphaTest = 0.5;
+                t.mat.transparent = true;
+              }
+              t.mat.needsUpdate = true;
+            }
+          });
+        });
+
+        // 填充动画下拉（角色动画在 bip .inx 里，不在 body/head inx 里）
+        populateAnimSel(result.animSmb, result.bipInxInfo);
+
+        charStatus.textContent = `加载完成：${JOB_NAMES_CN[curJob]} 头型${curFace + 1} ${TIER_NAMES_CN[curTier]}`;
+        log(`纸娃娃加载：${JOB_NAMES_CN[curJob]} 头型${curFace + 1} ${TIER_NAMES_CN[curTier]}`, 'ok');
+      } catch (e) {
+        if (!mySignal.aborted) {
+          charStatus.textContent = '加载失败: ' + e.message;
+          log('纸娃娃加载失败: ' + e.message, 'err');
+        }
+      }
+    }
+
+    // 填充动画下拉（角色动画在 bip .inx 里）
+    function populateAnimSel(smb, bipInx) {
+      const sel = document.getElementById('animSel');
+      sel.innerHTML = '';
+      sel.disabled = false;
+
+      // 动画条目从 bip .inx 获取（角色 .inx 只有基础 0-9 状态）
+      const motions = [];
+      if (bipInx) {
+        for (let i = CHRMOTION_EXT_MIN; i < bipInx.motionCount; i++) {
+          const mi = bipInx.motions[i];
+          if (!mi.state && !mi.startFrame && !mi.endFrame) continue;
+          motions.push(mi);
+        }
+      }
+
+      // 填充下拉
+      motions.forEach((mi, idx) => {
+        const o = document.createElement('option');
+        o.value = idx;
+        o.textContent = `${motionStateName(mi.state)} [${mi.startFrame},${mi.endFrame}]${mi.repeat ? ' 循环' : ''}`;
+        sel.appendChild(o);
+      });
+
+      state.animMotions = motions;
+    }
+
+    btnLoadChar.onclick = autoLoad;
+
+    // 初始渲染
+    renderJobList();
+
+    // 暴露 autoLoad 供装备弹框调用
+    window.PTViewer = window.PTViewer || {};
+    window.PTViewer.autoLoad = autoLoad;
+    window.PTViewer.getCurJob = () => curJob;
+    window.PTViewer.getCurFace = () => curFace;
+    window.PTViewer.getCurTier = () => curTier;
+  }
+
+  // ===== 装备弹框系统 =====
+  {
+    const equipModal = document.getElementById('equipModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const armorTab = document.getElementById('armorTab');
+    const weaponTab = document.getElementById('weaponTab');
+    const armorLabel = document.getElementById('armorLabel');
+    const weaponLabel = document.getElementById('weaponLabel');
+
+    let currentModalTab = 'armor';
+    let currentWeaponType = '';
+
+    // 弹框开关
+    function openModal(tab) {
+      equipModal.style.display = 'flex';
+      switchTab(tab || 'armor');
+    }
+    function closeModal() { equipModal.style.display = 'none'; }
+    document.getElementById('btnCloseModal').onclick = closeModal;
+    equipModal.onclick = e => { if (e.target === equipModal) closeModal(); };
+    document.getElementById('btnOpenArmor').onclick = () => openModal('armor');
+    document.getElementById('btnOpenWeapon').onclick = () => openModal('weapon');
+
+    // Tab 切换
+    function switchTab(tab) {
+      currentModalTab = tab;
+      equipModal.querySelectorAll('.modal-tab').forEach(t => {
+        const isActive = t.dataset.tab === tab;
+        t.classList.toggle('active', isActive);
+        t.style.color = isActive ? '#ffd479' : '#888';
+        t.style.borderBottomColor = isActive ? '#ffd479' : 'transparent';
+      });
+      armorTab.style.display = tab === 'armor' ? '' : 'none';
+      weaponTab.style.display = tab === 'weapon' ? '' : 'none';
+      modalTitle.textContent = tab === 'armor' ? '选择铠甲' : '选择武器';
+      if (tab === 'weapon' && currentWeaponType) loadWeaponsForType(currentWeaponType);
+    }
+    equipModal.querySelectorAll('.modal-tab').forEach(t => {
+      t.onclick = () => switchTab(t.dataset.tab);
+    });
+
+    // ===== 铠甲选择（API 驱动 + 图标网格） =====
+    // 物理职业穿 Armors，法系职业穿 Robes
+    const JOB_ARMOR_SUBTYPE = {
+      1: 'Armors', 2: 'Armors', 3: 'Armors', 4: 'Armors',  // Fighter, Mechanician, Archer, Pikeman
+      5: 'Armors', 6: 'Armors', 9: 'Armors',                 // Atalanta, Knight, Assassin
+      7: 'Robes', 8: 'Robes', 10: 'Robes',                   // Magician, Priestess, Shaman
+    };
+    const ICON_CACHE = {};  // dorpItem → objectURL
+    let armorItems = [];    // 当前加载的装备列表
+    let currentArmorDorp = null;  // 当前选中的 dorpItem
+
+    // 从 dorpItem 码计算铠甲编号：(idCode >> 8) & 0xFF, >25 时 -=17
+    function armorNumFromIdCode(idCode) {
+      let n = (idCode >> 8) & 0xff;
+      if (n > 25) n -= 17;
+      return n;
+    }
+
+    // 加载图标 BMP → objectURL（带缓存）
+    async function getIconUrl(dorpItem) {
+      if (ICON_CACHE[dorpItem]) return ICON_CACHE[dorpItem];
+      const url = `/pt/exm-run/image/sinimage/items/defense/it${dorpItem.toLowerCase()}.bmp`;
+      try {
+        const resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) return null;
+        const buf = await resp.arrayBuffer();
+        const imgData = decodeImage(buf);
+        const blobUrl = await pixelsToDataURL(imgData);
+        ICON_CACHE[dorpItem] = blobUrl;
+        return blobUrl;
+      } catch (e) { return null; }
+    }
+
+    async function renderArmorGrid() {
+      const job = window.PTViewer.getCurJob ? window.PTViewer.getCurJob() : 1;
+      const subtype = JOB_ARMOR_SUBTYPE[job] || 'Armors';
+      armorTab.innerHTML = '<div class="armor-loading">加载中...</div>';
+      try {
+        const resp = await fetch(`/pt/api/simulator/items?type=Defenses&subtype=${encodeURIComponent(subtype)}&page=1&size=500`);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        armorItems = (data.items || []).filter(it => it.dorpItem).sort((a, b) => (a.reqLevel || 0) - (b.reqLevel || 0));
+      } catch (e) {
+        armorTab.innerHTML = `<div class="armor-loading" style="color:#f85149;">加载失败: ${e.message}</div>`;
+        return;
+      }
+      if (!armorItems.length) {
+        armorTab.innerHTML = '<div class="armor-loading">无可用装备</div>';
+        return;
+      }
+      const grid = document.createElement('div');
+      grid.className = 'armor-grid';
+      armorItems.forEach(item => {
+        const cell = document.createElement('div');
+        cell.className = 'armor-cell' + (item.dorpItem === currentArmorDorp ? ' sel' : '');
+        const lvl = item.reqLevel ? `Lv.${item.reqLevel}` : '';
+        cell.innerHTML = `<img class="icon" src="" alt="${item.name}"><div class="name">${item.name}</div><div class="lvl">${lvl}</div>`;
+        cell.onclick = () => selectArmor(item);
+        grid.appendChild(cell);
+        // 异步加载图标
+        getIconUrl(item.dorpItem).then(src => {
+          const img = cell.querySelector('.icon');
+          if (img && src) img.src = src;
+        });
+      });
+      armorTab.innerHTML = '';
+      armorTab.appendChild(grid);
+    }
+
+    function selectArmor(item) {
+      currentArmorDorp = item.dorpItem;
+      const armorNum = armorNumFromIdCode(item.idCode);
+      state.curArmor = armorNum;
+      state.currentArmorDorp = item.dorpItem;
+      armorLabel.textContent = '铠甲: ' + item.name;
+      // 更新选中态
+      armorTab.querySelectorAll('.armor-cell').forEach(c => {
+        const nm = c.querySelector('.name');
+        c.classList.toggle('sel', nm && nm.textContent === item.name);
+      });
+      applyArmorChange(armorNum);
+    }
+
+    function applyArmorChange(armorNum) {
+      if (window.PTViewer.autoLoad) window.PTViewer.autoLoad();
+    }
+    renderArmorGrid();
+
+    // ===== 武器选择 =====
+    const WEAPON_TYPE_MAP = {
+      'Axes':     'Axes',
+      'Swords':   'Swords',
+      'Hammers':  'Hammers',
+      'Claws':    'Claws',
+      'Poles':    'Poles',
+      'Bows':     'Bows',
+      'Staffs':   'Staffs',
+      'Throwing': 'Throwing',
+    };
+    const WEAPON_TYPES = Object.keys(WEAPON_TYPE_MAP);
+
+    state.weaponGroup = null;
+    state.weaponBone = null;
+    state.weaponTextures = [];
+    state.currentWeaponDorp = null;
+
+    function renderWeaponTypeTabs() {
+      let html = '<div class="weapon-type-tabs">';
+      WEAPON_TYPES.forEach(t => {
+        html += `<div class="weapon-type-tab${t === currentWeaponType ? ' active' : ''}" data-wtype="${t}">${t}</div>`;
+      });
+      html += '</div><div id="weaponModalList"></div>';
+      weaponTab.innerHTML = html;
+      weaponTab.querySelectorAll('.weapon-type-tab').forEach(el => {
+        el.onclick = () => {
+          currentWeaponType = el.dataset.wtype;
+          weaponTab.querySelectorAll('.weapon-type-tab').forEach(t => t.classList.toggle('active', t === el));
+          loadWeaponsForType(currentWeaponType);
+        };
+      });
+      if (currentWeaponType) loadWeaponsForType(currentWeaponType);
+    }
+
+    async function loadWeaponsForType(typeName) {
+      const listEl = document.getElementById('weaponModalList');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="color:#888;padding:8px;">加载中...</div>';
+      const subtype = WEAPON_TYPE_MAP[typeName];
+      try {
+        const resp = await fetch(`/pt/api/simulator/items?type=Weapons&subtype=${encodeURIComponent(subtype)}&page=1&size=200`);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        listEl.innerHTML = '';
+        if (!data.items || data.items.length === 0) {
+          listEl.innerHTML = '<div style="color:#888;padding:8px;">无可用武器</div>';
+          return;
+        }
+        data.items.forEach(item => {
+          if (!item.dorpItem) return;
+          const d = document.createElement('div');
+          d.className = 'opt' + (item.dorpItem === state.currentWeaponDorp ? ' sel' : '');
+          const lvlText = item.reqLevel ? ` Lv${item.reqLevel}` : '';
+          d.innerHTML = `<span>${item.name}</span><span class="fn">${item.dorpItem}${lvlText}</span>`;
+          d.onclick = () => attachWeapon(item.dorpItem, item.name, item.modelPosition);
+          listEl.appendChild(d);
+        });
+      } catch (e) {
+        listEl.innerHTML = '<div style="color:#f85149;padding:8px;">加载失败: ' + e.message + '</div>';
+        log('武器列表加载失败: ' + e.message, 'err');
+      }
+    }
+
+    async function attachWeapon(dorpItem, weaponName, modelPosition) {
+      if (!state.skeleton || !state.skeletonGroup) {
+        log('请先加载角色', 'err');
+        return;
+      }
+      detachWeapon();
+      state.currentWeaponDorp = dorpItem;
+
+      // modelPosition: 2=LeftHand, 4=RightHand (default)
+      const boneName = modelPosition === 2 ? WEAPON_BONES.LEFT_HAND : WEAPON_BONES.RIGHT_HAND;
+
+      try {
+        const result = await loadWeaponModel(dorpItem);
+        const bone = findBone(state.skeletonGroup, boneName);
+        if (!bone) {
+          log('武器挂载失败: 找不到 ' + boneName + ' 骨骼', 'err');
+          return;
+        }
+        result.texturesToLoad.forEach(t => {
+          const texPath = t.url.replace(/\\/g, '/').toLowerCase();
+          const url = texPath.startsWith('/') ? '/pt/exm-run' + texPath : '/pt/exm-run/' + texPath;
+          loadTexture(url).then(tex => {
+            if (tex && t.mat) {
+              t.mat.map = tex;
+              t.mat.color.set(0xffffff);
+              const fmt = tex.userData ? tex.userData.format : '';
+              if (fmt === 'tga' || fmt === 'png') { t.mat.alphaTest = 0.75; t.mat.transparent = true; }
+              else if (fmt === 'bmp') { t.mat.alphaTest = 0.5; t.mat.transparent = true; }
+              t.mat.needsUpdate = true;
+            }
+          });
+        });
+        bone.add(result.group);
+        state.weaponGroup = result.group;
+        state.weaponBone = bone;
+        state.weaponTextures = result.texturesToLoad;
+        weaponLabel.textContent = '武器: ' + (weaponName || dorpItem);
+        log(`武器挂载: ${weaponName || dorpItem} → ${boneName}`, 'ok');
+        const listEl = document.getElementById('weaponModalList');
+        if (listEl) listEl.querySelectorAll('.opt').forEach(o => {
+          const fn = o.querySelector('.fn');
+          o.classList.toggle('sel', fn && fn.textContent.includes(dorpItem));
+        });
+      } catch (e) {
+        log('武器加载失败: ' + e.message, 'err');
+      }
+    }
+
+    function detachWeapon() {
+      if (state.weaponGroup && state.weaponBone) {
+        state.weaponBone.remove(state.weaponGroup);
+        state.weaponGroup.traverse(obj => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+        });
+        state.weaponGroup = null;
+        state.weaponBone = null;
+        state.weaponTextures = [];
+        state.currentWeaponDorp = null;
+        weaponLabel.textContent = '武器: 无';
+        const listEl = document.getElementById('weaponModalList');
+        if (listEl) listEl.querySelectorAll('.opt').forEach(o => o.classList.remove('sel'));
+      }
+    }
+
+    renderWeaponTypeTabs();
+
+    window.PTViewer = window.PTViewer || {};
+    window.PTViewer.detachWeapon = detachWeapon;
+    window.PTViewer.renderArmorGrid = renderArmorGrid;
+  }
+
+  // ===== 解析 .inx（测试） =====
+  const inxResultEl = document.getElementById('inxResult');
+  document.getElementById('btnParseInx').onclick = async () => {
+    const rel = document.getElementById('inxPath').value.trim();
+    if (!rel) return;
+    const url = '/pt/exm-run/' + rel;
+    inxResultEl.textContent = '加载 ' + url + ' ...';
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const buf = await resp.arrayBuffer();
+      const info = parseInx(buf);
+
+      const L = [
+        '=== .inx 解析结果 ===',
+        'modelFile     = ' + info.modelFile,
+        'motionFile    = [' + info.motionFile + ']',
+        'szLinkFile    = [' + info.szLinkFile + ']',
+        'motionCount   = ' + info.motionCount,
+        '',
+        'High    = ' + info.highModel.modelNames.filter(Boolean).join(', '),
+        'Default = ' + info.defaultModel.modelNames.filter(Boolean).join(', '),
+        'Low     = ' + info.lowModel.modelNames.filter(Boolean).join(', '),
+        '',
+        '--- 动画条目（解密后） ---',
+      ];
+      let shown = 0;
+      for (let i = CHRMOTION_EXT_MIN; i < info.motionCount; i++) {
+        const mi = info.motions[i];
+        if (!mi.state && !mi.startFrame && !mi.endFrame) continue;
+        L.push(`${i}: ${motionStateName(mi.state)}  frames=[${mi.startFrame},${mi.endFrame}]  repeat=${mi.repeat}  motionFrame=${mi.motionFrame}`);
+        if (++shown >= 40) break;
+      }
+      if (shown === 0) L.push('(没有非零动画条目)');
+      inxResultEl.textContent = L.join('\n');
+      log('解析 ' + rel + ' 成功：' + info.motionCount + ' 个动画条目', 'ok');
+    } catch (e) {
+      inxResultEl.textContent = '解析失败: ' + e.message;
+      log('解析失败: ' + e.message, 'err');
+    }
+  };
+
+  // ===== 加载模型（.smd 网格 + .smb 骨骼） =====
+  async function loadModelForInx(inxPath, lodKey) {
+    const results = { smd: null, smb: null, smdPath: '', smbPath: '', animSmb: null, animSmbPath: '', motionTmFrame: null, meshNames: null, meshNamesHigh: null, meshNamesDefault: null, meshNamesLow: null, motions: [], errs: [] };
+    const errs = [];
+    let modelBase = null; // 从 .inx modelFile 推断的资源 basename（如 towergolem_b）
+
+    // 先解析 .inx 拿 High LOD 网格名 + modelFile + 动画条目
+    let info = null;
+    try {
+      const inxResp = await fetch('/pt/exm-run/' + inxPath, { cache: 'no-store' });
+      if (inxResp.ok) {
+        info = parseInx((await inxResp.arrayBuffer()).slice(0));
+        // LOD 三组网格名（.inx 的 HighModel/DefaultModel/LowModel）
+        const high = info.highModel.modelNames.filter(Boolean);
+        const def = info.defaultModel.modelNames.filter(Boolean);
+        const low = info.lowModel.modelNames.filter(Boolean);
+        results.meshNamesHigh = high.length > 0 ? high : null;
+        results.meshNamesDefault = def.length > 0 ? def : null;
+        results.meshNamesLow = low.length > 0 ? low : null;
+        // 按 LOD 选择网格组（缺失时回退低一级；无任何 LOD 则用高模）
+        const groups = { high, medium: def, low };
+        let chosen = lodKey && groups[lodKey] && groups[lodKey].length > 0
+          ? groups[lodKey]
+          : (lodKey === 'low' && groups.medium.length > 0 ? groups.medium
+             : (lodKey === 'low' && groups.high.length > 0 ? groups.high
+                : (lodKey === 'medium' && groups.high.length > 0 ? groups.high
+                   : (high.length > 0 ? high : (def.length > 0 ? def : low)))));
+        results.meshNames = chosen.length > 0 ? chosen : null;
+        // 动画条目（CHRMOTION_EXT=10 起，非零的）
+        results.motions = [];
+        for (let i = CHRMOTION_EXT_MIN; i < info.motionCount; i++) {
+          const mi = info.motions[i];
+          if (mi.state || mi.startFrame || mi.endFrame) {
+            results.motions.push({
+              state: mi.state,
+              startFrame: mi.startFrame,
+              endFrame: mi.endFrame,
+              repeat: mi.repeat,
+              motionFrame: mi.motionFrame,
+            });
+          }
+        }
+        // modelFile: char\monster\AncientGolem\TowerGolem_b.ASE → 目录 + basename
+        // 统一转小写（Linux 文件系统大小写敏感，实际文件多为小写）
+        if (info.modelFile) {
+          const mf = info.modelFile.replace(/\\/g, '/').toLowerCase();
+          const slash = mf.lastIndexOf('/');
+          const dir = slash >= 0 ? mf.substring(0, slash) : '';
+          const name = mf.substring(slash + 1).replace(/\.[^.]+$/, ''); // 去扩展名
+          modelBase = dir + '/' + name;
+        }
+      }
+    } catch (e) { /* .inx 解析失败不阻塞 */ }
+
+    // 候选资源路径（统一小写）：优先 modelFile 推断，回退 .inx 同名
+    const candidates = [];
+    if (modelBase) {
+      candidates.push(modelBase + '.smd', modelBase + '.smb');
+    }
+    // 回退：.inx 同名（转小写）
+    const inxBase = inxPath.replace(/\.inx$/i, '').toLowerCase();
+    candidates.push(inxBase + '.smd', inxBase + '.smb');
+    // 若 modelFile 和 inx 目录不同，用 inx 目录 + model 文件名
+    if (modelBase) {
+      const mfParts = modelBase.split('/');
+      const mfName = mfParts[mfParts.length - 1];
+      const inxDir = inxPath.substring(0, inxPath.lastIndexOf('/') + 1).toLowerCase();
+      candidates.push(inxDir + mfName + '.smd', inxDir + mfName + '.smb');
+    }
+
+    // motionFile：动画源（与 modelFile 分离时用 m*.smb）。先记 inx 里的 tmFrame 偏移表。
+    let motionBase = null; // 从 motionFile 推断的 basename（如 mhound）
+    let motionTmFrame = null; // PAT3D 级帧偏移表（相对 .inx 帧号）
+    if (info && info.motionFile) {
+      const mf = info.motionFile.replace(/\\/g, '/').toLowerCase();
+      const slash = mf.lastIndexOf('/');
+      const dir = slash >= 0 ? mf.substring(0, slash) : '';
+      const name = mf.substring(slash + 1).replace(/\.[^.]+$/, ''); // 去扩展名
+      motionBase = (dir ? dir + '/' : '') + name;
+    } else if (info && info.szLinkFile) {
+      // 角色/共享动画：motionFile 为空但 szLinkFile 指向共享动画模板（如 M1Bip.in → m1bip.inx）
+      // C++ character.cpp loadCharacter：linkFile 的 motionFile 作为动画源
+      try {
+        const link = info.szLinkFile.replace(/\\/g, '/').toLowerCase();
+        // linkFile 可能是 .in/.inx（如 M1Bip.in 实际文件是 m1bip.inx）
+        const linkCandidates = [link, link.replace(/\.in$/i, '.inx'), link + 'x'];
+        let linkInx = null;
+        for (const lc of linkCandidates) {
+          try {
+            const linkResp = await fetch('/pt/exm-run/' + lc, { cache: 'no-store' });
+            if (linkResp.ok) { linkInx = parseInx((await linkResp.arrayBuffer()).slice(0)); break; }
+          } catch (e) {}
+        }
+        if (linkInx) {
+          if (linkInx.motionFile) {
+            const mf = linkInx.motionFile.replace(/\\/g, '/').toLowerCase();
+            const slash = mf.lastIndexOf('/');
+            const dir = slash >= 0 ? mf.substring(0, slash) : '';
+            const name = mf.substring(slash + 1).replace(/\.[^.]+$/, '');
+            motionBase = (dir ? dir + '/' : '') + name;
+          }
+          // 共享动画模板的动画条目（角色动作来自 link inx）
+          if (results.motions.length === 0 && linkInx.motionCount > 0) {
+            for (let i = CHRMOTION_EXT_MIN; i < linkInx.motionCount; i++) {
+              const mi = linkInx.motions[i];
+              if (mi.state || mi.startFrame || mi.endFrame) {
+                results.motions.push({
+                  state: mi.state,
+                  startFrame: mi.startFrame,
+                  endFrame: mi.endFrame,
+                  repeat: mi.repeat,
+                  motionFrame: mi.motionFrame,
+                });
+              }
+            }
+          }
+        }
+      } catch (e) { errs.push('linkFile -> ' + e.message); }
+    }
+
+    // 去重 + 加载
+    const seen = new Set();
+    for (const p of candidates) {
+      if (seen.has(p)) continue;
+      seen.add(p);
+      const url = '/pt/exm-run/' + p;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const buf = await resp.arrayBuffer();
+        const parsed = parseSmb(buf.slice(0));
+        if (p.endsWith('.smb')) { results.smb = parsed; results.smbPath = p; }
+        else { results.smd = parsed; results.smdPath = p; }
+      } catch (e) { errs.push(p + ' -> ' + e.message); }
+    }
+
+    // 加载 motion 动画源（motionFile 与 modelFile 不同名时才需要）
+    // C++：LoadBipPattern(szMotionFile) → smASE_ReadBone（动画骨骼模板），TmFrame 帧偏移用于动画条目
+    if (motionBase && motionBase.toLowerCase() !== (modelBase || '').toLowerCase()) {
+      const inxDir = inxPath.substring(0, inxPath.lastIndexOf('/') + 1).toLowerCase();
+      const motionCandidates = [];
+      const mbParts = motionBase.split('/');
+      const mbName = mbParts[mbParts.length - 1];
+      // 优先 motionBase 直接路径（motionFile 含目录），回退 inx 目录 + motion 文件名
+      motionCandidates.push(motionBase + '.smb', inxDir + mbName + '.smb');
+      for (const p of motionCandidates) {
+        if (seen.has(p)) continue;
+        seen.add(p);
+        try {
+          const resp = await fetch('/pt/exm-run/' + p, { cache: 'no-store' });
+          if (!resp.ok) continue;
+          const buf = await resp.arrayBuffer();
+          const parsed = parseSmb(buf.slice(0));
+          results.animSmb = parsed;
+          results.animSmbPath = p;
+          motionTmFrame = parsed.tmFrame;
+          break;
+        } catch (e) { errs.push(p + ' -> ' + e.message); }
+      }
+    }
+    results.errs = errs;
+    results.motionTmFrame = motionTmFrame;
+    return results;
+  }
+
+  // 在右栏显示骨骼信息
+  function showBoneInfo(results) {
+    const el = document.getElementById('boneInfo');
+    const L = [];
+    const smb = results.smb, smd = results.smd;
+    if (smb) {
+      L.push('骨骼文件: ' + results.smbPath);
+      L.push('骨骼节点: ' + smb.objCounter + ' 个');
+      const chain = [];
+      smb.objects.forEach((obj, i) => {
+        chain.push(`${i}:${obj.nodeName}`);
+      });
+      L.push('节点: ' + chain.join(' → '));
+    }
+    if (smd) {
+      L.push('');
+      L.push('网格文件: ' + results.smdPath);
+      L.push('网格对象: ' + smd.objCounter + ' 个');
+      smd.objects.forEach(obj => {
+        L.push(`  "${obj.nodeName}": 顶点=${obj.nVertex} 面=${obj.nFace} 纹理=${obj.nTexLink} 蒙皮=${obj.hasPhysique}`);
+        if (obj.hasPhysique && obj.boneNames) {
+          const uniq = [...new Set(obj.boneNames)];
+          L.push('    骨骼: ' + uniq.join(', '));
+        }
+      });
+    }
+    if (results.errs && results.errs.length) {
+      L.push('');
+      L.push('缺失: ' + results.errs.join('; '));
+    }
+    el.textContent = L.join('\n');
+  }
+
+  // 清除场景中的模型
+  function clearModel() {
+    if (state.charMesh) { scene.remove(state.charMesh); state.charMesh = null; }
+    if (state.rawGroup) { scene.remove(state.rawGroup); state.rawGroup = null; }
+    if (state.boneLines) { scene.remove(state.boneLines); state.boneLines = null; }
+    if (state.skinnedGroup) { scene.remove(state.skinnedGroup); state.skinnedGroup = null; }
+    if (state.skeletonGroup) { scene.remove(state.skeletonGroup); state.skeletonGroup = null; }
+    // 武器
+    if (window.PTViewer && window.PTViewer.detachWeapon) window.PTViewer.detachWeapon();
+    state.skeleton = null;
+    state.animMotions = [];
+    state.animFrame = 0;
+    state.animPlaying = false;
+  }
+
+  // 构建并加入 3D 模型（蒙皮网格 + 骨骼线条 + 未蒙皮原始网格，可独立开关）
+  function build3DModel(results) {
+    clearModel();
+    if (!results.smd || !results.smb) {
+      log('缺少 .smd 或 .smb，无法渲染', 'err');
+      return;
+    }
+    try {
+      // 1. 未蒙皮原始网格（骨骼局部空间顶点）——用于对比蒙皮是否正确
+      const raw = buildRawMesh(results.smd);
+      const rawGroup = new THREE.Group();
+      rawGroup.add(raw.group);
+      rawGroup.visible = !document.getElementById('chkSkinned').checked && document.getElementById('chkShowChar').checked;
+      scene.add(rawGroup);
+      state.rawGroup = rawGroup;
+
+      // 2. 蒙皮网格（角色）——坐标已在 buildSkinnedMesh 内转 Y-up（除非 rawMode）
+      //    LOD：切换时整模型重新加载（简单可靠），buildSkinnedMesh 用 results.meshNames（已按 LOD 选组）
+      const { group, meshes, skeleton, texturesToLoad } = buildSkinnedMesh(results.smd, results.smb, results.meshNames, state.rawMode);
+      // 异步加载纹理（材质路径在 smd 材质组，可能含原大小写）
+      for (const item of texturesToLoad) {
+        const texPath = item.url.replace(/\\/g, '/').toLowerCase();
+        loadTexture('/pt/exm-run/' + texPath).then(tex => {
+          if (tex && item.mat) {
+            item.mat.map = tex;
+            item.mat.color.set(0xffffff);
+            const fmt = tex.userData ? tex.userData.format : '';
+            if (fmt === 'tga' || fmt === 'png') {
+              item.mat.alphaTest = 0.75;
+              item.mat.transparent = true;
+            } else if (fmt === 'bmp') {
+              item.mat.alphaTest = 0.5;
+              item.mat.transparent = true;
+            }
+            item.mat.needsUpdate = true;
+          }
+        });
+      }
+      group.visible = document.getElementById('chkSkinned').checked && document.getElementById('chkShowChar').checked;
+      scene.add(group);
+      state.skinnedGroup = group;
+      state.skeleton = skeleton;
+      state.mesh = group;
+      state.currentLod = state.currentLod || 'high';
+
+      // 3. 骨骼线条（若需对照）——坐标已 Y-up
+      const bones = buildBoneLines(results.smb);
+      const boneGroup = new THREE.Group();
+      boneGroup.add(bones.group);
+      boneGroup.visible = document.getElementById('chkShowBone').checked;
+      scene.add(boneGroup);
+      state.boneLines = boneGroup;
+
+      // 自动对准相机（用蒙皮网格包围盒，若蒙皮未启用则用原始网格）
+      const box = new THREE.Box3();
+      const boxMeshes = (document.getElementById('chkSkinned').checked ? meshes : [raw.group]);
+      for (const m of boxMeshes) {
+        m.geometry.computeBoundingBox();
+        box.union(m.geometry.boundingBox);
+      }
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const diag = size.length();
+      state.modelDiag = diag;
+      const dist = Math.max(diag, 10) * 1.1;
+      camera.position.set(center.x + dist * 0.7, center.y + dist * 0.4, center.z + dist * 0.7);
+      controls.target.set(center.x, center.y, center.z);
+      controls.update();
+
+      log(`构建成功：${meshes.length} 个网格对象（LOD: ${state.currentLod || 'high'}），合并 ${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)}，骨骼 ${state.skeleton.bones.length} 个`, 'ok');
+      // 应用当前渲染模式
+      applyRenderMode(document.getElementById('renderMode').value);
+
+      // 初始化动画系统
+      initAnimation(results);
+    } catch (e) {
+      log('3D 构建失败: ' + (e.stack || e.message), 'err');
+    }
+  }
+
+  // 初始化动画：填动画下拉，保存 .smb/.inx 数据
+  function initAnimation(results) {
+    state.animSmb = results.animSmb || results.smb;
+    state.animMotions = results.motions || [];
+    // C++ character.cpp:641-648：motion 文件的 TmFrame[mf-1].StartFrame/160 加到 .inx 帧号
+    // （动画文件与模型分离时，.inx 帧号是相对各动画段的）
+    const tmFrame = results.motionTmFrame || (state.animSmb && state.animSmb.tmFrame);
+    if (tmFrame && state.animSmb !== results.smb) {
+      state.animMotions = state.animMotions.map(m => {
+        const mf = m.motionFrame;
+        if (mf > 0 && tmFrame[mf - 1] && tmFrame[mf - 1].startFrame) {
+          const off = tmFrame[mf - 1].startFrame / 160;
+          return { ...m, startFrame: m.startFrame + off, endFrame: m.endFrame + off };
+        }
+        return m;
+      });
+    }
+    state.animPlaying = false;
+    state.currentMotion = null;
+    state.animFrame = 0;
+    document.getElementById('btnPlay').textContent = '播放';
+
+    const sel = document.getElementById('animSel');
+    sel.innerHTML = '';
+    sel.disabled = state.animMotions.length === 0;
+    // 时间轴控件随动画启用
+    document.getElementById('frameSlider').disabled = state.animMotions.length === 0;
+    document.getElementById('frameInput').disabled = state.animMotions.length === 0;
+    if (state.animMotions.length === 0) {
+      const o = document.createElement('option');
+      o.textContent = '(无动画条目)';
+      sel.appendChild(o);
+      return;
+    }
+    state.animMotions.forEach((m, i) => {
+      const o = document.createElement('option');
+      o.value = i;
+      o.textContent = motionStateName(m.state) + ' [' + m.startFrame + ',' + m.endFrame + ']' + (m.repeat ? ' 循环' : '');
+      sel.appendChild(o);
+    });
+    // 默认选第一个
+    sel.selectedIndex = 0;
+    selectAnimation(0);
+  }
+
+  // 选择动画
+  function selectAnimation(index) {
+    const m = state.animMotions[index];
+    if (!m) return;
+    state.currentMotion = m;
+    state.animFrame = m.startFrame;
+    state.animPlaying = false;
+    document.getElementById('btnPlay').textContent = '播放';
+    // 不立即应用动画帧：保持绑定姿态（避免模型变形）
+    // 播放时才驱动动画
+    updateFrameUI();
+  }
+
+  // 更新帧 UI
+  function updateFrameUI() {
+    const m = state.currentMotion;
+    if (!m) return;
+    const total = Math.max(1, m.endFrame - m.startFrame);
+    const frame = Math.min(total, Math.max(0, state.animFrame - m.startFrame));
+    document.getElementById('frameSlider').max = total;
+    document.getElementById('frameSlider').value = frame;
+    document.getElementById('frameInput').value = Math.round(frame);
+    document.getElementById('frameInfo').textContent =
+      'frame: ' + Math.round(frame) + ' / ' + total + ' (tick ' + Math.round(state.animFrame) + ')';
+  }
+
+  // 导出模型加载函数到 window，供按钮/怪物点击复用
+  // lodKey: 'high'/'medium'/'low'（LOD 切换时整模型重新加载，简单可靠）
+  window.PTViewer = window.PTViewer || {};
+  window.PTViewer.loadModel = async (inxPath, lodKey) => {
+    state.currentInxPath = inxPath;
+    state.currentLod = lodKey || state.currentLod || 'high';
+    const results = await loadModelForInx(inxPath, state.currentLod);
+    showBoneInfo(results);
+    build3DModel(results);
+    return results;
+  };
+
+  // 顶栏：显示角色 / 显示骨骼 / 绑定蒙皮 开关
+  function applySkinToggle() {
+    const skin = document.getElementById('chkSkinned').checked;
+    const showChar = document.getElementById('chkShowChar').checked;
+    if (state.rawGroup) state.rawGroup.visible = showChar && !skin;
+    if (state.skinnedGroup) state.skinnedGroup.visible = showChar && skin;
+  }
+  document.getElementById('chkShowChar').onchange = (e) => {
+    applySkinToggle();
+  };
+  document.getElementById('chkShowBone').onchange = (e) => {
+    if (state.boneLines) state.boneLines.visible = e.target.checked;
+  };
+  document.getElementById('chkSkinned').onchange = (e) => {
+    applySkinToggle();
+  };
+  document.getElementById('chkAxis').onchange = (e) => {
+    if (state.axisGroup) state.axisGroup.visible = e.target.checked;
+  };
+  // 原始数据模式：切换时需重新构建模型（buildSkinnedMesh 在构建时决定 rawMode）
+  document.getElementById('chkRaw').onchange = (e) => {
+    state.rawMode = e.target.checked;
+    const path = state.currentInxPath;
+    if (path) window.PTViewer.loadModel(path);
+  };
+
+  // 渲染模式：normal / unlit / wireframe（应用于所有 mesh 材质）
+  function applyRenderMode(mode) {
+    for (const group of [state.skinnedGroup, state.rawGroup]) {
+      if (!group) continue;
+      group.traverse(o => {
+        if (o.isMesh && o.material) {
+          o.material.wireframe = (mode === 'wireframe');
+        }
+      });
+    }
+  }
+  document.getElementById('renderMode').onchange = (e) => {
+    applyRenderMode(e.target.value);
+  };
+  // 线框复选框（快捷开关）
+  document.getElementById('chkWireframe').onchange = (e) => {
+    document.getElementById('renderMode').value = e.target.checked ? 'wireframe' : 'normal';
+    applyRenderMode(document.getElementById('renderMode').value);
+  };
+
+  // ===== 动画控制 =====
+  document.getElementById('animSel').onchange = (e) => {
+    selectAnimation(parseInt(e.target.value, 10));
+  };
+  document.getElementById('btnPlay').onclick = () => {
+    if (!state.currentMotion) return;
+    state.animPlaying = true;
+    document.getElementById('btnPlay').textContent = '播放中';
+  };
+  document.getElementById('btnPause').onclick = () => {
+    state.animPlaying = false;
+    document.getElementById('btnPlay').textContent = '播放';
+  };
+  document.getElementById('btnStop').onclick = () => {
+    state.animPlaying = false;
+    document.getElementById('btnPlay').textContent = '播放';
+    if (state.currentMotion) {
+      state.animFrame = state.currentMotion.startFrame;
+      applyAnimationFrame();
+      updateFrameUI();
+    }
+  };
+  document.getElementById('speedSlider').oninput = (e) => {
+    state.animSpeed = parseFloat(e.target.value);
+    document.getElementById('speedVal').textContent = state.animSpeed.toFixed(1) + 'x';
+  };
+  document.getElementById('chkLoop').onchange = (e) => {
+    state.animLoop = e.target.checked;
+  };
+  // 时间轴拖动
+  document.getElementById('frameSlider').oninput = (e) => {
+    const m = state.currentMotion;
+    if (!m) return;
+    state.animFrame = m.startFrame + parseFloat(e.target.value);
+    applyAnimationFrame();
+    document.getElementById('frameInput').value = Math.round(parseFloat(e.target.value));
+  };
+  document.getElementById('frameInput').onchange = (e) => {
+    const m = state.currentMotion;
+    if (!m) return;
+    state.animFrame = m.startFrame + parseFloat(e.target.value);
+    applyAnimationFrame();
+    document.getElementById('frameSlider').value = e.target.value;
+  };
+
+  // ===== 占位：数据加载逻辑（下一步实现） =====
+  const statusEl = document.getElementById('status');
+  statusEl.textContent = '页面框架就绪。\n下一步：实现 .smb 解析器';
+
+  // 导出到 window 供调试（保留前面挂载的 loadModel）
+  Object.assign(window.PTViewer, { scene, camera, renderer, controls, state, log });
+</script>
+</body>
+</html>

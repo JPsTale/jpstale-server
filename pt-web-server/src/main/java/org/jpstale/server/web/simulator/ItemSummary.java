@@ -19,4 +19,7 @@ public class ItemSummary {
     private Integer classItem;
     private Integer reqLevel;
     private Integer price;
+    private String dorpItem;
+    private String dropFolder;
+    private Integer modelPosition;
 }
