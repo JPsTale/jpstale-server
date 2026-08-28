@@ -257,6 +257,9 @@ export class MapRenderer {
       geometry: geom,
       cellLookup,
       cellKeys: sortedCells,
+      // CPU 索引重建：保存原始索引静态副本 + 打包用缓冲
+      fullIndices: new Uint32Array(sortedIndices),  // 静态原始索引
+      packedCount: 0,                                // 当前打包的面数
       aabb: new THREE.Box3(
         new THREE.Vector3(minX, minY, minZ),
         new THREE.Vector3(maxX, maxY, maxZ)
@@ -460,24 +463,34 @@ export class MapRenderer {
         }
       }
 
-      if (ranges.length === 0) {
+      // CPU 索引重建：把可见 cell 的面索引打包到 index buffer 前部
+      // （替代 setDrawRange 连续范围，避免提交中间不可见面）
+      // 注意：cellLookup 的 range.start/count 都是"索引单位"（start=i*3, count+=3）
+      const idxArr = mrd.geometry.index.array;  // Uint32Array（与 fullIndices 同尺寸）
+      const fullIdx = mrd.fullIndices;
+      let packed = 0; // 已打包的索引数（不是面数）
+      // ranges 收集时已按 cellLookup 顺序，但这里要按索引顺序拷，需排序
+      const sortedRanges = ranges.slice().sort((a, b) => a.start - b.start);
+      for (const r of sortedRanges) {
+        const srcStart = r.start;      // 已是索引单位
+        const srcCount = r.count;      // 已是索引单位
+        if (srcStart + srcCount > fullIdx.length || packed + srcCount > idxArr.length) {
+          if (!this._warnedBounds) { this._warnedBounds = true; console.warn(`[render] 越界 matIdx=${mrd.matIdx} srcStart=${srcStart} srcCount=${srcCount} fullIdx.len=${fullIdx.length} packed=${packed} idxArr.len=${idxArr.length}`); }
+          continue;
+        }
+        idxArr.set(fullIdx.subarray(srcStart, srcStart + srcCount), packed);
+        packed += srcCount;
+      }
+      mrd.packedCount = packed;
+      if (packed === 0) {
         mrd.mesh.visible = false;
         continue;
       }
-
-      // Merge adjacent ranges, then use full bounding range for setDrawRange
-      // (setDrawRange only supports one contiguous range)
-      ranges.sort((a, b) => a.start - b.start);
-      const merged = this._mergeRanges(ranges, 96);
-
-      // Use the min start and total span across all merged ranges
-      const drawStart = merged[0].start;
-      const drawEnd = merged[merged.length - 1].start + merged[merged.length - 1].count;
-
+      mrd.geometry.index.needsUpdate = true;
+      mrd.geometry.setDrawRange(0, packed);
       mrd.mesh.visible = true;
-      mrd.geometry.setDrawRange(drawStart, drawEnd - drawStart);
       this.drawCallCount++;
-      this.visibleFaceCount += (drawEnd - drawStart) / 3;
+      this.visibleFaceCount += packed / 3;
     }
   }
 

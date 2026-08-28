@@ -477,8 +477,8 @@ function positionDummyAtSpawn(mapId) {
 const debugCamera = new THREE.PerspectiveCamera(
    40.9,                 // FOV in DEGREES (THREE expects degrees, not radians!)
    1,
-   20 * WORLD_SCALE,     // near = 20 game units
-   4000 * WORLD_SCALE    // far = 4000 game units
+   20,                   // near = 20 游戏单位（C++ Winmain.cpp:3610）
+   4000                  // far = 4000 游戏单位（C++ Winmain.cpp:3610，覆盖地图约1/3）
  );
 debugCamera.position.set(0, 200, 400);
 
@@ -1025,11 +1025,9 @@ function focusMap(mapId) {
   controls.update();
   // Always position dummy at spawn point when map loads
   positionDummyAtSpawn(mapId);
-  // Adapt debugCamera near/far to map size
-  const S2 = WORLD_SCALE;
-  const hw2 = Math.max(Math.abs(b.maxX - b.minX), Math.abs(b.maxZ - b.minZ)) * S2 / 2;
-  debugCamera.near = Math.max(0.1, hw2 * 0.001);
-  debugCamera.far = hw2 * 40;
+  // debugCamera near/far 使用 C++ 固定值（20/4000 游戏单位），不随地图缩放
+  debugCamera.near = 20;
+  debugCamera.far = 4000;
   debugCamera.updateProjectionMatrix();
 }
 
