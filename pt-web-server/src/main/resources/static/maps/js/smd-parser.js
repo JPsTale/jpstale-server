@@ -39,6 +39,9 @@ export function parseSMD(buffer) {
   for (let i = 0; i < MaterialCount; i++) {
     const inUse = dv.getUint32(off, true);
     const texCounter = dv.getUint32(off + 4, true);
+    // 0x28 TextureStageState[8] + 0x48 TextureFormState[8] (smType.h:591-633)
+    const textureStageState = [...Array(8)].map((_, k) => dv.getUint32(off + 40 + k * 4, true));
+    const textureFormState = [...Array(8)].map((_, k) => dv.getUint32(off + 72 + k * 4, true));
     const blendType = dv.getUint32(off + 116, true);
     const shade = dv.getUint32(off + 120, true);
     const twoSide = dv.getUint32(off + 124, true);
@@ -46,6 +49,7 @@ export function parseSMD(buffer) {
     const transparency = dv.getFloat32(off + 144, true);
     const useState = dv.getUint32(off + 164, true);
     const meshState = dv.getUint32(off + 168, true);
+    const windMeshBottom = dv.getInt32(off + 172, true);
     const animTexCounter = dv.getUint32(off + 304, true);
     off += 320;
 
@@ -78,7 +82,7 @@ export function parseSMD(buffer) {
         off = strEnd;
       }
     }
-    materials[i] = { inUse, texCounter, animTexCounter, tex, animTextures, blendType, shade, twoSide, diffuse, transparency, useState, meshState };
+    materials[i] = { inUse, texCounter, animTexCounter, tex, animTextures, blendType, shade, twoSide, diffuse, transparency, useState, meshState, windMeshBottom, textureStageState, textureFormState };
   }
 
   // Vertices: smLegacySTAGE_VERTEX is 28 bytes

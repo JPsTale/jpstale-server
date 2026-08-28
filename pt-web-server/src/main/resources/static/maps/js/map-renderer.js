@@ -244,7 +244,17 @@ export class MapRenderer {
 
     // Build Three.js material
     const mat = smdData.materials[matIdx];
-    const threeMat = this._buildThreeMaterial(matIdx, mat, config, texMap);
+    // Wind 类型：0x20=WINDZ1(微),0x40=WINDZ2(大),0x80=WINDX1(微),0x100=WINDX2(大)
+    // 0x200=WATER（逐顶点波浪，不做）。BLINK_COLOR 材质风禁用。
+    let windKind = 0;
+    if (mat.windMeshBottom && !(mat.useState & 0x4000)) {
+      const wc = mat.windMeshBottom & 0x7FF;
+      if (wc === 0x20) windKind = 1;       // WINDZ1
+      else if (wc === 0x40) windKind = 2;  // WINDZ2
+      else if (wc === 0x80) windKind = 3;  // WINDX1
+      else if (wc === 0x100) windKind = 4; // WINDX2
+    }
+    const threeMat = this._buildThreeMaterial(matIdx, mat, config, texMap, windKind, minY, maxY);
 
     const mesh = new THREE.Mesh(geom, threeMat);
     mesh.frustumCulled = false; // we do our own frustum culling
@@ -338,7 +348,7 @@ export class MapRenderer {
     return false;
   }
 
-  _buildThreeMaterial(matIdx, mat, config, texMap) {
+_buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
     const opts = {
       vertexColors: true,
       side: config.twoSide ? THREE.DoubleSide : THREE.FrontSide,
@@ -351,35 +361,156 @@ export class MapRenderer {
       opts.color = 0xcccccc;
     }
 
-    if (config.hasLM && config.lightmapTex) {
-      opts.onBeforeCompile = (shader) => {
-        shader.uniforms.uLightMap = { value: config.lightmapTex };
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <common>',
-          '#include <common>\nout vec2 vMyLightMapUv;'
-        );
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <uv_vertex>',
-          '#include <uv_vertex>\nvMyLightMapUv = uv2;'
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <common>',
-          '#include <common>\nuniform sampler2D uLightMap;\nin vec2 vMyLightMapUv;'
-        );
-        shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <color_fragment>',
-          '#include <color_fragment>\ndiffuseColor.rgb *= texture2D(uLightMap, vMyLightMapUv).rgb;'
-        );
-      };
-    }
-
     if (config.isTransparent) {
       opts.transparent = true;
       opts.alphaTest = 60 / 255;
       opts.depthWrite = mat.transparency <= 0.2;
     }
 
-    return new THREE.MeshBasicMaterial(opts);
+    const threeMat = new THREE.MeshBasicMaterial(opts);
+
+    // TextureFormState → UV 滚动参数（SCROLL/SCROLLN/SLOW；REFLEX 地图未用到，遇 fs==5 跳过）
+    // scrollSlot: { slot:0|1, kind:'scroll'|'slow', mult, factor }
+    const scrollSlot = [];
+    const warnReflex = (fs, slot) => console.warn(`[PT] REFLEX(TextureFormState=5) slot${slot} 未实现`, mat.name);
+    for (const slot of [0, 1]) {
+      const fs = mat.textureFormState ? mat.textureFormState[slot] : 0;
+      if (fs === 4) scrollSlot.push({ slot, kind: 'scroll', mult: 1 });                          // SCROLL
+      else if (fs >= 6 && fs <= 14) scrollSlot.push({ slot, kind: 'scroll', mult: fs - 4 });      // SCROLL2~10
+      else if (fs >= 15 && fs <= 18) scrollSlot.push({ slot, kind: 'slow', factor: 22 - fs });    // SCROLLSLOW1~4
+      else if (fs === 5) warnReflex(fs, slot);
+    }
+    const hasScroll = scrollSlot.length > 0;
+    const needLM = !!(config.hasLM && config.lightmapTex);
+    const scrollU0 = hasScroll && scrollSlot.some(s => s.slot === 0);
+    const scrollU1 = hasScroll && scrollSlot.some(s => s.slot === 1);
+
+    // Wind 逐顶点摆动（顶点着色器）：方向保持 C++ 的轴语义
+    //   WINDZ1/Z2(wk1/2): raw z 平移 → world x 轴摆动
+    //   WINDX1/X2(wk3/4): raw x 平移 → world z 轴摆动
+    // 幅度：微(1/3)=1.4 世界单位、大(2/4)=2.6，整体再按高度归一化（根不动、尖动）。
+    const baseWindMag = windKind ? (windKind === 1 || windKind === 3 ? 1.4 : 2.6) : 0;
+    const vWindDX = (windKind === 1 || windKind === 2) ? baseWindMag : 0;
+    const vWindDZ = (windKind === 3 || windKind === 4) ? baseWindMag : 0;
+
+    if (needLM || hasScroll || windKind) {
+      threeMat.userData.scrollSlots = scrollSlot;
+      threeMat.onBeforeCompile = (shader) => {
+        // ---- vertex: uniform/varying 声明（#include <common> 后追加）----
+        let declInline = '#include <common>';
+        if (needLM) declInline += '\nout vec2 vMyLightMapUv;';
+        if (scrollU0 || scrollU1) declInline += '\nuniform vec2 uScrollU;';
+        if (windKind) {
+          declInline += '\nuniform float uWindTime;';
+          declInline += '\nuniform vec2 uWindMag;';   // 已含方向与幅度（x/z 世界单位）
+        }
+        shader.vertexShader = shader.vertexShader.replace('#include <common>', declInline);
+
+        // ---- vertex: UV 变换 ----
+        let uvInline = '#include <uv_vertex>';
+        if (needLM) {
+          uvInline += '\nvMyLightMapUv = uv2;';
+          if (scrollU1) uvInline += '\nvMyLightMapUv.x += uScrollU.y;';
+        }
+        if (scrollU0) {
+          // vMapUv 已由 #include <uv_vertex> 计算（vMapUv = (mapTransform*vec3(MAP_UV,1)).xy）
+          uvInline += '\nvMapUv.x += uScrollU.x;';
+        }
+        shader.vertexShader = shader.vertexShader.replace('#include <uv_vertex>', uvInline);
+
+        // ---- vertex: Wind 逐顶点摆动（复刻轴语义，逐点涟漪）----
+        // 高度归一：根部(≈windYMin)不动、顶部(=windYMax)幅度最大；空间相位在 x/z 上传播。
+        if (windKind) {
+          const windCode =
+            '#include <begin_vertex>\n' +
+            '  {\n' +
+            `    float _ptH = clamp((transformed.y - ${windYMin.toFixed(1)}) / ${(windYMax - windYMin).toFixed(1)}, 0.0, 1.0);\n` +
+            '    _ptH = _ptH * _ptH;\n' +
+            '    float _ph = transformed.x * 0.05 + transformed.z * 0.045 + uWindTime * 2.0;\n' +
+            '    float _sw = sin(_ph) * 0.6 + sin(_ph * 1.55 + transformed.x * 0.013 + transformed.y * 0.02) * 0.4;\n' +
+            '    transformed.x += uWindMag.x * _sw * _ptH;\n' +
+            '    transformed.z += uWindMag.y * _sw * _ptH;\n' +
+            '  }';
+          shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', windCode);
+        }
+
+        // ---- fragment: lightmap ----
+        if (needLM) {
+          shader.uniforms.uLightMap = { value: config.lightmapTex };
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>',
+            '#include <common>\nuniform sampler2D uLightMap;\nin vec2 vMyLightMapUv;'
+          );
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <color_fragment>',
+            '#include <color_fragment>\ndiffuseColor.rgb *= texture2D(uLightMap, vMyLightMapUv).rgb;'
+          );
+        }
+
+        if (scrollU0 || scrollU1) shader.uniforms.uScrollU = { value: new THREE.Vector2(0, 0) };
+        if (windKind) {
+          shader.uniforms.uWindTime = { value: 0 };
+          shader.uniforms.uWindMag = { value: new THREE.Vector2(vWindDX, vWindDZ) };
+        }
+        // 保存 shader 引用供每帧更新滚动/风偏移
+        threeMat.userData.shader = shader;
+      };
+    }
+
+    return threeMat;
+  }
+
+  /**
+   * 每帧更新 TextureFormState 滚动偏移（复刻 smRend3d.cpp:3289-3375）：
+   *   SCROLL(fs=4):   u += fwtime
+   *   SCROLL2~10:     u += fwtime*(fs-4)
+   *   SLOW1~4(fs15-18): factor=22-fs; wtime=(ms>>6)&(0xFFFF>>factor); u += wtime/(0xFFFF>>factor)
+   *  基础 fwtime = ((ms>>6)&0xFF)/256，ms=RendStatTime（毫秒）
+   * @param {number} animMs 当前毫秒数（t*1000）
+   */
+  updateScroll(animMs) {
+    const ms = animMs | 0;
+    const baseW = (ms >>> 6) & 0xFF;
+    const baseFw = baseW / 256;
+    for (const mrd of this.materials) {
+      const mat = mrd.mesh.material;
+      const shader = mat.userData.shader;
+      const slots = mat.userData.scrollSlots;
+      if (!shader || !slots || slots.length === 0) continue;
+      const off = shader.uniforms.uScrollU ? shader.uniforms.uScrollU.value : null;
+      if (!off) continue;
+      for (const s of slots) {
+        let v;
+        if (s.kind === 'slow') {
+          const mask = 0xFFFF >> s.factor;
+          v = ((ms >>> 6) & mask) / mask;
+        } else {
+          v = baseFw * s.mult;
+        }
+        if (s.slot === 0) off.x = v;
+        else off.y = v;
+      }
+    }
+  }
+
+/**
+   * 每帧更新 Wind 摆动时间（顶点着色器逐顶点涟漪）。
+   * 时间用 1024ms 往返三角波（对齐 C++ ttCnt = ((ms>>2)&0xFF) 反转周期），
+   * 再归一化到 [0, 2π] 作为 uWindTime，让摆动节奏与原版一致但更平滑。
+   * 位移幅度/轴方向在 onBeforeCompile 时按 windKind 固化进 uniform。
+   * @param {number} animMs 当前毫秒数
+   */
+  updateWind(animMs) {
+    const ms = animMs | 0;
+    let ttCnt = (ms >>> 2) & 0xFF;
+    const ttFlag = (ms >>> 10) & 1;
+    if (!ttFlag) ttCnt = 255 - ttCnt;
+    const uTime = ttCnt / 255 * Math.PI * 2; // 0 → 2π 往返，往返周期 2048ms
+    for (const mrd of this.materials) {
+      const shader = mrd.mesh.material.userData.shader;
+      if (!shader || !shader.uniforms.uWindTime) continue;
+      shader.uniforms.uWindTime.value = uTime;
+    }
   }
 
   /**
