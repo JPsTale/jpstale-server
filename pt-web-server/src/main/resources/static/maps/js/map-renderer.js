@@ -30,6 +30,7 @@ export class MapRenderer {
    */
   build(smdData, texMap, getMatConfig) {
     const S = WORLD_SCALE;
+    const _t0 = performance.now();
 
     // Compute world bounds
     const b = smdData.bounds;
@@ -152,27 +153,37 @@ export class MapRenderer {
       }
     }
 
-    // Second pass: compute per-vertex cell keys, then for each face collect unique cells
-    const cellKeyOfVert = new Uint32Array(nFaces * 3);
-    for (let fi = 0; fi < nFaces; fi++) {
-      for (let j = 0; j < 3; j++) {
-        const wx = pos2[fi * 9 + j * 3];
-        const wz = pos2[fi * 9 + j * 3 + 2];
-        const cx = Math.floor((wx - this.worldMin[0]) / this.cellWorldSize);
-        const cz = Math.floor((wz - this.worldMin[2]) / this.cellWorldSize);
-        cellKeyOfVert[fi * 3 + j] = (Math.min(255, Math.max(0, cx)) << 8) | Math.min(255, Math.max(0, cz));
-      }
-    }
+    // Second pass: 用 GridMesh 精确三角形-矩形相交分配 cell（参考 jpstale GridMesh）
+    // 每个三角形分配到"与其相交的所有 cell"，保证大三角形（如甲板）不漏渲染
+    const _tCell0 = performance.now();
+    const cellSize = this.cellWorldSize;
+    const wmX = this.worldMin[0], wmZ = this.worldMin[2];
 
-    // Build (cellKey, faceIndex) pairs — a face may appear in up to 3 cells
+    // Build (cellKey, faceIndex) pairs
     const pairs = [];
     for (let fi = 0; fi < nFaces; fi++) {
-      const k0 = cellKeyOfVert[fi * 3];
-      const k1 = cellKeyOfVert[fi * 3 + 1];
-      const k2 = cellKeyOfVert[fi * 3 + 2];
-      pairs.push([k0, fi]);
-      if (k1 !== k0) pairs.push([k1, fi]);
-      if (k2 !== k0 && k2 !== k1) pairs.push([k2, fi]);
+      const wx0 = pos2[fi * 9], wz0 = pos2[fi * 9 + 2];
+      const wx1 = pos2[fi * 9 + 3], wz1 = pos2[fi * 9 + 5];
+      const wx2 = pos2[fi * 9 + 6], wz2 = pos2[fi * 9 + 8];
+
+      // 三角形 XZ 包围盒
+      let minX = Math.min(wx0, wx1, wx2), maxX = Math.max(wx0, wx1, wx2);
+      let minZ = Math.min(wz0, wz1, wz2), maxZ = Math.max(wz0, wz1, wz2);
+
+      // 覆盖的 cell 范围
+      const cMinX = Math.floor((minX - wmX) / cellSize);
+      const cMaxX = Math.floor((maxX - wmX) / cellSize);
+      const cMinZ = Math.floor((minZ - wmZ) / cellSize);
+      const cMaxZ = Math.floor((maxZ - wmZ) / cellSize);
+
+      for (let cx = cMinX; cx <= cMaxX; cx++) {
+        for (let cz = cMinZ; cz <= cMaxZ; cz++) {
+          // 精确相交判断
+          if (!this._triCellIntersect(wx0, wz0, wx1, wz1, wx2, wz2, wmX + cx * cellSize, wmZ + cz * cellSize, cellSize)) continue;
+          const key = (Math.min(255, Math.max(0, cx)) << 8) | Math.min(255, Math.max(0, cz));
+          pairs.push([key, fi]);
+        }
+      }
     }
 
     // Sort by cell key
@@ -218,6 +229,9 @@ export class MapRenderer {
       }
       cellLookup.set(currentCell, { start: cellStart, count: cellCount });
     }
+    // 记录 cell 分配耗时（累计所有材质，供 index.html 显示）
+    this._cellBuildTimeMs = (this._cellBuildTimeMs || 0) + (performance.now() - _tCell0);
+    this.cellLookup = cellLookup;
 
     // Build BufferGeometry
     const geom = new THREE.BufferGeometry();
@@ -251,6 +265,74 @@ export class MapRenderer {
       isTransparent: config.isTransparent,
       hasAnimation: config.hasAnimation,
     };
+  }
+
+  // ===== GridMesh cell 分配（精确三角形-矩形相交，参考 jpstale GridMesh.java）=====
+
+  /** 点 P 是否在三角形 ABC 内（重心坐标，jpstale pointinTriangle） */
+  _pointInTriangle(ax, az, bx, bz, cx, cz, px, pz) {
+    const v0x = cx - ax, v0z = cz - az;
+    const v1x = bx - ax, v1z = bz - az;
+    const v2x = px - ax, v2z = pz - az;
+    const dot00 = v0x*v0x + v0z*v0z;
+    const dot01 = v0x*v1x + v0z*v1z;
+    const dot02 = v0x*v2x + v0z*v2z;
+    const dot11 = v1x*v1x + v1z*v1z;
+    const dot12 = v1x*v2x + v1z*v2z;
+    const denom = dot00*dot11 - dot01*dot01;
+    if (Math.abs(denom) < 1e-12) return false;
+    const inv = 1 / denom;
+    const u = (dot11*dot02 - dot01*dot12) * inv;
+    if (u < 0 || u > 1) return false;
+    const v = (dot00*dot12 - dot01*dot02) * inv;
+    if (v < 0 || v > 1) return false;
+    return u + v <= 1;
+  }
+
+  /** 线段相交（jpstale lineCross + determinant） */
+  _lineCross(ax, ay, bx, by, cx, cy, dx, dy) {
+    const delta = (bx-ax)*(cy-dy) - (by-ay)*(cx-dx);
+    if (Math.abs(delta) <= 1e-9) return false;
+    const namenda = ((cx-ax)*(cy-dy) - (cy-ay)*(cx-dx)) / delta;
+    if (namenda > 1 || namenda < 0) return false;
+    const miu = ((bx-ax)*(cy-ay) - (by-ay)*(cx-ax)) / delta;
+    if (miu > 1 || miu < 0) return false;
+    return true;
+  }
+
+  /**
+   * 判断三角形是否与某个 cell 矩形相交（jpstale GridMesh intersect + pointinTriangle + lineCross）
+   * 条件：
+   *  1. 三角形任一顶点在 cell 矩形内
+   *  2. cell 矩形 4 顶点任一在三角形内
+   *  3. 三角形任意边与矩形任意边相交
+   */
+  _triCellIntersect(ax, az, bx, bz, cx, cz, boxX, boxZ, cellSize) {
+    const bx0 = boxX, bz0 = boxZ;
+    const bx1 = boxX + cellSize, bz1 = boxZ + cellSize;
+    const box = [
+      [bx0, bz0], [bx1, bz0], [bx1, bz1], [bx0, bz1],
+    ];
+
+    // 1. 三角形顶点在矩形内
+    const vInBox = (px, pz) => px >= bx0 && px <= bx1 && pz >= bz0 && pz <= bz1;
+    if (vInBox(ax, az) || vInBox(bx, bz) || vInBox(cx, cz)) return true;
+
+    // 2. 矩形顶点在三角形内
+    for (const [px, pz] of box) {
+      if (this._pointInTriangle(ax, az, bx, bz, cx, cz, px, pz)) return true;
+    }
+
+    // 3. 三角形边 与 矩形边 相交
+    const triEdges = [[ax,az,bx,bz], [bx,bz,cx,cz], [cx,cz,ax,az]];
+    for (const [e1x, e1z, e2x, e2z] of triEdges) {
+      for (let k = 0; k < 4; k++) {
+        const [bx0, bz0] = box[k];
+        const [bx1, bz1] = box[(k+1)%4];
+        if (this._lineCross(e1x, e1z, e2x, e2z, bx0, bz0, bx1, bz1)) return true;
+      }
+    }
+    return false;
   }
 
   _buildThreeMaterial(matIdx, mat, config, texMap) {

@@ -143,48 +143,96 @@ class CollisionMesh {
   }
 
   /**
-   * 线段 sp→ep 与三角形相交检测
-   * 复刻 C++ smGetTriangleImact（smStage3d.cpp:149）语义：
-   *   - sp、ep 在三角形平面两侧（异号）
-   *   - 三角形沿线段方向平移后，3 条边的平面测试都指向 sp
-   * 注意：C++ 不要求交点在 [sp,ep] 线段内——只要移动方向穿过三角形即算撞墙，
-   * 所以这里不做 t∈[0,1] 严格限制（否则靠近墙边缘时 t 会略超界导致穿透）。
+   * GetFloorHeight — 返回 (x,z) 处"可站立"的地面高度（复刻 C++ smStage3d.cpp:720）
+   * 只考虑"上升 < 步高"的面（即从 currentY 能走上去的面），
+   * 忽略高处结构（梁/屋顶/帆），避免误判"要爬很高"。
+   * 返回 { height, found }：最高且可站立的面高度；无则 found=false
+   */
+  getFloorHeight(x, z, currentY) {
+    let bestY = null;
+    const idxList = this._nearbyTriangleIdx(x, z);
+    for (const i of idxList) {
+      const tri = this.triangles[i];
+      const denom = (tri.z2 - tri.z3) * (tri.x1 - tri.x3) + (tri.x3 - tri.x2) * (tri.z1 - tri.z3);
+      if (Math.abs(denom) < 1) continue;
+      const a = ((tri.z2 - tri.z3) * (x - tri.x3) + (tri.x3 - tri.x2) * (z - tri.z3)) / denom;
+      const b = ((tri.z3 - tri.z1) * (x - tri.x3) + (tri.x1 - tri.x3) * (z - tri.z3)) / denom;
+      const c = 1 - a - b;
+      if (a >= -0.01 && b >= -0.01 && c >= -0.01) {
+        const y = a * tri.y1 + b * tri.y2 + c * tri.y3;
+        const rise = y - currentY;
+        // C++: hy = he - ep.y; if (hy < Stage_StepHeight) 才记录为地面
+        if (rise < STEP_HEIGHT) {
+          if (bestY === null || y > bestY) bestY = y;
+        }
+      }
+    }
+    return bestY !== null ? { height: bestY, found: true } : { height: 0, found: false };
+  }
+
+  /**
+   * 点 p 相对三角形平面 (p1,p2,p3) 的有向距离符号
+   * 复刻 C++ smGetPlaneProduct（smStage3d.cpp:21）
+   * 返回：>0 在法线侧，<0 另一侧，≈0 在平面上
+   */
+  _smPlaneProduct(p1, p2, p3, p) {
+    const ux = p2[0] - p1[0], uy = p2[1] - p1[1], uz = p2[2] - p1[2];
+    const vx = p3[0] - p1[0], vy = p3[1] - p1[1], vz = p3[2] - p1[2];
+    // 法线 = u × v
+    const nx = uy * vz - uz * vy;
+    const ny = uz * vx - ux * vz;
+    const nz = ux * vy - uy * vx;
+    const dx = p[0] - p1[0], dy = p[1] - p1[1], dz = p[2] - p1[2];
+    return nx * dx + ny * dy + nz * dz;
+  }
+
+  /**
+   * 线段 sp→ep 与三角形相交检测 —— 精确复刻 C++ smGetTriangleImact（smStage3d.cpp:149）
+   * 关键差异 vs 标准射线相交：
+   *  - C++ 用"三角形沿方向 v 平移后，sp 是否落在三角形内"判断
+   *  - v 方向：c1<=0 时 = (ep-sp)，c1>0 时 = (sp-ep) 且 vy=vz=0（C++ 原样）
+   *  - 不要求交点在 [sp,ep] 线段内
    */
   _triangleImact(tri, sp, ep) {
-    const Ax = tri.x1, Ay = tri.y1, Az = tri.z1;
-    const Bx = tri.x2, By = tri.y2, Bz = tri.z2;
-    const Cx = tri.x3, Cy = tri.y3, Cz = tri.z3;
-    const Px = sp[0], Py = sp[1], Pz = sp[2];
-    const Qx = ep[0], Qy = ep[1], Qz = ep[2];
+    const p1 = [tri.x1, tri.y1, tri.z1];
+    const p2 = [tri.x2, tri.y2, tri.z2];
+    const p3 = [tri.x3, tri.y3, tri.z3];
 
-    const Dx = Qx - Px, Dy = Qy - Py, Dz = Qz - Pz;
-    const len2 = Dx*Dx + Dy*Dy + Dz*Dz;
-    if (len2 < 1) return false;
+    // C++ smStage3d.cpp:330-334 —— Y 剔除
+    const spBelow = sp[1] < p1[1] && sp[1] < p2[1] && sp[1] < p3[1];
+    const spAbove = sp[1] > p1[1] && sp[1] > p2[1] && sp[1] > p3[1];
+    const epBelow = ep[1] < p1[1] && ep[1] < p2[1] && ep[1] < p3[1];
+    const epAbove = ep[1] > p1[1] && ep[1] > p2[1] && ep[1] > p3[1];
+    if ((spBelow || spAbove) && (epBelow || epAbove)) return false;
 
-    const E1x = Bx - Ax, E1y = By - Ay, E1z = Bz - Az;
-    const E2x = Cx - Ax, E2y = Cy - Ay, E2z = Cz - Az;
-    const Tx = Px - Ax, Ty = Py - Ay, Tz = Pz - Az;
+    // C++ 336-340 —— 平面异侧测试
+    let c1 = this._smPlaneProduct(p1, p2, p3, sp);
+    let c2 = this._smPlaneProduct(p1, p2, p3, ep);
+    if ((c1 <= 0 && c2 <= 0) || (c1 > 0 && c2 > 0)) return false;
 
-    const PvecX = Dy * E2z - Dz * E2y;
-    const PvecY = Dz * E2x - Dx * E2z;
-    const PvecZ = Dx * E2y - Dy * E2x;
-    const det = E1x * PvecX + E1y * PvecY + E1z * PvecZ;
-    if (det > -1e-6 && det < 1e-6) return false;
+    // C++ 355-364 —— 方向 v（×16 对应 C++ <<4，但 JS 用未缩放，符号一致）
+    let vx, vy, vz;
+    if (c1 <= 0) {
+      vx = ep[0] - sp[0];
+      vy = ep[1] - sp[1];
+      vz = ep[2] - sp[2];
+    } else {
+      // C++ 原样：反向且 vy=vz=0
+      vx = sp[0] - ep[0];
+      vy = 0;
+      vz = 0;
+    }
 
-    const invDet = 1 / det;
-    const u = (Tx * PvecX + Ty * PvecY + Tz * PvecZ) * invDet;
-    if (u < -1e-6 || u > 1 + 1e-6) return false;
-
-    const QvecX = Ty * E1z - Tz * E1y;
-    const QvecY = Tz * E1x - Tx * E1z;
-    const QvecZ = Tx * E1y - Ty * E1x;
-    const v = (Dx * QvecX + Dy * QvecY + Dz * QvecZ) * invDet;
-    if (v < -1e-6 || u + v > 1 + 1e-6) return false;
-
-    // t 不严格限制在 [0,1]：C++ 语义下，只要方向穿过三角形且 sp/ep 异侧即算撞墙
-    // （放宽下限防止靠墙时 t 略 <0 或略 >1 造成穿透）
-    const t = (E2x * QvecX + E2y * QvecY + E2z * QvecZ) * invDet;
-    if (t < -1e-3) return false;
+    // C++ 369-419 —— 三条边平移测试
+    // 边 (p1,p2)
+    const cp1 = [p1[0] + vx, p1[1] + vy, p1[2] + vz];
+    if (this._smPlaneProduct(p1, p2, cp1, sp) > 0) return false;
+    // 边 (p2,p3)
+    const cp2 = [p2[0] + vx, p2[1] + vy, p2[2] + vz];
+    if (this._smPlaneProduct(p2, p3, cp2, sp) > 0) return false;
+    // 边 (p3,p1)
+    const cp3 = [p3[0] + vx, p3[1] + vy, p3[2] + vz];
+    if (this._smPlaneProduct(p3, p1, cp3, sp) > 0) return false;
 
     return true;
   }
@@ -196,25 +244,36 @@ class CollisionMesh {
    */
   _wallBlocked(x, y, z, dx, dz, bodyWidth, bodyHeight) {
     const bw = (bodyWidth * fONE) >> 2;   // C++ width = ObjWidth>>2
-    const minY = y + fONE * 12;           // 脚底
-    const maxY = y + (bodyHeight * fONE) - ((bodyHeight * fONE) >> 2); // 胸口
+    // C++：角色 pY = 地面 - 2*fONE（character.cpp:1846 pY -= 2*fONE）
+    // PosiMinY = fONE*12 → T线脚底 = pY + 12 = 地面 + 10
+    // PosiMaxY = ObjHeight*0.75 → T线胸口 = pY + 75%身高
+    const footY = y + fONE * 10;          // 脚底线（地面+10）
+    const chestY = y - 2 * fONE + (bodyHeight * fONE) - ((bodyHeight * fONE) >> 2); // 胸口线
 
-    // 4 条 T 形线（C++ smMakeTLine: Line0/1 前进线, Line2/3 前端横线）
+    // C++ smMakeTLine: dist2 = dist + fONE*12（探测前方 步长+12 游戏单位）
+    // 步长 |(dx,dz)|，探测距离 = |(dx,dz)| + 12*fONE
+    const dLen = Math.hypot(dx, dz) || 1;
+    const probeLen = dLen + 12 * fONE;
+    // 探测方向 = 移动方向（单位化）
+    const ux = dx / dLen, uz = dz / dLen;
+    const px = ux * probeLen, pz = uz * probeLen; // 探测点偏移
+
+    // 4 条 T 形线（C++ smMakeTLine: Line0/1 前进线到 dist2, Line2/3 前端横线）
     const lines = [
-      { sp: [x, minY, z], ep: [x + dx, minY, z + dz] },
-      { sp: [x, maxY, z], ep: [x + dx, maxY, z + dz] },
-      { sp: [x + dx - bw, minY, z + dz], ep: [x + dx + bw, minY, z + dz] },
-      { sp: [x + dx - bw, maxY, z + dz], ep: [x + dx + bw, maxY, z + dz] },
+      { sp: [x, footY, z], ep: [x + px, footY, z + pz] },
+      { sp: [x, chestY, z], ep: [x + px, chestY, z + pz] },
+      { sp: [x + px - bw, footY, z + pz], ep: [x + px + bw, footY, z + pz] },
+      { sp: [x + px - bw, chestY, z + pz], ep: [x + px + bw, chestY, z + pz] },
     ];
 
-    // 路径整体范围
-    const pathMinX = Math.min(x, x + dx) - bw;
-    const pathMaxX = Math.max(x, x + dx) + bw;
-    const pathMinZ = Math.min(z, z + dz) - bw;
-    const pathMaxZ = Math.max(z, z + dz) + bw;
+    // 路径整体范围（探测范围）
+    const pathMinX = Math.min(x, x + px) - bw;
+    const pathMaxX = Math.max(x, x + px) + bw;
+    const pathMinZ = Math.min(z, z + pz) - bw;
+    const pathMaxZ = Math.max(z, z + pz) + bw;
 
     // 用 cell 网格定位附近三角形（同 getPolyHeight）
-    const idxList = this._nearbyTriangleIdx((x + x + dx) / 2, (z + z + dz) / 2);
+    const idxList = this._nearbyTriangleIdx((x + x + px) / 2, (z + z + pz) / 2);
     for (const i of idxList) {
       const tri = this.triangles[i];
       // 只检测垂直面（墙/树），跳过地面/斜坡（法线近竖直）
@@ -261,9 +320,10 @@ class CollisionMesh {
       }
 
       // 高度检测：ep 单点（C++ GetPolyHeight(face, ep.x, ep.z), smStage3d.cpp:634）
+      // 用 getFloorHeight 只考虑"上升 < 步高"的可站立面，忽略高处结构（梁/屋顶）
       const newX = x + fdx;
       const newZ = z + fdz;
-      const h = this.getPolyHeight(newX, newZ);
+      const h = this.getFloorHeight(newX, newZ, y);
       if (h.found) {
         // 只限制向上爬（hy = he - ep.y < StepHeight, smStage3d.cpp:637）
         const rise = h.height - y;

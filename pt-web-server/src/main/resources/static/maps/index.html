@@ -1158,6 +1158,7 @@ async function loadMap() {
 
     // Build map renderer
     const mr = new MapRenderer(scene);
+    const tBuild0 = performance.now();
     mr.build(data, texMap, (matIdx, mat) => {
       // Skip invisible faces (useState & 0x0400). meshState & 1 is collision, NOT hide
       if (mat && (mat.useState & 0x0400)) return null;
@@ -1182,6 +1183,13 @@ async function loadMap() {
     mapRenderers.push(mr);
     if (!window.__ptMapRenderers) window.__ptMapRenderers = [];
     window.__ptMapRenderers.push(mr);
+
+    const tBuild1 = performance.now();
+    mr.buildTimeMs = tBuild1 - tBuild0;
+    mr.buildCellTimeMs = mr._cellBuildTimeMs || 0;
+    // 汇总所有材质的 cell 数
+    const totalCells = mr.materials.reduce((s, mrd) => s + (mrd.cellLookup ? mrd.cellLookup.size : 0), 0);
+    console.log(`[Map] ${m.n}: build ${mr.buildTimeMs.toFixed(1)}ms (cell分配 ${mr.buildCellTimeMs.toFixed(1)}ms) 材质=${mr.materials.length} 总cell=${totalCells}`);
 
     // Build collision mesh for this map (raw SMD coords)
     const collisionMesh = new CollisionMesh();
