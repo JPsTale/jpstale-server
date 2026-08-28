@@ -393,7 +393,9 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
     const vWindDX = (windKind === 1 || windKind === 2) ? baseWindMag : 0;
     const vWindDZ = (windKind === 3 || windKind === 4) ? baseWindMag : 0;
 
-    if (needLM || hasScroll || windKind) {
+    // C++ SetColorZclip 对所有渲染顶点统一雾化（z>ccDistZMin=1152 world 时向黑衰减），
+    // 因此每个材质都必须注入 fog，onBeforeCompile 无条件启用。
+    {
       threeMat.userData.scrollSlots = scrollSlot;
       threeMat.onBeforeCompile = (shader) => {
         // ---- vertex: uniform/varying 声明（#include <common> 后追加）----
@@ -404,6 +406,7 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
           declInline += '\nuniform float uWindTime;';
           declInline += '\nuniform vec2 uWindMag;';   // 已含方向与幅度（x/z 世界单位）
         }
+        declInline += '\nvarying float vPtFogZ;';
         shader.vertexShader = shader.vertexShader.replace('#include <common>', declInline);
 
         // ---- vertex: UV 变换 ----
@@ -432,6 +435,30 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
             '    transformed.z += uWindMag.y * _sw * _ptH;\n' +
             '  }';
           shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', windCode);
+        }
+
+        // ---- vertex: Fog 深度（SetColorZclip 按相机前深度衰减）----
+        // mvPosition 由 #include <project_vertex> 定义；相机看向 -z，前方深度 = -mvPosition.z
+        {
+          const fogCode =
+            '#include <project_vertex>\n' +
+            '  vPtFogZ = -mvPosition.z;';
+          shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', fogCode);
+        }
+
+        // ---- fragment: Fog（伪雾化，smRend3d.cpp:2415-2481）----
+        // dlev = clamp((z - ccDistZMin(1152)) >> 1, 0, 255)；color *= 1 - dlev/256
+        // ccBackColor = (0,0,0) → 向黑衰减
+        {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>',
+            '#include <common>\nvarying float vPtFogZ;'
+          );
+          shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <color_fragment>',
+            '#include <color_fragment>\n' +
+            '  { float _z = vPtFogZ; if (_z > 1152.0) { float _dlev = (_z - 1152.0) * 0.5; if (_dlev > 255.0) _dlev = 255.0; diffuseColor.rgb *= 1.0 - _dlev / 256.0; } }'
+          );
         }
 
         // ---- fragment: lightmap ----
