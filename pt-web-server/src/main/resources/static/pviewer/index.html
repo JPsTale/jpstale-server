@@ -181,9 +181,6 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
       <div id="weaponLabel">武器: 无</div>
     </div>
 
-    <div class="btn-row">
-      <button class="btn" id="btnLoadChar" disabled>加载角色</button>
-    </div>
     <div id="charStatus" style="font-size:11px;color:#888;min-height:16px;"></div>
 
     <hr style="border-color:#333;margin:6px 0">
@@ -212,11 +209,21 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     <select id="animSel" disabled>
       <option value="">(加载角色后)</option>
     </select>
+    <label style="font-size:11px;color:#aaa"><input type="checkbox" id="chkHideUnmatched"> 只显示匹配当前武器/职业的动画</label>
 
     <div class="btn-row">
       <button class="btn small" id="btnPlay">播放</button>
       <button class="btn small" id="btnPause">暂停</button>
       <button class="btn small" id="btnStop">停止</button>
+    </div>
+
+    <label>动作触发 <span style="color:#666;font-size:10px">(J/K/I/W/R)</span></label>
+    <div class="btn-row">
+      <button class="btn small" id="btnSMAttack">攻击J</button>
+      <button class="btn small" id="btnSMSkill">技能K</button>
+      <button class="btn small" id="btnSMIdle">站立I</button>
+      <button class="btn small" id="btnSMWalk">行走W</button>
+      <button class="btn small" id="btnSMRun">奔跑R</button>
     </div>
 
     <label>速度 <span id="speedVal">1.0x</span></label>
@@ -225,8 +232,14 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     <label><input type="checkbox" id="chkLoop" checked> 循环播放</label>
 
     <hr style="border-color:#333;margin:6px 0">
+    <h2>技能列表</h2>
+    <div id="skillList" style="font-size:11px;color:#888;max-height:260px;overflow-y:auto;">
+      加载角色后显示
+    </div>
+
+    <hr style="border-color:#333;margin:6px 0">
     <h2>骨骼信息</h2>
-    <div id="boneInfo" style="font-size:11px;color:#888;line-height:1.6">
+    <div id="boneInfo" style="font-size:11px;color:#888;line-height:1.6;max-height:300px;overflow-y:auto;">
       未加载
     </div>
   </div>
@@ -275,13 +288,18 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
 <script type="module">
   import * as THREE from 'three';
   import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-  import { parseInx, motionStateName } from './js/inx-parser.js?v=3';
+  import { parseInx, motionStateName, decodeClassFlags, CLASS_FLAG } from './js/inx-parser.js?v=4';
+  import { findMotions, findMotionsByType, pickMotion, classIdToFlag } from './js/anim-match.js?v=5';
+  import { SITEM_WEAPON_INDEX } from './js/sitem-weapon-index.js';
+  import { getWeaponTypeFromIdCode, getHandType, WEAPON_TYPE_CN } from './js/weapon-type.js';
+  import { createAnimStateMachine } from './js/anim-state-machine.js?v=2';
   import { parseSmb } from './js/smb-parser.js?v=3';
   import { buildSkinnedMesh, buildSkeleton } from './js/skinned-builder.js?v=9';
   import { loadTexture, decodeImage, pixelsToDataURL } from './js/texture.js?v=7';
   import { buildRawMesh, buildBoneLines } from './js/builders.js?v=2';
   import { evalSkeleton, applyToBones } from './js/animation.js?v=4';
   import { JOB_DATA, RACE_CLASSES, RACE_TEMPSKRON, RACE_MORION, JOB_NAMES_CN, JOB_NAMES_EN, TIER_NAMES_CN, getHeadInxPath } from './js/job-data.js?v=1';
+  import { COSTUME_BODY_MAP, resolveCostumeBody } from './js/costume-body-map.js';
   import { loadCharacterModel } from './js/char-loader.js?v=1';
   import { loadWeaponModel, findBone, WEAPON_BONES } from './js/weapon-loader.js?v=1';
 
@@ -409,9 +427,37 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     rawMode: false,         // 原始数据模式（不做坐标转换）
     currentInxPath: null,   // 当前加载的 .inx 路径
     curArmor: 1,            // 当前铠甲编号（1=默认身体）
+    curBodyInxOverride: null, // 时装专用：直接指定 body .inx 路径
     currentArmorDorp: null, // 当前铠甲的 dorpItem 码
+    currentWeaponType: null,  // 当前武器语义类型（'BOW'|'SWORD'|...）
+    currentHandType: null,    // 当前武器单双手（'1H'|'2H'|'UNDEFINED'）
   };
   state.axisGroup = axisGroup;
+
+  // ===== 动画状态机 =====
+  let animSM = null;  // 在 loadCharacterModel 成功后创建
+  function ensureAnimSM() {
+    if (animSM) return animSM;
+    animSM = createAnimStateMachine({
+      getMotions: () => state.animMotions,
+      getClassId: () => window.PTViewer.getCurJob?.() ?? 1,
+      getWeaponIdCode: () => state.currentWeaponIdCode,
+      getWeaponType: () => state.currentWeaponType,
+      onMotionChange: (m) => {
+        // 同步到下拉框和播放状态
+        const sel = document.getElementById('animSel');
+        const idx = state.animMotions.indexOf(m);
+        if (idx >= 0) sel.value = idx;
+        state.currentMotion = m;
+        state.animFrame = m.startFrame;
+        state.animPlaying = true;
+        document.getElementById('btnPlay').textContent = '暂停';
+        updateFrameUI();
+      },
+      log: log,
+    });
+    return animSM;
+  }
 
   // ===== 渲染循环 =====
   const clock = new THREE.Clock();
@@ -433,6 +479,13 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
           state.animFrame = m.endFrame;
           state.animPlaying = false;
           document.getElementById('btnPlay').textContent = '播放';
+          // 状态机：非循环动画结束时触发状态转换（ATTACK→STAND, SKILL→STAND 等）
+          if (animSM) {
+            const next = animSM.onAnimationEnd();
+            if (next) {
+              // onAnimationEnd 切换到了新动画，无需额外操作（onMotionChange 已设置 animPlaying=true）
+            }
+          }
         }
       }
       applyAnimationFrame();
@@ -472,6 +525,21 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
 
 
   animate();
+
+  // ===== 键盘快捷键 =====
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (!animSM || !state.animSmb) return;
+    switch (e.key.toLowerCase()) {
+      case 'j': animSM.triggerAttack(); break;
+      case 'k': animSM.triggerSkill(); break;
+      case 'i': animSM.triggerIdle(); break;
+      case 'w': animSM.triggerWalk(); break;
+      case 'r': animSM.triggerRun(); break;
+      case 't': animSM.triggerTaunt(); break;
+      case 'y': animSM.triggerYahoo(); break;
+    }
+  });
 
   // 应用当前动画帧到骨骼
   function applyAnimationFrame() {
@@ -540,7 +608,6 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     const jobListEl = document.getElementById('jobList');
     const headBtnsEl = document.getElementById('headBtns');
     const tierBtnsEl = document.getElementById('tierBtns');
-    const btnLoadChar = document.getElementById('btnLoadChar');
     const charStatus = document.getElementById('charStatus');
 
     let curRace = RACE_TEMPSKRON;
@@ -571,6 +638,7 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
           curJob = jid;
           curFace = 0;
           state.curArmor = 1;
+          state.curBodyInxOverride = null;
           state.currentArmorDorp = null;
           armorLabel.textContent = '铠甲: 默认';
           renderJobList();
@@ -620,7 +688,6 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     // 自动加载角色模型
     let loadCharAbort = null;
     async function autoLoad() {
-      btnLoadChar.disabled = false;
       charStatus.textContent = '加载中...';
       if (loadCharAbort) loadCharAbort.abort();
       loadCharAbort = new AbortController();
@@ -628,7 +695,7 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
 
       try {
         clearModel();
-        const result = await loadCharacterModel(curJob, curFace, curTier, 'high', state.curArmor || 1);
+        const result = await loadCharacterModel(curJob, curFace, curTier, 'high', state.curArmor || 1, state.curBodyInxOverride);
         if (mySignal.aborted) return;
 
         // 添加到场景
@@ -677,6 +744,9 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
 
         // 填充动画下拉（角色动画在 bip .inx 里，不在 body/head inx 里）
         populateAnimSel(result.animSmb, result.bipInxInfo);
+        showBoneTreeForCharacter(result.animSmb);
+        loadSkillList(curJob);
+        ensureAnimSM();
 
         charStatus.textContent = `加载完成：${JOB_NAMES_CN[curJob]} 头型${curFace + 1} ${TIER_NAMES_CN[curTier]}`;
         log(`纸娃娃加载：${JOB_NAMES_CN[curJob]} 头型${curFace + 1} ${TIER_NAMES_CN[curTier]}`, 'ok');
@@ -695,12 +765,22 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
       sel.disabled = false;
 
       // 动画条目从 bip .inx 获取（角色 .inx 只有基础 0-9 状态）
+      // C++ character.cpp:641-648：motion 文件的 TmFrame[mf-1].StartFrame/160 加到 .inx 帧号
+      const tmFrame = smb && smb.tmFrame;
       const motions = [];
       if (bipInx) {
         for (let i = CHRMOTION_EXT_MIN; i < bipInx.motionCount; i++) {
           const mi = bipInx.motions[i];
           if (!mi.state && !mi.startFrame && !mi.endFrame) continue;
-          motions.push(mi);
+          // 应用 TmFrame 偏移（与 C++ LoadCharactor 一致）
+          let startFrame = mi.startFrame;
+          let endFrame = mi.endFrame;
+          if (tmFrame && mi.motionFrame > 0 && tmFrame[mi.motionFrame - 1]) {
+            const off = tmFrame[mi.motionFrame - 1].startFrame / 160;
+            startFrame += off;
+            endFrame += off;
+          }
+          motions.push({ ...mi, startFrame, endFrame });
         }
       }
 
@@ -708,14 +788,116 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
       motions.forEach((mi, idx) => {
         const o = document.createElement('option');
         o.value = idx;
-        o.textContent = `${motionStateName(mi.state)} [${mi.startFrame},${mi.endFrame}]${mi.repeat ? ' 循环' : ''}`;
+        // 检查是否匹配当前武器/职业（精确 + 类型）
+        const matched = findMotions([mi], mi.state, state.currentWeaponIdCode, curJob).length > 0;
+        const typeMatched = findMotionsByType([mi], mi.state, state.currentWeaponType, curJob).length > 0;
+        let label = (matched ? '\u2713 ' : typeMatched ? '\u25B3 ' : '  ') + motionStateName(mi.state) + ' [' + mi.startFrame + ',' + mi.endFrame + ']';
+        if (mi.repeat) label += ' L';
+        // 显示职业匹配信息
+        if (mi.dwJobCodeBit) {
+          const classes = decodeClassFlags(mi.dwJobCodeBit);
+          label += ' {' + classes.join(',') + '}';
+        }
+        // 显示武器匹配信息
+        if (mi.itemCodeCount > 0) {
+          label += ' W:' + mi.itemCodeCount;
+        }
+        // 显示技能码
+        const skills = [];
+        for (let s = 0; s < mi.skillCodeList.length; s++) {
+          if (mi.skillCodeList[s]) skills.push(mi.skillCodeList[s]);
+        }
+        if (skills.length) label += ' S:' + skills.join(',');
+        o.textContent = label;
+        o.dataset.matched = matched ? '1' : typeMatched ? '2' : '0';
         sel.appendChild(o);
       });
 
       state.animMotions = motions;
+
+      // 默认选第一个动画（与 initAnimation 保持一致）
+      sel.disabled = motions.length === 0;
+      document.getElementById('frameSlider').disabled = motions.length === 0;
+      document.getElementById('frameInput').disabled = motions.length === 0;
+      if (motions.length > 0) {
+        sel.selectedIndex = 0;
+        selectAnimation(0);
+      }
     }
 
-    btnLoadChar.onclick = autoLoad;
+    // 武器变更后刷新下拉框中的武器匹配标记
+    function refreshAnimWeaponMatch() {
+      const sel = document.getElementById('animSel');
+      if (!sel || !state.animMotions.length) return;
+      const hideUnmatched = document.getElementById('chkHideUnmatched')?.checked;
+      // 调试：武器匹配汇总（精确 vs 类型）
+      const _debugStats = {};
+      state.animMotions.forEach((mi, idx) => {
+        const opt = sel.options[idx];
+        if (!opt) return;
+        const matched = findMotions([mi], mi.state, state.currentWeaponIdCode, curJob).length > 0;
+        const typeMatched = findMotionsByType([mi], mi.state, state.currentWeaponType, curJob).length > 0;
+        const baseLabel = motionStateName(mi.state) + ' [' + mi.startFrame + ',' + mi.endFrame + ']';
+        let label = (matched ? '\u2713 ' : typeMatched ? '\u25B3 ' : '  ') + baseLabel;
+        if (mi.repeat) label += ' L';
+        if (mi.dwJobCodeBit) {
+          const classes = decodeClassFlags(mi.dwJobCodeBit);
+          label += ' {' + classes.join(',') + '}';
+        }
+        if (mi.itemCodeCount > 0) label += ' W:' + mi.itemCodeCount;
+        const skills = [];
+        for (let s = 0; s < mi.skillCodeList.length; s++) {
+          if (mi.skillCodeList[s]) skills.push(mi.skillCodeList[s]);
+        }
+        if (skills.length) label += ' S:' + skills.join(',');
+        opt.textContent = label;
+        opt.dataset.matched = matched ? '1' : typeMatched ? '2' : '0';
+        opt.hidden = hideUnmatched && !matched && !typeMatched;
+        opt.style.display = (hideUnmatched && !matched && !typeMatched) ? 'none' : '';
+        // 汇总（精确匹配）
+        const key = '0x' + mi.state.toString(16);
+        if (!_debugStats[key]) _debugStats[key] = { total: 0, exact: 0, typeOnly: 0, sampleW: '' };
+        _debugStats[key].total++;
+        if (matched) _debugStats[key].exact++;
+        else if (typeMatched) _debugStats[key].typeOnly++;
+        if ((matched || typeMatched) && !_debugStats[key].sampleW) {
+          const codes = Array.from(mi.itemCodeList.slice(0, mi.itemCodeCount));
+          _debugStats[key].sampleW = `codes[${codes.map(c => '0x' + c.toString(16).toUpperCase()).join(',')}]`;
+        }
+      });
+      // 输出调试汇总
+      {
+        const wCode = state.currentWeaponIdCode;
+        const wHex = wCode ? ('0x' + (wCode >>> 0).toString(16).toUpperCase().padStart(8, '0')) : 'null';
+        const weaponType = state.currentWeaponType || 'N/A';
+        const typeNameCN = WEAPON_TYPE_CN[state.currentWeaponType] || (wCode ? '未知' : '空手');
+        const sIdx = wCode ? SITEM_WEAPON_INDEX[wCode] : undefined;
+        const idxStr = sIdx !== undefined ? `sItem[${sIdx}]` : (wCode ? '未索引' : '-');
+        const summary = Object.entries(_debugStats).map(([k, v]) =>
+          `${k}:${v.exact}/${v.total}${v.typeOnly ? '+' + v.typeOnly + '△' : ''}${v.sampleW ? ' ' + v.sampleW : ''}`
+        ).join(' ');
+        log(`[debug] 武器匹配 ${typeNameCN} ${weaponType} ${wHex} ${idxStr} | ${summary}`);
+      }
+      // 强制浏览器重绘 <select>，否则 option 文本修改后下拉框不会视觉刷新
+      const prevIndex = sel.selectedIndex;
+      sel.style.display = 'none';
+      sel.offsetHeight; // force reflow
+      sel.style.display = '';
+      if (prevIndex >= 0) sel.selectedIndex = prevIndex;
+      // 同步到状态机：如果当前播放的动画变成了不匹配，切回 idle
+      if (state.animPlaying && state.currentMotion) {
+        const cur = state.currentMotion;
+        let stillMatched = findMotions([cur], cur.state, state.currentWeaponIdCode, curJob).length > 0;
+        if (!stillMatched && state.currentWeaponType) {
+          stillMatched = findMotionsByType([cur], cur.state, state.currentWeaponType, curJob).length > 0;
+        }
+        if (!stillMatched) {
+          state.animPlaying = false;
+          document.getElementById('btnPlay').textContent = '播放';
+          animSM?.triggerIdle();
+        }
+      }
+    }
 
     // 初始渲染
     renderJobList();
@@ -726,6 +908,7 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     window.PTViewer.getCurJob = () => curJob;
     window.PTViewer.getCurFace = () => curFace;
     window.PTViewer.getCurTier = () => curTier;
+    window.PTViewer.refreshAnimWeaponMatch = refreshAnimWeaponMatch;
   }
 
   // ===== 装备弹框系统 =====
@@ -811,6 +994,12 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         armorItems = (data.items || []).filter(it => it.dorpItem).sort((a, b) => (a.reqLevel || 0) - (b.reqLevel || 0));
+        // 过滤时装：如果该 dorpItem 在 costume map 中但没有当前职业的映射，隐藏（按性别过滤）
+        armorItems = armorItems.filter(it => {
+          const row = COSTUME_BODY_MAP[it.dorpItem.toLowerCase()];
+          if (!row) return true; // 不在 map 中 → 用公式，保留
+          return row[job - 1] !== null; // 在 map 中但没有该职业映射 → 隐藏
+        });
       } catch (e) {
         armorTab.innerHTML = `<div class="armor-loading" style="color:#f85149;">加载失败: ${e.message}</div>`;
         return;
@@ -843,6 +1032,9 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
       const armorNum = armorNumFromIdCode(item.idCode);
       state.curArmor = armorNum;
       state.currentArmorDorp = item.dorpItem;
+      // 时装映射：优先用 COSTUME_BODY_MAP 解析 body .inx 路径
+      const costumePath = resolveCostumeBody(item.dorpItem, window.PTViewer.getCurJob());
+      state.curBodyInxOverride = costumePath;
       armorLabel.textContent = '铠甲: ' + item.name;
       // 更新选中态
       armorTab.querySelectorAll('.armor-cell').forEach(c => {
@@ -860,13 +1052,15 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     // ===== 武器选择 =====
     const WEAPON_TYPE_MAP = {
       'Axes':     'Axes',
-      'Swords':   'Swords',
-      'Hammers':  'Hammers',
-      'Claws':    'Claws',
-      'Poles':    'Poles',
       'Bows':     'Bows',
-      'Staffs':   'Staffs',
-      'Throwing': 'Throwing',
+      'Claws':    'Claws',
+      'Daggers':  'Daggers',
+      'Hammers':  'Hammers',
+      'Javelins': 'Javelins',
+      'Phantoms': 'Phantoms',
+      'Scythes':  'Scythes',
+      'Swords':   'Swords',
+      'Staffs':   'Wands & Staffs',
     };
     const WEAPON_TYPES = Object.keys(WEAPON_TYPE_MAP);
 
@@ -874,6 +1068,7 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     state.weaponBone = null;
     state.weaponTextures = [];
     state.currentWeaponDorp = null;
+    state.currentWeaponIdCode = null;
 
     function renderWeaponTypeTabs() {
       let html = '<div class="weapon-type-tabs">';
@@ -911,8 +1106,9 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
           const d = document.createElement('div');
           d.className = 'opt' + (item.dorpItem === state.currentWeaponDorp ? ' sel' : '');
           const lvlText = item.reqLevel ? ` Lv${item.reqLevel}` : '';
-          d.innerHTML = `<span>${item.name}</span><span class="fn">${item.dorpItem}${lvlText}</span>`;
-          d.onclick = () => attachWeapon(item.dorpItem, item.name, item.modelPosition);
+          const handText = item.classItem === 4 ? ' [单手]' : item.classItem === 6 ? ' [双手]' : '';
+          d.innerHTML = `<span>${item.name}${handText}</span><span class="fn">${item.dorpItem}${lvlText}</span>`;
+          d.onclick = () => attachWeapon(item.dorpItem, item.name, item.modelPosition, item.idCode, item.classItem);
           listEl.appendChild(d);
         });
       } catch (e) {
@@ -921,13 +1117,16 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
       }
     }
 
-    async function attachWeapon(dorpItem, weaponName, modelPosition) {
+    async function attachWeapon(dorpItem, weaponName, modelPosition, idCode, classItem) {
       if (!state.skeleton || !state.skeletonGroup) {
         log('请先加载角色', 'err');
         return;
       }
       detachWeapon();
       state.currentWeaponDorp = dorpItem;
+      state.currentWeaponName = weaponName || dorpItem;
+      state.currentWeaponIdCode = idCode || null;
+      state.currentWeaponClassItem = classItem || null;
 
       // modelPosition: 2=LeftHand, 4=RightHand (default)
       const boneName = modelPosition === 2 ? WEAPON_BONES.LEFT_HAND : WEAPON_BONES.RIGHT_HAND;
@@ -959,6 +1158,22 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
         state.weaponTextures = result.texturesToLoad;
         weaponLabel.textContent = '武器: ' + (weaponName || dorpItem);
         log(`武器挂载: ${weaponName || dorpItem} → ${boneName}`, 'ok');
+        // 武器语义类型（weapon-type.js）
+        {
+          const weaponType = getWeaponTypeFromIdCode(idCode);
+          const handType = getHandType(classItem);
+          state.currentWeaponType = weaponType;
+          state.currentHandType = handType;
+          const hex = '0x' + (idCode >>> 0).toString(16).toUpperCase().padStart(8, '0');
+          const typeNameCN = WEAPON_TYPE_CN[weaponType] || '未知';
+          const sIdx = SITEM_WEAPON_INDEX[idCode];
+          const idxStr = sIdx !== undefined ? `sItem[${sIdx}]` : '未索引';
+          log(`[debug] ${weaponName || dorpItem} (${dorpItem}) ${handType} ${typeNameCN} idCode=${hex} ${idxStr}`);
+        }
+        // 武器变更后刷新动画匹配标记 + 技能列表（重新按武器过滤 hasAnim）
+        window.PTViewer.refreshAnimWeaponMatch?.();
+        const curJobId = window.PTViewer.getCurJob?.() ?? 1;
+        if (typeof loadSkillList === 'function') loadSkillList(curJobId);
         const listEl = document.getElementById('weaponModalList');
         if (listEl) listEl.querySelectorAll('.opt').forEach(o => {
           const fn = o.querySelector('.fn');
@@ -980,7 +1195,14 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
         state.weaponBone = null;
         state.weaponTextures = [];
         state.currentWeaponDorp = null;
+        state.currentWeaponName = null;
+        state.currentWeaponIdCode = null;
+        state.currentWeaponClassItem = null;
+        state.currentWeaponType = null;
+        state.currentHandType = null;
         weaponLabel.textContent = '武器: 无';
+        const curJobId = window.PTViewer.getCurJob?.() ?? 1;
+        if (typeof loadSkillList === 'function') loadSkillList(curJobId);
         const listEl = document.getElementById('weaponModalList');
         if (listEl) listEl.querySelectorAll('.opt').forEach(o => o.classList.remove('sel'));
       }
@@ -1200,19 +1422,97 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
     return results;
   }
 
-  // 在右栏显示骨骼信息
+  // 构建骨骼树 HTML（层级折叠树）
+  function buildBoneTreeHTML(smb) {
+    if (!smb || !smb.objects || !smb.objects.length) return '<div style="color:#888">无骨骼数据</div>';
+    const byName = new Map();
+    smb.objects.forEach(o => byName.set(o.nodeName, o));
+    // 找根节点（nodeParent 为空或不存在）
+    const roots = smb.objects.filter(o => !o.nodeParent || !byName.has(o.nodeParent));
+    // 子节点映射
+    const children = new Map();
+    smb.objects.forEach(o => {
+      const p = o.nodeParent && byName.has(o.nodeParent) ? o.nodeParent : null;
+      if (!children.has(p)) children.set(p, []);
+      children.get(p).push(o);
+    });
+    // 排序：保持原始顺序
+    const sort = (list) => list.sort((a, b) => {
+      return smb.objects.indexOf(a) - smb.objects.indexOf(b);
+    });
+    const render = (node, depth) => {
+      const kids = sort(children.get(node.nodeName) || []);
+      const hasKids = kids.length > 0;
+      const nv = node.nVertex || 0;
+      const cls = hasKids ? 'bone-node has-kids' : 'bone-node';
+      const icon = hasKids ? '▸' : '·';
+      let html = `<div class="bone-node" style="padding-left:${depth * 14}px">
+        <span class="bone-toggle" data-name="${node.nodeName}" style="cursor:${hasKids ? 'pointer' : 'default'};color:${hasKids ? '#ffd479' : '#888'}">${icon}</span>
+        <span class="bone-name" data-name="${node.nodeName}" style="cursor:pointer;color:#9db8d9">${node.nodeName}</span>
+        ${nv > 0 ? `<span style="color:#666;margin-left:6px">(网格:${nv})</span>` : ''}
+      </div>`;
+      if (hasKids) {
+        html += `<div class="bone-children" data-parent="${node.nodeName}" style="display:none">`;
+        kids.forEach(k => { html += render(k, depth + 1); });
+        html += `</div>`;
+      }
+      return html;
+    };
+    let html = `<div style="font-size:11px">骨骼节点: ${smb.objects.length} 个（点击骨骼高亮/折叠）</div>`;
+    roots.forEach(r => { html += render(r, 0); });
+    return html;
+  }
+
+  // 骨骼树点击交互：折叠/展开 + 高亮
+  function initBoneTree() {
+    const el = document.getElementById('boneInfo');
+    if (!el) return;
+    el.onclick = (e) => {
+      const toggle = e.target.closest('.bone-toggle');
+      const name = e.target.closest('.bone-node')?.dataset?.name;
+      const boneNode = e.target.closest('.bone-node');
+      if (!boneNode) return;
+      const bName = boneNode.querySelector('.bone-name')?.textContent || name;
+      // 折叠/展开
+      if (toggle && boneNode) {
+        const isOpen = toggle.textContent === '▾';
+        toggle.textContent = isOpen ? '▸' : '▾';
+        const ch = el.querySelector(`.bone-children[data-parent="${bName}"]`);
+        if (ch) ch.style.display = isOpen ? 'none' : '';
+      }
+      // 高亮对应骨骼
+      highlightBone(bName);
+    };
+  }
+
+  // 高亮指定骨骼（通过骨骼线条或临时标记）
+  function highlightBone(boneName) {
+    const sg = state.skeletonGroup;
+    if (!sg) return;
+    // 清除旧高亮
+    sg.traverse(o => { if (o.userData && o.userData._hl) { o.userData._hl = false; if (o.material) o.material.color.set(0xffffff); } });
+    // 查找骨骼并高亮
+    let found = null;
+    sg.traverse(o => {
+      if (o.name && o.name.toLowerCase() === boneName.toLowerCase()) found = o;
+    });
+    if (found) {
+      found.traverse(o => {
+        if (o.isMesh && o.material) { o.material.color.set(0xff4444); o.userData._hl = true; }
+      });
+    }
+  }
+
+  // 在右栏显示骨骼信息（模型浏览路径）
   function showBoneInfo(results) {
     const el = document.getElementById('boneInfo');
     const L = [];
     const smb = results.smb, smd = results.smd;
     if (smb) {
       L.push('骨骼文件: ' + results.smbPath);
-      L.push('骨骼节点: ' + smb.objCounter + ' 个');
-      const chain = [];
-      smb.objects.forEach((obj, i) => {
-        chain.push(`${i}:${obj.nodeName}`);
-      });
-      L.push('节点: ' + chain.join(' → '));
+      el.innerHTML = buildBoneTreeHTML(smb);
+      initBoneTree();
+      return;
     }
     if (smd) {
       L.push('');
@@ -1231,6 +1531,196 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
       L.push('缺失: ' + results.errs.join('; '));
     }
     el.textContent = L.join('\n');
+  }
+
+  // 角色加载后显示骨骼树
+  function showBoneTreeForCharacter(smb) {
+    const el = document.getElementById('boneInfo');
+    if (!el || !smb) return;
+    el.innerHTML = buildBoneTreeHTML(smb);
+    initBoneTree();
+  }
+
+  // ===== 技能列表面板 =====
+  // 从当前 bip 的 SKILL 动画解析出 skillIndex → 动画条目 的映射
+  // .inx SKILL 动画的 skillCodeList 值 = saSkillData[] 表索引（SkillManager.h），
+  // skills.json 的 skillIndex 使用相同索引体系，两者直接对应
+  function buildSkillAnimMap() {
+    const map = new Map(); // skillIndex → [motion, ...]
+    if (!state.animMotions) return map;
+    state.animMotions.forEach(m => {
+      if (m.state !== 0x150) return; // 只处理 SKILL
+      const raw = Array.from(m.skillCodeList || []);
+      raw.forEach(idx => {
+        if (!idx) return;
+        if (!map.has(idx)) map.set(idx, []);
+        map.get(idx).push(m);
+      });
+    });
+    return map;
+  }
+
+  // 播放指定技能动画（按 saSkill 索引 + 当前武器过滤）
+  function playSkillByIndex(skillIndex, skillName) {
+    if (!skillIndex) return false;
+    const weaponId = state.currentWeaponIdCode || 0;
+    const weaponType = state.currentWeaponType || null;
+    const clsId = window.PTViewer.getCurJob?.() ?? 1;
+    // 先用 findMotions 按状态+职业+武器过滤出候选，再叠加技能匹配
+    let candidates = findMotions(state.animMotions || [], 0x150, weaponId, clsId);
+    // 精确匹配无结果时，回退到类型匹配
+    if (!candidates.length && weaponType) {
+      candidates = findMotionsByType(state.animMotions || [], 0x150, weaponType, clsId);
+    }
+    if (candidates.length) {
+      candidates = candidates.filter(m => {
+        const raw = Array.from(m.skillCodeList || []);
+        return raw.includes(skillIndex);
+      });
+    }
+    if (!candidates.length) {
+      const map = buildSkillAnimMap();
+      candidates = map.get(skillIndex) || [];
+    }
+    if (!candidates.length) return false;
+    // 从匹配集合中随机选一个（同技能+同武器可能有多段动作）
+    const m = candidates[Math.floor(Math.random() * candidates.length)];
+    state.currentMotion = m;
+    state.animFrame = m.startFrame;
+    state.animPlaying = true;
+    document.getElementById('btnPlay').textContent = '播放中';
+    document.getElementById('animSel').value = state.animMotions.indexOf(m);
+    const wName = state.currentWeaponName || state.currentWeaponDorp || '无';
+    log(`技能动画 → 技能[${skillName || '?'}](ID=${skillIndex}) 武器=${wName}(0x${(weaponId>>>0).toString(16)}) 动画=${motionStateName(m.state)}[${m.startFrame},${m.endFrame}] items=${m.itemCodeCount}`, 'ok');
+    return true;
+  }
+
+  // 播放当前武器的普通攻击动画（无专属技能动画的技能回退——动作即普攻）
+  function playAttackAnim(skillName) {
+    const weaponId = state.currentWeaponIdCode || 0;
+    const weaponType = state.currentWeaponType || null;
+    const clsId = window.PTViewer.getCurJob?.() ?? 1;
+    let candidates = findMotions(state.animMotions || [], 0x100, weaponId, clsId);
+    if (!candidates.length && weaponType) {
+      candidates = findMotionsByType(state.animMotions || [], 0x100, weaponType, clsId);
+    }
+    if (!candidates.length) candidates = (state.animMotions || []).filter(m => m.state === 0x100);
+    if (!candidates.length) { log('无攻击动画', 'warn'); return false; }
+    const m = candidates[Math.floor(Math.random() * candidates.length)];
+    state.currentMotion = m;
+    state.animFrame = m.startFrame;
+    state.animPlaying = true;
+    document.getElementById('btnPlay').textContent = '播放中';
+    document.getElementById('animSel').value = state.animMotions.indexOf(m);
+    const wName = state.currentWeaponName || state.currentWeaponDorp || '无';
+    const itemCodes = Array.from(m.itemCodeList.slice(0, m.itemCodeCount)).map(c => '0x' + c.toString(16)).join(',');
+    log(`普攻动画 → 技能[${skillName || '?'}] 武器=${wName}(0x${(weaponId>>>0).toString(16)}) 动画=${motionStateName(m.state)}[${m.startFrame},${m.endFrame}] items=${m.itemCodeCount} itemCodes=[${itemCodes}]`, 'ok');
+    return true;
+  }
+
+  // 加载职业技能列表并渲染
+  async function loadSkillList(jobId) {
+    const el = document.getElementById('skillList');
+    if (!el) return;
+    el.innerHTML = '加载中...';
+    try {
+      const resp = await fetch(`/pt/api/simulator/skills?job=${jobId}`, { cache: 'no-store' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const skills = await resp.json();
+      if (!skills || !skills.length) { el.innerHTML = '<div style="color:#888">无技能数据</div>'; return; }
+
+      // 构建 playCode → 技能是否可播（用于灰/蓝）
+      const animMap = buildSkillAnimMap();
+      const weaponId = state.currentWeaponIdCode || 0;
+      const weaponType = state.currentWeaponType || null;
+      let skillCandidates = findMotions(state.animMotions || [], 0x150, weaponId, jobId);
+      if (!skillCandidates.length && weaponType) {
+        skillCandidates = findMotionsByType(state.animMotions || [], 0x150, weaponType, jobId);
+      }
+      const hasAnimForSkill = (skillIndex) => {
+        if (!skillIndex) return false;
+        // 先按当前武器过滤，再匹配技能
+        const wep = skillCandidates.length ? skillCandidates : (animMap.get(skillIndex) || []);
+        return wep.some(m => Array.from(m.skillCodeList || []).includes(skillIndex));
+      };
+
+      el.innerHTML = '';
+      const grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;';
+
+      // 职业目录名（图标 URL 用）
+      const jobDirs = { 1:'fighter', 2:'mecha', 3:'archer', 4:'pikeman', 5:'atalanta',
+                        6:'knight', 7:'magician', 8:'priestess', 9:'assassin', 10:'shaman' };
+      const jobDir = jobDirs[jobId] || '';
+
+      skills.forEach(sk => {
+        const cell = document.createElement('div');
+        const active = !!sk.active;
+        const hasAnim = hasAnimForSkill(sk.skillIndex);
+        const clickable = active; // 主动技能均可点（有特定动画播特定，否则播随机SKILL）
+
+        cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:2px;' +
+          'padding:4px;border-radius:4px;cursor:' + (clickable ? 'pointer' : 'default') + ';' +
+          'background:' + (active ? '#1a2332' : '#14181f') + ';' +
+          'border:1px solid ' + (active ? '#2d4059' : '#22262d') + ';';
+
+        // 图标
+        const icon = document.createElement('div');
+        icon.style.cssText = 'width:32px;height:32px;display:flex;align-items:center;justify-content:center;' +
+          'background:#0d1117;border:1px solid #333;border-radius:3px;font-size:10px;color:#666;overflow:hidden;';
+        const iconFile = sk.iconFile ? sk.iconFile + '.bmp' : '';
+        if (iconFile && jobDir) {
+          const url = `/pt/exm-run/image/sinimage/skill/${jobDir}/button/${encodeURI(iconFile)}`;
+          const img = new Image();
+          img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+          img.onload = () => { icon.innerHTML = ''; icon.appendChild(img); };
+          img.onerror = () => { icon.textContent = sk.name ? sk.name[0] : '?'; };
+          img.src = url;
+        } else {
+          icon.textContent = sk.name ? sk.name[0] : '?';
+        }
+        cell.appendChild(icon);
+
+        // 名字（EU 显示名 / 等级 / 类型）
+        const displayName = sk.euName || sk.name;
+        const nameEl = document.createElement('div');
+        const typeIcons = {attack:'⚔',buff:'🛡',passive:'📊',healing:'💚',debuff:'💀',summon:'👻'};
+        const typeIcon = typeIcons[sk.type] || '';
+        const levelText = sk.level ? ` Lv${sk.level}` : '';
+        nameEl.textContent = displayName;
+        nameEl.style.cssText = 'font-size:9px;text-align:center;line-height:1.2;width:100%;word-break:break-all;' +
+          'color:' + (active ? '#4da6ff' : '#888888') + ';';
+        nameEl.title = `${displayName}${levelText} ${typeIcon}${sk.type || ''}\n` +
+          `[${sk.skillIndex}] ${sk.name}` +
+          (active ? (hasAnim ? '（点击播放）' : '（普攻动画）') : '（被动）');
+        // 等级标签
+        if (sk.level) {
+          const lvlEl = document.createElement('div');
+          lvlEl.textContent = `Lv${sk.level}`;
+          lvlEl.style.cssText = 'font-size:7px;color:#666;text-align:center;';
+          cell.appendChild(lvlEl);
+        }
+        cell.appendChild(nameEl);
+
+        // 点击播放
+        if (clickable) {
+          cell.onclick = () => {
+            if (hasAnim) {
+              playSkillByIndex(sk.skillIndex, sk.name);
+            } else {
+              // 无专属动画：技能动作即普攻（如 WindArrow/PerfectAim 共用拉弓射箭）
+              if (!playAttackAnim(sk.name)) log(`技能[${sk.name}] 无专属动画且无普攻`, 'warn');
+            }
+          };
+        }
+        grid.appendChild(cell);
+      });
+      el.appendChild(grid);
+      log('技能列表加载：' + skills.length + ' 个（' + (skills.filter(s=>s.active).length) + ' 主动 / ' + (skills.filter(s=>!s.active).length) + ' 被动）');
+    } catch (e) {
+      el.innerHTML = `<div style="color:#f85149">加载失败: ${e.message}</div>`;
+      log('技能列表加载失败: ' + e.message, 'err');
+    }
   }
 
   // 清除场景中的模型
@@ -1488,6 +1978,15 @@ body { background: #111; color: #e8e8e8; font-family: Tahoma, Arial, sans-serif;
   document.getElementById('chkLoop').onchange = (e) => {
     state.animLoop = e.target.checked;
   };
+  document.getElementById('chkHideUnmatched').onchange = () => {
+    window.PTViewer.refreshAnimWeaponMatch?.();
+  };
+  // 状态机按钮
+  document.getElementById('btnSMAttack').onclick = () => { ensureAnimSM()?.triggerAttack(); };
+  document.getElementById('btnSMSkill').onclick = () => { ensureAnimSM()?.triggerSkill(); };
+  document.getElementById('btnSMIdle').onclick = () => { ensureAnimSM()?.triggerIdle(); };
+  document.getElementById('btnSMWalk').onclick = () => { ensureAnimSM()?.triggerWalk(); };
+  document.getElementById('btnSMRun').onclick = () => { ensureAnimSM()?.triggerRun(); };
   // 时间轴拖动
   document.getElementById('frameSlider').oninput = (e) => {
     const m = state.currentMotion;

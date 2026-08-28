@@ -13,13 +13,35 @@
 // ===== 常量 =====
 const CHRMOTION_EXT = 10;
 
-/** 动画状态码（character.h） */
+/** 动画状态码（unit.h: EAnimationType） */
 const CHRMOTION_STATE = {
-  0x40: 'STAND', 0x50: 'WALK', 0x60: 'RUN', 0x80: 'FALLDOWN',
-  0x100: 'ATTACK', 0x110: 'DAMAGE', 0x120: 'DEAD', 0x130: 'SOMETIME',
-  0x140: 'EAT', 0x150: 'SKILL', 0x170: 'FALLSTAND', 0x180: 'FALLDAMAGE',
-  0x200: 'RESTART', 0x210: 'WARP', 0x220: 'YAHOO',
+  0x00: 'NONE', 0x40: 'STAND', 0x50: 'WALK', 0x60: 'RUN', 0x70: 'SPRINT',
+  0x80: 'FALLDOWN', 0x100: 'ATTACK', 0x110: 'DAMAGE', 0x120: 'DEAD',
+  0x130: 'SOMETIME', 0x140: 'EAT', 0x150: 'SKILL',
+  0x170: 'FALLSTAND', 0x180: 'FALLDAMAGE',
+  0x200: 'RESTART', 0x210: 'WARP', 0x220: 'YAHOO', 0x230: 'TAUNT',
+  0x300: 'HAMMER',
+  0x400: 'TALK_AR', 0x410: 'TALK_E', 0x420: 'TALK_OH', 0x430: 'TALK_EYE',
+  0x440: 'SMILE', 0x450: 'GRUMBLE', 0x460: 'SORROW', 0x470: 'STARTLED',
+  0x480: 'NATURE', 0x490: 'SPECIAL',
 };
+
+/** 职业位掩码（unit.h: EAnimationClassFlag） */
+export const CLASS_FLAG = {
+  Fighter: 0x0001, Mechanician: 0x0002, Archer: 0x0004, Pikeman: 0x0008,
+  Atalanta: 0x0010, Knight: 0x0020, Magician: 0x0040, Priestess: 0x0080,
+  Assassin: 0x0100, Shaman: 0x0200,
+};
+
+/** 解码职业掩码为类名列表 */
+export function decodeClassFlags(flag) {
+  if (!flag) return ['ALL'];
+  const names = [];
+  for (const [name, bit] of Object.entries(CLASS_FLAG)) {
+    if (flag & bit) names.push(name);
+  }
+  return names.length ? names : ['NONE'];
+}
 
 /** 从 DataView 读取定长字符串（按字节，遇 \0 截断） */
 export function readCString(dv, offset, len) {
@@ -86,7 +108,7 @@ function readRawMotionInfo(dv, offset) {
   const mapPosition = dv.getInt32(offset + 156, true);
   const repeat = dv.getUint32(offset + 160, true);
   const keyCode = dv.getUint8(offset + 164);
-  // offset 165..167 对齐填充
+  const fxValue = [dv.getUint8(offset + 165), dv.getUint8(offset + 166), dv.getUint8(offset + 167)];
   const motionFrame = dv.getInt32(offset + 168, true);
 
   return {
@@ -103,6 +125,7 @@ function readRawMotionInfo(dv, offset) {
     mapPosition,
     repeat,
     keyCode,
+    fxValue,
     motionFrame,
     size: 172,
   };

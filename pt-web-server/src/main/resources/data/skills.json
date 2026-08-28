@@ -1,0 +1,1951 @@
+{
+  "mecha": [
+    {
+      "skillIndex": 1,
+      "name": "ExtremeShield",
+      "active": true,
+      "iconFile": "tm10 ex_shield",
+      "level": 12,
+      "euName": "Extreme Shield",
+      "euIcon": "TM10_Ex_shield",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 2,
+      "name": "MechanicBomb",
+      "active": true,
+      "iconFile": "tm12 m_bomb",
+      "level": 20,
+      "euName": "Mechanic Bomb",
+      "euIcon": "TM12_M_bomb",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 3,
+      "name": "PhysicalAbsorption",
+      "active": true,
+      "iconFile": "",
+      "level": 17,
+      "euName": "Physical Absorption",
+      "euIcon": "TM17_Ph_absorb",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 4,
+      "name": "PoisonAttribute",
+      "active": false,
+      "iconFile": "",
+      "level": 70,
+      "euName": "Electrical Overload",
+      "euIcon": "TM14_P_attribute",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 5,
+      "name": "roundimpact",
+      "active": true,
+      "iconFile": "",
+      "level": 10,
+      "euName": "Great Smash",
+      "euIcon": "TM20_G_Smash",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 6,
+      "name": "Maximize",
+      "active": true,
+      "iconFile": "tm23 maximize",
+      "level": 26,
+      "euName": "Maximize",
+      "euIcon": "TM23_Maximize",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 7,
+      "name": "Automation",
+      "active": true,
+      "iconFile": "tm26 automation",
+      "level": 23,
+      "euName": "Automation",
+      "euIcon": "TM26_Automation",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 8,
+      "name": "Spark",
+      "active": true,
+      "iconFile": "tm30 spark",
+      "level": 30,
+      "euName": "Spark",
+      "euIcon": "TM30_Spark",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 9,
+      "name": "MetalArmor",
+      "active": true,
+      "iconFile": "tm40 m_armor",
+      "level": 43,
+      "euName": "Metal Armor",
+      "euIcon": "TM40_M_Armor",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 10,
+      "name": "GrandSmash",
+      "active": true,
+      "iconFile": "tm43 grand_smash",
+      "level": 40,
+      "euName": "Grand Smash",
+      "euIcon": "TM43_Grand_Smash",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 11,
+      "name": "MechanicMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 46,
+      "euName": "Mechanic Weapon Mastery",
+      "euIcon": "TM44_M_Weapon",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 12,
+      "name": "SparkShield",
+      "active": true,
+      "iconFile": "tm50 s_shield",
+      "level": 63,
+      "euName": "Spark Shield",
+      "euIcon": "TM50_S_Shield",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 13,
+      "name": "IMPULSION",
+      "active": true,
+      "iconFile": "tm60 impulsion",
+      "level": 14,
+      "euName": "Impulsion",
+      "euIcon": "TM60_Impulsion",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 14,
+      "name": "Compulsion",
+      "active": true,
+      "iconFile": "",
+      "level": 50,
+      "euName": "Compulsion",
+      "euIcon": "TM63_Compulsion",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 15,
+      "name": "MAGNETICSPHERE",
+      "active": true,
+      "iconFile": "tm66 m_sphere",
+      "level": 60,
+      "euName": "Magnetic Sphere",
+      "euIcon": "TM66_M_Sphere",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 16,
+      "name": "METALGOLEM",
+      "active": true,
+      "iconFile": "tm70 m_golem",
+      "level": 66,
+      "euName": "Metal Golem",
+      "euIcon": "TM70_M_Golem",
+      "type": "summon"
+    },
+    {
+      "skillIndex": 17,
+      "name": "LandMining",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 18,
+      "name": "HyperSonic",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 19,
+      "name": "RollingSmash",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 20,
+      "name": "PowerEnhance",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    }
+  ],
+  "fighter": [
+    {
+      "skillIndex": 21,
+      "name": "MeleeMastery",
+      "active": false,
+      "iconFile": "tf10 m_mastery",
+      "level": 50,
+      "euName": "Melee Mastery",
+      "euIcon": "TF10_M_mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 22,
+      "name": "FireAttribute",
+      "active": false,
+      "iconFile": "",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 23,
+      "name": "Raving",
+      "active": true,
+      "iconFile": "tf14 raving",
+      "level": 10,
+      "euName": "Raving",
+      "euIcon": "TF14_raving",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 24,
+      "name": "Impact",
+      "active": true,
+      "iconFile": "",
+      "level": 23,
+      "euName": "Double Impact",
+      "euIcon": "TF17_impact",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 25,
+      "name": "TripleImpact",
+      "active": true,
+      "iconFile": "tf20 t_impact",
+      "level": 30,
+      "euName": "Triple Impact",
+      "euIcon": "TF20_T_Impact",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 26,
+      "name": "BrutalSwing",
+      "active": true,
+      "iconFile": "tf23 b_swing",
+      "level": 20,
+      "euName": "Brutal Swing",
+      "euIcon": "TF23_B_Swing",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 27,
+      "name": "Roar",
+      "active": true,
+      "iconFile": "",
+      "level": 26,
+      "euName": "War Cry",
+      "euIcon": "TF26_Roar",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 28,
+      "name": "RageofZecram",
+      "active": true,
+      "iconFile": "tf30 r_zecram",
+      "level": 60,
+      "euName": "Rage of Zecram",
+      "euIcon": "TF30_R_Zecram",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 29,
+      "name": "Concentration",
+      "active": true,
+      "iconFile": "",
+      "level": 17,
+      "euName": "Concentration",
+      "euIcon": "TF40_Concentration",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 30,
+      "name": "AvangingCrash",
+      "active": true,
+      "iconFile": "",
+      "level": 40,
+      "euName": "Avenging Crash",
+      "euIcon": "TF43_A_Crash",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 31,
+      "name": "SwiftAxe",
+      "active": true,
+      "iconFile": "",
+      "level": 43,
+      "euName": "Demon's Bane",
+      "euIcon": "TF46_S_Axe",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 32,
+      "name": "BoneSmash",
+      "active": true,
+      "iconFile": "",
+      "level": 46,
+      "euName": "Bone Crash",
+      "euIcon": "TF50_B_Crash",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 33,
+      "name": "DESTROYER",
+      "active": true,
+      "iconFile": "tf60 destoryer",
+      "level": 70,
+      "euName": "Destroyer",
+      "euIcon": "TF60_Destoryer",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 34,
+      "name": "BERSERKER",
+      "active": true,
+      "iconFile": "tf63 berserker",
+      "level": 66,
+      "euName": "Berserker",
+      "euIcon": "TF63_Berserker",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 35,
+      "name": "CYCLONESTRIKE",
+      "active": true,
+      "iconFile": "tf66 c_strike",
+      "level": 14,
+      "euName": "Cyclone Strike",
+      "euIcon": "TF66_C_Strike",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 36,
+      "name": "BoostHealth",
+      "active": false,
+      "iconFile": "",
+      "level": 12,
+      "euName": "Resilience",
+      "euIcon": "TF70_B_Health",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 37,
+      "name": "DOWNHIT",
+      "active": true,
+      "iconFile": "",
+      "level": 63,
+      "euName": "Recuperation",
+      "euIcon": "TF100_Survival_Instinct",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 38,
+      "name": "POWERDASH",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 39,
+      "name": "MOTALBLOW",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 40,
+      "name": "BLOODYBERSERKER",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    }
+  ],
+  "pikeman": [
+    {
+      "skillIndex": 41,
+      "name": "PikeWind",
+      "active": true,
+      "iconFile": "tp10 p_wind",
+      "level": 23,
+      "euName": "Pike Wind",
+      "euIcon": "TP10_P_wind",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 42,
+      "name": "IceAttribute",
+      "active": false,
+      "iconFile": "",
+      "level": 30,
+      "euName": "Polearm Mastery",
+      "euIcon": "TP12_I_attribute",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 43,
+      "name": "CriticalHit",
+      "active": true,
+      "iconFile": "",
+      "level": 17,
+      "euName": "Precise Hit",
+      "euIcon": "TP14_Cri_hit",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 44,
+      "name": "JumpingCrash",
+      "active": true,
+      "iconFile": "tp17 j_crash",
+      "level": 20,
+      "euName": "Jumping Crash",
+      "euIcon": "TP17_J_Crash",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 45,
+      "name": "GroundPike",
+      "active": true,
+      "iconFile": "tp20 g_pike",
+      "level": 60,
+      "euName": "Ground Pike",
+      "euIcon": "TP20_G_Pike",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 46,
+      "name": "Tornado",
+      "active": true,
+      "iconFile": "tp23 tornado",
+      "level": 14,
+      "euName": "Tornado",
+      "euIcon": "TP23_Tornado",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 47,
+      "name": "WeaponDefenceMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 12,
+      "euName": "Weapon Block Mastery",
+      "euIcon": "TP26_W_D_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 48,
+      "name": "Expansion",
+      "active": true,
+      "iconFile": "tp30 expasion",
+      "level": 10,
+      "euName": "Expansion",
+      "euIcon": "TP30_Expasion",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 49,
+      "name": "VenomSpear",
+      "active": true,
+      "iconFile": "tp40 v_spear",
+      "level": 43,
+      "euName": "Venom Spear",
+      "euIcon": "TP40_V_Spear",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 50,
+      "name": "Vanish",
+      "active": true,
+      "iconFile": "",
+      "level": 26,
+      "euName": "Vanish",
+      "euIcon": "TP43_Vanish",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 51,
+      "name": "CriticalMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 66,
+      "euName": "Assassin Mastery",
+      "euIcon": "TA63_F_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 52,
+      "name": "ChainLance",
+      "active": true,
+      "iconFile": "tp50 c_lance",
+      "level": 40,
+      "euName": "Chain Lance",
+      "euIcon": "TP50_C_Lance",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 53,
+      "name": "ASSASSINEYE",
+      "active": true,
+      "iconFile": "",
+      "level": 63,
+      "euName": "Assassin's Eye",
+      "euIcon": "TP60_A_Eye",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 54,
+      "name": "CHARGINGSTRIKE",
+      "active": true,
+      "iconFile": "tp63 c_strike",
+      "level": 70,
+      "euName": "Charging Strike",
+      "euIcon": "TP63_C_Strike",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 55,
+      "name": "VAGUE",
+      "active": true,
+      "iconFile": "tp66 vague",
+      "level": 50,
+      "euName": "Vague",
+      "euIcon": "TP66_Vague",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 56,
+      "name": "SHADOWMASTER",
+      "active": true,
+      "iconFile": "tp70 s_master",
+      "level": 66,
+      "euName": "Shadow Master",
+      "euIcon": "TP70_S_Master",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 57,
+      "name": "DANCINGREAPER",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 58,
+      "name": "FINALSPEAR",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 59,
+      "name": "AMPLIFIED",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 60,
+      "name": "SIDESPINATTACK",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    }
+  ],
+  "archer": [
+    {
+      "skillIndex": 61,
+      "name": "ScoutHawk",
+      "active": true,
+      "iconFile": "ta10 s_hawk",
+      "level": 63,
+      "euName": "Scout Hawk",
+      "euIcon": "TA10_S_hawk",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 62,
+      "name": "ShootingMastery",
+      "active": false,
+      "iconFile": "ta12 s_mastery",
+      "level": 46,
+      "euName": "Shooting Mastery",
+      "euIcon": "TA12_S_mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 63,
+      "name": "WindArrow",
+      "active": true,
+      "iconFile": "ta14 w_arrow",
+      "level": 26,
+      "euName": "Wind Arrow",
+      "euIcon": "TA14_W_arrow",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 64,
+      "name": "PerfectAim",
+      "active": true,
+      "iconFile": "ta17 p_aim",
+      "level": 40,
+      "euName": "Perfect Aim",
+      "euIcon": "TA17_P_aim",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 65,
+      "name": "DionsEye",
+      "active": false,
+      "iconFile": "ta20 d_eye",
+      "level": 23,
+      "euName": "Dion's Eye",
+      "euIcon": "TA20_D_Eye",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 66,
+      "name": "Falcon",
+      "active": true,
+      "iconFile": "ta23 falcon",
+      "level": 17,
+      "euName": "Falcon",
+      "euIcon": "TA23_Falcon",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 67,
+      "name": "ArrowofRage",
+      "active": true,
+      "iconFile": "ta26 a_rage",
+      "level": 20,
+      "euName": "Arrow of Rage",
+      "euIcon": "TA26_A_Rage",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 68,
+      "name": "Avalanche",
+      "active": true,
+      "iconFile": "ta30 avalanchie",
+      "level": 70,
+      "euName": "Avalanche",
+      "euIcon": "TA30_Avalanchie",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 69,
+      "name": "ElementalShot",
+      "active": true,
+      "iconFile": "ta40 e_shot",
+      "level": 10,
+      "euName": "Elemental Shot",
+      "euIcon": "TA40_E_Shot",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 70,
+      "name": "GoldenFalcon",
+      "active": true,
+      "iconFile": "ta43 g_falcon",
+      "level": 50,
+      "euName": "Golden Falcon",
+      "euIcon": "TA43_G_Falcon",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 71,
+      "name": "BombShot",
+      "active": true,
+      "iconFile": "ta46 b_shot",
+      "level": 60,
+      "euName": "Bomb Shot",
+      "euIcon": "TA46_B_Shot",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 72,
+      "name": "Perforation",
+      "active": true,
+      "iconFile": "ta50 perforation",
+      "level": 14,
+      "euName": "Perforation",
+      "euIcon": "TA50_Perforation",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 73,
+      "name": "RECALLWOLVERIN",
+      "active": true,
+      "iconFile": "",
+      "level": 30,
+      "euName": "Wolverine",
+      "euIcon": "TA60_R_Wolverin",
+      "type": "summon"
+    },
+    {
+      "skillIndex": 74,
+      "name": "EvasionMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 12,
+      "euName": "Evasion Mastery",
+      "euIcon": "TA63_E_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 75,
+      "name": "PHOENIXSHOT",
+      "active": true,
+      "iconFile": "ta66 p_shot",
+      "level": 43,
+      "euName": "Phoenix Shot",
+      "euIcon": "TA66_P_Shot",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 76,
+      "name": "FORCEOFNATURE",
+      "active": true,
+      "iconFile": "ta70 f_o_nature",
+      "level": 66,
+      "euName": "Force of Nature",
+      "euIcon": "TA70_F_O_Nature",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 77,
+      "name": "EvadeShot",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 78,
+      "name": "ThunderRoop",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 79,
+      "name": "NATURESPLASH",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 80,
+      "name": "CIRCLETRAP",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    }
+  ],
+  "knight": [
+    {
+      "skillIndex": 81,
+      "name": "SwordBlast",
+      "active": true,
+      "iconFile": "mn10 s_blast",
+      "level": 14,
+      "euName": "Sword Blast",
+      "euIcon": "MN10_S_Blast",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 82,
+      "name": "HolyBody",
+      "active": true,
+      "iconFile": "mn12 h_body",
+      "level": 17,
+      "euName": "Holy Body",
+      "euIcon": "MN12_H_Body",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 83,
+      "name": "PhysicalTraning",
+      "active": false,
+      "iconFile": "",
+      "level": 12,
+      "euName": "Physical Training",
+      "euIcon": "MN14_P_Traning",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 84,
+      "name": "DoubleCrash",
+      "active": true,
+      "iconFile": "mn17 d_crash",
+      "level": 10,
+      "euName": "Double Crash",
+      "euIcon": "MN17_D_Crash",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 85,
+      "name": "holyteam",
+      "active": true,
+      "iconFile": "",
+      "level": 43,
+      "euName": "Holy Valor",
+      "euIcon": "MN20_H_Valor",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 86,
+      "name": "Brandish",
+      "active": true,
+      "iconFile": "mn23 brandish",
+      "level": 26,
+      "euName": "Brandish",
+      "euIcon": "MN23_Brandish",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 87,
+      "name": "Piercing",
+      "active": true,
+      "iconFile": "mn26 piercing",
+      "level": 20,
+      "euName": "Piercing",
+      "euIcon": "MN26_Piercing",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 88,
+      "name": "DrasticSpirit",
+      "active": true,
+      "iconFile": "mn30 d_spirit",
+      "level": 50,
+      "euName": "Drastic Spirit",
+      "euIcon": "MN30_D_Spirit",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 89,
+      "name": "SwordMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 46,
+      "euName": "Sword Mastery",
+      "euIcon": "MN40_S_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 90,
+      "name": "Divineinhalation",
+      "active": true,
+      "iconFile": "",
+      "level": 30,
+      "euName": "Divine Shield",
+      "euIcon": "MN43_D_Inhalation",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 91,
+      "name": "HolyIncantation",
+      "active": true,
+      "iconFile": "mn46 h_incantation",
+      "level": 23,
+      "euName": "Holy Incantation",
+      "euIcon": "MN46_H_Incantation",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 92,
+      "name": "GrandCross",
+      "active": true,
+      "iconFile": "mn50 g_cross",
+      "level": 40,
+      "euName": "Grand Cross",
+      "euIcon": "MN50_G_Cross",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 93,
+      "name": "DIVINEPIERCING",
+      "active": true,
+      "iconFile": "mn70 d_piercing",
+      "level": 70,
+      "euName": "Divine Piercing",
+      "euIcon": "MN70_D_Piercing",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 94,
+      "name": "DIVINEPIERCING2",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 95,
+      "name": "DIVINEPIERCING3",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 96,
+      "name": "GODLYSHIELD",
+      "active": true,
+      "iconFile": "mn63 g_shield",
+      "level": 63,
+      "euName": "Godly Shield",
+      "euIcon": "MN63_G_Shield",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 97,
+      "name": "GODSBLESS",
+      "active": true,
+      "iconFile": "",
+      "level": 66,
+      "euName": "God's Blessing",
+      "euIcon": "MN66_G_Bless",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 98,
+      "name": "SWORDOFJUSTICE",
+      "active": true,
+      "iconFile": "mn60 s_o_justice",
+      "level": 60,
+      "euName": "Sword of Justice",
+      "euIcon": "MN60_S_O_Justice",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 99,
+      "name": "SOULBREAKER",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 100,
+      "name": "CRESCENTMOON",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 101,
+      "name": "SAINTBLADE",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 102,
+      "name": "HOLYBENEDIC",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    }
+  ],
+  "atalanta": [
+    {
+      "skillIndex": 103,
+      "name": "ShieldStrike",
+      "active": true,
+      "iconFile": "ma10 s_strike",
+      "level": 12,
+      "euName": "Shield Strike",
+      "euIcon": "MA10_S_Strike",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 104,
+      "name": "Farina",
+      "active": true,
+      "iconFile": "ma12 farina",
+      "level": 23,
+      "euName": "Farina",
+      "euIcon": "MA12_Farina",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 105,
+      "name": "ThrowingMastery",
+      "active": false,
+      "iconFile": "ma14 t_mastery",
+      "level": 46,
+      "euName": "Javelin Mastery",
+      "euIcon": "MA14_T_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 106,
+      "name": "VigorSpear",
+      "active": true,
+      "iconFile": "",
+      "level": 10,
+      "euName": "Bigger Spear",
+      "euIcon": "MA17_V_Spear",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 107,
+      "name": "Windy",
+      "active": true,
+      "iconFile": "ma20 windy",
+      "level": 17,
+      "euName": "Windy",
+      "euIcon": "MA20_Windy",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 108,
+      "name": "TwistJavelin",
+      "active": true,
+      "iconFile": "",
+      "level": 26,
+      "euName": "Wind Javelin",
+      "euIcon": "MA23_T_Javelin",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 109,
+      "name": "SoulSucker",
+      "active": true,
+      "iconFile": "ma26 s_sucker",
+      "level": 63,
+      "euName": "Soul Sucker",
+      "euIcon": "MA26_S_Sucker",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 110,
+      "name": "FireJavelin",
+      "active": true,
+      "iconFile": "ma30 f_javelin",
+      "level": 30,
+      "euName": "Fire Javelin",
+      "euIcon": "MA30_F_Javelin",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 111,
+      "name": "SplitJavelin",
+      "active": true,
+      "iconFile": "ma40 split_javelin",
+      "level": 70,
+      "euName": "Split Javelin",
+      "euIcon": "MA40_Split_Javelin",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 112,
+      "name": "TriumphOfValhalla",
+      "active": true,
+      "iconFile": "ma43 t_of_valhalla",
+      "level": 66,
+      "euName": "Triumph of Valhalla",
+      "euIcon": "MA43_T_Of_Valhalla",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 113,
+      "name": "LightningJavelin",
+      "active": true,
+      "iconFile": "ma46 l_javelin",
+      "level": 14,
+      "euName": "Lightning Javelin",
+      "euIcon": "MA46_L_Javelin",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 114,
+      "name": "StormJavelin",
+      "active": true,
+      "iconFile": "ma50 storm_javelin",
+      "level": 20,
+      "euName": "Storm Javelin",
+      "euIcon": "MA50_Storm_Javelin",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 115,
+      "name": "HALLOFVALHALLA",
+      "active": true,
+      "iconFile": "ma60 h_o_valhalla",
+      "level": 43,
+      "euName": "Hall of Valhalla",
+      "euIcon": "MA60_H_O_Valhalla",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 116,
+      "name": "XRAGE",
+      "active": true,
+      "iconFile": "",
+      "level": 60,
+      "euName": "Extreme Rage",
+      "euIcon": "MA63_X_Rage",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 117,
+      "name": "FROSTJAVELIN",
+      "active": true,
+      "iconFile": "ma66 f_javelin",
+      "level": 50,
+      "euName": "Frost Javelin",
+      "euIcon": "MA66_F_Javelin",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 118,
+      "name": "VENGEANCE",
+      "active": true,
+      "iconFile": "ma70 vengeance",
+      "level": 40,
+      "euName": "Vengeance",
+      "euIcon": "MA70_Vengeance",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 119,
+      "name": "TALARIA",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 120,
+      "name": "GALAXYCOUP",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 121,
+      "name": "SUMMONARCUDA",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 122,
+      "name": "SNIPPYFEAR",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    }
+  ],
+  "priestess": [
+    {
+      "skillIndex": 123,
+      "name": "Healing",
+      "active": true,
+      "iconFile": "mp10 healing",
+      "level": 23,
+      "euName": "Healing",
+      "euIcon": "MP10_Healing",
+      "type": "healing"
+    },
+    {
+      "skillIndex": 124,
+      "name": "HolyBolt",
+      "active": true,
+      "iconFile": "mp12 holybolt",
+      "level": 10,
+      "euName": "Holy Bolt",
+      "euIcon": "MP12_HolyBolt",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 125,
+      "name": "MultiSpark",
+      "active": true,
+      "iconFile": "mp14 m_spark",
+      "level": 40,
+      "euName": "Multi Spark",
+      "euIcon": "MP14_M_Spark",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 126,
+      "name": "HolyMind",
+      "active": true,
+      "iconFile": "mp17 holymind",
+      "level": 12,
+      "euName": "Holy Mind",
+      "euIcon": "MP17_HolyMind",
+      "type": "debuff"
+    },
+    {
+      "skillIndex": 127,
+      "name": "Meditation",
+      "active": false,
+      "iconFile": "mp20 meditation",
+      "level": 17,
+      "euName": "Meditation",
+      "euIcon": "MP20_Meditation",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 128,
+      "name": "DivineLightning",
+      "active": true,
+      "iconFile": "mp23 d_lightning",
+      "level": 14,
+      "euName": "Divine Lightning",
+      "euIcon": "MP23_D_Lightning",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 129,
+      "name": "HolyReflection",
+      "active": true,
+      "iconFile": "mp26 h_reflection",
+      "level": 26,
+      "euName": "Holy Reflection",
+      "euIcon": "MP26_H_Reflection",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 130,
+      "name": "GrandHealing",
+      "active": true,
+      "iconFile": "mp30 g_healing",
+      "level": 50,
+      "euName": "Grand Healing",
+      "euIcon": "MP30_G_Healing",
+      "type": "healing"
+    },
+    {
+      "skillIndex": 131,
+      "name": "VigorBall",
+      "active": true,
+      "iconFile": "mp40 v_ball",
+      "level": 20,
+      "euName": "Vigor Ball",
+      "euIcon": "MP40_V_Ball",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 132,
+      "name": "Resurrection",
+      "active": true,
+      "iconFile": "",
+      "level": 46,
+      "euName": "Resurrection",
+      "euIcon": "MP43_Resurrection",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 133,
+      "name": "Extinction",
+      "active": true,
+      "iconFile": "mp46 extinction",
+      "level": 43,
+      "euName": "Extinction",
+      "euIcon": "MP46_Extinction",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 134,
+      "name": "VirtualLife",
+      "active": true,
+      "iconFile": "mp50 v_life",
+      "level": 30,
+      "euName": "Virtual Life",
+      "euIcon": "MP50_V_Life",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 135,
+      "name": "GLACIALSPIKE",
+      "active": true,
+      "iconFile": "mp60 g_spike",
+      "level": 70,
+      "euName": "Glacial Spike",
+      "euIcon": "MP60_G_Spike",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 136,
+      "name": "REGENERATIONFIELD",
+      "active": true,
+      "iconFile": "",
+      "level": 63,
+      "euName": "Virtual Regeneration",
+      "euIcon": "MP63_V_Regen",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 137,
+      "name": "CHAINLIGHTNING",
+      "active": true,
+      "iconFile": "mp66 c_lightning",
+      "level": 60,
+      "euName": "Chain Lightning",
+      "euIcon": "MP66_C_Lightning",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 138,
+      "name": "SUMMONMUSPELL",
+      "active": true,
+      "iconFile": "mp70 s_muspell",
+      "level": 66,
+      "euName": "Summon Muspell",
+      "euIcon": "MP70_S_Muspell",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 139,
+      "name": "IceElemental",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 140,
+      "name": "PiercingIce",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 141,
+      "name": "SummonRamiel",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 142,
+      "name": "BlessingKrishna",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 143,
+      "name": "Agony",
+      "active": true,
+      "iconFile": "mm10 agony",
+      "level": 12,
+      "euName": "Agony",
+      "euIcon": "MM10_Agony",
+      "type": "buff"
+    }
+  ],
+  "magician": [
+    {
+      "skillIndex": 144,
+      "name": "FireBolt",
+      "active": true,
+      "iconFile": "mm12 firebolt",
+      "level": 10,
+      "euName": "Fire Bolt",
+      "euIcon": "MM12_FireBolt",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 145,
+      "name": "Zenith",
+      "active": true,
+      "iconFile": "mm14 zenith",
+      "level": 30,
+      "euName": "Zenith",
+      "euIcon": "MM14_Zenith",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 146,
+      "name": "FireBall",
+      "active": true,
+      "iconFile": "mm17 fireball",
+      "level": 14,
+      "euName": "Fire Ball",
+      "euIcon": "MM17_FireBall",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 147,
+      "name": "MentalMastery",
+      "active": false,
+      "iconFile": "mm20 m_mastery",
+      "level": 17,
+      "euName": "Mental Mastery",
+      "euIcon": "MM20_M_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 148,
+      "name": "ColumnOfWater",
+      "active": true,
+      "iconFile": "",
+      "level": 20,
+      "euName": "Watornado",
+      "euIcon": "MM23_Watornado",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 149,
+      "name": "EnchantWeapon",
+      "active": true,
+      "iconFile": "mm26 e_weapon",
+      "level": 26,
+      "euName": "Enchant Weapon",
+      "euIcon": "MM26_E_Weapon",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 150,
+      "name": "DeadRay",
+      "active": true,
+      "iconFile": "",
+      "level": 40,
+      "euName": "Death Ray",
+      "euIcon": "MM30_D_Ray",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 151,
+      "name": "EnergyShield",
+      "active": true,
+      "iconFile": "mm40 e_shield",
+      "level": 23,
+      "euName": "Energy Shield",
+      "euIcon": "MM40_E_Shield",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 152,
+      "name": "Diastrophism",
+      "active": true,
+      "iconFile": "mm43 diastrophism",
+      "level": 43,
+      "euName": "Diastrophism",
+      "euIcon": "MM43_Diastrophism",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 153,
+      "name": "SpiritElemental",
+      "active": true,
+      "iconFile": "mm46 s_elemental",
+      "level": 50,
+      "euName": "Spirit Elemental",
+      "euIcon": "MM46_S_Elemental",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 154,
+      "name": "DancingSword",
+      "active": true,
+      "iconFile": "mm50 d_sword",
+      "level": 46,
+      "euName": "Dancing Sword",
+      "euIcon": "MM50_D_Sword",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 155,
+      "name": "FIREELEMENTAL",
+      "active": true,
+      "iconFile": "mm60 f_elemental",
+      "level": 66,
+      "euName": "Fire Elemental",
+      "euIcon": "MM60_F_Elemental",
+      "type": "summon"
+    },
+    {
+      "skillIndex": 156,
+      "name": "FLAMEWAVE",
+      "active": true,
+      "iconFile": "mm63 f_wave",
+      "level": 60,
+      "euName": "Flame Wave",
+      "euIcon": "MM63_F_Wave",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 157,
+      "name": "DISTORTION",
+      "active": true,
+      "iconFile": "mm66 distortion",
+      "level": 63,
+      "euName": "Distortion",
+      "euIcon": "MM66_Distortion",
+      "type": "debuff"
+    },
+    {
+      "skillIndex": 158,
+      "name": "METEO",
+      "active": true,
+      "iconFile": "",
+      "level": 70,
+      "euName": "Meteorite",
+      "euIcon": "MM70_Meteo",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 159,
+      "name": "Silraphim",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 160,
+      "name": "Vistenus",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 161,
+      "name": "Primaignis",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 162,
+      "name": "Thirdanima",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 163,
+      "name": "Stingger",
+      "active": true,
+      "iconFile": "",
+      "level": 10,
+      "euName": "Stinger",
+      "euIcon": "TA10_Stingger",
+      "type": "attack"
+    }
+  ],
+  "assassin": [
+    {
+      "skillIndex": 164,
+      "name": "RunningHit",
+      "active": true,
+      "iconFile": "",
+      "level": 20,
+      "euName": "Running Hit",
+      "euIcon": "TA12_R_Hit",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 165,
+      "name": "DualSwordMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 50,
+      "euName": "Dual Wield Mastery",
+      "euIcon": "TA14_D_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 166,
+      "name": "Wisp",
+      "active": true,
+      "iconFile": "",
+      "level": 30,
+      "euName": "Wisp",
+      "euIcon": "TA17_Wisp",
+      "type": "debuff"
+    },
+    {
+      "skillIndex": 167,
+      "name": "VenomThrone",
+      "active": true,
+      "iconFile": "",
+      "level": 12,
+      "euName": "Venom Thorn",
+      "euIcon": "TA20_V_Throne",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 168,
+      "name": "Alas",
+      "active": true,
+      "iconFile": "",
+      "level": 23,
+      "euName": "Brisk Shadow",
+      "euIcon": "TA30_A_Mastery",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 169,
+      "name": "SoulShock",
+      "active": true,
+      "iconFile": "",
+      "level": 46,
+      "euName": "Soul Shock",
+      "euIcon": "TA26_S_Shock",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 170,
+      "name": "AttackMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 17,
+      "euName": "Spectral Precision",
+      "euIcon": "TA30_A_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 171,
+      "name": "SoreSword",
+      "active": true,
+      "iconFile": "",
+      "level": 40,
+      "euName": "Sore Blade",
+      "euIcon": "TA40_S_Sword",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 172,
+      "name": "BeatUp",
+      "active": true,
+      "iconFile": "",
+      "level": 14,
+      "euName": "Gust Slash",
+      "euIcon": "TA43_B_Up",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 173,
+      "name": "Inpes",
+      "active": true,
+      "iconFile": "",
+      "level": 26,
+      "euName": "Inpes",
+      "euIcon": "TA46_Inpes",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 174,
+      "name": "Blind",
+      "active": true,
+      "iconFile": "",
+      "level": 43,
+      "euName": "Conceal",
+      "euIcon": "TA50_Blind",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 175,
+      "name": "FrostWind",
+      "active": true,
+      "iconFile": "",
+      "level": 63,
+      "euName": "Cripple",
+      "euIcon": "TA60_F_Wind",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 176,
+      "name": "CriticalMastery",
+      "active": false,
+      "iconFile": "",
+      "level": 66,
+      "euName": "Assassin Mastery",
+      "euIcon": "TA63_F_Mastery",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 177,
+      "name": "Polluted",
+      "active": true,
+      "iconFile": "",
+      "level": 60,
+      "euName": "Polluted",
+      "euIcon": "TA66_Polluted",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 178,
+      "name": "PastingShadow",
+      "active": true,
+      "iconFile": "",
+      "level": 70,
+      "euName": "Ninja Shadow",
+      "euIcon": "TA70_P_Shadow",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 179,
+      "name": "ShadowBomb",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 180,
+      "name": "RisingSlash",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 181,
+      "name": "ViolenceStab",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 182,
+      "name": "Storm",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 183,
+      "name": "DarkBolt",
+      "active": true,
+      "iconFile": "",
+      "level": 10,
+      "euName": "Dark Bolt",
+      "euIcon": "MS10_Darkbolt",
+      "type": "attack"
+    }
+  ],
+  "shaman": [
+    {
+      "skillIndex": 184,
+      "name": "DarkWave",
+      "active": true,
+      "iconFile": "",
+      "level": 14,
+      "euName": "Dark Wave",
+      "euIcon": "MS12_Darkwave",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 185,
+      "name": "CurseLazy",
+      "active": true,
+      "iconFile": "",
+      "level": 17,
+      "euName": "Inertia",
+      "euIcon": "MS14_Curselazy",
+      "type": "debuff"
+    },
+    {
+      "skillIndex": 186,
+      "name": "InnerPeace",
+      "active": false,
+      "iconFile": "",
+      "level": 12,
+      "euName": "Inner Peace",
+      "euIcon": "MS17_I_peace",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 187,
+      "name": "SpiritualFlare",
+      "active": true,
+      "iconFile": "",
+      "level": 60,
+      "euName": "Spiritual Flare",
+      "euIcon": "MS20_S_Flare",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 188,
+      "name": "SoulManacle",
+      "active": true,
+      "iconFile": "",
+      "level": 23,
+      "euName": "Spiritual Manacle",
+      "euIcon": "MS23_S_Manacle",
+      "type": "debuff"
+    },
+    {
+      "skillIndex": 189,
+      "name": "ChasingHunt",
+      "active": true,
+      "iconFile": "",
+      "level": 43,
+      "euName": "Chasing Hunt",
+      "euIcon": "MS26_C_Hunt",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 190,
+      "name": "AdventMigal",
+      "active": true,
+      "iconFile": "",
+      "level": 66,
+      "euName": "Advent Migal",
+      "euIcon": "MS30_A_Migal",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 191,
+      "name": "RainMaker",
+      "active": true,
+      "iconFile": "",
+      "level": 30,
+      "euName": "Rainmaker",
+      "euIcon": "MS40_R_Maker",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 192,
+      "name": "LandOfGhost",
+      "active": true,
+      "iconFile": "",
+      "level": 26,
+      "euName": "Phantom Call",
+      "euIcon": "MS43_L_Ghost",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 193,
+      "name": "Haunt",
+      "active": true,
+      "iconFile": "",
+      "level": 20,
+      "euName": "Haunt",
+      "euIcon": "MS46_Haunt",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 194,
+      "name": "Scratch",
+      "active": true,
+      "iconFile": "",
+      "level": 40,
+      "euName": "Scratch",
+      "euIcon": "MS50_Scratch",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 195,
+      "name": "RecallBloodyKnight",
+      "active": true,
+      "iconFile": "",
+      "level": 50,
+      "euName": "Summon Hestian",
+      "euIcon": "MS60_R_Knight",
+      "type": "summon"
+    },
+    {
+      "skillIndex": 196,
+      "name": "Judgement",
+      "active": true,
+      "iconFile": "",
+      "level": 70,
+      "euName": "Judgement",
+      "euIcon": "MS63_Judge",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 197,
+      "name": "AdventMidranda",
+      "active": true,
+      "iconFile": "",
+      "level": 46,
+      "euName": "Advent Midranda",
+      "euIcon": "MS66_A_Midranda",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 198,
+      "name": "MourningOfPray",
+      "active": true,
+      "iconFile": "",
+      "level": 63,
+      "euName": "Mourning Pray",
+      "euIcon": "MS70_M_pray",
+      "type": "buff"
+    },
+    {
+      "skillIndex": 199,
+      "name": "Creed",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 200,
+      "name": "PressOfDeity",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 201,
+      "name": "GhostyNail",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 202,
+      "name": "HighRegeneration",
+      "active": false,
+      "iconFile": "",
+      "type": "passive"
+    },
+    {
+      "skillIndex": 203,
+      "name": "JUMPATTACK",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 204,
+      "name": "CONTATTACK1",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 205,
+      "name": "CONTATTACK2",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 206,
+      "name": "CONTATTACK3",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    },
+    {
+      "skillIndex": 207,
+      "name": "CONTATTACK4",
+      "active": true,
+      "iconFile": "",
+      "type": "attack"
+    }
+  ]
+}

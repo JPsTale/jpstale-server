@@ -75,12 +75,12 @@ async function loadSmd(basePath, meshNames) {
  * @param {object} lodKey LOD 键（'high'/'medium'/'low'，默认 'high'）
  * @returns {Promise<{bodyGroup, headGroup, skeleton, bones, skeletonGroup, animSmb, bodyInxInfo, headInxInfo, errs}>}
  */
-export async function loadCharacterModel(jobId, faceNum = 0, tier = 0, lodKey = 'high', armorNum = 1) {
+export async function loadCharacterModel(jobId, faceNum = 0, tier = 0, lodKey = 'high', armorNum = 1, bodyInxOverride = null) {
   const job = JOB_DATA[jobId];
   if (!job) throw new Error('未知职业ID: ' + jobId);
 
   const errs = [];
-  const bodyInxPath = getBodyInxPath(jobId, armorNum) || job.bodyInx;
+  const bodyInxPath = bodyInxOverride || getBodyInxPath(jobId, armorNum) || job.bodyInx;
   const headInxPath = getHeadInxPath(jobId, faceNum, tier);
 
   // 1. 解析三个 .inx（body, head, bip）

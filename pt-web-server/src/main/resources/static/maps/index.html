@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PT Maps</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#111;color:#e8e8e8;font-family:Tahoma,Arial,sans-serif;font-size:13px;display:flex;flex-direction:column}
+#toolbar{padding:8px 14px;border-bottom:1px solid #333;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:#1a1a1a}
+#toolbar h1{font-size:15px;color:#ffd479;margin-right:10px}
+.tool-group{display:flex;align-items:center;gap:8px}
+.tool-group label{color:#9db8d9}
+#viewport{flex:1;min-width:0;position:relative;background:#0d0d0d}
+#viewport canvas{display:block;width:100%;height:100%}
+#status{position:absolute;top:8px;left:10px;color:#9db8d9;font-family:Consolas,monospace;font-size:11px;line-height:1.5;background:rgba(0,0,0,.6);padding:6px 10px;border-radius:3px;pointer-events:none;white-space:pre}
+#loadedMaps{position:absolute;top:8px;right:10px;color:#9db8d9;font-family:Consolas,monospace;font-size:11px;line-height:1.5;background:rgba(0,0,0,.6);padding:6px 10px;border-radius:3px;pointer-events:auto;max-height:50vh;overflow-y:auto}
+#loadedMaps div{cursor:pointer;padding:1px 0}
+#loadedMaps div:hover{color:#ffd479}
+.btn{background:#2a2a2a;color:#e8e8e8;border:1px solid #555;padding:4px 10px;cursor:pointer;font-size:12px}
+.btn:hover{border-color:#ffd479}
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>PT Maps</h1>
+  <div class="tool-group">
+    <label>地图</label>
+    <select id="mapSel"></select>
+    <button class="btn" id="btnLoad">加载</button>
+    <button class="btn" id="btnClear">清除</button>
+  </div>
+  <div class="tool-group">
+    <label><input type="checkbox" id="chkWire"> 线框</label>
+    <label><input type="checkbox" id="chkGates" checked> 传送门</label>
+    <label><input type="checkbox" id="chkAxis" checked> 坐标轴</label>
+    <label><input type="checkbox" id="chkDebug"> Debug相机</label>
+  </div>
+</div>
+
+<div id="viewport">
+  <div id="status">选择地图</div>
+  <div id="stats" style="position:absolute;bottom:8px;left:10px;color:#9db8d9;font-family:Consolas,monospace;font-size:11px;line-height:1.5;background:rgba(0,0,0,.6);padding:6px 10px;border-radius:3px;pointer-events:none;white-space:pre"></div>
+  <div id="loadedMaps"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { parseSMD } from './js/smd-parser.js?v=8';
+  import { decodeTexture } from './js/texture-decoder.js?v=8';
+import { MapRenderer } from './js/map-renderer.js?v=4';
+import { CollisionMesh } from './js/collision.js?v=3';
+
+const WORLD_SCALE = 1 / 256;
+
+// ===== Authoritative map list: DB maplist.id → field.cpp InitField() → .smd path on disk =====
+// mapId matches DB gamedb.maplist.id and field.cpp cnt
+// path is the .ase→.smd file in apps/client/field/
+const MAPS = [
+  /*0*/  {id:0,  n:'Acacia Groove (fore-3)',     p:'field/forest/fore-3.smd'},
+  /*1*/  {id:1,  n:'Bamboo Forest (fore-2)',     p:'field/forest/fore-2.smd'},
+  /*2*/  {id:2,  n:'Garden of Freedom (fore-1)', p:'field/forest/fore-1.smd'},
+  /*3*/  {id:3,  n:'Ricarten Town (village-2)',   p:'field/ricarten/village-2.smd'},
+  /*4*/  {id:4,  n:'Refuge of Ancients (ruin-4)', p:'field/ruin/ruin-4.smd'},
+  /*5*/  {id:5,  n:'Castle of Lost (ruin-3)',     p:'field/ruin/ruin-3.smd'},
+  /*6*/  {id:6,  n:'Ruinen Village (ruin-2)',     p:'field/ruin/ruin-2.smd'},
+  /*7*/  {id:7,  n:'Cursed Land (ruin-1)',        p:'field/ruin/ruin-1.smd'},
+  /*8*/  {id:8,  n:'Forgotten Land (de-1)',       p:'field/desert/de-1.smd'},
+  /*9*/  {id:9,  n:'Navisko Town (village-1)',    p:'field/forest/village-1.smd'},
+  /*10*/ {id:10, n:'Oasis (de-2)',                p:'field/desert/de-2.smd'},
+  /*11*/ {id:11, n:'Battlefield of Ancients (de-3)', p:'field/desert/de-3.smd'},
+  /*12*/ {id:12, n:'Forbidden Land (de-4)',       p:'field/desert/de-4.smd'},
+  /*13*/ {id:13, n:'Dungeon 1 (dun-1)',           p:'field/dungeon/dun-1.smd'},
+  /*14*/ {id:14, n:'Dungeon 2 (dun-2)',           p:'field/dungeon/dun-2.smd'},
+  /*15*/ {id:15, n:'Dungeon 3 (dun-3)',           p:'field/dungeon/dun-3.smd'},
+  /*16*/ {id:16, n:'GM Room (office)',            p:'field/room/office.smd'},
+  /*17*/ {id:17, n:'Forest of Spirits (ff-4)',    p:'field/forever-fall/forever-fall-04.smd'},
+  /*18*/ {id:18, n:'Land of Dusk (ff-3)',         p:'field/forever-fall/forever-fall-03.smd'},
+  /*19*/ {id:19, n:'Valley of Tranquility (ff-2)', p:'field/forever-fall/forever-fall-02.smd'},
+  /*20*/ {id:20, n:'Road to the Wind (ff-1)',     p:'field/forever-fall/forever-fall-01.smd'},
+  /*21*/ {id:21, n:'Phillai Town (pilai)',        p:'field/forever-fall/pilai.smd'},
+  /*22*/ {id:22, n:'Cursed Temple 1 (dun-4)',     p:'field/dungeon/dun-4.smd'},
+  /*23*/ {id:23, n:'Cursed Temple 2 (dun-5)',     p:'field/dungeon/dun-5.smd'},
+  /*24*/ {id:24, n:'Mushroom Cave (Tcave)',       p:'field/cave/tcave.smd'},
+  /*25*/ {id:25, n:'Beehive Cave (Mcave)',        p:'field/cave/mcave.smd'},
+  /*26*/ {id:26, n:'Sanctuary of Darkness (Dcave)', p:'field/cave/dcave.smd'},
+  /*27*/ {id:27, n:'Railway of Chaos (iron-1)',   p:'field/iron/iron-1.smd'},
+  /*28*/ {id:28, n:'Heart of Perum (iron-2)',     p:'field/iron/iron-2.smd'},
+  /*29*/ {id:29, n:'Eura Village (ice_ura)',      p:'field/ice/ice_ura.smd'},
+  /*30*/ {id:30, n:'Bellatra (sod-1)',            p:'field/sod/sod-1.smd'},
+  /*31*/ {id:31, n:'Gallubia Valley (ice1)',      p:'field/ice/ice1.smd'},
+  /*32*/ {id:32, n:'Quest Map (quest_iv)',        p:'field/quest/quest_iv.smd'},
+  /*33*/ {id:33, n:'Bless Castle (castle)',       p:'field/castle/castle.smd'},
+  /*34*/ {id:34, n:'Greedy Lake (greedy)',        p:'field/greedy/greedy.smd'},
+  /*35*/ {id:35, n:'Frozen Sanctuary (ice2)',     p:'field/ice/ice_2.smd'},
+  /*36*/ {id:36, n:'Kelvezu Cave (boss)',         p:'field/boss/boss.smd'},
+  /*37*/ {id:37, n:'Lost Island (lost)',          p:'field/lost/lostisland.smd'},
+  /*38*/ {id:38, n:'Lost Temple',                 p:'field/losttemple/lost_temple.smd'},
+  /*39*/ {id:39, n:'Ghost Castle (fall_game)',    p:'field/fall_game/fall_game.smd'},
+  /*40*/ {id:40, n:'Endless Tower 1 (dun-7)',     p:'field/endless/dun-7.smd'},
+  /*41*/ {id:41, n:'Endless Tower 2 (dun-8)',     p:'field/endless/dun-8.smd'},
+  /*42*/ {id:42, n:'Cursed Temple 3 (dun-6a)',    p:'field/dungeon/dun-6a.smd'},
+  /*43*/ {id:43, n:'Endless Tower 3 (dun-9)',     p:'field/endless/dun-9.smd'},
+];
+
+// ===== Spawn points from field.cpp InitField() — AddStartPoint(x, z) =====
+// Raw SMD coords → world: wx = -rawZ/256, wz = -rawX/256
+const FIELD_SPAWNS = {
+  0:  [{x:-10585,z:-11810},{x:-13659,z:-9753}],
+  1:  [{x:-2272,z:-10314},{x:-7192,z:-11175}],
+  2:  [{x:1350,z:-13672},{x:1761,z:-10815},{x:4777,z:-10916}],
+  3:  [{x:2592,z:-18566},{x:-1047,z:-16973}],
+  4:  [{x:2578,z:-5124},{x:1873,z:3060}],
+  5:  [{x:875,z:7910},{x:1576,z:14307}],
+  6:  [{x:3976,z:19645},{x:5832,z:23751},{x:5615,z:25117}],
+  7:  [{x:12242,z:16034},{x:12194,z:8969}],
+  8:  [{x:13306,z:2000},{x:13083,z:-2249}],
+  9:  [{x:22214,z:-1182}],
+  10: [{x:11859,z:-11257},{x:16169,z:-12768}],
+  11: [{x:34758,z:-1323},{x:29424,z:322}],
+  12: [{x:33740,z:6491},{x:40691,z:11056}],
+  17: [{x:-2135,z:33668},{x:4073,z:32119}],
+  18: [{x:-1516,z:45437},{x:-3586,z:42886}],
+  19: [{x:-1024,z:45437},{x:-1543,z:52333},{x:-1310,z:54945}],
+  20: [{x:1875,z:69871},{x:2637,z:60219}],
+  21: [{x:2287,z:74131},{x:3547,z:75500}],
+  24: [{x:119319,z:26034},{x:125606,z:24541}],
+  25: [{x:119320,z:35680},{x:124380,z:33260}],
+  27: [{x:46905,z:13478},{x:47357,z:20845},{x:46741,z:21349}],
+  28: [{x:35149,z:24326},{x:44893,z:21380}],
+  33: [{x:33920,z:-23479},{x:35247,z:-23355},{x:36164,z:-23446}],
+  43: [{x:4896,z:-42330},{x:6418,z:-42330}],
+};
+
+// ===== Gate data from field.cpp InitField() =====
+// {from, to, x, z, y} — raw engine coords, same space as SMD vertex raw data
+// Gate coords are (x, z, y) as passed to AddGate / AddWarpOutGate
+const GATES = [
+  // fore-3 (0) → fore-2 (1) — regular gate
+  {from:0,to:1,x:-8508,z:-10576,y:0},
+  // fore-2 (1) → fore-1 (2) — regular gate
+  {from:1,to:2,x:-292,z:-9548,y:0},
+  // fore-2 (1) self warp (fore-2 portal)
+  {from:1,to:1,x:-3408,z:-12447,y:251,warp:true},
+  // fore-1 (2) → ruin-4 (4), village-2 (3) — two regular gates
+  {from:2,to:4,x:4844,z:-6835,y:0},
+  {from:2,to:3,x:2275,z:-14828,y:0},
+  // village-2 (3) self warp (portal)
+  {from:3,to:3,x:734,z:-20119,y:312,warp:true},
+  // ruin-4 (4) → ruin-3 (5)
+  {from:4,to:5,x:410,z:4902,y:0},
+  // ruin-3 (5) → ruin-2 (6)
+  {from:5,to:6,x:3051,z:16124,y:0},
+  // ruin-2 (6) → ruin-1 (7), ff-04 (17), greedy (34)
+  {from:6,to:7,x:10019,z:18031,y:0},
+  {from:6,to:17,x:4470,z:27774,y:0},
+  {from:6,to:34,x:12713,z:23409,y:0},
+  // ruin-2 (6) self warp
+  {from:6,to:6,x:4428,z:22511,y:845,warp:true},
+  // ruin-1 (7) → de-1 (8)
+  {from:7,to:8,x:13319,z:7102,y:0},
+  // ruin-1 (7) warp → dun-1 (13)
+  {from:7,to:13,x:16809,z:15407,y:501,warp:true},
+  // de-1 (8) → de-2 (10), village-1 (9)
+  {from:8,to:10,x:13466,z:-5953,y:0},
+  {from:8,to:9,x:20041,z:-892,y:0},
+  // village-1 (9) → de-3 (11), sod-1 (30)
+  {from:9,to:11,x:27110,z:-479,y:0},
+  {from:9,to:30,x:21840,z:1062,y:0},
+  // village-1 (9) self warp
+  {from:9,to:9,x:16809,z:15407,y:501,warp:true},
+  // de-3 (11) → de-4 (12)
+  {from:11,to:12,x:34372,z:4277,y:0},
+  // de-3 (11) warp → dun-4 (22)
+  {from:11,to:22,x:35872,z:-2016,y:804,warp:true},
+  // de-4 (12) → iron-1 (27)
+  {from:12,to:27,x:44545,z:13063,y:0},
+  // de-4 (12) self warp
+  {from:12,to:12,x:34100,z:6214,y:940,warp:true},
+  // dun-1 (13) warp → ruin-1 (7), dun-2 (14)
+  {from:13,to:7,x:16649,z:15238,y:501,warp:true},
+  {from:13,to:14,x:-6027,z:-26881,y:99,warp:true},
+  // dun-2 (14) warp → dun-1 (13), dun-3 (15)
+  {from:14,to:13,x:-15314,z:-28718,y:58,warp:true},
+  {from:14,to:15,x:1810,z:-28802,y:0,warp:true},
+  {from:14,to:15,x:1810,z:-28802,y:0,warp:true},
+  // dun-3 (15) warp → dun-2 (14) x2
+  {from:15,to:14,x:-8176,z:-25775,y:77,warp:true},
+  {from:15,to:14,x:-3738,z:-27990,y:73,warp:true},
+  // forever-fall-04 (17) → ff-03 (18)
+  {from:17,to:18,x:-2949,z:40442,y:0},
+  // forever-fall-03 (18) → ff-02 (19)
+  {from:18,to:19,x:-2349,z:49830,y:0},
+  // ff-03 (18) self warp + warp → mcave (25)
+  {from:18,to:18,x:-4615,z:48002,y:1146,warp:true},
+  {from:18,to:25,x:119025,z:35680,y:499,warp:true},
+  // forever-fall-02 (19) → ff-01 (20)
+  {from:19,to:20,x:667,z:59371,y:0},
+  // forever-fall-01 (20) → pilai (21)
+  {from:20,to:21,x:-8508,z:-10576,y:0},
+  // ff-01 (20) warp → pilai (21)
+  {from:20,to:21,x:1993,z:73134,y:449,warp:true},
+  // pilai (21) → ff-01 (20)
+  // pilai (21) warp → ff-01 (20), self warp
+  {from:21,to:20,x:1958,z:70922,y:536,warp:true},
+  {from:21,to:21,x:2252,z:78041,y:754,warp:true},
+  // dun-4 (22) warp → de-3 (11), dun-5 (23)
+  {from:22,to:11,x:35872,z:-2016,y:804,warp:true},
+  {from:22,to:23,x:-2527,z:-37196,y:727,warp:true},
+  {from:22,to:23,x:-3669,z:-36444,y:727,warp:true},
+  {from:22,to:23,x:-4795,z:-37198,y:727,warp:true},
+  // dun-5 (23) warp → dun-4 (22) x3, dun-6 (42) x2
+  {from:23,to:22,x:-12073,z:-40701,y:95,warp:true},
+  {from:23,to:22,x:-12073,z:-40701,y:95,warp:true},
+  {from:23,to:22,x:-12073,z:-40701,y:95,warp:true},
+  {from:23,to:42,x:-3650,z:-45312,y:116,warp:true},
+  {from:23,to:42,x:-3668,z:-50022,y:3,warp:true},
+  {from:23,to:42,x:-3650,z:-45312,y:116,warp:true},
+  {from:23,to:42,x:-3668,z:-50022,y:3,warp:true},
+  // tcave (24) warp → dcave (26), fore-3 (0)
+  {from:24,to:26,x:158627,z:20504,y:240,warp:true},
+  {from:24,to:0,x:-16490,z:-6930,y:298,warp:true},
+  // mcave (25) warp → dcave (26), ff-03 (18)
+  {from:25,to:26,x:158543,z:19557,y:290,warp:true},
+  {from:25,to:18,x:-6056,z:43245,y:787,warp:true},
+  // dcave (26) warp → mcave (25), tcave (24)
+  {from:26,to:25,x:124396,z:33291,y:37,warp:true},
+  {from:26,to:24,x:125566,z:24825,y:480,warp:true},
+  // iron-1 (27) → iron-2 (28)
+  {from:27,to:28,x:45316,z:21407,y:0},
+  // iron-2 (28) → ice_ura (29)
+  {from:28,to:29,x:33618,z:24011,y:0},
+  // ice_ura (29) → ice1 (31)
+  {from:29,to:31,x:31848,z:27225,y:0},
+  // ice_ura (29) self warp
+  {from:29,to:29,x:30610,z:22164,y:1304,warp:true},
+  // ice1 (31) → ice2 (35)
+  {from:31,to:35,x:33729,z:38029,y:0},
+  // ice2 (35) → ice1 (31), boss (36)
+  {from:35,to:31,x:35364,z:39518,y:0},
+  {from:35,to:36,x:33000,z:50036,y:1512,warp:true},
+  // boss (36) → ice2 (35)
+  {from:36,to:35,x:37971,z:50460,y:1209,warp:true},
+  // lost (37) → losttemple (38)
+  {from:37,to:38,x:-11586,z:7704,y:0},
+  // lost (37) self warp
+  {from:37,to:37,x:-12555,z:-1113,y:668,warp:true},
+  // castle (33) self warp
+  {from:33,to:33,x:32739,z:-30474,y:711,warp:true},
+  // fall_game (39) → pilai (21) x2, self x2
+  {from:39,to:21,x:2981,z:75486,y:0,warp:true},
+  {from:39,to:21,x:2981,z:75486,y:0,warp:true},
+  {from:39,to:39,x:9992,z:36750,y:830,warp:true},
+  {from:39,to:39,x:7254,z:36750,y:830,warp:true},
+  // dun-7 (40) → dun-8 (41), losttemple (38)
+  {from:40,to:41,x:5255,z:-37897,y:86,warp:true},
+  {from:40,to:38,x:-12272,z:11299,y:509,warp:true},
+  // dun-8 (41) → dun-7 (40), dun-9 (43) x2
+  {from:41,to:40,x:14242,z:-41199,y:220,warp:true},
+  {from:41,to:43,x:4896,z:-42220,y:202,warp:true},
+  {from:41,to:43,x:6408,z:-42220,y:202,warp:true},
+  // dun-6a (42) → dun-5 (23) x2
+  {from:42,to:23,x:-2851,z:-43792,y:642,warp:true},
+  {from:42,to:23,x:-4422,z:-43801,y:642,warp:true},
+  {from:42,to:23,x:-2851,z:-43792,y:642,warp:true},
+  {from:42,to:23,x:-4422,z:-43801,y:642,warp:true},
+  // dun-9 (43) → dun-8 (41) x2
+  {from:43,to:41,x:5254,z:-41361,y:139,warp:true},
+  {from:43,to:41,x:5254,z:-41361,y:139,warp:true},
+  // fore-3 (0) warp → tcave (24)
+  {from:0,to:24,x:-16638,z:-6737,y:267,warp:true},
+];
+
+// ===== Populate dropdown =====
+const sel = document.getElementById('mapSel');
+MAPS.forEach(m => {
+  if (!m) return;
+  const o = document.createElement('option');
+  o.value = m.id;
+  o.textContent = m.n;
+  sel.appendChild(o);
+});
+sel.value = 0;
+
+// ===== Three.js scene =====
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111122);
+
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500000);
+camera.position.set(0, 200, 400);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+viewport.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// No scene lights — original engine uses vertex color + lightmap only
+
+// Axis arrows
+const axisGroup = new THREE.Group();
+const axisLen = 50;
+const axisColors = [0xff3333, 0x33ff33, 0x3333ff];
+const axisDirs = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)];
+const axisLabels = ['X', 'Y', 'Z'];
+axisDirs.forEach((d,i)=>{
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,axisLen,8), new THREE.MeshBasicMaterial({color:axisColors[i]}));
+  cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.clone().normalize());
+  cyl.position.copy(d.clone().multiplyScalar(axisLen/2));
+  axisGroup.add(cyl);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.4,5,10), new THREE.MeshBasicMaterial({color:axisColors[i]}));
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), d.clone().normalize());
+  cone.position.copy(d.clone().multiplyScalar(axisLen));
+  axisGroup.add(cone);
+  const canvas = document.createElement('canvas');
+  canvas.width=64;canvas.height=64;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff';ctx.font='bold 40px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(axisLabels[i],32,32);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),depthTest:false}));
+  sprite.position.copy(d).multiplyScalar(axisLen+3);
+  sprite.scale.set(6,6,1);
+  axisGroup.add(sprite);
+});
+scene.add(axisGroup);
+
+// ===== Dummy Character + Debug Camera =====
+// Capsule replacement: Box collision body from smMakeTLine (smStage3d.cpp:431)
+// Body: bottom=12 units, top=75% PatHeight, width=25% PatWidth each side
+const PAT_HEIGHT = 44; // default minimum (character.cpp:7440)
+const PAT_WIDTH = 44;  // default (character.cpp:7441)
+const BODY_HEIGHT = 0.75 * PAT_HEIGHT - 12; // 21 units
+const BODY_WIDTH = 0.25 * PAT_WIDTH;        // 11 units
+const BODY_DEPTH = BODY_WIDTH;
+
+// Dummy character (box) — 线框渲染，正常深度测试/写深度
+const dummyGroup = new THREE.Group();
+const dummyBoxGeom = new THREE.BoxGeometry(BODY_WIDTH * 2, BODY_HEIGHT, BODY_DEPTH * 2);
+const dummyBoxMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, wireframe: true });
+const dummyBox = new THREE.Mesh(dummyBoxGeom, dummyBoxMat);
+dummyBox.position.y = 12 + BODY_HEIGHT / 2; // feet at 12 units, center at 12+H/2
+dummyGroup.add(dummyBox);
+
+// Direction indicator (forward line)
+const dummyForwardGeom = new THREE.BufferGeometry();
+dummyForwardGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,16,0, 0,16,20]), 3));
+const dummyForwardLine = new THREE.Line(dummyForwardGeom, new THREE.LineBasicMaterial({ color: 0xff4444 }));
+dummyGroup.add(dummyForwardLine);
+
+// Beacon cylinder — thin bright pole to locate dummy from far away（线框）
+const beaconGeom = new THREE.CylinderGeometry(0.5, 0.5, 80, 6);
+const beaconMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+const beacon = new THREE.Mesh(beaconGeom, beaconMat);
+beacon.position.y = 40 + 80 / 2; // above dummy box (box top at ~33), extends upward
+dummyGroup.add(beacon);
+
+// Frustum wireframe — shows debug camera view cone, apex at camera position
+function buildFrustumGeo(near, far, fovDeg, aspect, verts) {
+  const fovRad = fovDeg * Math.PI / 180;
+  const nh = near * Math.tan(fovRad / 2);
+  const nw = nh * aspect;
+  const fh = far * Math.tan(fovRad / 2);
+  const fw = fh * aspect;
+  const corners = [
+    [-nw,  nh, -near], [ nw,  nh, -near], [ nw, -nh, -near], [-nw, -nh, -near], // near
+    [-fw,  fh, -far ], [ fw,  fh, -far ], [ fw, -fh, -far ], [-fw, -fh, -far ], // far
+  ];
+  const edges = [
+    0,1, 1,2, 2,3, 3,0,       // near rect
+    4,5, 5,6, 6,7, 7,4,       // far rect
+    0,4, 1,5, 2,6, 3,7,       // side lines
+  ];
+  for (let i = 0; i < edges.length; i++) {
+    const c = corners[edges[i]];
+    verts[i*3] = c[0]; verts[i*3+1] = c[1]; verts[i*3+2] = c[2];
+  }
+}
+
+function createFrustumWireframe(near, far, fovDeg, aspect, color) {
+  const nverts = 24 * 3; // 12 edges × 2 verts × 3
+  const verts = new Float32Array(nverts);
+  buildFrustumGeo(near, far, fovDeg, aspect, verts);
+  const geom = new THREE.BufferGeometry();
+  const attr = new THREE.BufferAttribute(verts, 3);
+  geom.setAttribute('position', attr);
+  const line = new THREE.LineSegments(geom, new THREE.LineBasicMaterial({ color, depthTest: false }));
+  // 动态更新几何体（aspect/fov 变化时）
+  line.updateFrustum = (near2, far2, fov2, aspect2) => {
+    buildFrustumGeo(near2, far2, fov2, aspect2, verts);
+    attr.needsUpdate = true;
+  };
+  return line;
+}
+
+// 近锥线框：从相机位置(near*0.05)到实际 near，反映相机真实位置
+const frustumNear = createFrustumWireframe(1, 20, 40.9, 1, 0xffaa00);
+scene.add(frustumNear);
+
+// 中距线框：near→near*20，显示锥体方向
+const frustumMid = createFrustumWireframe(20, 200, 40.9, 1, 0xffff00);
+frustumMid.material.transparent = true;
+frustumMid.material.opacity = 0.6;
+scene.add(frustumMid);
+
+// 远距线框：near*20→far，完整可视范围
+const frustumFar = createFrustumWireframe(200, 2000, 40.9, 1, 0xffff00);
+frustumFar.material.transparent = true;
+frustumFar.material.opacity = 0.25;
+scene.add(frustumFar);
+
+// 相机位置标记：红球（始终可见，标出相机实际位置）
+const camMarkGeom = new THREE.SphereGeometry(2, 8, 8);
+const camMarkMat = new THREE.MeshBasicMaterial({ color: 0xff0000, depthTest: false });
+const camMark = new THREE.Mesh(camMarkGeom, camMarkMat);
+scene.add(camMark);
+// 相机朝向箭头（从相机位置指向前方，标出观察方向）
+const camArrowLen = 15;
+const camArrowGeom = new THREE.BufferGeometry();
+camArrowGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+  0,0,0,  0,0,camArrowLen,
+]), 3));
+const camArrow = new THREE.Line(camArrowGeom, new THREE.LineBasicMaterial({ color: 0xff0000, depthTest: false }));
+scene.add(camArrow);
+
+scene.add(dummyGroup);
+
+// Dummy state
+const dummy = {
+  x: 0, y: 0, z: 0,       // world position
+  angle: 0,                 // yaw angle (engine units: 0-4095)
+  moveFlag: false,
+  moveSpeed: 3,            // movement speed (world units/frame)
+};
+
+// Position dummy at map spawn point
+function positionDummyAtSpawn(mapId) {
+  const m = loadedMaps[mapId];
+  if (!m) return;
+  const spawns = FIELD_SPAWNS[mapId];
+  let sx, sz;
+  if (spawns && spawns.length > 0) {
+    sx = spawns[0].x;
+    sz = spawns[0].z;
+  } else {
+    const b = m.data.bounds;
+    sx = (b.minX + b.maxX) / 2 / fONE;
+    sz = (b.minZ + b.maxZ) / 2 / fONE;
+  }
+  dummy.x = -sz;
+  dummy.z = -sx;
+  const rawSx = sx * fONE, rawSz = sz * fONE;
+  dummy.y = 0;
+  for (const id of Object.keys(loadedMaps)) {
+    const cm = loadedMaps[id].collisionMesh;
+    if (cm && cm.triangles.length > 0) {
+      const h = cm.getPolyHeight(rawSx, rawSz);
+      if (h.found) { dummy.y = h.height / 256; break; }
+    }
+  }
+}
+
+// Debug camera (follows dummy, used for frustum culling)
+const debugCamera = new THREE.PerspectiveCamera(
+   40.9,                 // FOV in DEGREES (THREE expects degrees, not radians!)
+   1,
+   20 * WORLD_SCALE,     // near = 20 game units
+   4000 * WORLD_SCALE    // far = 4000 game units
+ );
+debugCamera.position.set(0, 200, 400);
+
+// Camera state (from Winmain.cpp:244-252)
+const cam = {
+  dist: 100,          // eye distance (Winmain.cpp:251) — C++游戏单位
+  viewDist: 100,      // actual interpolated distance
+  anx: 384,           // pitch angle (384/4096*360=33.75°, 俯视角)
+  viewAnx: 384,       // interpolated pitch
+  any: 0,             // yaw angle
+  fov: 40.9,          // degrees
+  minDist: 40/256,    // C++ min 40游戏单位 → JS (俯角≤40°时)
+  maxDist: 440/256,   // C++ max 440游戏单位 → JS
+};
+
+// Key state
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.code] = true; });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// Mouse state (for click-to-move)
+let mouseDown = false;
+let mouseX = 0, mouseY = 0;
+viewport.addEventListener('mousedown', e => { if (e.button === 0) mouseDown = true; });
+viewport.addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; });
+viewport.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+
+// Engine angle constants
+const ANGLE_360 = 4096;
+const ANGLE_45 = 512;
+const ANGLE_90 = 1024;
+const ANGLE_180 = 2048;
+const ANGCLIP = ANGLE_360 - 1;
+const FLOATNS = 8;
+const fONE = 256;
+
+// Sin/Cos tables (from smSin.cpp)
+import { sdGetSin, sdGetCos } from './js/sm-sin.js?v=1';
+
+// Update dummy + camera each frame
+function updateDummy(dt) {
+  // 确保用于鼠标角度计算的相机矩阵是最新的（OrbitControls 只改 position/rotation，
+  // matrixWorld 需手动刷新，否则 camRight/camFwd 是旧值导致朝向错误）
+  const activeCamNow = useDebugCamera ? debugCamera : camera;
+  activeCamNow.updateMatrixWorld();
+  // Arrow keys → camera rotation/zoom (Winmain.cpp:2494-2542)
+  if (keys['ArrowLeft'])  cam.any = (cam.any + 16) & ANGCLIP;
+  if (keys['ArrowRight']) cam.any = (cam.any - 16 + ANGLE_360) & ANGCLIP;
+  if (keys['ArrowUp'])    cam.dist = Math.max(40, cam.dist - 8);
+  if (keys['ArrowDown'])  cam.dist = Math.min(440, cam.dist + 8);
+  if (keys['ControlLeft'] || keys['ControlRight']) {
+    if (keys['ArrowUp'])   cam.anx = Math.min(976, cam.anx + 8);
+    if (keys['ArrowDown']) cam.anx = Math.max(40, cam.anx - 8);
+  }
+
+  // Mouse left-click hold → character walks toward cursor
+  // 方向 = 鼠标坐标 - dummy 在屏幕上的投影坐标（不是屏幕中心！）
+  // 原版：GetActionGame_PlayMouseAngle 用 lpCurPlayer->RendPoint（玩家屏幕投影）
+  if (mouseDown) {
+    const rect = viewport.getBoundingClientRect();
+    const activeCam = useDebugCamera ? debugCamera : camera;
+    // 1. 计算 dummy 在屏幕上的投影坐标
+    const dummyScreen = new THREE.Vector3(dummy.x, dummy.y, dummy.z).project(activeCam);
+    const projX = (dummyScreen.x + 1) * 0.5 * rect.width + rect.left;
+    const projY = (-dummyScreen.y + 1) * 0.5 * rect.height + rect.top;
+    // 2. 屏幕方向向量（向右/向上为正）
+    const sdx = mouseX - projX;
+    const sdy = -(mouseY - projY);
+    const slen = Math.hypot(sdx, sdy);
+    if (slen < 1) { dummy.moveFlag = false; return; }
+    const ux = sdx / slen, uy = sdy / slen;
+    // 3. 相机 right/forward 向量（XZ 平面）映射到世界
+    const camRight = new THREE.Vector3();
+    const camFwd = new THREE.Vector3();
+    camRight.setFromMatrixColumn(activeCam.matrixWorld, 0); // right = column 0
+    camFwd.setFromMatrixColumn(activeCam.matrixWorld, 2);   // forward = column 2 (negated in Three.js)
+    camFwd.negate();
+    camRight.y = 0; camRight.normalize();
+    camFwd.y = 0; camFwd.normalize();
+    // 4. 世界方向（XZ 平面）
+    const wx = ux * camRight.x + uy * camFwd.x;
+    const wz = ux * camRight.z + uy * camFwd.z;
+    const wlen = Math.hypot(wx, wz);
+    if (wlen < 1e-6) { dummy.moveFlag = false; return; }
+    dummy.angle = ((Math.atan2(wx / wlen, wz / wlen) / (Math.PI * 2) * ANGLE_360) & ANGCLIP) >>> 0;
+    dummy.moveFlag = true;
+  } else {
+    dummy.moveFlag = false;
+  }
+
+    // Move character (MoveAngle2: character.cpp:1924)
+    if (dummy.moveFlag) {
+      const step = dummy.moveSpeed;
+      const sinVal = sdGetSin[dummy.angle & ANGCLIP] || 0;
+      const cosVal = sdGetCos[dummy.angle & ANGCLIP] || 0;
+      // world 方向增量（dummy.x/z 是 world 坐标）
+      const dx = (sinVal * step) / 32768;
+      const dz = (cosVal * step) / 32768;
+      const startX = dummy.x, startZ = dummy.z;
+
+      // 碰撞检测在 raw SMD 空间：把 world 方向转成 raw 方向角度
+      // world (wx,wz) ↔ raw (rx=-wz*256, rz=-wx*256)
+      // world 方向 (sinA, cosA) → raw 增量 (fdx_raw, fdz_raw) = (-cosA, -sinA)
+      // raw 角度 a_r 满足 sin(a_r)=fdx_raw, cos(a_r)=fdz_raw
+      // 直接用 raw 方向向量计算移动，避免角度转换误差
+      const rawDirX = -cosVal / 32768; // raw 增量方向 x
+      const rawDirZ = -sinVal / 32768; // raw 增量方向 z
+
+      let anyCollision = false;
+      let finalRawX = null, finalRawY = null, finalRawZ = null;
+      for (const id of Object.keys(loadedMaps)) {
+        const m = loadedMaps[id];
+        if (!m.collisionMesh || m.collisionMesh.triangles.length === 0) continue;
+        // 起点 = 当前位置（raw SMD）
+        const sx = -dummy.z * 256, sy = dummy.y * 256, sz = -dummy.x * 256;
+        const dist = Math.sqrt(dx * dx + dz * dz) * 256;
+        if (dist < 1) { anyCollision = false; break; }
+        // 把 raw 方向向量转回角度（供 checkNextMove 内部算 sin/cos）
+        const rawAngle = ((Math.atan2(rawDirX, rawDirZ) / (Math.PI * 2) * ANGLE_360) & ANGCLIP) >>> 0;
+        const result = m.collisionMesh.checkNextMove(sx, sy, sz, rawAngle, dist);
+        window.__lastCnm = { sx, sy, sz, rawAngle, dist, result, rawDirX, rawDirZ };
+        if (result.collision) {
+          anyCollision = true;
+          break;
+        }
+        // 使用碰撞修正后的位置（可能因距离减半只移动了一部分）
+        finalRawX = result.x;
+        finalRawY = result.y;
+        finalRawZ = result.z;
+      }
+
+      if (anyCollision) {
+        // 完全被挡：不动
+      } else if (finalRawX !== null) {
+        // 使用 checkNextMove 返回的修正位置（raw → world）
+        dummy.x = -finalRawZ / 256;
+        dummy.y = finalRawY / 256;
+        dummy.z = -finalRawX / 256;
+      } else {
+        // 无碰撞 mesh：原始移动（world 方向）
+        dummy.x = dummy.x + dx;
+        dummy.y = dummy.y;
+        dummy.z = dummy.z + dz;
+      }
+      // DEBUG: 记录移动方向 vs 红线方向
+      const actDX = dummy.x - startX, actDZ = dummy.z - startZ;
+      const redDir = [Math.sin(dummy.angle / ANGLE_360 * Math.PI * 2), Math.cos(dummy.angle / ANGLE_360 * Math.PI * 2)];
+      const angMatch = Math.abs(redDir[0] * actDX + redDir[1] * actDZ) / (Math.hypot(redDir) * Math.hypot(actDX) || 1);
+      window.__lastMoveDebug = {
+        angle: dummy.angle, redDir: redDir.map(v => +v.toFixed(3)),
+        actDX: +actDX.toFixed(4), actDZ: +actDZ.toFixed(4),
+        align: +angMatch.toFixed(3),
+        moved: (actDX !== 0 || actDZ !== 0),
+        sinVal, cosVal, dx: +dx.toFixed(4), dz: +dz.toFixed(4),
+        finalRawX, finalRawZ,
+        rawDirX, rawDirZ,
+        anyCollision,
+      };
+    }
+
+  // Update dummy visual
+  dummyGroup.position.set(dummy.x, dummy.y, dummy.z);
+  // rotation.y = +angle_rad：局部+Z（红线）旋转到 (sin,cos) 与移动方向一致。
+  // 之前用负号导致红线 X 分量镜像（红线朝向与运动方向相反）。
+  dummyGroup.rotation.y = (dummy.angle / ANGLE_360) * Math.PI * 2;
+
+  // Update debug camera follow (Winmain.cpp:3006-3024)
+  // Interpolate ViewAnx → anx
+  if (cam.viewAnx < cam.anx) cam.viewAnx = Math.min(cam.viewAnx + 8, cam.anx);
+  if (cam.viewAnx > cam.anx) cam.viewAnx = Math.max(cam.viewAnx - 8, cam.anx);
+  // Interpolate ViewDist → dist
+  if (cam.viewDist < cam.dist) cam.viewDist = Math.min(cam.viewDist + 8, cam.dist);
+  if (cam.viewDist > cam.dist) cam.viewDist = Math.max(cam.viewDist - 8, cam.dist);
+
+  // Camera position: GetMoveLocation(0,0,-(ViewDist<<FLOATNS), ViewAnx, any, 0)
+  // Rotation result: eyeX = playerX - dist*sin(yaw)*cos(pitch), eyeZ = playerZ - dist*cos(yaw)*cos(pitch)
+  const pitchRad = (cam.viewAnx / ANGLE_360) * Math.PI * 2;
+  const yawRad = (cam.any / ANGLE_360) * Math.PI * 2;
+  const d = cam.viewDist;
+  debugCamera.position.set(
+    dummy.x - d * Math.sin(yawRad) * Math.cos(pitchRad),
+    dummy.y + d * Math.sin(pitchRad),
+    dummy.z - d * Math.cos(yawRad) * Math.cos(pitchRad)
+  );
+  debugCamera.lookAt(dummy.x, dummy.y + 20, dummy.z);
+
+  // Update frustum wireframes + camera marker to match debug camera
+  // 始终可见：上帝视角下也能观察相机位置
+  frustumNear.position.copy(debugCamera.position);
+  frustumNear.quaternion.copy(debugCamera.quaternion);
+  frustumMid.position.copy(debugCamera.position);
+  frustumMid.quaternion.copy(debugCamera.quaternion);
+  frustumFar.position.copy(debugCamera.position);
+  frustumFar.quaternion.copy(debugCamera.quaternion);
+  // 相机位置标记 + 朝向箭头
+  camMark.position.copy(debugCamera.position);
+  camArrow.position.copy(debugCamera.position);
+  camArrow.quaternion.copy(debugCamera.quaternion);
+
+  // Terrain collision: camera below ground → push up 8 units
+  // (simplified: use minimum y of loaded maps)
+  // TODO: proper terrain height query
+}
+
+// Use debugCamera for frustum culling when active
+let useDebugCamera = false;
+
+// Resize
+const resize = ()=>{
+  const w=viewport.clientWidth,h=viewport.clientHeight;
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+  renderer.setSize(w,h);
+  // 用 canvas 实际 buffer 尺寸计算 aspect（保证与渲染画面一致）
+  const cw=renderer.domElement.clientWidth, ch=renderer.domElement.clientHeight;
+  const ar = (cw&&ch) ? cw/ch : w/h;
+  debugCamera.aspect = ar;
+  debugCamera.updateProjectionMatrix();
+  updateFrustumAspect(ar);
+};
+// 视锥线框 aspect 跟随相机实际 aspect（否则线框是正方形，与实际画面不符）
+function updateFrustumAspect(ar) {
+  frustumNear.updateFrustum(1, 20, debugCamera.fov, ar);
+  frustumMid.updateFrustum(20, 200, debugCamera.fov, ar);
+  frustumFar.updateFrustum(200, 2000, debugCamera.fov, ar);
+}
+window.addEventListener('resize',resize);resize();
+
+// Render loop
+const clock = new THREE.Clock();
+const statsEl = document.getElementById('stats');
+// 相机调试信息行（追加在 stats 后）
+const camInfoEl = document.createElement('div');
+camInfoEl.style.cssText = 'color:#ffd479;font:11px Consolas,monospace;padding:2px 10px;background:rgba(0,0,0,0.6);pointer-events:auto;user-select:text';
+statsEl.parentNode.insertBefore(camInfoEl, statsEl.nextSibling);
+// 复制调试信息按钮
+const copyBtn = document.createElement('button');
+copyBtn.textContent = '复制调试信息';
+copyBtn.style.cssText = 'position:absolute;bottom:90px;right:10px;z-index:50;font:11px Tahoma,sans-serif;padding:3px 8px;cursor:pointer;background:#2a2a2a;color:#ffd479;border:1px solid #555;border-radius:3px';
+copyBtn.onclick = () => {
+  const txt = [statsEl.textContent, camInfoEl.textContent].filter(Boolean).join('\n');
+  const done = () => {
+    copyBtn.textContent = '已复制!';
+    setTimeout(() => { copyBtn.textContent = '复制调试信息'; }, 1200);
+  };
+  // 优先 navigator.clipboard（HTTPS），失败/不可用时回退 textarea+execCommand
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done).catch(() => {});
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = txt;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch(e) {}
+  document.body.removeChild(ta);
+};
+document.body.appendChild(copyBtn);
+const animatedMeshes = []; // meshes with frame animation
+const mapRenderers = [];   // MapRenderer instances
+let frameCount = 0;
+let fpsTime = 0;
+let fps = 0;
+(function animate(){
+  requestAnimationFrame(animate);
+
+  // 先更新 OrbitControls 相机姿态，再让 updateDummy 用最新矩阵计算鼠标角度
+  if (!useDebugCamera) {
+    controls.update();
+  }
+
+  // Update dummy character
+  updateDummy(1/60);
+
+  // Ensure camera matrices are up-to-date before frustum culling
+  if (useDebugCamera) {
+    debugCamera.updateProjectionMatrix();
+    debugCamera.updateMatrixWorld();
+    // Frustum culling needs matrixWorldInverse; renderer updates it later,
+    // so compute it now manually (otherwise culling uses stale/initial inverse).
+    debugCamera.matrixWorldInverse.copy(debugCamera.matrixWorld).invert();
+    // 线框 aspect 跟随相机
+    updateFrustumAspect(debugCamera.aspect);
+  } else {
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+  }
+
+  // Choose camera for frustum culling
+  const cullCamera = useDebugCamera ? debugCamera : camera;
+
+  // Update map renderers with setDrawRange culling
+  for (const mr of mapRenderers) {
+    mr.render(cullCamera);
+  }
+
+  // Render with appropriate camera
+  renderer.render(scene, useDebugCamera ? debugCamera : camera);
+  const t = clock.getElapsedTime();
+  // Update frame animations — replicates original engine:
+  //   frameIdx = (time_ms >> Shift_FrameSpeed) & FrameMask
+  //   (RendStatTime is milliseconds; default Shift_FrameSpeed = 6 → 64ms/frame)
+  const animMs = t * 1000;
+  for (const m of animatedMeshes) {
+    const u = m.userData;
+    const frames = u.animFrames;
+    if (!frames || frames.length < 2) continue;
+    const mask = u.animMask !== undefined ? u.animMask : (frames.length - 1);
+    const shift = u.animShift !== undefined ? u.animShift : 6;
+    const idx = (animMs >> shift) & mask;
+    if (idx !== u.animIdx) {
+      u.animIdx = idx;
+      m.material.map = frames[idx % frames.length];
+      m.material.needsUpdate = true;
+    }
+  }
+  frameCount++;
+  if (t - fpsTime >= 1) { fps = Math.round(frameCount / (t - fpsTime)); frameCount = 0; fpsTime = t; }
+  const info = renderer.info.render;
+  const visFaces = mapRenderers.reduce((s, mr) => s + mr.visibleFaceCount, 0);
+  const totFaces = mapRenderers.reduce((s, mr) => s + mr.totalFaceCount, 0);
+  const visCells = mapRenderers.reduce((s, mr) => s + mr.visibleCellCount, 0);
+  const dc = mapRenderers.reduce((s, mr) => s + mr.drawCallCount, 0);
+  const dummyInfo = useDebugCamera ?
+    `Dummy (${dummy.x.toFixed(0)},${dummy.y.toFixed(0)},${dummy.z.toFixed(0)}) cam(dist=${cam.viewDist.toFixed(0)} pitch=${cam.viewAnx})` : '';
+  statsEl.textContent = `FPS ${fps} | Draw Calls ${dc} | Vis ${visFaces}/${totFaces} faces | Cells ${visCells} ${dummyInfo}`;
+  camInfoEl.textContent = useDebugCamera ? [
+    `dummy (${dummy.x.toFixed(1)}, ${dummy.y.toFixed(1)}, ${dummy.z.toFixed(1)})`,
+    `cam (${debugCamera.position.x.toFixed(1)}, ${debugCamera.position.y.toFixed(1)}, ${debugCamera.position.z.toFixed(1)})`,
+    `rot (${(debugCamera.rotation.x*180/Math.PI).toFixed(1)}°, ${(debugCamera.rotation.y*180/Math.PI).toFixed(1)}°, ${(debugCamera.rotation.z*180/Math.PI).toFixed(1)}°)`,
+    `realDist3D ${debugCamera.position.distanceTo(dummyGroup.position).toFixed(3)}  horiz ${Math.hypot(debugCamera.position.x-dummy.x, debugCamera.position.z-dummy.z).toFixed(3)}  vert ${(debugCamera.position.y-dummy.y).toFixed(3)}`,
+    `viewDist ${cam.viewDist.toFixed(3)}  anx ${cam.viewAnx} any ${cam.any} fov ${cam.fov}°`,
+    `near ${debugCamera.near.toFixed(4)} far ${debugCamera.far.toFixed(1)}`,
+  ].join('  ') : '';
+})();
+
+// Debug hooks (module scope is not reachable from console otherwise)
+window.__ptDebug = {
+  getAnimatedMeshes: () => animatedMeshes.map(m => ({
+    frames: m.userData.animFrames ? m.userData.animFrames.length : 0,
+    currentIdx: m.userData.animIdx,
+    mapChanged: m.material.map !== undefined,
+    transparent: m.material.transparent,
+    alphaTest: m.material.alphaTest
+  })),
+  getLoadedMaps: () => Object.keys(loadedMaps),
+  getCamera: () => ({ x: camera.position.x, y: camera.position.y, z: camera.position.z }),
+  getMainCamDir: () => {
+    const mw = camera.matrixWorld.elements;
+    // column-major: right=mw[0..2], zaxis=mw[8..10], forward=-zaxis
+    return {
+      right: [mw[0], mw[1], mw[2]].map(v => +v.toFixed(3)),
+      zaxis: [mw[8], mw[9], mw[10]].map(v => +v.toFixed(3)),
+      forward: [-mw[8], -mw[9], -mw[10]].map(v => +v.toFixed(3)),
+    };
+  },
+  testMove: (ang) => {
+    // 直接调用当前地图 collisionMesh.checkNextMove
+    const ids = Object.keys(loadedMaps);
+    if (!ids.length) return { note: 'no map' };
+    const m = loadedMaps[ids[0]];
+    const cm = m.collisionMesh;
+    const sx = -dummy.z * 256, sy = dummy.y * 256, sz = -dummy.x * 256;
+    const angle = ang !== undefined ? ang : (Math.round((dummy.angle / ANGLE_360) * ANGLE_360) & (ANGLE_360 - 1));
+    const dist = 3 * 256;
+    const r = cm.checkNextMove(sx, sy, sz, angle, dist);
+    return {
+      angle,
+      startRaw: [sx, sy, sz],
+      result: r,
+      moveRaw: [r.x - sx, r.z - sz],
+      moveWorld: [(r.x - sx) / 256, (r.z - sz) / 256],
+      dummyAngle: dummy.angle,
+    };
+  },
+  testMouseDir: () => {
+    // 用当前逻辑：模拟鼠标在 dummy 屏幕投影"上方"100px
+    const rect = viewport.getBoundingClientRect();
+    const activeCam = useDebugCamera ? debugCamera : camera;
+    const ds = new THREE.Vector3(dummy.x, dummy.y, dummy.z).project(activeCam);
+    const projX = (ds.x + 1) * 0.5 * rect.width + rect.left;
+    const projY = (-ds.y + 1) * 0.5 * rect.height + rect.top;
+    // 屏幕上方 = projY - 100
+    const mX = projX, mY = projY - 100;
+    const sdx = mX - projX;
+    const sdy = -(mY - projY); // = 100
+    const slen = Math.hypot(sdx, sdy);
+    const ux = sdx / slen, uy = sdy / slen;
+    const camRight = new THREE.Vector3();
+    const camFwd = new THREE.Vector3();
+    camRight.setFromMatrixColumn(activeCam.matrixWorld, 0);
+    camFwd.setFromMatrixColumn(activeCam.matrixWorld, 2);
+    camFwd.negate();
+    camRight.y = 0; camRight.normalize();
+    camFwd.y = 0; camFwd.normalize();
+    const wx = ux * camRight.x + uy * camFwd.x;
+    const wz = ux * camRight.z + uy * camFwd.z;
+    const angle = ((Math.atan2(wx, wz) / (Math.PI * 2) * ANGLE_360) & ANGCLIP) >>> 0;
+    const sinV = sdGetSin[angle] / 32768;
+    const cosV = sdGetCos[angle] / 32768;
+    // dummyGroup 实际朝向（红线世界方向）
+    dummyGroup.updateMatrixWorld(true);
+    const redLineDir = new THREE.Vector3(0, 0, 1).applyQuaternion(dummyGroup.quaternion);
+    return {
+      activeCam: useDebugCamera ? 'debug' : 'main',
+      dummyProj: [projX, projY],
+      mouseScreen: [mX, mY],
+      camFwdHoriz: [camFwd.x, camFwd.z],
+      angle,
+      moveDir: [sinV, cosV],
+      redLineWorldDir: [redLineDir.x, redLineDir.z],
+      moveDirDesc: `角度${angle} → 移动(${sinV.toFixed(3)},${cosV.toFixed(3)}) 红线(${redLineDir.x.toFixed(3)},${redLineDir.z.toFixed(3)})`,
+    };
+  },
+  getDummyCam: () => {
+    const dc = debugCamera.position, dp = dummyGroup.position;
+    return {
+      dummy: { x: dummy.x, y: dummy.y, z: dummy.z },
+      cam: { x: dc.x, y: dc.y, z: dc.z },
+      rot: { x: debugCamera.rotation.x, y: debugCamera.rotation.y, z: debugCamera.rotation.z },
+      realDist3D: dc.distanceTo(dp),
+      realDistHoriz: Math.hypot(dc.x - dummy.x, dc.z - dummy.z),
+      realDistVert: dc.y - dummy.y,
+      viewDist: cam.viewDist, anx: cam.viewAnx, any: cam.any, fov: cam.fov,
+      near: debugCamera.near, far: debugCamera.far,
+    };
+  },
+  getWallDebug: () => {
+    const out = {};
+    for (const id of Object.keys(loadedMaps)) {
+      const lm = loadedMaps[id];
+      out[id] = {
+        wallLines: lm.wallLines ? { verts: lm.wallLines.geometry.getAttribute('position').count } : null,
+        groundLines: lm.groundLines ? { verts: lm.groundLines.geometry.getAttribute('position').count } : null,
+        collisionTris: lm.collisionMesh ? lm.collisionMesh.triangles.length : 0,
+      };
+    }
+    return out;
+  },
+  getCullingDebug: () => {
+    const out = {};
+    // 暴露 debugCamera 矩阵
+    const de = debugCamera;
+    out.__debugCam = {
+      position: [de.position.x, de.position.y, de.position.z],
+      fov: de.fov,
+      aspect: de.aspect,
+      near: de.near,
+      far: de.far,
+      mw: Array.from(de.matrixWorld.elements),
+      mwi: Array.from(de.matrixWorldInverse.elements),
+    };
+    const mrs = window.__ptMapRenderers || [];
+    for (let i = 0; i < mrs.length; i++) {
+      const mr = mrs[i];
+      mr._debug = true;
+      out[i] = mr._debugLast || { note: 'not rendered yet', worldMin: mr.worldMin, worldMax: mr.worldMax, cellWorldSize: mr.cellWorldSize };
+      if (mr._debugFirstCell) out[i].firstCell = mr._debugFirstCell;
+      if (mr._dbgMaterials) out[i].matAABBs = mr._dbgMaterials;
+    }
+    return out;
+  },
+  getTextureInfo: (url) => {
+    const t = textureCache[url];
+    if (!t) return null;
+    return { flipY: t.flipY, wrapS: t.wrapS, wrapT: t.wrapT, colorSpace: t.colorSpace, w: t.image.width, h: t.image.height };
+  },
+  getLightmapTextureInfo: () => {
+    // find a lightmap url in cache
+    const keys = Object.keys(textureCache).filter(k => /lightingmap/i.test(k));
+    return keys.map(k => ({ url: k, info: window.__ptDebug.getTextureInfo(k) }));
+  },
+  projectMesh: (n) => {
+    const m = animatedMeshes[n];
+    if (!m) return null;
+    m.updateWorldMatrix(true, true);
+    const pos = new THREE.Vector3();
+    m.getWorldPosition(pos);
+    const proj = pos.clone().project(camera);
+    return { worldPos: [pos.x, pos.y, pos.z], screenX: (proj.x + 1) * 0.5 * viewport.clientWidth, screenY: (-proj.y + 1) * 0.5 * viewport.clientHeight };
+  },
+  setCamera: (x, y, z, tx, ty, tz) => {
+    camera.position.set(x, y, z);
+    controls.target.set(tx, ty, tz);
+    controls.update();
+  },
+};
+
+// ===== UI =====
+document.getElementById('chkWire').onchange=e=>{
+  for (const mr of mapRenderers) {
+    for (const mrd of mr.materials) {
+      mrd.mesh.material.wireframe = e.target.checked;
+    }
+  }
+};
+document.getElementById('chkAxis').onchange=e=>{axisGroup.visible=e.target.checked};
+document.getElementById('chkGates').onchange=e=>{
+  gateGroup.visible=e.target.checked;
+};
+document.getElementById('chkDebug').onchange=e=>{
+  useDebugCamera = e.target.checked;
+  controls.enabled = !e.target.checked;
+};
+
+// ===== Loaded maps tracking =====
+const loadedMaps = {}; // mapId → {group, data, color}
+const mapColors = [0x5599cc, 0xcc8855, 0x55cc88, 0xcc5588, 0x88cc55, 0x8855cc, 0xcccc55, 0x55cccc];
+let colorIdx = 0;
+let gateGroup = new THREE.Group();
+gateGroup.name = 'gates';
+scene.add(gateGroup);
+
+function updateLoadedMapsUI() {
+  const div = document.getElementById('loadedMaps');
+  div.innerHTML = '';
+  for (const id in loadedMaps) {
+    const m = loadedMaps[id];
+    const el = document.createElement('div');
+    el.textContent = '● ' + m.data.nVertex + 'v ' + m.data.nFace + 'f — ' + m.name;
+    el.style.color = '#' + m.color.toString(16).padStart(6, '0');
+    el.onclick = () => focusMap(+id);
+    div.appendChild(el);
+  }
+}
+
+function focusMap(mapId) {
+  const m = loadedMaps[mapId];
+  if (!m) return;
+  const b = m.data.bounds;
+  const S = 1/256;
+  const cx = -(b.minZ + b.maxZ) / 2 * S;
+  const cy = (b.minY + b.maxY) / 2 * S;
+  const cz = -(b.minX + b.maxX) / 2 * S;
+  const hw = Math.max(Math.abs(b.maxX - b.minX), Math.abs(b.maxZ - b.minZ)) * S / 2;
+  camera.position.set(cx, cy + hw * 0.5, cz + hw * 0.5);
+  controls.target.set(cx, cy, cz);
+  camera.far = hw * 40;
+  camera.near = hw * 0.001;
+  camera.updateProjectionMatrix();
+  controls.update();
+  // Always position dummy at spawn point when map loads
+  positionDummyAtSpawn(mapId);
+  // Adapt debugCamera near/far to map size
+  const S2 = WORLD_SCALE;
+  const hw2 = Math.max(Math.abs(b.maxX - b.minX), Math.abs(b.maxZ - b.minZ)) * S2 / 2;
+  debugCamera.near = Math.max(0.1, hw2 * 0.001);
+  debugCamera.far = hw2 * 40;
+  debugCamera.updateProjectionMatrix();
+}
+
+// ===== Coordinate transform =====
+// SMD raw (x, y, z) → Three.js: wx=-rawZ/256, wy=rawY/256, wz=-rawX/256
+// Gate/spawn (x, z, y) are already in world coords (= raw_SMD/256) → three: wx=-gateZ, wy=gateY, wz=-gateX
+function gateToWorld(gx, gy, gz) {
+  return { x: -gz, y: gy, z: -gx };
+}
+
+// ===== Texture cache =====
+const texLoader = new THREE.TextureLoader();
+const textureCache = {}; // url → THREE.Texture
+
+async function loadGameTexture(url) {
+  if (textureCache[url]) return textureCache[url];
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const buf = await r.arrayBuffer();
+    const decoded = decodeTexture(buf);
+    if (!decoded) return null;
+    // Original engine: MapOpacity (alpha test) = TGA file format only, BMP never.
+    // Fall back to pixel depth only if URL extension is unknown.
+    const hasAlpha = /\.tga$/i.test(url) || (!/\.bmp$/i.test(url) && !!decoded.hasAlpha);
+    const tex = new THREE.DataTexture(decoded.pixels, decoded.width, decoded.height, THREE.RGBAFormat);
+    // flipY=false: the decoder outputs top-down pixels; with GL v=0 at the first row
+    // this matches the original dun-1 diffuse + lightmap orientation.
+    tex.flipY = false;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    tex.userData.hasAlpha = hasAlpha;
+    textureCache[url] = tex;
+    return tex;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ===== Build gate markers =====
+function buildGateMarkers() {
+  while (gateGroup.children.length) gateGroup.remove(gateGroup.children[0]);
+
+  const loadedIds = new Set(Object.keys(loadedMaps).map(Number));
+  // Compute average map half-range to scale markers
+  let avgRange = 0;
+  for (const id in loadedMaps) {
+    const b = loadedMaps[id].data.bounds;
+    avgRange += Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 256;
+  }
+  avgRange = avgRange / Math.max(1, loadedMapsCount()) / 2;
+  const poleH = avgRange * 0.15;  // pole height = 15% of avg map half-size
+  const sphereR = avgRange * 0.02;
+
+  const gateSphere = new THREE.SphereGeometry(sphereR, 10, 8);
+  const gateMat = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+  const warpMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+  const poleMat = new THREE.MeshBasicMaterial({ color: 0xff6666, transparent: true, opacity: 0.7 });
+
+  for (const g of GATES) {
+    if (!loadedIds.has(g.from) || !loadedIds.has(g.to)) continue;
+    const pos = gateToWorld(g.x, g.y, g.z);
+    const mat = g.warp ? warpMat : gateMat;
+
+    // Vertical pole from ground up
+    const poleGeom = new THREE.CylinderGeometry(sphereR * 0.4, sphereR * 0.4, poleH, 6);
+    const pole = new THREE.Mesh(poleGeom, poleMat);
+    pole.position.set(pos.x, pos.y + poleH / 2, pos.z);
+    pole.userData.gateMesh = true;
+    gateGroup.add(pole);
+
+    // Sphere on top
+    const sphere = new THREE.Mesh(gateSphere, mat);
+    sphere.position.set(pos.x, pos.y + poleH, pos.z);
+    sphere.userData.gateMesh = true;
+    gateGroup.add(sphere);
+  }
+}
+
+function loadedMapsCount() {
+  return Object.keys(loadedMaps).length;
+}
+
+// ===== Load map (additive — don't remove old) =====
+async function loadMap() {
+  const m = MAPS[+sel.value];
+  if (!m || loadedMaps[m.id]) return;
+  const status = document.getElementById('status');
+  status.textContent = '加载 ' + m.n + '...';
+  const t0 = performance.now();
+
+  try {
+    const r = await fetch('/pt/exm-run/' + m.p);
+    if (!r.ok) { status.textContent = 'HTTP ' + r.status + ' — ' + m.p; return; }
+    const buf = await r.arrayBuffer();
+    status.textContent = '解析 ' + m.n + '...';
+    const data = parseSMD(buf);
+    const t1 = performance.now();
+
+    const color = mapColors[colorIdx % mapColors.length];
+    colorIdx++;
+
+    // Load textures
+    const texUrls = new Map();
+    const lmTexUrls = new Map();
+    const animTexUrls = new Map();
+    for (let i = 0; i < data.materials.length; i++) {
+      const mat = data.materials[i];
+      // Skip invisible materials (useState & 0x0400). meshState & 1 is collision flag, NOT hide flag
+      if (mat.useState & 0x0400) continue;
+      if (mat.tex.length > 0) texUrls.set(i, '/pt/exm-run/' + mat.tex[0].replace(/\\/g, '/').toLowerCase());
+      if (mat.tex.length > 1) lmTexUrls.set(i, '/pt/exm-run/' + mat.tex[1].replace(/\\/g, '/').toLowerCase());
+      if (mat.animTexCounter > 0 && mat.animTextures && mat.animTextures.length > 0) {
+        animTexUrls.set(i, mat.animTextures.map(n => '/pt/exm-run/' + n.replace(/\\/g, '/').toLowerCase()));
+      }
+    }
+    const allUrls = [...new Set([...texUrls.values(), ...lmTexUrls.values(), ...[...animTexUrls.values()].flat()])];
+    const texResults = await Promise.all(allUrls.map(async url => ({ url, tex: await loadGameTexture(url) })));
+    const texMap = {};
+    for (const { url, tex } of texResults) texMap[url] = tex;
+
+    // Build map renderer
+    const mr = new MapRenderer(scene);
+    mr.build(data, texMap, (matIdx, mat) => {
+      // Skip invisible faces (useState & 0x0400). meshState & 1 is collision, NOT hide
+      if (mat && (mat.useState & 0x0400)) return null;
+      // Skip materials with no texture and no animation
+      const hasTex = texUrls.has(matIdx);
+      if (!hasTex && !(mat && mat.animTexCounter > 0)) return null;
+      const hasLM = lmTexUrls.has(matIdx);
+      const diffuseTex = hasTex ? (texMap[texUrls.get(matIdx)] || null) : null;
+      const lightmapTex = hasLM ? (texMap[lmTexUrls.get(matIdx)] || null) : null;
+      const hasAlphaBlend = mat.blendType === 1;
+      const hasMapOpacity = !!(diffuseTex && diffuseTex.userData && diffuseTex.userData.hasAlpha);
+      const isTransparent = hasAlphaBlend && (hasMapOpacity || mat.transparency > 0);
+      const isRendLatter = mat && (mat.meshState & 0x2000);
+      return {
+        hasTex, hasLM, diffuseTex, lightmapTex,
+        twoSide: mat && mat.twoSide,
+        isTransparent, isRendLatter,
+        hasAnimation: mat.animTexCounter > 0,
+      };
+    });
+
+    mapRenderers.push(mr);
+    if (!window.__ptMapRenderers) window.__ptMapRenderers = [];
+    window.__ptMapRenderers.push(mr);
+
+    // Build collision mesh for this map (raw SMD coords)
+    const collisionMesh = new CollisionMesh();
+    collisionMesh.buildFromSMD(data);
+
+    loadedMaps[m.id] = { mapRenderer: mr, data, name: m.n, color, collisionMesh };
+
+    // 空气墙线框：渲染碰撞面中"垂直面"（法线Y小）便于观察
+    // raw SMD → world: wx=-rawZ/256, wy=rawY/256, wz=-rawX/256
+    const WS = 1 / 256;
+    const wallPositions = [];
+    const groundPositions = [];
+    for (const tri of collisionMesh.triangles) {
+      // 垂直面判定：法线 Y 分量小（墙/树/空气墙）
+      const isWall = tri.nyNorm < 0.3;
+      const arr = isWall ? wallPositions : groundPositions;
+      // 三角形三边：每条边 push 两个端点
+      const v = [
+        [-tri.z1 * WS, tri.y1 * WS, -tri.x1 * WS],
+        [-tri.z2 * WS, tri.y2 * WS, -tri.x2 * WS],
+        [-tri.z3 * WS, tri.y3 * WS, -tri.x3 * WS],
+      ];
+      arr.push(...v[0], ...v[1], ...v[1], ...v[2], ...v[2], ...v[0]);
+    }
+    const makeWallLines = (arr, color) => {
+      if (arr.length === 0) return null;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(arr), 3));
+      const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+      scene.add(l);
+      return l;
+    };
+    // 空气墙：橙色线框（醒目）；地面碰撞面：暗灰（弱化，避免遮挡视线）
+    const wallLines = makeWallLines(wallPositions, 0xff8800);
+    const groundLines = makeWallLines(groundPositions, 0x446688);
+    if (wallLines) wallLines.renderOrder = 2;
+    if (groundLines) { groundLines.renderOrder = 2; groundLines.material.opacity = 0.15; }
+    // 存到 loadedMaps 供后续控制显隐
+    loadedMaps[m.id].wallLines = wallLines;
+    loadedMaps[m.id].groundLines = groundLines;
+
+    // Frame animation setup
+    for (const mrd of mr.materials) {
+      const matIdx = mrd.matIdx;
+      const animUrls = animTexUrls.get(matIdx);
+      if (animUrls && animUrls.length > 0) {
+        const frames = animUrls.map(u => texMap[u]).filter(Boolean);
+        if (frames.length > 0) {
+          mrd.mesh.userData.animFrames = frames;
+          mrd.mesh.userData.animMask = frames.length - 1;
+          mrd.mesh.userData.animShift = 6;
+          animatedMeshes.push(mrd.mesh);
+        }
+      }
+    }
+
+    buildGateMarkers();
+    updateLoadedMapsUI();
+    focusMap(m.id);
+
+    const secs = ((t1 - t0) / 1000).toFixed(1);
+    const matCount = data.materials.filter(m => m.tex.length > 0).length;
+    status.textContent = m.n + ' | ' + data.nVertex + 'v · ' + data.nFace + 'f · ' + matCount + 'tex | ' + secs + 's';
+  } catch(e) {
+    console.error(e);
+    status.textContent = 'Error: ' + m.p + ' — ' + e.message;
+  }
+}
+
+function clearAll() {
+  for (const mr of mapRenderers) mr.dispose();
+  mapRenderers.length = 0;
+  for (const id in loadedMaps) {
+    delete loadedMaps[id];
+  }
+  animatedMeshes.length = 0;
+  colorIdx = 0;
+  while (gateGroup.children.length) gateGroup.remove(gateGroup.children[0]);
+  updateLoadedMapsUI();
+  document.getElementById('status').textContent = '已清除';
+}
+
+document.getElementById('btnLoad').onclick = loadMap;
+sel.onchange = loadMap;
+document.getElementById('btnClear').onclick = clearAll;
+
+// Auto-load first map
+loadMap();
+</script>
+</body>
+</html>
