@@ -417,7 +417,7 @@ frustumMid.material.opacity = 0.6;
 scene.add(frustumMid);
 
 // 远距线框：near*20→far，完整可视范围
-const frustumFar = createFrustumWireframe(200, 2000, 40.9, 1, 0xffff00);
+const frustumFar = createFrustumWireframe(200, 4000, 40.9, 1, 0xffff00);
 frustumFar.material.transparent = true;
 frustumFar.material.opacity = 0.25;
 scene.add(frustumFar);
@@ -478,7 +478,7 @@ const debugCamera = new THREE.PerspectiveCamera(
    40.9,                 // FOV in DEGREES (THREE expects degrees, not radians!)
    1,
    20,                   // near = 20 游戏单位（C++ Winmain.cpp:3610）
-   4000                  // far = 4000 游戏单位（C++ Winmain.cpp:3610，覆盖地图约1/3）
+   4000                  // far = 4000 游戏单位（C++ Winmain.cpp:3610）
  );
 debugCamera.position.set(0, 200, 400);
 
@@ -499,14 +499,26 @@ const keys = {};
 window.addEventListener('keydown', e => { keys[e.code] = true; });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
+// 调试剔除开关：V 键切换"上帝视角仍用 debugCamera 剔除"
+// （便于直接观察 debugCamera 视锥剔除是否精确）
+let useDebugCull = false;
+window.addEventListener('keydown', e => {
+  if (e.code === 'KeyV') {
+    useDebugCull = !useDebugCull;
+    console.log(`[debugCull] 使用 debugCamera 剔除: ${useDebugCull}`);
+  }
+});
+
 // Mouse state (for click-to-move)
 let mouseDown = false;
 let mouseX = 0, mouseY = 0;
+let mouseRelX = 0; // 相对 viewport 的 x（窗口坐标，用于屏幕边缘相机转动）
 viewport.addEventListener('mousedown', e => { if (e.button === 0) mouseDown = true; });
 viewport.addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; });
 viewport.addEventListener('mousemove', e => {
   mouseX = e.clientX;
   mouseY = e.clientY;
+  mouseRelX = e.clientX - viewport.getBoundingClientRect().left;
 });
 
 // Engine angle constants
@@ -521,8 +533,15 @@ const fONE = 256;
 // Sin/Cos tables (from smSin.cpp)
 import { sdGetSin, sdGetCos } from './js/sm-sin.js?v=1';
 
+// 屏幕边缘相机转动缓动状态 (Winmain.cpp:2545-2575)
+let camRotBump = 0;         // 累计转向量，±512 起步每帧收敛
+const ANGLES_TO_ALIGN = 512;
+// 每帧取 viewport 实际宽度（用于边缘判断 8px / vw-8px）
+let vw = viewport.clientWidth;
+
 // Update dummy + camera each frame
 function updateDummy(dt) {
+  vw = viewport.clientWidth;
   // 确保用于鼠标角度计算的相机矩阵是最新的（OrbitControls 只改 position/rotation，
   // matrixWorld 需手动刷新，否则 camRight/camFwd 是旧值导致朝向错误）
   const activeCamNow = useDebugCamera ? debugCamera : camera;
@@ -535,6 +554,39 @@ function updateDummy(dt) {
   if (keys['ControlLeft'] || keys['ControlRight']) {
     if (keys['ArrowUp'])   cam.anx = Math.min(976, cam.anx + 8);
     if (keys['ArrowDown']) cam.anx = Math.max(40, cam.anx - 8);
+  }
+  // PageUp/PageDown → 俯仰角度 anx (Winmain.cpp:2541-2542)
+  if (keys['PageUp'])   cam.anx = Math.min(976, cam.anx + 16);
+  if (keys['PageDown']) cam.anx = Math.max(40, cam.anx - 16);
+
+  // 屏幕边缘相机转动 (Winmain.cpp:2545-2575, 仅非固定模式)
+  // 鼠标靠左边缘 → 相机左转（any 增加）；靠右边缘 → 右转（any 减少）
+  // 带缓动：dsCameraRotation 从 ±512 每帧 ±1 收敛，mv 从 ±32 渐变到 ±16
+  const relX = mouseRelX;
+  if (relX >= 8 && relX <= vw - 8) {
+    camRotBump = 0; // 中间区域停止
+  }
+  if (relX < 8) {
+    if (!camRotBump) camRotBump = ANGLES_TO_ALIGN;
+    let mv = Math.round(camRotBump / 16);
+    if (mv > 16) mv = 16;
+    cam.any = (cam.any + mv) & ANGCLIP;
+    camRotBump--;
+    if (camRotBump <= 0) {
+      camRotBump = 0;
+      mouseRelX = 8;
+    }
+  }
+  if (relX > vw - 8) {
+    if (!camRotBump) camRotBump = -ANGLES_TO_ALIGN;
+    let mv = Math.round(camRotBump / 16);
+    if (mv < -16) mv = -16;
+    cam.any = (cam.any + mv) & ANGCLIP;
+    camRotBump++;
+    if (camRotBump >= 0) {
+      camRotBump = 0;
+      mouseRelX = vw - 8;
+    }
   }
 
   // Mouse left-click hold → character walks toward cursor
@@ -705,7 +757,7 @@ const resize = ()=>{
 function updateFrustumAspect(ar) {
   frustumNear.updateFrustum(1, 20, debugCamera.fov, ar);
   frustumMid.updateFrustum(20, 200, debugCamera.fov, ar);
-  frustumFar.updateFrustum(200, 2000, debugCamera.fov, ar);
+  frustumFar.updateFrustum(200, 4000, debugCamera.fov, ar);
 }
 window.addEventListener('resize',resize);resize();
 
@@ -756,8 +808,9 @@ let fps = 0;
   // Update dummy character
   updateDummy(1/60);
 
-  // Ensure camera matrices are up-to-date before frustum culling
-  if (useDebugCamera) {
+  // Choose camera for frustum culling
+  const useDirectCull = useDebugCamera || useDebugCull;
+  if (useDirectCull) {
     debugCamera.updateProjectionMatrix();
     debugCamera.updateMatrixWorld();
     // Frustum culling needs matrixWorldInverse; renderer updates it later,
@@ -769,13 +822,19 @@ let fps = 0;
     camera.updateMatrixWorld();
     camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
   }
-
-  // Choose camera for frustum culling
-  const cullCamera = useDebugCamera ? debugCamera : camera;
+  const cullCamera = useDirectCull ? debugCamera : camera;
 
   // Update map renderers with setDrawRange culling
   for (const mr of mapRenderers) {
-    mr.render(cullCamera);
+    if (useDebugCull && !useDebugCamera) {
+      // 上帝视角 + debugCull：主相机视锥 ∩ debugCamera 视锥（交集）
+      // cell 必须同时可见才渲染 → 上帝视角下直接看到 debugCamera 剔除边界
+      camera.updateMatrixWorld();
+      camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+      mr.render(camera, [debugCamera]);
+    } else {
+      mr.render(cullCamera);
+    }
   }
 
   // Render with appropriate camera
@@ -807,6 +866,7 @@ let fps = 0;
   const dc = mapRenderers.reduce((s, mr) => s + mr.drawCallCount, 0);
   const dummyInfo = useDebugCamera ?
     `Dummy (${dummy.x.toFixed(0)},${dummy.y.toFixed(0)},${dummy.z.toFixed(0)}) cam(dist=${cam.viewDist.toFixed(0)} pitch=${cam.viewAnx})` : '';
+  const cullMode = useDebugCull && !useDebugCamera ? '主相机∩debugCull' : (useDebugCull ? 'debugCull' : '主相机');
   statsEl.textContent = `FPS ${fps} | Draw Calls ${dc} | Vis ${visFaces}/${totFaces} faces | Cells ${visCells} ${dummyInfo}`;
   camInfoEl.textContent = useDebugCamera ? [
     `dummy (${dummy.x.toFixed(1)}, ${dummy.y.toFixed(1)}, ${dummy.z.toFixed(1)})`,
@@ -815,7 +875,7 @@ let fps = 0;
     `realDist3D ${debugCamera.position.distanceTo(dummyGroup.position).toFixed(3)}  horiz ${Math.hypot(debugCamera.position.x-dummy.x, debugCamera.position.z-dummy.z).toFixed(3)}  vert ${(debugCamera.position.y-dummy.y).toFixed(3)}`,
     `viewDist ${cam.viewDist.toFixed(3)}  anx ${cam.viewAnx} any ${cam.any} fov ${cam.fov}°`,
     `near ${debugCamera.near.toFixed(4)} far ${debugCamera.far.toFixed(1)}`,
-  ].join('  ') : '';
+  ].join('  ') : `剔除模式: ${cullMode}（V 键切换 debugCull 交集剔除）`;
 })();
 
 // Debug hooks (module scope is not reachable from console otherwise)
@@ -1025,7 +1085,7 @@ function focusMap(mapId) {
   controls.update();
   // Always position dummy at spawn point when map loads
   positionDummyAtSpawn(mapId);
-  // debugCamera near/far 使用 C++ 固定值（20/4000 游戏单位），不随地图缩放
+  // debugCamera near/far：使用 C++ 固定值（20/4000 游戏单位），不随地图缩放
   debugCamera.near = 20;
   debugCamera.far = 4000;
   debugCamera.updateProjectionMatrix();

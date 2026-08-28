@@ -386,12 +386,18 @@ export class MapRenderer {
    * Update setDrawRange for all materials based on camera frustum.
    * Call this BEFORE renderer.render().
    * @param {THREE.Camera} camera - the camera used for frustum culling (dummyCamera)
+   * @param {THREE.Camera[]} extraCameras - 附加视锥相机；cell 必须同时被所有视锥命中才可见（交集）
    */
-  render(camera) {
-    const projScreenMatrix = new THREE.Matrix4();
-    projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    const frustum = new THREE.Frustum();
-    frustum.setFromProjectionMatrix(projScreenMatrix);
+  render(camera, extraCameras = []) {
+    const frustums = [];
+    for (const cam of [camera, ...extraCameras]) {
+      const projScreenMatrix = new THREE.Matrix4();
+      projScreenMatrix.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+      const f = new THREE.Frustum();
+      f.setFromProjectionMatrix(projScreenMatrix);
+      frustums.push(f);
+    }
+    const firstFrustum = frustums[0];
 
     // DEBUG: expose internals for inspection
     if (this._debug) {
@@ -414,14 +420,22 @@ export class MapRenderer {
       this._dbgMaterials = [];
     }
 
+    const testFrustums = (box) => {
+      for (const f of frustums) {
+        if (f.planes && !f.intersectsBox(box)) return false;
+      }
+      return true;
+    };
+
     for (const mrd of this.materials) {
-      // Coarse cull: material AABB vs frustum
-      const coarseHit = frustum.intersectsBox(mrd.aabb);
+      // Coarse cull: material AABB vs frustum (must hit all frustums)
+      const coarseHit = testFrustums(mrd.aabb);
       if (this._debug && this._dbgMaterials && this._dbgMaterials.length < 8) {
         this._dbgMaterials.push({
           matIdx: mrd.matIdx,
           aabb: [mrd.aabb.min.x, mrd.aabb.min.y, mrd.aabb.min.z, mrd.aabb.max.x, mrd.aabb.max.y, mrd.aabb.max.z].map(v => +v.toFixed(1)),
           coarseHit,
+          frustumCount: frustums.length,
         });
       }
       if (!coarseHit) {
@@ -447,7 +461,7 @@ export class MapRenderer {
 
         if (this._debug && this._dbgChecked === undefined) {
           this._dbgChecked = true;
-          const hits = frustum.intersectsBox(cellAABB);
+          const hits = testFrustums(cellAABB);
           this._debugFirstCell = {
             cellKey, cx, cz, cellMinX, cellMinZ, cellMaxX, cellMaxZ,
             aabbMinY: mrd.aabb.min.y, aabbMaxY: mrd.aabb.max.y,
@@ -457,7 +471,7 @@ export class MapRenderer {
           };
         }
 
-        if (frustum.intersectsBox(cellAABB)) {
+        if (testFrustums(cellAABB)) {
           ranges.push(range);
           this.visibleCellCount++;
         }
