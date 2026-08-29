@@ -380,6 +380,35 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax, w
       opts.transparent = true;
       opts.alphaTest = 60 / 255;
       opts.depthWrite = mat.transparency <= 0.2;
+      // C++ smRend3d.cpp:3798-3840 BlendType → Three.js blending
+      switch (config.blendType) {
+        case 2: // COLOR: SRC=SRCCOLOR, DEST=INVSRCCOLOR
+          opts.blending = THREE.CustomBlending;
+          opts.blendSrc = THREE.SrcColorFactor;
+          opts.blendDst = THREE.OneMinusSrcColorFactor;
+          break;
+        case 3: // SHADOW: SRC=ZERO, DEST=SRCCOLOR（乘法）
+          opts.blending = THREE.CustomBlending;
+          opts.blendSrc = THREE.ZeroFactor;
+          opts.blendDst = THREE.SrcColorFactor;
+          break;
+        case 4: // LAMP: SRC=SRCALPHA, DEST=ONE（加法）→ 气泡
+          opts.blending = THREE.AdditiveBlending;
+          break;
+        case 5: // ADDCOLOR: SRC=SRCCOLOR, DEST=ONE（加法色）
+          opts.blending = THREE.CustomBlending;
+          opts.blendSrc = THREE.SrcColorFactor;
+          opts.blendDst = THREE.OneFactor;
+          break;
+        case 6: // INVSHADOW: SRC=ZERO, DEST=INVSRCCOLOR
+          opts.blending = THREE.CustomBlending;
+          opts.blendSrc = THREE.ZeroFactor;
+          opts.blendDst = THREE.OneMinusSrcColorFactor;
+          break;
+        default: // NONE(0)/ALPHA(1)：标准 alpha
+          opts.blending = THREE.NormalBlending;
+          break;
+      }
     }
 
     const threeMat = new THREE.MeshBasicMaterial(opts);

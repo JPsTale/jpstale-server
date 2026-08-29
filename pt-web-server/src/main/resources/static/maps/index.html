@@ -60,7 +60,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { parseSMD } from './js/smd-parser.js?v=10';
   import { decodeTexture } from './js/texture-decoder.js?v=8';
-import { MapRenderer } from './js/map-renderer.js?v=15';
+import { MapRenderer } from './js/map-renderer.js?v=16';
 import { CollisionMesh } from './js/collision.js?v=4';
 
 const WORLD_SCALE = 1 / 256;
@@ -1357,13 +1357,17 @@ async function loadMap() {
       const secondTex = isSecondTex ? (texMap[tex1Url] || null) : null;
       const hasAlphaBlend = mat.blendType === 1;
       const hasMapOpacity = !!(diffuseTex && diffuseTex.userData && diffuseTex.userData.hasAlpha);
-      const isTransparent = hasAlphaBlend && (hasMapOpacity || mat.transparency > 0);
+      // 混合模式：ALPHA(1)/COLOR(2)/SHADOW(3)/LAMP(4)/ADDCOLOR(5)/INVSHADOW(6) 都算透明混合（非 NONE）
+      const blendNeedsTransparent = mat.blendType !== 0;
+      const isTransparent = (hasAlphaBlend && (hasMapOpacity || mat.transparency > 0)) ||
+                            (blendNeedsTransparent && mat.blendType !== 1 && mat.blendType !== 0);
       const isRendLatter = mat && (mat.meshState & 0x2000);
       return {
         hasTex, hasLM: isLM, diffuseTex, lightmapTex,
         hasSecondTex: isSecondTex, secondTex,
         twoSide: mat && mat.twoSide,
         isTransparent, isRendLatter,
+        blendType: mat ? mat.blendType : 0,
         hasAnimation: mat.animTexCounter > 0,
       };
     });
