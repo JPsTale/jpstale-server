@@ -60,7 +60,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { parseSMD } from './js/smd-parser.js?v=10';
   import { decodeTexture } from './js/texture-decoder.js?v=8';
-import { MapRenderer } from './js/map-renderer.js?v=11';
+import { MapRenderer } from './js/map-renderer.js?v=15';
 import { CollisionMesh } from './js/collision.js?v=4';
 
 const WORLD_SCALE = 1 / 256;
@@ -966,6 +966,7 @@ let fps = 0;
   // Update TextureFormState UV 滚动偏移（与帧动画共用 RendStatTime）
   for (const mr of mapRenderers) mr.updateScroll(animMs);
   for (const mr of mapRenderers) mr.updateWind(animMs);
+  for (const mr of mapRenderers) mr.updateWater(animMs);
   for (const m of animatedMeshes) {
     const u = m.userData;
     const frames = u.animFrames;
@@ -1345,15 +1346,22 @@ async function loadMap() {
       // Skip materials with no texture and no animation
       const hasTex = texUrls.has(matIdx);
       if (!hasTex && !(mat && mat.animTexCounter > 0)) return null;
-      const hasLM = lmTexUrls.has(matIdx);
+      // tex[1] 语义区分（C++ TextureFormState[1]）：FSO[1]==0 → lightmap；否则第二纹理（带滚动）
+      const hasTex1 = lmTexUrls.has(matIdx);
+      const fso1 = mat && mat.textureFormState ? mat.textureFormState[1] : 0;
+      const isLM = hasTex1 && fso1 === 0;
+      const isSecondTex = hasTex1 && fso1 !== 0;
       const diffuseTex = hasTex ? (texMap[texUrls.get(matIdx)] || null) : null;
-      const lightmapTex = hasLM ? (texMap[lmTexUrls.get(matIdx)] || null) : null;
+      const tex1Url = hasTex1 ? lmTexUrls.get(matIdx) : null;
+      const lightmapTex = isLM ? (texMap[tex1Url] || null) : null;
+      const secondTex = isSecondTex ? (texMap[tex1Url] || null) : null;
       const hasAlphaBlend = mat.blendType === 1;
       const hasMapOpacity = !!(diffuseTex && diffuseTex.userData && diffuseTex.userData.hasAlpha);
       const isTransparent = hasAlphaBlend && (hasMapOpacity || mat.transparency > 0);
       const isRendLatter = mat && (mat.meshState & 0x2000);
       return {
-        hasTex, hasLM, diffuseTex, lightmapTex,
+        hasTex, hasLM: isLM, diffuseTex, lightmapTex,
+        hasSecondTex: isSecondTex, secondTex,
         twoSide: mat && mat.twoSide,
         isTransparent, isRendLatter,
         hasAnimation: mat.animTexCounter > 0,

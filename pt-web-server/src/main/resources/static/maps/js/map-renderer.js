@@ -94,7 +94,8 @@ export class MapRenderer {
     const nrm2 = new Float32Array(nFaces * 9);
     const col2 = new Float32Array(nFaces * 9);
     const uv0 = config.hasTex ? new Float32Array(nFaces * 6) : null;
-    const uv1 = config.hasLM ? new Float32Array(nFaces * 6) : null;
+    // uv1 = NextTex（tex[1]）UV：lightmap 或第二纹理共用同一数据源
+    const uv1 = (config.hasLM || config.hasSecondTex) ? new Float32Array(nFaces * 6) : null;
 
     const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
     const ab = new THREE.Vector3(), ac = new THREE.Vector3(), fn = new THREE.Vector3();
@@ -191,7 +192,8 @@ export class MapRenderer {
         for (let cz = cMinZ; cz <= cMaxZ; cz++) {
           // 精确相交判断
           if (!this._triCellIntersect(wx0, wz0, wx1, wz1, wx2, wz2, wmX + cx * cellSize, wmZ + cz * cellSize, cellSize)) continue;
-          const key = (Math.min(255, Math.max(0, cx)) << 8) | Math.min(255, Math.max(0, cz));
+          // cellKey 编码：cx*4096 + cz（cz 12bit，支持 0~4095；旧 (cx<<8)|cz 只有 8bit，cz>255 溢出）
+          const key = cx * 4096 + cz;
           pairs.push([key, fi]);
         }
       }
@@ -256,16 +258,18 @@ export class MapRenderer {
     // Build Three.js material
     const mat = smdData.materials[matIdx];
     // Wind 类型：0x20=WINDZ1(微),0x40=WINDZ2(大),0x80=WINDX1(微),0x100=WINDX2(大)
-    // 0x200=WATER（逐顶点波浪，不做）。BLINK_COLOR 材质风禁用。
+    // 0x200=WATER（逐顶点波浪）。BLINK_COLOR 材质风禁用。
     let windKind = 0;
+    let waterKind = false;
     if (mat.windMeshBottom && !(mat.useState & 0x4000)) {
       const wc = mat.windMeshBottom & 0x7FF;
       if (wc === 0x20) windKind = 1;       // WINDZ1
       else if (wc === 0x40) windKind = 2;  // WINDZ2
       else if (wc === 0x80) windKind = 3;  // WINDX1
       else if (wc === 0x100) windKind = 4; // WINDX2
+      else if (wc === 0x200) waterKind = true; // WATER 逐顶点波浪（smRend3d.cpp:1040-1053）
     }
-    const threeMat = this._buildThreeMaterial(matIdx, mat, config, texMap, windKind, minY, maxY);
+    const threeMat = this._buildThreeMaterial(matIdx, mat, config, texMap, windKind, minY, maxY, waterKind);
 
     const mesh = new THREE.Mesh(geom, threeMat);
     mesh.frustumCulled = false; // we do our own frustum culling
@@ -359,7 +363,7 @@ export class MapRenderer {
     return false;
   }
 
-_buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
+_buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax, waterKind) {
     const opts = {
       vertexColors: true,
       side: config.twoSide ? THREE.DoubleSide : THREE.FrontSide,
@@ -393,6 +397,7 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
     }
     const hasScroll = scrollSlot.length > 0;
     const needLM = !!(config.hasLM && config.lightmapTex);
+    const need2Tex = !!(config.hasSecondTex && config.secondTex);
     const scrollU0 = hasScroll && scrollSlot.some(s => s.slot === 0);
     const scrollU1 = hasScroll && scrollSlot.some(s => s.slot === 1);
 
@@ -401,8 +406,10 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
     //   WINDX1/X2(wk3/4): raw x 平移 → world z 轴摆动
     // 幅度：微(1/3)=1.4 世界单位、大(2/4)=2.6，整体再按高度归一化（根不动、尖动）。
     const baseWindMag = windKind ? (windKind === 1 || windKind === 3 ? 1.4 : 2.6) : 0;
-    const vWindDX = (windKind === 1 || windKind === 2) ? baseWindMag : 0;
-    const vWindDZ = (windKind === 3 || windKind === 4) ? baseWindMag : 0;
+    const windAmpScale = (window.__ptWindAmpScale !== undefined ? window.__ptWindAmpScale : 1);
+    const baseWindMagScaled = baseWindMag * windAmpScale;
+    const vWindDX = (windKind === 1 || windKind === 2) ? baseWindMagScaled : 0;
+    const vWindDZ = (windKind === 3 || windKind === 4) ? baseWindMagScaled : 0;
 
     // C++ SetColorZclip 对所有渲染顶点统一雾化（z>ccDistZMin=1152 world 时向黑衰减），
     // 因此每个材质都必须注入 fog，onBeforeCompile 无条件启用。
@@ -411,12 +418,13 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
       threeMat.onBeforeCompile = (shader) => {
         // ---- vertex: uniform/varying 声明（#include <common> 后追加）----
         let declInline = '#include <common>';
-        if (needLM) declInline += '\nout vec2 vMyLightMapUv;';
+        if (needLM || need2Tex) declInline += '\nout vec2 vMyLightMapUv;';
         if (scrollU0 || scrollU1) declInline += '\nuniform vec2 uScrollU;';
         if (windKind) {
           declInline += '\nuniform float uWindTime;';
           declInline += '\nuniform vec2 uWindMag;';   // 已含方向与幅度（x/z 世界单位）
         }
+        if (waterKind) declInline += '\nuniform float uWaterTime;';
         declInline += '\nvarying float vPtFogZ;';
         declInline += '\nvarying vec3 vPtWorldPos;';
         // 昼夜/场景光/火把 uniform（加到顶点色 vColor，等价 C++ sLight = sDef_Color + 光）
@@ -431,7 +439,7 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
 
         // ---- vertex: UV 变换 ----
         let uvInline = '#include <uv_vertex>';
-        if (needLM) {
+        if (needLM || need2Tex) {
           uvInline += '\nvMyLightMapUv = uv2;';
           if (scrollU1) uvInline += '\nvMyLightMapUv.x += uScrollU.y;';
         }
@@ -442,19 +450,39 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
         shader.vertexShader = shader.vertexShader.replace('#include <uv_vertex>', uvInline);
 
         // ---- vertex: Wind 逐顶点摆动（复刻轴语义，逐点涟漪）----
-        // 高度归一：根部(≈windYMin)不动、顶部(=windYMax)幅度最大；空间相位在 x/z 上传播。
+        // 空间相位在 x/z 上传播（整片网格涟漪，等价 C++ 整网格平移的"风"效果）；
+        // 不用"网格整体 y 范围"归一化（大跨度地形网格会稀释幅度到不可见），
+        // 仅用局部高度做轻微调制（高处略多动）。
         if (windKind) {
           const windCode =
             '#include <begin_vertex>\n' +
             '  {\n' +
             `    float _ptH = clamp((transformed.y - ${windYMin.toFixed(1)}) / ${(windYMax - windYMin).toFixed(1)}, 0.0, 1.0);\n` +
-            '    _ptH = _ptH * _ptH;\n' +
             '    float _ph = transformed.x * 0.05 + transformed.z * 0.045 + uWindTime * 2.0;\n' +
-            '    float _sw = sin(_ph) * 0.6 + sin(_ph * 1.55 + transformed.x * 0.013 + transformed.y * 0.02) * 0.4;\n' +
-            '    transformed.x += uWindMag.x * _sw * _ptH;\n' +
-            '    transformed.z += uWindMag.y * _sw * _ptH;\n' +
+            '    float _sw = sin(_ph) * 0.6 + sin(_ph * 1.55 + transformed.x * 0.013 + transformed.z * 0.011) * 0.4;\n' +
+            '    float _amp = 1.0 + _ptH * 0.5;\n' +
+            '    transformed.x += uWindMag.x * _sw * _amp;\n' +
+            '    transformed.z += uWindMag.y * _sw * _amp;\n' +
             '  }';
           shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', windCode);
+        }
+
+        // ---- vertex: Water 逐顶点波浪（smRend3d.cpp:1040-1053 sMATS_SCRIPT_WATER）----
+        //   rx = GetSin[((x*8 + time)>>1) & 0xFFF] >> 4;  x += rx  （x,z 为 raw 坐标）
+        //   GetSin[ang] = floor(sin(ang*2π/4096)*32768) → shader 用 sin() 等效
+        //   raw 位移 = sin*32768>>4 = sin*2048；world 位移 = raw/256 = sin*8
+        if (waterKind) {
+          const waterCode =
+            '#include <begin_vertex>\n' +
+            '  {\n' +
+            '    float _rx = (-transformed.z * 256.0 * 8.0 + uWaterTime) * 0.5; // raw x 相关 → world z\n' +
+            '    float _rz = (-transformed.x * 256.0 * 8.0 + uWaterTime) * 0.5; // raw z 相关 → world x\n' +
+            '    float _wa = _rx / 4096.0 * 6.28318530718;\n' +
+            '    float _wb = _rz / 4096.0 * 6.28318530718;\n' +
+            '    transformed.z += sin(_wa) * 8.0;\n' +
+            '    transformed.x += sin(_wb) * 8.0;\n' +
+            '  }';
+          shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', waterCode);
         }
 
         // ---- vertex: Fog 深度 + 世界坐标 + 昼夜/场景光/火把 ----
@@ -472,21 +500,25 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
         }
 
         // ---- fragment: 昼夜环境光 + 场景光 + 火把 已在 vertex 加到 vColor（等价 C++ sLight），
-        //               fragment 只做 lightmap 与 Fog（伪雾化，smRend3d.cpp:2415-2481）----
+        //               fragment 只做 lightmap/第二纹理 与 Fog（伪雾化，smRend3d.cpp:2415-2481）----
+        // tex[1] 语义：FSO[1]==0 → lightmap（multiply 固定）；FSO[1]!=0 → 第二纹理（multiply + 滚动）
         {
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <common>',
             '#include <common>\n' +
             (needLM ? 'uniform sampler2D uLightMap;\nin vec2 vMyLightMapUv;\n' : '') +
+            (need2Tex ? 'uniform sampler2D uSecondTex;\nin vec2 vMyLightMapUv;\n' : '') +
             'varying float vPtFogZ;'
           );
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <color_fragment>',
             '#include <color_fragment>\n' +
             (needLM ? '  diffuseColor.rgb *= texture2D(uLightMap, vMyLightMapUv).rgb;\n' : '') +
+            (need2Tex ? '  diffuseColor.rgb *= texture2D(uSecondTex, vMyLightMapUv).rgb;\n' : '') +
             '  { float _z = vPtFogZ; if (_z > 1152.0) { float _dlev = (_z - 1152.0) * 0.5; if (_dlev > 255.0) _dlev = 255.0; diffuseColor.rgb *= 1.0 - _dlev / 256.0; } }'
           );
           if (needLM) shader.uniforms.uLightMap = { value: config.lightmapTex };
+          if (need2Tex) shader.uniforms.uSecondTex = { value: config.secondTex };
           shader.uniforms.uEnvLight = { value: new THREE.Vector3(0, 0, 0) };
           shader.uniforms.uTorchPos = { value: new THREE.Vector3(0, 0, 0) };
           shader.uniforms.uTorchColor = { value: new THREE.Vector3(0, 0, 0) };
@@ -501,6 +533,7 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
           shader.uniforms.uWindTime = { value: 0 };
           shader.uniforms.uWindMag = { value: new THREE.Vector2(vWindDX, vWindDZ) };
         }
+        if (waterKind) shader.uniforms.uWaterTime = { value: 0 };
         // 保存 shader 引用供每帧更新滚动/风偏移
         threeMat.userData.shader = shader;
       };
@@ -559,6 +592,19 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
       const shader = mrd.mesh.material.userData.shader;
       if (!shader || !shader.uniforms.uWindTime) continue;
       shader.uniforms.uWindTime.value = uTime;
+    }
+  }
+
+  /**
+   * 每帧更新 Water 波浪时间（smRend3d.cpp:1040-1053，RendStatTime 毫秒）
+   * @param {number} animMs 当前毫秒数
+   */
+  updateWater(animMs) {
+    const ms = animMs | 0;
+    for (const mrd of this.materials) {
+      const shader = mrd.mesh.material.userData.shader;
+      if (!shader || !shader.uniforms.uWaterTime) continue;
+      shader.uniforms.uWaterTime.value = ms;
     }
   }
 
@@ -665,8 +711,8 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
       // Collect visible cells for this material
       const ranges = [];
       for (const [cellKey, range] of mrd.cellLookup) {
-        const cx = Math.floor(cellKey / 256);
-        const cz = cellKey % 256;
+        const cx = Math.floor(cellKey / 4096);
+        const cz = cellKey % 4096;
         // Compute cell AABB
         const cellMinX = this.worldMin[0] + cx * this.cellWorldSize;
         const cellMinZ = this.worldMin[2] + cz * this.cellWorldSize;
