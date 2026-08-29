@@ -20,6 +20,7 @@ export class MapRenderer {
     this.drawCallCount = 0;
     this.visibleFaceCount = 0;
     this.totalFaceCount = 0;
+    this.lights = [];         // scene lights: { type, wx, wy, wz, range, r, g, b } (world coords)
   }
 
   /**
@@ -45,6 +46,16 @@ export class MapRenderer {
     this.cellWorldSize = this.worldWidth / 256;
 
     this.totalFaceCount = smdData.nFace;
+
+    // Scene lights: raw → world (wx=-z/256, wy=y/256, wz=-x/256)
+    this.lights = [];
+    for (const l of smdData.lights || []) {
+      this.lights.push({
+        type: l.type,
+        wx: -l.z * S, wy: l.y * S, wz: -l.x * S,
+        range: l.range, r: l.r, g: l.g, b: l.b,
+      });
+    }
 
     // Group faces by material
     const matFaces = new Map();
@@ -407,6 +418,15 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
           declInline += '\nuniform vec2 uWindMag;';   // 已含方向与幅度（x/z 世界单位）
         }
         declInline += '\nvarying float vPtFogZ;';
+        declInline += '\nvarying vec3 vPtWorldPos;';
+        // 昼夜/场景光/火把 uniform（加到顶点色 vColor，等价 C++ sLight = sDef_Color + 光）
+        declInline += '\nuniform vec3 uEnvLight;';
+        declInline += '\nuniform vec3 uTorchPos;';
+        declInline += '\nuniform vec3 uTorchColor;';
+        declInline += '\nuniform float uTorchRange;';
+        declInline += '\nuniform vec3 uSceneLightPos[8];';
+        declInline += '\nuniform vec3 uSceneLightColor[8];';
+        declInline += '\nuniform float uSceneLightRange[8];';
         shader.vertexShader = shader.vertexShader.replace('#include <common>', declInline);
 
         // ---- vertex: UV 变换 ----
@@ -437,41 +457,43 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
           shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', windCode);
         }
 
-        // ---- vertex: Fog 深度（SetColorZclip 按相机前深度衰减）----
+        // ---- vertex: Fog 深度 + 世界坐标 + 昼夜/场景光/火把 ----
         // mvPosition 由 #include <project_vertex> 定义；相机看向 -z，前方深度 = -mvPosition.z
+        // 光加到顶点色 vColor（等价 C++ sLight=sDef_Color+光 再 ×texture，而非乘后加）
         {
           const fogCode =
             '#include <project_vertex>\n' +
-            '  vPtFogZ = -mvPosition.z;';
+            '  vPtFogZ = -mvPosition.z;\n' +
+            '  vPtWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
+            '  vColor.rgb += uEnvLight;\n' +
+            '  { for (int _i = 0; _i < 8; _i++) { if (uSceneLightRange[_i] <= 0.0) continue; float _ld = distance(vPtWorldPos, uSceneLightPos[_i]); if (_ld < uSceneLightRange[_i]) { float _lp = 1.0 - _ld / uSceneLightRange[_i]; vColor.rgb += uSceneLightColor[_i] * _lp; } } }\n' +
+            '  { float _td = distance(vPtWorldPos, uTorchPos); if (uTorchRange > 0.0 && _td < uTorchRange) { float _tp = 1.0 - _td / uTorchRange; vColor.rgb += uTorchColor * _tp; } }';
           shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', fogCode);
         }
 
-        // ---- fragment: Fog（伪雾化，smRend3d.cpp:2415-2481）----
-        // dlev = clamp((z - ccDistZMin(1152)) >> 1, 0, 255)；color *= 1 - dlev/256
-        // ccBackColor = (0,0,0) → 向黑衰减
+        // ---- fragment: 昼夜环境光 + 场景光 + 火把 已在 vertex 加到 vColor（等价 C++ sLight），
+        //               fragment 只做 lightmap 与 Fog（伪雾化，smRend3d.cpp:2415-2481）----
         {
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <common>',
-            '#include <common>\nvarying float vPtFogZ;'
+            '#include <common>\n' +
+            (needLM ? 'uniform sampler2D uLightMap;\nin vec2 vMyLightMapUv;\n' : '') +
+            'varying float vPtFogZ;'
           );
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <color_fragment>',
             '#include <color_fragment>\n' +
+            (needLM ? '  diffuseColor.rgb *= texture2D(uLightMap, vMyLightMapUv).rgb;\n' : '') +
             '  { float _z = vPtFogZ; if (_z > 1152.0) { float _dlev = (_z - 1152.0) * 0.5; if (_dlev > 255.0) _dlev = 255.0; diffuseColor.rgb *= 1.0 - _dlev / 256.0; } }'
           );
-        }
-
-        // ---- fragment: lightmap ----
-        if (needLM) {
-          shader.uniforms.uLightMap = { value: config.lightmapTex };
-          shader.fragmentShader = shader.fragmentShader.replace(
-            '#include <common>',
-            '#include <common>\nuniform sampler2D uLightMap;\nin vec2 vMyLightMapUv;'
-          );
-          shader.fragmentShader = shader.fragmentShader.replace(
-            '#include <color_fragment>',
-            '#include <color_fragment>\ndiffuseColor.rgb *= texture2D(uLightMap, vMyLightMapUv).rgb;'
-          );
+          if (needLM) shader.uniforms.uLightMap = { value: config.lightmapTex };
+          shader.uniforms.uEnvLight = { value: new THREE.Vector3(0, 0, 0) };
+          shader.uniforms.uTorchPos = { value: new THREE.Vector3(0, 0, 0) };
+          shader.uniforms.uTorchColor = { value: new THREE.Vector3(0, 0, 0) };
+          shader.uniforms.uTorchRange = { value: 0 };
+          shader.uniforms.uSceneLightPos = { value: Array.from({length:8}, () => new THREE.Vector3()) };
+          shader.uniforms.uSceneLightColor = { value: Array.from({length:8}, () => new THREE.Vector3()) };
+          shader.uniforms.uSceneLightRange = { value: new Float32Array(8) };
         }
 
         if (scrollU0 || scrollU1) shader.uniforms.uScrollU = { value: new THREE.Vector2(0, 0) };
@@ -537,6 +559,45 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax) {
       const shader = mrd.mesh.material.userData.shader;
       if (!shader || !shader.uniforms.uWindTime) continue;
       shader.uniforms.uWindTime.value = uTime;
+    }
+  }
+
+  /**
+   * 每帧更新昼夜环境光、场景光源与玩家火把（复刻 Winmain.cpp:5394-5403,5517-5535; playmain.cpp:847-885）：
+   *   Color_R/G/B = -DarkLevel + BackColor → uEnvLight（加到 diffuseColor）
+   *   场景光：仅在夜晚（DarkLevel>0）生效；NIGHT 型（type&1）全亮，其余 rgb×DarkLevel>>8；
+   *           片元按距离线性衰减（SetDynamicLight）
+   *   火把：DarkLevel>0 时 AddDynamicLight(px, py+32*fONE, pz, ap,ap,ap, 0, DarkLightRange)
+   *     ap = DarkLevel×1.25；DarkLightRange = 260 world（非地牢）/ 400 world（地牢）
+   *   @param {THREE.Vector3} envLight  环境光偏移（已 ÷255，加到最终色）
+   *   @param {{pos:THREE.Vector3,color:THREE.Vector3,range:number}[]} sceneLights 活跃场景光（≤8）
+   *   @param {THREE.Vector3} torchPos   火把世界坐标（0 时关闭）
+   *   @param {THREE.Vector3} torchColor 火把光色（已 ÷255）
+   *   @param {number} torchRange         火把半径（world 单位）
+   */
+  updateDayNight(envLight, sceneLights, torchPos, torchColor, torchRange) {
+    for (const mrd of this.materials) {
+      const shader = mrd.mesh.material.userData.shader;
+      if (!shader) continue;
+      if (shader.uniforms.uEnvLight) shader.uniforms.uEnvLight.value.copy(envLight);
+      const up = shader.uniforms.uSceneLightPos, uc = shader.uniforms.uSceneLightColor, ur = shader.uniforms.uSceneLightRange;
+      if (up && uc && ur) {
+        const n = Math.min(sceneLights.length, 8);
+        for (let i = 0; i < 8; i++) {
+          if (i < n) {
+            up.value[i].copy(sceneLights[i].pos);
+            uc.value[i].copy(sceneLights[i].color);
+            ur.value[i] = sceneLights[i].range;
+          } else {
+            up.value[i].set(0, 0, 0);
+            uc.value[i].set(0, 0, 0);
+            ur.value[i] = 0;
+          }
+        }
+      }
+      if (shader.uniforms.uTorchPos) shader.uniforms.uTorchPos.value.copy(torchPos);
+      if (shader.uniforms.uTorchColor) shader.uniforms.uTorchColor.value.copy(torchColor);
+      if (shader.uniforms.uTorchRange) shader.uniforms.uTorchRange.value = torchRange;
     }
   }
 

@@ -244,11 +244,11 @@ class CollisionMesh {
    */
   _wallBlocked(x, y, z, dx, dz, bodyWidth, bodyHeight) {
     const bw = (bodyWidth * fONE) >> 2;   // C++ width = ObjWidth>>2
-    // C++：角色 pY = 地面 - 2*fONE（character.cpp:1846 pY -= 2*fONE）
-    // PosiMinY = fONE*12 → T线脚底 = pY + 12 = 地面 + 10
-    // PosiMaxY = ObjHeight*0.75 → T线胸口 = pY + 75%身高
-    const footY = y + fONE * 10;          // 脚底线（地面+10）
-    const chestY = y - 2 * fONE + (bodyHeight * fONE) - ((bodyHeight * fONE) >> 2); // 胸口线
+    // C++ smMakeTLine（smStage3d.cpp:436-437）：
+    //   PosiMinY = fONE*12 → 脚底线 = y + 12
+    //   PosiMaxY = ObjHeight - (ObjHeight>>2) → 胸口线 = y + 0.75*ObjHeight
+    const footY = y + fONE * 12;          // 脚底线
+    const chestY = y + bodyHeight * fONE - ((bodyHeight * fONE) >> 2); // 胸口线
 
     // C++ smMakeTLine: dist2 = dist + fONE*12（探测前方 步长+12 游戏单位）
     // 步长 |(dx,dz)|，探测距离 = |(dx,dz)| + 12*fONE

@@ -58,10 +58,10 @@ body{background:#111;color:#e8e8e8;font-family:Tahoma,Arial,sans-serif;font-size
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { parseSMD } from './js/smd-parser.js?v=9';
+import { parseSMD } from './js/smd-parser.js?v=10';
   import { decodeTexture } from './js/texture-decoder.js?v=8';
-import { MapRenderer } from './js/map-renderer.js?v=7';
-import { CollisionMesh } from './js/collision.js?v=3';
+import { MapRenderer } from './js/map-renderer.js?v=11';
+import { CollisionMesh } from './js/collision.js?v=4';
 
 const WORLD_SCALE = 1 / 256;
 
@@ -509,6 +509,116 @@ window.addEventListener('keydown', e => {
   }
 });
 
+// ===== Day/night cycle (Winmain.cpp:5394-5403,5517-5535; playmain.cpp:2981-3008) =====
+// 游戏钟：1 游戏小时 = 1 秒（加速演示），从正午 12 点开始；[ / ] 手动减/加小时
+let gameHour = 12;
+let gameClockAcc = 0;        // 累加器（秒），>=1 时 +1 小时
+const DAYNIGHT_HOUR_PER_SEC = 0.1;  // 每秒推进的游戏小时数（0.1=1小时/10秒，24秒×10=240秒一个昼夜）
+let nightDayTime = 0;        // 0=白天 1=夜晚（hour<4||hour>=23 或地牢）
+let darkLevel = 0;           // 黑暗强度 0~220
+let dnSceneLightWarned = false; // 无灯提示只打一次
+let backColorR = 0, backColorG = 0, backColorB = 0; // 当前天空色调（渐变插值）
+// 户外时段目标（sky.txt 索引 4/5/6 = Sky01 day/evening/night：LightColor + LightDark）
+// 索引4 day: LightColor(0,0,-10) LightDark 1；5 evening: (28,0,-30) 24；6 night: (-50,0,10) 145
+const DN_SLOTS = [
+  { hour: [4, 21],   sel: 0, dark: 1,   back: [0, 0, -10] },   // 白天
+  { hour: [22, 22],  sel: 1, dark: 24,  back: [28, 0, -30] },  // 傍晚
+  { hour: [23, 24],  sel: 2, dark: 145, back: [-50, 0, 10] },  // 夜晚（0-3h 也属夜）
+  { hour: [0, 3],    sel: 2, dark: 145, back: [-50, 0, 10] },
+];
+function dnCurrentSlot() {
+  for (const s of DN_SLOTS) {
+    const [a, b] = s.hour;
+    if (gameHour >= a && gameHour < b) return s;
+  }
+  return DN_SLOTS[0];
+}
+function dnUpdate(dt) {
+  // 游戏时钟推进
+  gameClockAcc += dt * DAYNIGHT_HOUR_PER_SEC;
+  while (gameClockAcc >= 1) {
+    gameClockAcc -= 1;
+    gameHour = (gameHour + 1) % 24;
+  }
+  const slot = dnCurrentSlot();
+  // NightDayTime：地牢/夜晚判定（简化：仅按小时）
+  nightDayTime = (gameHour < 4 || gameHour >= 23) ? 1 : 0;
+  // DarkLevel 每帧 ±1 趋向目标（C++ 每4帧 ±1，这里每帧更平滑）
+  if (darkLevel < slot.dark) darkLevel = Math.min(darkLevel + 1, slot.dark);
+  if (darkLevel > slot.dark) darkLevel = Math.max(darkLevel - 1, slot.dark);
+  // BackColor 每帧 ±1 趋向目标（C++ 每8帧 ±1）
+  const stepB = 1;
+  if (backColorR < slot.back[0]) backColorR = Math.min(backColorR + stepB, slot.back[0]);
+  if (backColorR > slot.back[0]) backColorR = Math.max(backColorR - stepB, slot.back[0]);
+  if (backColorG < slot.back[1]) backColorG = Math.min(backColorG + stepB, slot.back[1]);
+  if (backColorG > slot.back[1]) backColorG = Math.max(backColorG - stepB, slot.back[1]);
+  if (backColorB < slot.back[2]) backColorB = Math.min(backColorB + stepB, slot.back[2]);
+  if (backColorB > slot.back[2]) backColorB = Math.max(backColorB - stepB, slot.back[2]);
+  // 环境光偏移 = (-DarkLevel + BackColor)/255
+  const envLight = new THREE.Vector3(
+    (-darkLevel + backColorR) / 255,
+    (-darkLevel + backColorG) / 255,
+    (-darkLevel + backColorB) / 255
+  );
+  // 玩家火把：DarkLevel>0 时（Winmain.cpp:5517-5535）
+  //   ap = DarkLevel×1.25；范围非地牢 260 world（地牢 400 world）
+  let torchPos = null, torchColor = null, torchRange = 0;
+  if (darkLevel > 0) {
+    const ap = Math.min(Math.round(darkLevel * 1.25), 255);
+    torchPos = new THREE.Vector3(dummy.x, dummy.y + 32, dummy.z); // +32×fONE → world +32
+    torchColor = new THREE.Vector3(ap / 255, ap / 255, ap / 255);
+    torchRange = 260; // 原版 DarkLightRange（非地牢）
+  } else {
+    torchPos = new THREE.Vector3(0, 0, 0);
+    torchColor = new THREE.Vector3(0, 0, 0);
+  }
+  // 场景光源（playmain.cpp:847-885）：仅在夜晚(DarkLevel>0)启用；
+  //   NIGHT 型(type&1) 全亮，其余 rgb×DarkLevel>>8；选玩家周围最近 ≤8 个
+  const sceneLights = [];
+  if (darkLevel > 0) {
+    const DL = darkLevel;
+    const cand = [];
+    for (const mr of mapRenderers) {
+      for (const l of mr.lights) {
+        const dx = l.wx - dummy.x, dy = l.wy - dummy.y, dz = l.wz - dummy.z;
+        const d2 = dx*dx + dy*dy + dz*dz;
+        // C++ dist<0x300000(≈1773 world²) 且 |dx|,|dz|<0x2000(8192)；这里直接选最近 8 个
+        if (d2 < 0x300000) cand.push({ d2, l });
+      }
+    }
+    if (cand.length === 0) {
+      // 无灯（可能地图无场景光或玩家远离光源）；只提示一次，避免每帧刷屏
+      if (!dnSceneLightWarned) {
+        dnSceneLightWarned = true;
+        console.warn(`[sceneLights] 无灯 地图=${mapRenderers.length} 灯总和=${mapRenderers.reduce((s,m)=>s+m.lights.length,0)}`);
+      }
+    }
+    cand.sort((a, b) => a.d2 - b.d2);
+    const dim = (v) => (v * DL) >> 8;
+    for (let i = 0; i < Math.min(cand.length, 8); i++) {
+      const l = cand[i].l;
+      // C++ playmain.cpp:860-880：
+      //   (type&NIGHT) && NightDayTime → 全亮
+      //   否则 DarkLevel>0 → rgb×DarkLevel>>8
+      const nightFull = ((l.type & 0x1) !== 0) && (nightDayTime === 1);
+      const r = nightFull ? l.r : dim(l.r);
+      const g = nightFull ? l.g : dim(l.g);
+      const b = nightFull ? l.b : dim(l.b);
+      sceneLights.push({
+        pos: new THREE.Vector3(l.wx, l.wy, l.wz),
+        color: new THREE.Vector3(r / 255, g / 255, b / 255),
+        range: l.range / 256, // raw → world
+      });
+    }
+  }
+  for (const mr of mapRenderers) mr.updateDayNight(envLight, sceneLights, torchPos, torchColor, torchRange);
+}
+// [ ] 键：手动减/加游戏小时（调试各时段）
+window.addEventListener('keydown', e => {
+  if (e.code === 'BracketLeft')  { gameHour = (gameHour + 23) % 24; console.log(`[daynight] hour=${gameHour}`); }
+  if (e.code === 'BracketRight') { gameHour = (gameHour + 1) % 24;  console.log(`[daynight] hour=${gameHour}`); }
+});
+
 // Mouse state (for click-to-move)
 let mouseDown = false;
 let mouseX = 0, mouseY = 0;
@@ -644,17 +754,23 @@ function updateDummy(dt) {
 
       let anyCollision = false;
       let finalRawX = null, finalRawY = null, finalRawZ = null;
+      // 起点 = 当前位置（raw SMD）
+      const sx = -dummy.z * 256, sy = dummy.y * 256, sz = -dummy.x * 256;
+      const dist = Math.sqrt(dx * dx + dz * dz) * 256;
+      // 把 raw 方向向量转回角度（供 checkNextMove 内部算 sin/cos）
+      const rawAngle = ((Math.atan2(rawDirX, rawDirZ) / (Math.PI * 2) * ANGLE_360) & ANGCLIP) >>> 0;
+      // 只对"玩家当前位置所在的地图"做碰撞（C++ 一次只在一个 stage 上）。
+      // 判断：该地图碰撞网格在玩家 raw 位置能找到地面（getFloorHeight found）。
       for (const id of Object.keys(loadedMaps)) {
         const m = loadedMaps[id];
         if (!m.collisionMesh || m.collisionMesh.triangles.length === 0) continue;
-        // 起点 = 当前位置（raw SMD）
-        const sx = -dummy.z * 256, sy = dummy.y * 256, sz = -dummy.x * 256;
-        const dist = Math.sqrt(dx * dx + dz * dz) * 256;
         if (dist < 1) { anyCollision = false; break; }
-        // 把 raw 方向向量转回角度（供 checkNextMove 内部算 sin/cos）
-        const rawAngle = ((Math.atan2(rawDirX, rawDirZ) / (Math.PI * 2) * ANGLE_360) & ANGCLIP) >>> 0;
+        // 玩家不在此地图：跳过，避免覆盖正确结果。用 getPolyHeight（不依赖 currentY）
+        // 判断玩家 raw 位置是否落在该地图碰撞网格的面内。
+        const isHere = m.collisionMesh.getPolyHeight(sx, sz).found;
+        if (!isHere) continue;
         const result = m.collisionMesh.checkNextMove(sx, sy, sz, rawAngle, dist);
-        window.__lastCnm = { sx, sy, sz, rawAngle, dist, result, rawDirX, rawDirZ };
+        window.__lastCnm = { sx, sy, sz, rawAngle, dist, result, rawDirX, rawDirZ, map: m.n };
         if (result.collision) {
           anyCollision = true;
           break;
@@ -808,6 +924,9 @@ let fps = 0;
   // Update dummy character
   updateDummy(1/60);
 
+  // Update day/night cycle (game clock, DarkLevel, BackColor, torch light)
+  dnUpdate(1/60);
+
   // Choose camera for frustum culling
   const useDirectCull = useDebugCamera || useDebugCull;
   if (useDirectCull) {
@@ -870,7 +989,7 @@ let fps = 0;
   const dummyInfo = useDebugCamera ?
     `Dummy (${dummy.x.toFixed(0)},${dummy.y.toFixed(0)},${dummy.z.toFixed(0)}) cam(dist=${cam.viewDist.toFixed(0)} pitch=${cam.viewAnx})` : '';
   const cullMode = useDebugCull && !useDebugCamera ? '主相机∩debugCull' : (useDebugCull ? 'debugCull' : '主相机');
-  statsEl.textContent = `FPS ${fps} | Draw Calls ${dc} | Vis ${visFaces}/${totFaces} faces | Cells ${visCells} ${dummyInfo}`;
+  statsEl.textContent = `FPS ${fps} | Draw Calls ${dc} | Vis ${visFaces}/${totFaces} faces | Cells ${visCells} ${dummyInfo} | Hour ${String(gameHour).padStart(2,'0')}:00 Dark ${darkLevel} Back(${backColorR},${backColorG},${backColorB})`;
   camInfoEl.textContent = useDebugCamera ? [
     `dummy (${dummy.x.toFixed(1)}, ${dummy.y.toFixed(1)}, ${dummy.z.toFixed(1)})`,
     `cam (${debugCamera.position.x.toFixed(1)}, ${debugCamera.position.y.toFixed(1)}, ${debugCamera.position.z.toFixed(1)})`,
@@ -1250,7 +1369,7 @@ async function loadMap() {
     mr.buildCellTimeMs = mr._cellBuildTimeMs || 0;
     // 汇总所有材质的 cell 数
     const totalCells = mr.materials.reduce((s, mrd) => s + (mrd.cellLookup ? mrd.cellLookup.size : 0), 0);
-    console.log(`[Map] ${m.n}: build ${mr.buildTimeMs.toFixed(1)}ms (cell分配 ${mr.buildCellTimeMs.toFixed(1)}ms) 材质=${mr.materials.length} 总cell=${totalCells}`);
+    console.log(`[Map] ${m.n}: build ${mr.buildTimeMs.toFixed(1)}ms (cell分配 ${mr.buildCellTimeMs.toFixed(1)}ms) 材质=${mr.materials.length} 总cell=${totalCells} 场景光=${mr.lights.length}`);
 
     // Build collision mesh for this map (raw SMD coords)
     const collisionMesh = new CollisionMesh();

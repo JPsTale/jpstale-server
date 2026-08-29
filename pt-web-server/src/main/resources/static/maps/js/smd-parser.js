@@ -153,10 +153,27 @@ export function parseSMD(buffer) {
     }
   }
 
+  // Scene lights: smLIGHT3D (28 bytes each) after texlinks.
+  // struct { int type; int x,y,z; int Range; short r,g,b; } — MSVC 4B 对齐 = 28B
+  // type bits: 0x80000=DYNAMIC, 0x1=NIGHT, 0x2=LENS, 0x8=OBJ
+  const lights = [];
+  for (let i = 0; i < nLight; i++) {
+    const type = dv.getInt32(off, true);
+    const x = dv.getInt32(off + 4, true);
+    const y = dv.getInt32(off + 8, true);
+    const z = dv.getInt32(off + 12, true);
+    const range = dv.getInt32(off + 16, true);
+    const r = dv.getInt16(off + 20, true);
+    const g = dv.getInt16(off + 22, true);
+    const b = dv.getInt16(off + 24, true);
+    lights.push({ type: type >>> 0, x, y, z, range, r, g, b });
+    off += 28;
+  }
+
   return {
     nVertex, nFace, nTexLink, nLight,
     verts, vertColors, triIdx, faceMat, faceTexLink, texUVs, faceLightmapUV,
-    materials,
+    materials, lights,
     bounds: { minX, maxX, minY, maxY, minZ, maxZ },
   };
 }
