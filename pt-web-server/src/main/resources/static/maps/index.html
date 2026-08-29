@@ -1012,6 +1012,108 @@ window.__ptDebug = {
   })),
   getLoadedMaps: () => Object.keys(loadedMaps),
   getCamera: () => ({ x: camera.position.x, y: camera.position.y, z: camera.position.z }),
+  /**
+   * 屏幕拾取：输入视口内屏幕坐标 (clientX, clientY)，返回命中的
+   * 地图 id、原始 face 索引、matIdx、顶点、材质完整信息（TextureFormState/
+   * TextureStageState/blend/tex/useState/meshState/windMeshBottom/TextureType 等）。
+   * 方法：Raycaster 取最近命中点（world）→ 用原始 SMD 数据反查 face。
+   */
+  pickScreen: (clientX, clientY) => {
+    const rect = viewport.getBoundingClientRect();
+    const px = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const py = -((clientY - rect.top) / rect.height) * 2 + 1;
+    const activeCam = useDebugCamera ? debugCamera : camera;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(px, py), activeCam);
+    // 收集所有地图 mesh
+    const meshes = [];
+    for (const mr of mapRenderers) for (const mrd of mr.materials) meshes.push(mrd.mesh);
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (!hits.length) return { note: 'no hit' };
+    hits.sort((a, b) => a.distance - b.distance);
+    const hit = hits[0];
+    const wp = hit.point; // world 坐标
+    // 反查所在地图
+    for (const id of Object.keys(loadedMaps)) {
+      const m = loadedMaps[id];
+      const b = m.data.bounds;
+      // world → raw（wx=-rawZ/256, wz=-rawX/256）
+      const rawX = -wp.z * 256, rawY = wp.y * 256, rawZ = -wp.x * 256;
+      if (rawX < b.minX || rawX > b.maxX || rawZ < b.minZ || rawZ > b.maxZ) continue;
+      const data = m.data;
+      const verts = data.verts, triIdx = data.triIdx;
+      // 找包含点（x,z 投影）的面：重心测试，取最近（y 差最小）
+      let best = null;
+      for (let fi = 0; fi < data.nFace; fi++) {
+        const i0 = triIdx[fi*3], i1 = triIdx[fi*3+1], i2 = triIdx[fi*3+2];
+        const ax = verts[i0*3], az = verts[i0*3+2];
+        const bx = verts[i1*3], bz = verts[i1*3+2];
+        const cx2 = verts[i2*3], cz = verts[i2*3+2];
+        const d0 = (bx-ax)*(rawZ-az)-(bz-az)*(rawX-ax);
+        const d1 = (cx2-bx)*(rawZ-bz)-(cz-bz)*(rawX-bx);
+        const d2 = (ax-cx2)*(rawZ-cz)-(az-cz)*(rawX-cx2);
+        const hasNeg = (d0<0)||(d1<0)||(d2<0);
+        const hasPos = (d0>0)||(d1>0)||(d2>0);
+        if (hasNeg && hasPos) continue; // 点在三角形外
+        const y = verts[i0*3+1];
+        const dy = Math.abs(y - rawY);
+        if (!best || dy < best.dy) {
+          const matIdx = data.faceMat[fi];
+          best = { fi, dy, matIdx };
+        }
+      }
+      if (!best) continue;
+      const matIdx = best.matIdx;
+      const mat = data.materials[matIdx];
+      const result = {
+        mapId: id,
+        mapName: m.name,
+        hitWorld: [wp.x.toFixed(1), wp.y.toFixed(1), wp.z.toFixed(1)],
+        rawPoint: [rawX, rawY, rawZ],
+        faceIndex: best.fi,
+        matIdx,
+        material: {
+          inUse: mat.inUse, texCounter: mat.texCounter,
+          tex: mat.tex,
+          animTexCounter: mat.animTexCounter,
+          animTextures: mat.animTextures,
+          textureStageState: mat.textureStageState,
+          textureFormState: mat.textureFormState,
+          blendType: mat.blendType,
+          shade: mat.shade,
+          twoSide: mat.twoSide,
+          diffuse: mat.diffuse,
+          transparency: mat.transparency,
+          useState: '0x' + (mat.useState>>>0).toString(16),
+          meshState: '0x' + (mat.meshState>>>0).toString(16),
+          windMeshBottom: '0x' + (mat.windMeshBottom & 0x7FF).toString(16),
+        },
+        // 该材质在渲染端的实际配置
+        renderConfig: (() => {
+          for (const mr of mapRenderers) for (const mrd of mr.materials) {
+            if (mrd.matIdx === matIdx && mr === m.mapRenderer) {
+              const ud = mrd.mesh.material.userData;
+              const sh = ud.shader;
+              return {
+                hasMap: !!mrd.mesh.material.map,
+                hasLM: !!sh?.uniforms.uLightMap,
+                hasSecondTex: !!sh?.uniforms.uSecondTex,
+                hasWind: !!sh?.uniforms.uWindTime,
+                hasWater: !!sh?.uniforms.uWaterTime,
+                scrollSlots: ud.scrollSlots,
+                transparent: mrd.mesh.material.transparent,
+                blending: mrd.mesh.material.blending,
+                scrollU: sh?.uniforms.uScrollU ? [sh.uniforms.uScrollU.value.x.toFixed(3), sh.uniforms.uScrollU.value.y.toFixed(3)] : null,
+              };
+            }
+          }
+          return null;
+        })(),
+      };
+      return result;
+    }
+    return { note: 'hit but no face found', hitWorld: [wp.x.toFixed(1), wp.y.toFixed(1), wp.z.toFixed(1)] };
+  },
   getMainCamDir: () => {
     const mw = camera.matrixWorld.elements;
     // column-major: right=mw[0..2], zaxis=mw[8..10], forward=-zaxis
@@ -1154,6 +1256,14 @@ window.__ptDebug = {
 };
 
 // ===== UI =====
+// 全局拾取别名：控制台输入 pickScene(x, y) 或 pickScene() 用上次鼠标位置
+window.pickScene = (x, y) => {
+  const px = x !== undefined ? x : mouseX;
+  const py = y !== undefined ? y : mouseY;
+  const r = window.__ptDebug.pickScreen(px, py);
+  console.log('[pick]', r);
+  return r;
+};
 document.getElementById('chkWire').onchange=e=>{
   for (const mr of mapRenderers) {
     for (const mrd of mr.materials) {

@@ -430,6 +430,19 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax, w
     const scrollU0 = hasScroll && scrollSlot.some(s => s.slot === 0);
     const scrollU1 = hasScroll && scrollSlot.some(s => s.slot === 1);
 
+    // Force unique program per material to prevent GLSL compiler from optimizing away
+    // custom uniforms (uScrollU, uWindTime, uWaterTime) when shared program doesn't use them.
+    // Must be set BEFORE first render so getParameters() reads it for cache key.
+    {
+      const _ckParts = [];
+      if (hasScroll) _ckParts.push('S' + scrollSlot.map(s => s.slot + s.kind + s.mult).join(''));
+      if (windKind) _ckParts.push('W' + windKind);
+      if (waterKind) _ckParts.push('A');
+      if (needLM) _ckParts.push('L');
+      if (need2Tex) _ckParts.push('T');
+      if (_ckParts.length > 0) threeMat.customProgramCacheKey = () => _ckParts.join('');
+    }
+
     // Wind 逐顶点摆动（顶点着色器）：方向保持 C++ 的轴语义
     //   WINDZ1/Z2(wk1/2): raw z 平移 → world x 轴摆动
     //   WINDX1/X2(wk3/4): raw x 平移 → world z 轴摆动
