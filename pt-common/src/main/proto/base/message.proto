@@ -15,6 +15,7 @@ message ClientMessage {
     C2S_CreateCharacter create_character = 101;
     C2S_SelectCharacter select_character = 102;
     C2S_Logout logout = 103;
+    C2S_BackToLobby back_to_lobby = 104;
     
     // 玩家 (200-299)
     C2S_PlayerMove player_move = 200;
@@ -117,6 +118,10 @@ message C2S_SelectCharacter {
 }
 
 message C2S_Logout {
+}
+
+// 游戏内退出到角色选择大厅（保留账号会话，仅清除角色绑定）
+message C2S_BackToLobby {
 }
 
 message S2C_LoginResponse {

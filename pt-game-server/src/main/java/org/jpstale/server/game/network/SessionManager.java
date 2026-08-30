@@ -89,8 +89,7 @@ public class SessionManager {
     /**
      * 解除账号/角色绑定（登出用），但保留 channel session
      */
-    public void unbind(Channel channel) {
-        PlayerSession session = sessions.get(channel);
+    public void unbind(Channel channel) {        PlayerSession session = sessions.get(channel);
         if (session == null) {
             return;
         }
@@ -106,6 +105,24 @@ public class SessionManager {
         session.setCharacterName(null);
         session.setState(SessionState.CONNECTED);
         log.debug("Unbound account/character for channel: {}", channel.remoteAddress());
+    }
+
+        /**
+     * 游戏内退出到角色选择大厅：仅清除角色绑定、状态回 SERVER_SELECTED，保留账号绑定与连接
+     */
+    public void unbindCharacter(Channel channel) {
+        PlayerSession session = sessions.get(channel);
+        if (session == null) {
+            return;
+        }
+        if (session.getCharacterId() != null) {
+            sessionsByCharacterId.remove(session.getCharacterId());
+            sessionsByCharacterName.remove(session.getCharacterName());
+        }
+        session.setCharacterId(null);
+        session.setCharacterName(null);
+        session.setState(SessionState.SERVER_SELECTED);
+        log.debug("Unbound character (back to lobby) for channel: {}", channel.remoteAddress());
     }
 
     /**

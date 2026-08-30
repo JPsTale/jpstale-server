@@ -530,6 +530,38 @@ public class AccountService {
         log.info("Character logged out: {}, account: {}", characterName, accountId);
     }
 
+    /**
+     * 报文入口：游戏内退出到角色选择大厅（回选角，保留账号会话）
+     * 与登出不同：保留 accountId 绑定，仅清除角色绑定、状态回 SERVER_SELECTED，
+     * 客户端可直接继续 characterList / selectCharacter。
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.BACK_TO_LOBBY_FIELD_NUMBER)
+    public void handleBackToLobby(PlayerSession session, MessageProto.ClientMessage message) {
+        if (session == null) {
+            return;
+        }
+
+        String characterName = session.getCharacterName();
+
+        // 移出 AOI（若在游戏中）
+        if (session.isPlaying()) {
+            aoiManager.removePlayer(session);
+        }
+
+        // 存档角色数据
+        if (session.getCharacterId() != null) {
+            playerService.persistAndRemove(session.getCharacterId());
+        }
+
+        // 仅清除角色绑定、状态回 SERVER_SELECTED，保留账号绑定与连接
+        sessionManager.unbindCharacter(session.getChannel());
+
+        // 通知客户端回选角成功
+        session.sendText("{\"type\":\"auth.backToLobbyResult\",\"data\":{\"success\":true}}");
+
+        log.info("Character back to lobby: {}, account: {}", characterName, session.getAccountId());
+    }
+
     private static final Pattern NAME_PATTERN = Pattern.compile("^[\\u4e00-\\u9fa5a-zA-Z0-9]{2,12}$");
     /** 角色数量上限（对齐原版 EU CharacterCreate：6 个） */
     private static final int MAX_CHARACTERS = 6;
