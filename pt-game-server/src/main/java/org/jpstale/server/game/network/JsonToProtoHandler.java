@@ -298,9 +298,9 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
                         .setLogout(MessageProto.C2S_Logout.newBuilder().build())
                         .build();
                 }
-                case "auth.backToLobby" -> {
+                case "auth.backToCharacterSelect" -> {
                     return MessageProto.ClientMessage.newBuilder()
-                        .setBackToLobby(MessageProto.C2S_BackToLobby.newBuilder().build())
+                        .setBackToCharacterSelect(MessageProto.C2S_BackToCharacterSelect.newBuilder().build())
                         .build();
                 }
                 case "game.move" -> {
