@@ -5,10 +5,10 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.timeout.IdleStateHandler;
-import org.jpstale.server.common.network.codec.ProtobufDecoder;
-import org.jpstale.server.common.network.codec.ProtobufEncoder;
 import org.jpstale.server.game.network.PacketRouterHandler;
 import org.jpstale.server.game.network.ServerHeartbeatHandler;
 import org.slf4j.Logger;
@@ -50,15 +50,17 @@ public class NettyServer {
                             ch.pipeline()
                                 .addLast(new IdleStateHandler(60, 0, 0, TimeUnit.SECONDS))
                                 .addLast(serverHeartbeatHandler)
-                                .addLast(new LengthFieldBasedFrameDecoder(16 * 1024 * 1024, 0, 4, 0, 4))
-                                .addLast(new ProtobufDecoder())
-                                .addLast(new ProtobufEncoder())
+                                .addLast(new HttpServerCodec())
+                                .addLast(new HttpObjectAggregator(64 * 1024))
+                                .addLast(new WebSocketServerProtocolHandler("/ws"))
+                                .addLast(new ProtobufFrameHandler())
+                                .addLast(new ProtobufFrameOutHandler())
                                 .addLast(packetRouterHandler);
                         }
                     })
                     .bind(port)
                     .sync();
-                log.info("PT Game Server (Netty) listening on port {}", port);
+                log.info("PT Game Server (Netty WebSocket) listening on port {}", port);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
