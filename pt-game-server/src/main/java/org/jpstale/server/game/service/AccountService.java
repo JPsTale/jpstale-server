@@ -604,14 +604,14 @@ public class AccountService {
         session.setY(mapRegionService.getHeight(mapId, sx, sz));
 
         // 发送进入游戏：出生地图/位置 + 完整外观 + 出生朝向（客户端据此进图渲染自机）
-        // 出生朝向：ANGLE_270 = 3072（面向 -X，/pt/maps/ 验证的引擎角度语义）
+        // 出生朝向：y = -π/2 弧度（面向 -X）
         MessageProto.S2C_EnterGame.Builder enterGame = MessageProto.S2C_EnterGame.newBuilder()
             .setPlayerId(characterId)
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder()
                 .setX(sx).setY(session.getY()).setZ(sz))
             .setRotation(CommonProto.Rotation.newBuilder()
-                .setX(0).setY(ANGLE_270).setZ(0))
+                .setX(0).setY((float) -Math.PI / 2).setZ(0))
             .setAppearance(buildAppearance(character));
 
         session.send(MessageProto.ServerMessage.newBuilder()
@@ -699,9 +699,6 @@ public class AccountService {
     /** 出生地图（对齐 exm START_FIELD_NUM/MORYON）：坦普族→3 ric，魔灵族→21 pilai */
     private static final int START_FIELD_NUM = 3;
     private static final int START_FIELD_MORYON = 21;
-
-    /** 引擎角度：ANGLE_270 = 面向 -X（PT 角度制 0-4095，ANGLE_360=4096） */
-    private static final int ANGLE_270 = 3072;
 
     /** 坦普族职业（1,2,3,4,9），其余为魔灵族（5,6,7,8,10） */
     private static boolean isTempscronJob(int jobCode) {
