@@ -207,6 +207,7 @@ message S2C_EnterGame {
   int32 map_id = 2;
   Position position = 3;               // 出生点（服务端权威，FieldMap.startPoint）
   CharacterAppearance appearance = 4;  // 完整外观，客户端据此渲染自机
+  Rotation rotation = 5;               // 出生朝向（ay=引擎角度 0-4095，如 ANGLE_270=3072 面向 -X）
 }
 
 message S2C_PlayerState {
