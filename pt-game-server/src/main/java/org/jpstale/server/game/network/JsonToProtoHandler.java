@@ -356,6 +356,7 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
                             "bodyModel", c.getAppearance().getBodyModel(),
                             "bodyModelIdcode", c.getAppearance().getBodyModelIdcode(),
                             "weaponDorp", c.getAppearance().getWeaponDorp(),
+                            "weaponIdcode", c.getAppearance().getWeaponIdcode(),
                             "weaponPos", c.getAppearance().getWeaponPos(),
                             "sizeLevel", c.getAppearance().getSizeLevel()));
                     }

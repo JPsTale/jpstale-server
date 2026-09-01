@@ -144,8 +144,9 @@ message CharacterAppearance {
   string body_model = 4;  // 身体模型 dorpItem（如 "da115"），时装查 COSTUME_BODY_MAP
   int32 body_model_idcode = 5;  // 身体模型 idcode（如 33623808），普通防具算 armorNum
   string weapon_dorp = 6; // 武器 dorpItem（可空，如 "WA102"）
-  int32 weapon_pos  = 7;  // 武器挂点 modelPosition（2左/4右/0无）
-  int32 size_level  = 8;  // 体型缩放（默认 1）
+  int32 weapon_idcode = 7; // 武器 idcode（如 0x010A0000），动画匹配按武器类型
+  int32 weapon_pos  = 8;  // 武器挂点 modelPosition（2左/4右/0无）
+  int32 size_level  = 9;  // 体型缩放（默认 1）
 }
 
 // 玩家出现：外观 + 身份 + 位置 + 朝向 + 状态（对应 PT smTRNAS_PLAYERINFO）

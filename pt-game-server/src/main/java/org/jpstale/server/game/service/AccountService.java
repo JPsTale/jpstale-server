@@ -403,6 +403,7 @@ public class AccountService {
         String bodyModel = null;
         int bodyModelIdcode = 0;
         String weaponDorp = null;
+        int weaponIdcode = 0;
         int weaponPos = 0;
 
         List<org.jpstale.dao.userdb.entity.Item> items = itemMapper.selectList(
@@ -419,6 +420,7 @@ public class AccountService {
             if (classItem != null && (classItem == 4 || classItem == 6)) {
                 // 武器（4=单手, 6=双手）
                 weaponDorp = def.getCodeImg1();
+                weaponIdcode = def.getIdCode() != null ? def.getIdCode() : 0;
                 weaponPos = def.getModelPosition() != null ? def.getModelPosition() : 0;
             } else if (classItem != null && classItem == 8) {
                 // 身体（防具）：同时下发 dorpItem（时装查表用）与 idcode（普通防具算 armorNum 用）
@@ -439,6 +441,9 @@ public class AccountService {
         }
         if (weaponDorp != null) {
             b.setWeaponDorp(weaponDorp);
+        }
+        if (weaponIdcode != 0) {
+            b.setWeaponIdcode(weaponIdcode);
         }
         b.setWeaponPos(weaponPos);
         return b.build();
