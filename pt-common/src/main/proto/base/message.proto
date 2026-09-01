@@ -111,6 +111,7 @@ message C2S_LoginRequest {
 message C2S_CreateCharacter {
   string name = 1;
   int32 class_id = 2;
+  int32 head = 3;  // 创建时选的头型/头模型编号(0-2)
 }
 
 message C2S_SelectCharacter {
@@ -143,6 +144,7 @@ message CharacterInfo {
   Position position = 5;
   int32 map_id = 6;
   int64 gold = 7;
+  CharacterAppearance appearance = 8;  // 角色外观（职业/头/转职/身体/武器），服务端已算好
 }
 
 message S2C_CreateCharacterResult {

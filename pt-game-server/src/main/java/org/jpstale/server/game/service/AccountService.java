@@ -46,6 +46,12 @@ public class AccountService {
     @Autowired
     private PlayerService playerService;
 
+    @Autowired
+    private org.jpstale.dao.userdb.mapper.ItemMapper itemMapper;
+
+    @Autowired
+    private org.jpstale.dao.gamedb.mapper.ItemListMapper itemListMapper;
+
     /**
      * 根据账号名查找用户
      */
@@ -126,14 +132,9 @@ public class AccountService {
     }
 
     /**
-     * 创建角色（对齐原版创建逻辑）：
-     * <ul>
-     *   <li>1 级属性 = 职业初始值（99 点固定分配，TempNewCharacterInit/MorNewCharacterInit）</li>
-     *   <li>StatePoint = 0（1 级 99 点已分配完）</li>
-     *   <li>头像模型路径存 OldHead（每职业 3 个头）</li>
-     * </ul>
+     * 创建角色（带初始装备外观，head=头型编号 0-2，rank=转职阶级，默认 0）
      */
-    public CharacterInfo createCharacter(String accountName, String name, int jobCode, String headModel) {
+    public CharacterInfo createCharacter(String accountName, String name, int jobCode, String headModel, int head) {
         CharacterInfo character = new CharacterInfo();
         character.setAccountName(accountName);
         character.setName(name);
@@ -142,6 +143,8 @@ public class AccountService {
         character.setExperience(0L);
         character.setGold(0);
         character.setOldHead(headModel != null ? headModel : "");
+        character.setHead(head);
+        character.setRank(0);
         // 出生地图按种族（对齐原版 START_FIELD_NUM/MORYON）：坦普族→ric(3)，魔灵族→pilai(21)
         character.setLastStage(jobCode <= 4 ? START_FIELD_NUM : START_FIELD_MORYON);
         character.setIsOnline(0);
@@ -165,9 +168,21 @@ public class AccountService {
         character.setStatePoint(0);
 
         characterInfoMapper.insert(character);
-        log.info("Created character: {} (job={}, head={}) for account: {}",
-            name, jobCode, character.getOldHead(), accountName);
+        log.info("Created character: {} (job={}, head={}, rank={}, headModel={}) for account: {}",
+            name, jobCode, head, character.getRank(), character.getOldHead(), accountName);
         return character;
+    }
+
+    /**
+     * 创建角色（对齐原版创建逻辑）：
+     * <ul>
+     *   <li>1 级属性 = 职业初始值（99 点固定分配，TempNewCharacterInit/MorNewCharacterInit）</li>
+     *   <li>StatePoint = 0（1 级 99 点已分配完）</li>
+     *   <li>头像模型路径存 OldHead（每职业 3 个头）</li>
+     * </ul>
+     */
+    public CharacterInfo createCharacter(String accountName, String name, int jobCode, String headModel) {
+        return createCharacter(accountName, name, jobCode, headModel, 0);
     }
 
     /**
@@ -364,12 +379,70 @@ public class AccountService {
                 .setLevel(character.getLevel() != null ? character.getLevel() : 1)
                 .setMapId(character.getLastStage() != null ? character.getLastStage() : 1)
                 .setGold(character.getGold() != null ? character.getGold() : 0)
+                .setAppearance(buildAppearance(character))
                 .build());
         }
 
         session.send(MessageProto.ServerMessage.newBuilder()
             .setCharacterList(characterListBuilder.build())
             .build());
+    }
+
+    /**
+     * 构建角色外观（服务端算好最终外貌值，前端不查表）。
+     * <p>
+     * 联表：userdb.item(location=1 装备栏) → gamedb.itemlist(codeImg1=模型 dorpItem, modelPosition=武器挂点, classItem=物品大类)。
+     * 分类用 classItem（对齐 Equipment.getSlotType）：1=武器，2=身体（防具）。
+     * <p>
+     * ponytail: 每个角色两条查询（N+1），角色选择列表每账号上限 MAX_CHARACTERS 个，量级极小；将来若做世界同步批量出现再改批量 IN 查询。
+     */
+    private CommonProto.CharacterAppearance buildAppearance(CharacterInfo character) {
+        int classId = character.getJobCode() != null ? character.getJobCode() : 0;
+        int head = character.getHead() != null ? character.getHead() : 0;
+        int rank = character.getRank() != null ? character.getRank() : 0;
+
+        String bodyModel = null;
+        String weaponDorp = null;
+        int weaponPos = 0;
+
+        List<org.jpstale.dao.userdb.entity.Item> items = itemMapper.selectList(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.userdb.entity.Item>()
+                .eq(org.jpstale.dao.userdb.entity.Item::getCharacterId, character.getId())
+                .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) 1));
+
+        for (org.jpstale.dao.userdb.entity.Item item : items) {
+            if (item.getItemCode() == null) {
+                continue;
+            }
+            org.jpstale.dao.gamedb.entity.ItemList def = itemListMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.gamedb.entity.ItemList>()
+                    .eq(org.jpstale.dao.gamedb.entity.ItemList::getIdCode, item.getItemCode()));
+            if (def == null) {
+                continue;
+            }
+            Integer classItem = def.getClassItem();
+            if (classItem != null && classItem == 1) {
+                // 武器
+                weaponDorp = def.getCodeImg1();
+                weaponPos = def.getModelPosition() != null ? def.getModelPosition() : 0;
+            } else if (classItem != null && classItem == 2) {
+                // 身体（防具）
+                bodyModel = def.getCodeImg1();
+            }
+        }
+
+        CommonProto.CharacterAppearance.Builder b = CommonProto.CharacterAppearance.newBuilder()
+            .setClassId(classId)
+            .setHead(head)
+            .setRank(rank);
+        if (bodyModel != null) {
+            b.setBodyModel(bodyModel);
+        }
+        if (weaponDorp != null) {
+            b.setWeaponDorp(weaponDorp);
+        }
+        b.setWeaponPos(weaponPos);
+        return b.build();
     }
 
     /**
@@ -410,8 +483,9 @@ public class AccountService {
             return;
         }
 
-        // 创建角色
-        CharacterInfo character = createCharacter(accountName, name, classId);
+        // 创建角色（head=头型编号 0-2，headModel=null 走旧版路径仅作占位）
+        int head = request.getHead();
+        CharacterInfo character = createCharacter(accountName, name, classId, null, head);
 
         // 发送创建成功
         session.send(MessageProto.ServerMessage.newBuilder()
@@ -420,6 +494,9 @@ public class AccountService {
                 .setCharacterId(character.getId())
                 .build())
             .build());
+
+        // 刷新角色列表
+        sendCharacterList(session);
 
         log.info("Character created: {} for account: {}", name, accountName);
     }

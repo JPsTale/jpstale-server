@@ -128,3 +128,34 @@ message BuffProto {
   repeated BuffEffectProto effects = 5;
   int64 apply_time = 6;
 }
+
+// 朝向/方向角（对应 PT ax/ay/az）
+message Rotation {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+// 角色外观——渲染一个角色所需的最小外观信息（角色选择列表、世界中其他玩家共用）
+message CharacterAppearance {
+  int32 class_id  = 1;  // 职业(1-10)，决定骨骼/身体前缀/头前缀/种族
+  int32 head      = 2;  // 头型/头模型编号(0-2)，配合 rank 决定头模型（PT 无独立 face 字段，脸型即头模型名编号）
+  int32 rank      = 3;  // 转职阶级(0-7)，决定头模型后缀(a/b/c)
+  string body_model = 4;  // 最终身体 body 模型（服务端已算好，如 "b005" 或时装映射路径）
+  string weapon_dorp = 5; // 武器 dorpItem（可空，如 "WA102"）
+  int32 weapon_pos  = 6;  // 武器挂点 modelPosition（2左/4右/0无）
+  int32 size_level  = 7;  // 体型缩放（默认 1）
+}
+
+// 玩家出现：外观 + 身份 + 位置 + 朝向 + 状态（对应 PT smTRNAS_PLAYERINFO）
+message PlayerAppearInfo {
+  int64 player_id         = 1;
+  string name             = 2;
+  int32 level             = 3;
+  CharacterAppearance appearance = 4;
+  Position position       = 5;
+  Rotation rotation       = 6;
+  int32 state             = 7;
+  int32 hp = 8;
+  int32 max_hp = 9;
+}

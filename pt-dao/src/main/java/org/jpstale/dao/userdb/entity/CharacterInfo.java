@@ -75,6 +75,10 @@ public class CharacterInfo {
     private Integer title;
     @TableField("dialogskin")
     private Integer dialogSkin;
+    @TableField("head")
+    private Integer head;
+    @TableField("rank")
+    private Integer rank;
     @TableField(exist = false)
     private LocalDateTime levelUpDate;
 }

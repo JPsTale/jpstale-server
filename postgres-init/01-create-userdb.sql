@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS userdb.character_exp_def (
 );
 
 -- 角色信息
-CREATE TABLE IF NOT EXISTS userdb.character_info (
+CREATE TABLE IF NOT EXISTS userdb.characterinfo (
     id integer GENERATED ALWAYS AS IDENTITY NOT NULL PRIMARY KEY,
     account_name varchar(32) NOT NULL,
     name varchar(32) NOT NULL,
@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS userdb.character_info (
     banned integer NOT NULL,
     title integer NULL,
     dialog_skin integer NULL,
+    head integer NOT NULL DEFAULT 0,
+    rank integer NOT NULL DEFAULT 0,
     level_up_date timestamp without time zone NULL
 );
 
