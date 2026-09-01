@@ -16,6 +16,20 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    database: ${REDIS_DATABASE:0}
+    timeout: 10s
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
+sa-token:
+  token-name: satoken
+  timeout: 86400
 
 pt:
   game:
@@ -23,7 +37,9 @@ pt:
     ws-port: 10008
     loop:
       tick-interval-ms: 50
+    id: ${PT_GAME_ID:1}
+    name: ${PT_GAME_NAME:Local Game Server}
+    external-ip: ${PT_EXTERNAL_IP:127.0.0.1}
+    external-port: ${PT_EXTERNAL_PORT:10007}
   field:
-    # 地图区域数据（对齐 EU InitField 顺序，mapId 0-43）
-    # smd 根目录：地图碰撞网格文件位置（.smd 头 RECT 提供地图 AABB）
     smd-root: ${PT_SMD_ROOT:/data/PristonTale/exm/run}

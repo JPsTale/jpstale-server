@@ -1,12 +1,16 @@
 package org.jpstale.server.game.network;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.ChannelHandler.Sharable;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.common.ValidationInterceptor;
 import org.jpstale.server.game.common.ValidationResult;
 import org.jpstale.server.game.service.AOIManager;
+import org.jpstale.server.game.service.GameTokenService;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +24,8 @@ import org.springframework.stereotype.Component;
 @Component
 @Sharable
 public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProto.ClientMessage> {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Autowired
     private PacketRouter packetRouter;
@@ -39,6 +45,57 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
     @Autowired
     private org.jpstale.server.game.service.PlayerService playerService;
 
+    @Autowired
+    private org.jpstale.server.game.service.AccountService accountService;
+
+    @Autowired
+    private GameTokenService gameTokenService;
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        if (msg instanceof TextWebSocketFrame textFrame) {
+            handleTokenAuth(ctx, textFrame.text());
+            return;
+        }
+        super.channelRead(ctx, msg);
+    }
+
+    private void handleTokenAuth(ChannelHandlerContext ctx, String text) {
+        try {
+            JsonNode json = MAPPER.readTree(text);
+            String type = json.has("type") ? json.get("type").asText() : "";
+            if (!"auth.token".equals(type)) {
+                log.warn("Unexpected first message type: {}", type);
+                ctx.close();
+                return;
+            }
+            String token = json.has("token") ? json.get("token").asText() : null;
+            if (token == null || token.isBlank()) {
+                log.warn("Missing token in auth.token message");
+                ctx.close();
+                return;
+            }
+            Long accountId = gameTokenService.validate(token);
+            if (accountId == null) {
+                log.warn("Invalid token: {}", token);
+                ctx.close();
+                return;
+            }
+            PlayerSession session = sessionManager.getSession(ctx.channel());
+            if (session == null) {
+                session = sessionManager.createSession(ctx.channel());
+            }
+            session.setAccountId(accountId);
+            session.setState(SessionState.LOGGED_IN);
+            sessionManager.bindAccountId(ctx.channel(), accountId);
+            log.info("Token auth OK: accountId={}, remote={}", accountId, ctx.channel().remoteAddress());
+            accountService.sendCharacterList(session);
+        } catch (Exception e) {
+            log.error("Token auth failed", e);
+            ctx.close();
+        }
+    }
+
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, MessageProto.ClientMessage msg) throws Exception {
         PlayerSession session = sessionManager.getSession(ctx.channel());
@@ -47,7 +104,6 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
         if (session != null && session.isPlaying()) {
             ValidationResult result = validationInterceptor.validate(session, msg);
             if (!result.isValid()) {
-                // 验证失败，发送错误消息
                 log.warn("Validation failed for player {}: {}", 
                     session.getCharacterName(), result.getErrorMessage());
                 
@@ -61,14 +117,12 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
             }
         }
 
-        // 路由消息到对应的处理器
         packetRouter.route(session, msg);
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         log.info("Client connected: {}", ctx.channel().remoteAddress());
-        // 创建新的 Session
         sessionManager.createSession(ctx.channel());
         super.channelActive(ctx);
     }
