@@ -58,6 +58,7 @@ message ServerMessage {
     S2C_PlayerState player_state = 203;
     S2C_PlayerDeath player_death = 204;
     S2C_PlayerRespawn player_respawn = 205;
+    S2C_EnterGame enter_game = 206;
     
     // 怪物 (300-399)
     S2C_MonsterAppear monster_appear = 300;
@@ -197,6 +198,15 @@ message S2C_PlayerMove {
   int64 player_id = 1;
   Position position = 2;
   int64 timestamp = 3;
+}
+
+// 进入游戏：选角色成功后服务端主动下发（对齐原版 RECORDDATA 进图语义）。
+// 含出生地图/位置/完整外观，客户端据此进图并渲染自机。
+message S2C_EnterGame {
+  int64 player_id = 1;
+  int32 map_id = 2;
+  Position position = 3;               // 出生点（服务端权威，FieldMap.startPoint）
+  CharacterAppearance appearance = 4;  // 完整外观，客户端据此渲染自机
 }
 
 message S2C_PlayerState {

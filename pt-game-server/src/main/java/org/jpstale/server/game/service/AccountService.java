@@ -5,6 +5,7 @@ import org.jpstale.dao.userdb.entity.CharacterInfo;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
+import org.jpstale.server.game.model.FieldMap;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
@@ -39,6 +40,9 @@ public class AccountService {
 
     @Autowired
     private AOIManager aoiManager;
+
+    @Autowired
+    private MapRegionService mapRegionService;
 
     @Autowired
     private PlayerStatCalculator statCalculator;
@@ -146,7 +150,7 @@ public class AccountService {
         character.setHead(head);
         character.setRank(0);
         // 出生地图按种族（对齐原版 START_FIELD_NUM/MORYON）：坦普族→ric(3)，魔灵族→pilai(21)
-        character.setLastStage(jobCode <= 4 ? START_FIELD_NUM : START_FIELD_MORYON);
+        character.setLastStage(isTempscronJob(jobCode) ? START_FIELD_NUM : START_FIELD_MORYON);
         character.setIsOnline(0);
         character.setSeasonal(0);
         character.setGmLevel(0);
@@ -581,23 +585,38 @@ public class AccountService {
         session.setLevel(character.getLevel() != null ? character.getLevel() : 1);
         sessionManager.bindCharacterId(session.getChannel(), characterId, character.getName());
 
-        // 发送角色状态
+        // 出生地图/位置（权威：FieldMap.startPoints 是玩家出生点，非刷怪点）
+        int mapId = character.getLastStage() != null ? character.getLastStage() : 1;
+        session.setCurrentMapId(mapId);
+        float sx = 0, sz = 0;
+        if (mapId >= 0 && mapId < FieldMap.values().length) {
+            FieldMap fm = FieldMap.values()[mapId];
+            if (fm.startPoints != null && fm.startPoints.length > 0) {
+                sx = fm.startPoints[0][0];
+                sz = fm.startPoints[0][1];
+            } else if (fm.center != null) {
+                sx = fm.center[0];
+                sz = fm.center[1];
+            }
+        }
+        session.setX(sx);
+        session.setZ(sz);
+        session.setY(mapRegionService.getHeight(mapId, sx, sz));
+
+        // 发送进入游戏：出生地图/位置 + 完整外观（客户端据此进图渲染自机）
+        MessageProto.S2C_EnterGame.Builder enterGame = MessageProto.S2C_EnterGame.newBuilder()
+            .setPlayerId(characterId)
+            .setMapId(mapId)
+            .setPosition(CommonProto.Position.newBuilder()
+                .setX(sx).setY(session.getY()).setZ(sz))
+            .setAppearance(buildAppearance(character));
+
         session.send(MessageProto.ServerMessage.newBuilder()
-            .setPlayerState(MessageProto.S2C_PlayerState.newBuilder()
-                .setPlayerId(characterId)
-                .setMapId(character.getLastStage() != null ? character.getLastStage() : 1)
-                .setHp(100) // 默认HP
-                .setMp(50)  // 默认MP
-                .setMaxHp(100)
-                .setMaxMp(50)
-                .setLevel(character.getLevel() != null ? character.getLevel() : 1)
-                .setGold(character.getGold() != null ? character.getGold() : 0)
-                .setExp(character.getExperience() != null ? character.getExperience() : 0)
-                .build())
+            .setEnterGame(enterGame)
             .build());
 
-        log.info("Character selected: {} ({}) for account: {}",
-            character.getName(), characterId, accountName);
+        log.info("Character selected: {} ({}) for account: {}, spawn at map {} ({}, {})",
+            character.getName(), characterId, accountName, mapId, sx, sz);
     }
 
     /**
@@ -677,6 +696,11 @@ public class AccountService {
     /** 出生地图（对齐 exm START_FIELD_NUM/MORYON）：坦普族→3 ric，魔灵族→21 pilai */
     private static final int START_FIELD_NUM = 3;
     private static final int START_FIELD_MORYON = 21;
+
+    /** 坦普族职业（1,2,3,4,9），其余为魔灵族（5,6,7,8,10） */
+    private static boolean isTempscronJob(int jobCode) {
+        return jobCode == 1 || jobCode == 2 || jobCode == 3 || jobCode == 4 || jobCode == 9;
+    }
 
     private String getAccountName(PlayerSession session) {
         if (session.getAccountId() != null) {
