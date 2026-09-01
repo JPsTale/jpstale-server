@@ -348,7 +348,17 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
                     cm.put("classId", c.getClassId());
                     cm.put("level", c.getLevel());
                     cm.put("mapId", c.getMapId());
-                    cm.put("gold", c.getGold());
+                    if (c.hasAppearance()) {
+                        cm.put("appearance", Map.of(
+                            "classId", c.getAppearance().getClassId(),
+                            "head", c.getAppearance().getHead(),
+                            "rank", c.getAppearance().getRank(),
+                            "bodyModel", c.getAppearance().getBodyModel(),
+                            "bodyModelIdcode", c.getAppearance().getBodyModelIdcode(),
+                            "weaponDorp", c.getAppearance().getWeaponDorp(),
+                            "weaponPos", c.getAppearance().getWeaponPos(),
+                            "sizeLevel", c.getAppearance().getSizeLevel()));
+                    }
                     chars.add(cm);
                 }
                 out.put("data", Map.of("characters", chars));

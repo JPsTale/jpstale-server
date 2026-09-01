@@ -378,7 +378,6 @@ public class AccountService {
                 .setClassId(character.getJobCode() != null ? character.getJobCode() : 0)
                 .setLevel(character.getLevel() != null ? character.getLevel() : 1)
                 .setMapId(character.getLastStage() != null ? character.getLastStage() : 1)
-                .setGold(character.getGold() != null ? character.getGold() : 0)
                 .setAppearance(buildAppearance(character))
                 .build());
         }
@@ -402,6 +401,7 @@ public class AccountService {
         int rank = character.getRank() != null ? character.getRank() : 0;
 
         String bodyModel = null;
+        int bodyModelIdcode = 0;
         String weaponDorp = null;
         int weaponPos = 0;
 
@@ -421,8 +421,9 @@ public class AccountService {
                 weaponDorp = def.getCodeImg1();
                 weaponPos = def.getModelPosition() != null ? def.getModelPosition() : 0;
             } else if (classItem != null && classItem == 8) {
-                // 身体（防具）
+                // 身体（防具）：同时下发 dorpItem（时装查表用）与 idcode（普通防具算 armorNum 用）
                 bodyModel = def.getCodeImg1();
+                bodyModelIdcode = def.getIdCode() != null ? def.getIdCode() : 0;
             }
         }
 
@@ -432,6 +433,9 @@ public class AccountService {
             .setRank(rank);
         if (bodyModel != null) {
             b.setBodyModel(bodyModel);
+        }
+        if (bodyModelIdcode != 0) {
+            b.setBodyModelIdcode(bodyModelIdcode);
         }
         if (weaponDorp != null) {
             b.setWeaponDorp(weaponDorp);

@@ -143,8 +143,7 @@ message CharacterInfo {
   int32 level = 4;
   Position position = 5;
   int32 map_id = 6;
-  int64 gold = 7;
-  CharacterAppearance appearance = 8;  // 角色外观（职业/头/转职/身体/武器），服务端已算好
+  CharacterAppearance appearance = 7;  // 角色外观（职业/头/转职/身体/武器），服务端已算好
 }
 
 message S2C_CreateCharacterResult {
