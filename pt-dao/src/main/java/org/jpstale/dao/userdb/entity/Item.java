@@ -31,6 +31,10 @@ public class Item {
     @TableField("item_code")
     private Integer itemCode;
 
+    /** 物品定义唯一主键（gamedb.itemlist.id），消除 idcode 非唯一歧义 */
+    @TableField("itemlist_id")
+    private Integer itemListId;
+
     @TableField("count")
     private Integer count;
 

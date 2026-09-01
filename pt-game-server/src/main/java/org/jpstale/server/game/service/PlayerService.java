@@ -267,8 +267,10 @@ public class PlayerService {
         }
         int[] res = new int[8];
         for (Item item : equipItems) {
-            if (item.getItemCode() == null) continue;
-            ItemStack stack = new ItemStack(item.getItemCode(), item.getCount() != null ? item.getCount() : 1);
+            // 物品唯一 ID = gamedb.itemlist.id；旧数据无 itemlist_id 时回退 idcode
+            Integer itemId = item.getItemListId() != null ? item.getItemListId() : item.getItemCode();
+            if (itemId == null) continue;
+            ItemStack stack = new ItemStack(itemId, item.getCount() != null ? item.getCount() : 1);
             player.getEquipment().equip(stack, itemCache);
             // 元素抗性（装备实例，EElementID: 0生物 1大地 2火 3冰 4雷 5毒 6水 7风）
             res[0] += item.getResBionic() != null ? item.getResBionic() : 0;

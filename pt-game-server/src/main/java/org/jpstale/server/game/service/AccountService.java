@@ -392,7 +392,7 @@ public class AccountService {
      * 构建角色外观（服务端算好最终外貌值，前端不查表）。
      * <p>
      * 联表：userdb.item(location=1 装备栏) → gamedb.itemlist(codeImg1=模型 dorpItem, modelPosition=武器挂点, classItem=物品大类)。
-     * 分类用 classItem（对齐 Equipment.getSlotType）：1=武器，2=身体（防具）。
+     * 分类用 classItem：4/6=武器（单手/双手），8=防具（身体）。
      * <p>
      * ponytail: 每个角色两条查询（N+1），角色选择列表每账号上限 MAX_CHARACTERS 个，量级极小；将来若做世界同步批量出现再改批量 IN 查询。
      */
@@ -411,21 +411,16 @@ public class AccountService {
                 .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) 1));
 
         for (org.jpstale.dao.userdb.entity.Item item : items) {
-            if (item.getItemCode() == null) {
-                continue;
-            }
-            org.jpstale.dao.gamedb.entity.ItemList def = itemListMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.gamedb.entity.ItemList>()
-                    .eq(org.jpstale.dao.gamedb.entity.ItemList::getIdCode, item.getItemCode()));
+            org.jpstale.dao.gamedb.entity.ItemList def = findItemDef(item);
             if (def == null) {
                 continue;
             }
             Integer classItem = def.getClassItem();
-            if (classItem != null && classItem == 1) {
-                // 武器
+            if (classItem != null && (classItem == 4 || classItem == 6)) {
+                // 武器（4=单手, 6=双手）
                 weaponDorp = def.getCodeImg1();
                 weaponPos = def.getModelPosition() != null ? def.getModelPosition() : 0;
-            } else if (classItem != null && classItem == 2) {
+            } else if (classItem != null && classItem == 8) {
                 // 身体（防具）
                 bodyModel = def.getCodeImg1();
             }
@@ -443,6 +438,29 @@ public class AccountService {
         }
         b.setWeaponPos(weaponPos);
         return b.build();
+    }
+
+    /**
+     * 解析物品定义（gamedb.itemlist 唯一行）。
+     * <p>
+     * 优先按 itemlist_id（唯一主键）精确匹配；旧数据无 itemlist_id 时回退到
+     * idcode + QuestID=0 + 最小 ID（对齐原版 CreateItemMemoryTable 规则）。
+     */
+    private org.jpstale.dao.gamedb.entity.ItemList findItemDef(org.jpstale.dao.userdb.entity.Item item) {
+        if (item.getItemListId() != null) {
+            return itemListMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.gamedb.entity.ItemList>()
+                    .eq(org.jpstale.dao.gamedb.entity.ItemList::getId, item.getItemListId()));
+        }
+        if (item.getItemCode() == null) {
+            return null;
+        }
+        List<org.jpstale.dao.gamedb.entity.ItemList> defs = itemListMapper.selectList(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.gamedb.entity.ItemList>()
+                .eq(org.jpstale.dao.gamedb.entity.ItemList::getIdCode, item.getItemCode())
+                .eq(org.jpstale.dao.gamedb.entity.ItemList::getQuestId, 0)
+                .orderByAsc(org.jpstale.dao.gamedb.entity.ItemList::getId));
+        return (defs == null || defs.isEmpty()) ? null : defs.get(0);
     }
 
     /**

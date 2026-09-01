@@ -36,10 +36,14 @@ public class ItemCache {
      * 从数据库加载物品
      */
     private void loadFromDatabase() {
-        List<ItemList> items = itemListMapper.selectList(null);
+        // 对齐原版 CreateItemMemoryTable：仅 QuestID=0 进活动表，ORDER BY ID ASC 顺序匹配取最小 ID
+        List<ItemList> items = itemListMapper.selectList(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ItemList>()
+                .eq(ItemList::getQuestId, 0)
+                .orderByAsc(ItemList::getId));
         for (ItemList row : items) {
             ItemTemplate template = convert(row);
-            templates.put(template.getId(), template);
+            templates.putIfAbsent(template.getId(), template);
         }
         log.info("Loaded {} items from gamedb.item_list", templates.size());
     }

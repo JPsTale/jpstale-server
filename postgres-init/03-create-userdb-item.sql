@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS userdb.item (
     location      smallint NOT NULL,               -- 0=背包 1=装备槽 2=仓库
     slot          smallint NOT NULL,               -- 槽位 (背包0-99 / 装备INVENTORY_POS_* / 仓库0-99)
     item_code     integer NOT NULL,                -- 物品定义 (FK gamedb.itemlist.idcode)
+    itemlist_id   integer NULL,                    -- 物品定义唯一主键 (FK gamedb.itemlist.id)，消除 idcode 非唯一歧义
     count         integer NOT NULL DEFAULT 1,      -- 堆叠数量 (PotionCount)
 
     -- ---- 4.2 头部/校验 (ItemHeader, 网络层防复制) ----
