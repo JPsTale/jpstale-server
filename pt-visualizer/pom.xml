@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.jpstale.server</groupId>
+    <artifactId>pt-visualizer</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>pt-visualizer</name>
+    <description>jME3 wireframe viewer: load all 44 field .smd collision meshes and render in one scene</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jme3.version>3.9.0-stable</jme3.version>
+    </properties>
+
+    <dependencies>
+        <!-- 复用 pt-server-core 的 SmdMapLoader/SmdMapData（raw int 读取，world double 顶点） -->
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>pt-game-server</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- jME3：桌面窗口渲染所需的三个核心 artifact（lwjgl native 由 jme3-lwjgl3 传递带入） -->
+        <dependency>
+            <groupId>org.jmonkeyengine</groupId>
+            <artifactId>jme3-core</artifactId>
+            <version>${jme3.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jmonkeyengine</groupId>
+            <artifactId>jme3-desktop</artifactId>
+            <version>${jme3.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jmonkeyengine</groupId>
+            <artifactId>jme3-lwjgl3</artifactId>
+            <version>${jme3.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL：加载 mapspawnpoint 刷怪点 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.10</version>
+        </dependency>
+    </dependencies>
+</project>

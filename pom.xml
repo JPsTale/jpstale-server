@@ -19,6 +19,7 @@
         <module>pt-server-core</module>
         <module>pt-game-server</module>
         <module>pt-web-server</module>
+        <module>pt-visualizer</module>
     </modules>
 
     <properties>
