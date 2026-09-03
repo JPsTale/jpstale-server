@@ -9,6 +9,8 @@ import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.game.collision.CollisionMesh;
+import org.jpstale.server.game.collision.CollisionSystem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -32,16 +34,13 @@ public class MovementService {
     private AiEngine aiEngine;
 
     @Autowired
-    private MapRegionService mapRegionService;
-
-    @Autowired
-    private MapManager mapManager;
-
-    @Autowired
     private AOIManager aoiManager;
 
     @Autowired
     private SessionManager sessionManager;
+
+    @Autowired
+    private CollisionSystem collisionSystem;
 
     @Autowired
     private PlayerService playerService;
@@ -84,9 +83,6 @@ public class MovementService {
                 // IDLE / ATTACK / DEAD → 不移动
                 break;
         }
-
-        // 更新 Y（地形高度）
-        monster.setY(mapRegionService.getHeight(monster.getMapId(), monster.getX(), monster.getZ()));
     }
 
     /**
@@ -106,26 +102,19 @@ public class MovementService {
             // 步进 = 速度(单位/秒) × tick 毫秒 / 1000
             double speed = state.isRunning() ? statCalculator.runSpeed(p) : statCalculator.walkSpeed(p);
             double step = speed * (GameConstants.TICK_MS / 1000.0);
-
-            // 沿方向移动（angle 弧度，0=Z+，与怪物/原版 GetSin/GetCos 一致）
-            double dx = Math.sin(session.getMoveAngle()) * step;
-            double dz = Math.cos(session.getMoveAngle()) * step;
-
-            float newX = (float) (session.getX() + dx);
-            float newZ = (float) (session.getZ() + dz);
-
-            // 校验位置有效（地图边界/地形）
+            double angle = session.getMoveAngle();
             int mapId = session.getCurrentMapId();
-            if (!mapManager.isValidPosition(mapId, newX, newZ)) {
-                continue;
+
+            CollisionMesh.MoveResult r = collisionSystem.move(mapId, session.getX(), session.getY(), session.getZ(), angle, step, 11);
+            if (r.collision) {
+                continue; // 被地形阻挡：原地不动
             }
 
-            session.setX(newX);
-            session.setZ(newZ);
-            // Y 权威用地形高度
-            session.setY(mapRegionService.getHeight(mapId, newX, newZ));
+            session.setX(r.x);
+            session.setY(r.y);
+            session.setZ(r.z);
             // 更新 AOI（怪物刷怪 proximity / 玩家互见）
-            aoiManager.onPlayerMove(session, newX, newZ);
+            aoiManager.onPlayerMove(session, r.x, r.z);
         }
     }
 
@@ -139,16 +128,14 @@ public class MovementService {
 
         if (distance <= 0.001) return;
 
-        if (distance <= step) {
-            monster.setX(targetX);
-            monster.setZ(targetZ);
-        } else {
-            double ratio = step / distance;
-            monster.setX((float) (monster.getX() + dx * ratio));
-            monster.setZ((float) (monster.getZ() + dz * ratio));
-        }
+        double effStep = Math.min(step, distance);
+        double angle = Math.atan2(dx, dz);
+        CollisionMesh.MoveResult r = collisionSystem.move(monster.getMapId(), monster.getX(), monster.getY(), monster.getZ(), angle, effStep, 11);
 
+        monster.setX(r.x);
+        monster.setZ(r.z);
+        monster.setY(r.y);
         // 更新面朝角度（atan2(dx, dz)，0=Z+方向，与原版 GetSin/GetCos 一致）
-        monster.setAngle(Math.atan2(dx, dz));
+        monster.setAngle(angle);
     }
 }
