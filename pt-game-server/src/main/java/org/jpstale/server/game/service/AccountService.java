@@ -604,14 +604,13 @@ public class AccountService {
         session.setY(mapRegionService.getHeight(mapId, sx, sz));
 
         // 发送进入游戏：出生地图/位置 + 完整外观 + 出生朝向（客户端据此进图渲染自机）
-        // 出生朝向：y = -π/2 弧度（面向 -X）
         MessageProto.S2C_EnterGame.Builder enterGame = MessageProto.S2C_EnterGame.newBuilder()
             .setPlayerId(characterId)
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder()
                 .setX(sx).setY((float) session.getY()).setZ(sz))
             .setRotation(CommonProto.Rotation.newBuilder()
-                .setX(0).setY((float) -Math.PI / 2).setZ(0))
+                .setX(0).setY(0).setZ(0))
             .setAppearance(buildAppearance(character));
 
         session.send(MessageProto.ServerMessage.newBuilder()
