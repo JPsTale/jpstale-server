@@ -62,8 +62,8 @@ public class MovementService {
                 // 追击：朝玩家位置以 run 速度移动
                 PlayerSession target = context.getTargetPlayer();
                 if (target == null) break;
-                float tx = target.getX();
-                float tz = target.getZ();
+                double tx = target.getX();
+                double tz = target.getZ();
                 moveToward(monster, tx, tz, GameConstants.MONSTER_RUN_STEP);
                 break;
             }
@@ -121,9 +121,9 @@ public class MovementService {
     /**
      * 朝目标方向移动 step 步进（向量方向，距离不足时 snap 到目标）
      */
-    private void moveToward(Monster monster, float targetX, float targetZ, double step) {
-        float dx = targetX - monster.getX();
-        float dz = targetZ - monster.getZ();
+    private void moveToward(Monster monster, double targetX, double targetZ, double step) {
+        double dx = targetX - monster.getX();
+        double dz = targetZ - monster.getZ();
         double distance = Math.sqrt(dx * dx + dz * dz);
 
         if (distance <= 0.001) return;

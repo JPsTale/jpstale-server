@@ -23,11 +23,11 @@ public class PlayerSession {
     /** 断线时是否已下发过重连 token（避免 READER_IDLE 与 channelInactive 双路径重复生成） */
     private boolean reconnectTokenIssued = false;
 
-    // 玩家位置（用于怪物刷怪proximity check）
+    // 玩家位置（world double：(rawX/256, rawY/256, -rawZ/256)，北正，与碰撞同域）
     private int currentMapId;
-    private float x;
-    private float y;
-    private float z;
+    private double x;
+    private double y;
+    private double z;
 
     // ======== 服务端权威移动状态 ========
     /** 移动方向（弧度，0=Z+方向，atan2(dx,dz)） */

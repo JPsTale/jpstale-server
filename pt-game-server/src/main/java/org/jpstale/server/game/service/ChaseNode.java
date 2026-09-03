@@ -30,9 +30,9 @@ public class ChaseNode extends BehaviorNode {
         monster.setState(MonsterState.CHASE);
 
         // 到达判定：距离 ≤ 0.5 时视为进入攻击范围（由 InAttackRangeNode 处理）
-        float dx = target.getX() - monster.getX();
-        float dz = target.getZ() - monster.getZ();
-        float distSq = dx * dx + dz * dz;
+        double dx = target.getX() - monster.getX();
+        double dz = target.getZ() - monster.getZ();
+        double distSq = dx * dx + dz * dz;
         if (distSq <= 0.5f * 0.5f) {
             return NodeStatus.SUCCESS;
         }

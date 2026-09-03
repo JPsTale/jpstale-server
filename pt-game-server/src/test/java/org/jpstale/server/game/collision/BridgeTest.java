@@ -21,22 +21,22 @@ public class BridgeTest {
         Assume.assumeTrue("smd not found: " + f, f.exists());
         MapMesh m = MapMesh.load(f);
         Assume.assumeNotNull(m);
-        mesh = CollisionMesh.fromMapMesh(m);
+        mesh = m.getCollision();
     }
 
-    // 桥前缘（fore-1, mapId=2），碰撞帧 F = 服务端世界坐标 (worldX, worldY, worldZ)。
-    // 参考 docs/movement-speed-analysis.md §7：客户端 web 起点 (4891.50, 507.45, 6687.25)，
-    // 朝 -web z（raw +z）北移。服务端 worldZ = -webZ，故起点 (4891.50, 507.45, -6687.25)，
-    // 朝 -web z = +world z（= angle 0）。桥前地面 y=507.45，桥面顶 y=519.58（抬升 12.13 > STEP_HEIGHT=10）。
-    // 临界步长 ≈5.504：5.33 单步落在引桥坡（抬升 <10）上桥，5.68 单步叉开坡面跌回桥下。
-    private static final float FX = 4891.50f;
-    private static final float FY = 507.45f;
-    private static final float FZ = -6687.25f;
-    private static final double ANGLE = 0; // +world z（北）
+    // 桥前缘（fore-1, mapId=2）。world 坐标 = (rawX/256, rawY/256, -rawZ/256)，北正，
+    // 与 jpstale-web selfPos 同域：起点 (4891.50, 507.45, 6687.25)。
+    // 探查确认桥在起点 -z 方向（z 减小：507→引桥坡 508~515→桥面 519.58，抬升 12.13 > STEP_HEIGHT=10），
+    // 故朝 -z 走（angle=π）。临界步长 ≈5.504：5.33 单步落在引桥坡（抬升 <10）上桥，
+    // 5.68 单步叉开坡面跌回桥下。
+    private static final double FX = 4891.50;
+    private static final double FY = 507.45;
+    private static final double FZ = 6687.25;
+    private static final double ANGLE = Math.PI; // -z（桥方向）
 
     /** 从桥前地面走一步 5.33，落到引桥坡（approach，y≈509.18），返回其位置。 */
     private static CollisionMesh.MoveResult approach() {
-        CollisionMesh.MoveResult r = mesh.checkNextMove(FX, FY, FZ, ANGLE, 1365.0 / 256.0, 11);
+        CollisionMesh.MoveResult r = mesh.checkNextMove(FX, FY, FZ, ANGLE, 5.33, 11);
         assertFalse("引桥坡应可达", r.collision);
         return r;
     }
@@ -44,7 +44,7 @@ public class BridgeTest {
     @Test
     public void step533ClimbsBridge() {
         CollisionMesh.MoveResult a = approach();
-        CollisionMesh.MoveResult r = mesh.checkNextMove(a.x, a.y, a.z, ANGLE, 1365.0 / 256.0, 11);
+        CollisionMesh.MoveResult r = mesh.checkNextMove(a.x, a.y, a.z, ANGLE, 5.33, 11);
         assertFalse("5.33 应上桥", r.collision);
         assertTrue("5.33 应抬升上桥，实际 y=" + r.y, r.y > a.y + 5);
     }
@@ -52,7 +52,7 @@ public class BridgeTest {
     @Test
     public void step568CcdDoesNotTunnel() {
         CollisionMesh.MoveResult a = approach();
-        CollisionMesh.MoveResult r = mesh.checkNextMoveCcd(a.x, a.y, a.z, ANGLE, 1455.0 / 256.0, 11);
+        CollisionMesh.MoveResult r = mesh.checkNextMoveCcd(a.x, a.y, a.z, ANGLE, 5.68, 11);
         assertTrue("5.68 不应穿透桥，实际 y=" + r.y, r.y >= a.y - 1);
     }
 
@@ -67,7 +67,7 @@ public class BridgeTest {
     @Test
     public void baselineStep568RawTunnels() {
         CollisionMesh.MoveResult a = approach();
-        CollisionMesh.MoveResult r = mesh.checkNextMove(a.x, a.y, a.z, ANGLE, 1455.0 / 256.0, 11);
+        CollisionMesh.MoveResult r = mesh.checkNextMove(a.x, a.y, a.z, ANGLE, 5.68, 11);
         assertTrue("5.68 单步应穿桥（基线），实际 y=" + r.y, r.y < a.y - 1);
     }
 }

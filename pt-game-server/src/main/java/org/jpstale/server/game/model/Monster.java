@@ -22,9 +22,9 @@ public class Monster {
     private float attackRange;
     private float attackSpeed; // 攻击间隔（毫秒）
     private int mapId;
-    private float x;
-    private float y;
-    private float z;
+    private double x;
+    private double y;
+    private double z;
     private double angle; // 面朝方向（弧度，0=Z+方向）
     private MonsterState state;
     private Long targetPlayerId; // 当前仇恨目标
@@ -42,8 +42,8 @@ public class Monster {
 
     // 出生点信息（归位用）
     private int spawnPointIndex = -1;  // 所属出生点索引
-    private float spawnX;              // 出生点X坐标
-    private float spawnZ;              // 出生点Z坐标
+    private double spawnX;              // 出生点X坐标
+    private double spawnZ;              // 出生点Z坐标
     private long lastTransTime;        // 最后与玩家交互时间
 
     public Monster() {
@@ -76,25 +76,25 @@ public class Monster {
         hp = Math.min(maxHp, hp + amount);
     }
 
-    public float distanceTo(float targetX, float targetY, float targetZ) {
-        float dx = x - targetX;
-        float dy = y - targetY;
-        float dz = z - targetZ;
-        return (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+    public double distanceTo(double targetX, double targetY, double targetZ) {
+        double dx = x - targetX;
+        double dy = y - targetY;
+        double dz = z - targetZ;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    public void moveTo(float targetX, float targetY, float targetZ, float maxDistance) {
-        float dx = targetX - x;
-        float dy = targetY - y;
-        float dz = targetZ - z;
-        float distance = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+    public void moveTo(double targetX, double targetY, double targetZ, double maxDistance) {
+        double dx = targetX - x;
+        double dy = targetY - y;
+        double dz = targetZ - z;
+        double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
         if (distance <= maxDistance) {
             x = targetX;
             y = targetY;
             z = targetZ;
         } else {
-            float ratio = maxDistance / distance;
+            double ratio = maxDistance / distance;
             x += dx * ratio;
             y += dy * ratio;
             z += dz * ratio;

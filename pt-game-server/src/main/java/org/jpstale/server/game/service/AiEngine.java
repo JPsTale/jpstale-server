@@ -82,11 +82,11 @@ public class AiEngine {
     private void updateTarget(Monster monster, AiContext context) {
         PlayerSession currentTarget = context.getTargetPlayer();
         if (currentTarget != null) {
-            float dx = monster.getX() - currentTarget.getX();
-            float dz = monster.getZ() - currentTarget.getZ();
-            float distSq = dx * dx + dz * dz;
+            double dx = monster.getX() - currentTarget.getX();
+            double dz = monster.getZ() - currentTarget.getZ();
+            double distSq = dx * dx + dz * dz;
             // 追击丢失：目标跑出活动范围（MoveRange 1.5 倍视野）或跨地图 → 放弃并归位
-            float loseRange = Math.max(monster.getMoveRange(), AOIManager.VIEW_RANGE_DISCONNECT);
+            double loseRange = Math.max(monster.getMoveRange(), AOIManager.VIEW_RANGE_DISCONNECT);
             if (distSq > loseRange * loseRange || !currentTarget.isPlaying()
                     || currentTarget.getCurrentMapId() != monster.getMapId()) {
                 clearTarget(monster);
@@ -108,18 +108,18 @@ public class AiEngine {
         float sight = Math.min(monster.getViewsight(), AOIManager.VIEW_RANGE);
         Set<PlayerSession> nearby = aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), sight);
         PlayerSession nearest = null;
-        float nearestDistSq = Float.MAX_VALUE;
+        double nearestDistSq = Double.MAX_VALUE;
         for (PlayerSession session : nearby) {
             if (!session.isPlaying() || session.getCurrentMapId() != monster.getMapId()) {
                 continue;
             }
-            float dy = monster.getY() - session.getY();
+            double dy = monster.getY() - session.getY();
             if (Math.abs(dy) > 140) {
                 continue;
             }
-            float dx = monster.getX() - session.getX();
-            float dz = monster.getZ() - session.getZ();
-            float distSq = dx * dx + dz * dz;
+            double dx = monster.getX() - session.getX();
+            double dz = monster.getZ() - session.getZ();
+            double distSq = dx * dx + dz * dz;
             if (distSq < nearestDistSq) {
                 nearestDistSq = distSq;
                 nearest = session;
@@ -138,7 +138,7 @@ public class AiEngine {
     /**
      * 设置怪物目标
      */
-    public void setTarget(Monster monster, Long playerId, float targetX, float targetZ) {
+    public void setTarget(Monster monster, Long playerId, double targetX, double targetZ) {
         AiContext context = monsterContexts.computeIfAbsent(monster.getId(), k -> new AiContext());
         // TODO: 从 SessionManager 获取 PlayerSession
         context.setTargetX(targetX);
@@ -149,7 +149,7 @@ public class AiEngine {
     /**
      * 受击反击/仇恨指定：将怪物目标设为指定玩家（含 PlayerSession，使行为树可追击）
      */
-    public void setTargetPlayer(Monster monster, PlayerSession session, float targetX, float targetZ) {
+    public void setTargetPlayer(Monster monster, PlayerSession session, double targetX, double targetZ) {
         AiContext context = monsterContexts.computeIfAbsent(monster.getId(), k -> new AiContext());
         context.setTargetPlayer(session);
         context.setTargetX(targetX);

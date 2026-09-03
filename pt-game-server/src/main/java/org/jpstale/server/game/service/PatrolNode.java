@@ -23,14 +23,14 @@ public class PatrolNode extends BehaviorNode {
 
     @Override
     public NodeStatus tick(Monster monster, AiContext context) {
-        float sx = monster.getSpawnX();
-        float sz = monster.getSpawnZ();
-        float range = monster.getMoveRange() > 0 ? monster.getMoveRange() : 50.0f;
+        double sx = monster.getSpawnX();
+        double sz = monster.getSpawnZ();
+        double range = monster.getMoveRange() > 0 ? monster.getMoveRange() : 50.0f;
 
         // 归位判定：离出生点超过活动范围
-        float homeDx = sx - monster.getX();
-        float homeDz = sz - monster.getZ();
-        float homeDist = (float) Math.sqrt(homeDx * homeDx + homeDz * homeDz);
+        double homeDx = sx - monster.getX();
+        double homeDz = sz - monster.getZ();
+        double homeDist = Math.sqrt(homeDx * homeDx + homeDz * homeDz);
         if (homeDist > range) {
             monster.setState(MonsterState.RETURN);
             return NodeStatus.RUNNING;
@@ -42,9 +42,9 @@ public class PatrolNode extends BehaviorNode {
         }
 
         // 到达巡逻点判定
-        float dx = context.getPatrolX() - monster.getX();
-        float dz = context.getPatrolZ() - monster.getZ();
-        float dist = (float) Math.sqrt(dx * dx + dz * dz);
+        double dx = context.getPatrolX() - monster.getX();
+        double dz = context.getPatrolZ() - monster.getZ();
+        double dist = Math.sqrt(dx * dx + dz * dz);
         if (dist <= 1.0f) {
             // 到达 → 选新巡逻点，返回 SUCCESS 触发重新决策
             generatePatrolPoint(context, sx, sz, range);
@@ -56,8 +56,8 @@ public class PatrolNode extends BehaviorNode {
         return NodeStatus.RUNNING;
     }
 
-    private void generatePatrolPoint(AiContext context, float sx, float sz, float range) {
-        context.setPatrolX(sx + ThreadLocalRandom.current().nextFloat() * range * 2 - range);
-        context.setPatrolZ(sz + ThreadLocalRandom.current().nextFloat() * range * 2 - range);
+    private void generatePatrolPoint(AiContext context, double sx, double sz, double range) {
+        context.setPatrolX(sx + ThreadLocalRandom.current().nextDouble() * range * 2 - range);
+        context.setPatrolZ(sz + ThreadLocalRandom.current().nextDouble() * range * 2 - range);
     }
 }

@@ -24,13 +24,6 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- 地图网格解析（.smd → Vertex/Face），来自 jpstale loader 模块 -->
-        <dependency>
-            <groupId>org.jpstale</groupId>
-            <artifactId>loader</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-        </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>

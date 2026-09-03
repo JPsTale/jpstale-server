@@ -609,7 +609,7 @@ public class AccountService {
             .setPlayerId(characterId)
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder()
-                .setX(sx).setY(session.getY()).setZ(sz))
+                .setX(sx).setY((float) session.getY()).setZ(sz))
             .setRotation(CommonProto.Rotation.newBuilder()
                 .setX(0).setY((float) -Math.PI / 2).setZ(0))
             .setAppearance(buildAppearance(character));

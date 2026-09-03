@@ -115,9 +115,9 @@ public class SnapshotPushService {
                     || other.getCurrentMapId() != mapId) {
                     continue;
                 }
-                float dx = other.getX() - session.getX();
-                float dz = other.getZ() - session.getZ();
-                float distSq = dx * dx + dz * dz;
+                double dx = other.getX() - session.getX();
+                double dz = other.getZ() - session.getZ();
+                double distSq = dx * dx + dz * dz;
                 boolean wasVisible = observerVisible.contains(other.getCharacterId());
                 if (distSq > AOIManager.VIEW_RANGE_DISCONNECT * AOIManager.VIEW_RANGE_DISCONNECT) {
                     continue;

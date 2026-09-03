@@ -12,11 +12,10 @@ import java.util.Random;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 坐标系对拍：碰撞帧 F 必须等于服务端世界坐标。
+ * 坐标系对拍：MapMesh.getHeight（生产地形查询）必须与 CollisionMesh.getFloorHeight 同域一致。
  * <p>
- * 判据：同一世界点 (wx,wz)，{@link CollisionMesh#getFloorHeight}（碰撞帧 F，传极大 currentY 关闭台阶过滤）
- * 必须与生产 {@code MapRegionService.getHeight} = {@code MapMesh.getHeight(-wz,-wx)} 返回同一地面高度。
- * 若帧映射错（x/z 交换或 z 取反），两函数查询的是不同几何点，高度几乎全部对不上。
+ * 两者都是 world double（(rawX/256, rawY/256, -rawZ/256)，北正），对同一世界点 (wx,wz)
+ * 应返回同一地面高度；若坐标域不一致（x/z 交换或 z 符号错），高度几乎全对不上。
  */
 public class CoordinateParityTest {
 
@@ -30,16 +29,16 @@ public class CoordinateParityTest {
         Assume.assumeTrue("smd not found: " + f, f.exists());
         mapMesh = MapMesh.load(f);
         Assume.assumeNotNull(mapMesh);
-        cm = CollisionMesh.fromMapMesh(mapMesh);
+        cm = mapMesh.getCollision();
     }
 
     @Test
     public void floorHeightMatchesProductionGetHeight() {
-        // 世界坐标 AABB（jME3 顶点 → 世界，同 fromMapMesh 映射）
-        float[] verts = mapMesh.getVertices();
-        float minX = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, minZ = Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+        // world AABB（MapMesh world double 顶点，同 getCollision 数据源）
+        double[] verts = mapMesh.getVertices();
+        double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
         for (int i = 0; i < verts.length; i += 3) {
-            float x = -verts[i + 2], z = -verts[i];
+            double x = verts[i], z = verts[i + 2];
             if (x < minX) minX = x; if (x > maxX) maxX = x;
             if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
         }
@@ -47,19 +46,19 @@ public class CoordinateParityTest {
         Random rnd = new Random(7);
         int bothFound = 0, agree = 0;
         for (int i = 0; i < 2000; i++) {
-            float wx = minX + rnd.nextFloat() * (maxX - minX);
-            float wz = minZ + rnd.nextFloat() * (maxZ - minZ);
-            float prod = mapMesh.getHeight(-wz, -wx);          // 生产 getHeight（MapRegionService 同款）
-            Float col = cm.getFloorHeight(wx, wz, 100000f);    // 碰撞帧 F（极大 currentY 关台阶过滤）
+            double wx = minX + rnd.nextDouble() * (maxX - minX);
+            double wz = minZ + rnd.nextDouble() * (maxZ - minZ);
+            double prod = mapMesh.getHeight(wx, wz);        // 生产 getHeight（world 直查）
+            Double col = cm.getFloorHeight(wx, wz, Double.MAX_VALUE); // 极大 currentY 关台阶过滤
             if (prod > 0 && col != null) {
                 bothFound++;
-                if (Math.abs(prod - col) < 0.5f) agree++;
+                if (Math.abs(prod - col) < 0.5) agree++;
             }
         }
 
         assertTrue("命中地形面样本太少: " + bothFound, bothFound > 500);
         double rate = agree / (double) bothFound;
-        assertTrue("碰撞帧与生产 getHeight 高度不一致: agree=" + agree + "/" + bothFound + " (" + String.format("%.1f", rate * 100) + "%)",
+        assertTrue("getHeight 与碰撞帧高度不一致: agree=" + agree + "/" + bothFound + " (" + String.format("%.1f", rate * 100) + "%)",
                 rate > 0.95);
     }
 }

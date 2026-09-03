@@ -46,7 +46,7 @@ public class AOIManager {
     /**
      * 添加玩家到 AOI
      */
-    public void addPlayer(PlayerSession session, float x, float z) {
+    public void addPlayer(PlayerSession session, double x, double z) {
         int gridX = toGrid(x);
         int gridZ = toGrid(z);
 
@@ -76,7 +76,7 @@ public class AOIManager {
     /**
      * 玩家移动时更新 AOI
      */
-    public void onPlayerMove(PlayerSession session, float newX, float newZ) {
+    public void onPlayerMove(PlayerSession session, double newX, double newZ) {
         Long playerId = session.getCharacterId();
         if (playerId == null) return;
 
@@ -107,14 +107,14 @@ public class AOIManager {
     /**
      * 获取视野内的所有玩家
      */
-    public Set<PlayerSession> getNearbyPlayers(float x, float z) {
+    public Set<PlayerSession> getNearbyPlayers(double x, double z) {
         return getNearbyPlayers(x, z, VIEW_RANGE);
     }
 
     /**
      * 获取指定范围内的所有玩家
      */
-    public Set<PlayerSession> getNearbyPlayers(float x, float z, float range) {
+    public Set<PlayerSession> getNearbyPlayers(double x, double z, float range) {
         int gridX = toGrid(x);
         int gridZ = toGrid(z);
         int gridRange = (int) (range / GRID_SIZE) + 1;
@@ -187,7 +187,7 @@ public class AOIManager {
         }
     }
 
-    private int toGrid(float coord) {
+    private int toGrid(double coord) {
         return (int) (coord / GRID_SIZE);
     }
 

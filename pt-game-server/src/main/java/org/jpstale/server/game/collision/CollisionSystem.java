@@ -23,27 +23,27 @@ public class CollisionSystem {
     public CollisionMesh mesh(int mapId) {
         return meshes.computeIfAbsent(mapId, id -> {
             MapMesh m = mapRegionService.getMesh(id);
-            return m == null ? null : CollisionMesh.fromMapMesh(m);
+            return m == null ? null : m.getCollision();
         });
     }
 
     /**
-     * 权威移动：world 坐标输入/输出。
-     * @param angle 弧度，0=+Z（与怪物 GetSin/GetCos 一致）
-     * @param step  世界单位步长
+     * 权威移动：world double 坐标输入/输出。
+     * @param angle 弧度，0=+Z（北）
+     * @param step  world 单位步长
      */
-    public CollisionMesh.MoveResult move(int mapId, float x, float y, float z, double angle, double step, int bodyWidth) {
+    public CollisionMesh.MoveResult move(int mapId, double x, double y, double z, double angle, double step, int bodyWidth) {
         CollisionMesh cm = mesh(mapId);
         if (cm == null) {
             // 无碰撞网格：退化——直线移动 + getHeight 定 Y（保持原行为）
             CollisionMesh.MoveResult r = new CollisionMesh.MoveResult();
-            r.x = (float) (x + Math.sin(angle) * step);
-            r.z = (float) (z + Math.cos(angle) * step);
+            r.x = x + Math.sin(angle) * step;
+            r.z = z + Math.cos(angle) * step;
             r.y = mapRegionService.getHeight(mapId, r.x, r.z);
             r.collision = false;
             return r;
         }
-        // 碰撞帧 F = 世界坐标，直接调用，无需转换
+        // world double 直调，无需转换
         return cm.checkNextMoveCcd(x, y, z, angle, step, bodyWidth);
     }
 }

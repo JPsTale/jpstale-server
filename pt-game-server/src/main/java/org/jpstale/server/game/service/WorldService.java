@@ -120,8 +120,8 @@ public class WorldService {
             session.getCharacterName(), oldMapId, newMapId,
             Math.round(session.getX()), Math.round(session.getZ()));
 
-        float newX = session.getX();
-        float newZ = session.getZ();
+        double newX = session.getX();
+        double newZ = session.getZ();
 
         // 移出旧图 AOI
         aoiManager.removePlayer(session);

@@ -11,11 +11,11 @@ import org.jpstale.server.game.network.PlayerSession;
 public class AiContext {
 
     private PlayerSession targetPlayer; // 当前目标玩家
-    private float targetX;
-    private float targetY;
-    private float targetZ;
-    private float patrolX; // 巡逻目标点
-    private float patrolZ;
+    private double targetX;
+    private double targetY;
+    private double targetZ;
+    private double patrolX; // 巡逻目标点
+    private double patrolZ;
     private long lastDecisionTime;
     private int decisionInterval = 500; // 决策间隔（毫秒）
 

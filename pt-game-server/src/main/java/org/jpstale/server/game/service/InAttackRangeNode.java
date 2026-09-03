@@ -19,9 +19,9 @@ public class InAttackRangeNode extends BehaviorNode {
         }
 
         // TODO: 获取玩家实际位置
-        float targetX = context.getTargetX();
-        float targetZ = context.getTargetZ();
-        float distance = monster.distanceTo(targetX, 0, targetZ);
+        double targetX = context.getTargetX();
+        double targetZ = context.getTargetZ();
+        double distance = monster.distanceTo(targetX, 0, targetZ);
 
         return distance <= monster.getAttackRange() ? NodeStatus.SUCCESS : NodeStatus.FAILURE;
     }

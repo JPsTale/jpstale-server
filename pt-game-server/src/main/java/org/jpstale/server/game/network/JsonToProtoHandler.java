@@ -463,7 +463,7 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
     private void sendMapAabbs(ChannelHandlerContext ctx) {
         Map<String, Object> aabbs = new LinkedHashMap<>();
         for (int i = 0; i < mapRegionService.size(); i++) {
-            int[] a = mapRegionService.getAabb(i);
+            double[] a = mapRegionService.getAabb(i);
             if (a == null) {
                 continue;
             }

@@ -21,7 +21,7 @@ import java.util.Random;
 public class CollisionBenchmark {
 
     static final class Entity {
-        float x, y, z;
+        double x, y, z;
         double angle;
     }
 
@@ -37,12 +37,12 @@ public class CollisionBenchmark {
             System.exit(1);
         }
         MapMesh mapMesh = MapMesh.load(f);
-        CollisionMesh cm = CollisionMesh.fromMapMesh(mapMesh);
+        CollisionMesh cm = mapMesh.getCollision();
 
-        float[] verts = mapMesh.getVertices();
-        float minX = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, minZ = Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+        double[] verts = mapMesh.getVertices();
+        double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
         for (int i = 0; i < verts.length; i += 3) {
-            float x = -verts[i + 2], z = -verts[i]; // jME3 → world（同 CollisionMesh.fromMapMesh）
+            double x = verts[i], z = verts[i + 2]; // world double：(rawX/256, rawY/256, -rawZ/256)
             if (x < minX) minX = x; if (x > maxX) maxX = x;
             if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
         }
@@ -52,12 +52,12 @@ public class CollisionBenchmark {
         for (int i = 0; i < n; i++) {
             Entity e = new Entity();
             // 采样一个可站立地面（getFloorHeight 传极大 currentY → 取最高面），避免全部落空被挡
-            Float gy = null;
+            Double gy = null;
             int tries = 0;
             while (gy == null && tries < 100) {
-                e.x = minX + rnd.nextFloat() * (maxX - minX);
-                e.z = minZ + rnd.nextFloat() * (maxZ - minZ);
-                gy = cm.getFloorHeight(e.x, e.z, 1_000_000f);
+                e.x = minX + rnd.nextDouble() * (maxX - minX);
+                e.z = minZ + rnd.nextDouble() * (maxZ - minZ);
+                gy = cm.getFloorHeight(e.x, e.z, Double.MAX_VALUE);
                 tries++;
             }
             e.y = gy != null ? gy : 0;
