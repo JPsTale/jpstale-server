@@ -1,6 +1,11 @@
 package org.jpstale.visualizer;
 
 import com.jme3.app.SimpleApplication;
+import com.jme3.font.BitmapText;
+import com.jme3.input.ChaseCamera;
+import com.jme3.input.KeyInput;
+import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.KeyTrigger;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
@@ -13,6 +18,7 @@ import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Sphere;
 import com.jme3.system.AppSettings;
 import com.jme3.util.BufferUtils;
+import org.jpstale.assets.smd.CollisionMesh;
 import org.jpstale.assets.smd.SmdMapData;
 import org.jpstale.assets.smd.SmdMapLoader;
 
@@ -22,26 +28,45 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * jME3 wireframe 可视化：读取全部 44 张 FieldMap 的 .smd 碰撞网格 wireframe 渲染于同一场景，
- * 并把 FieldMap 的 center / startPoints / gates / warpGates 坐标用彩色标记点显示。
+ * jME3 wireframe 可视化 + 玩家化身碰撞验证：
+ * 44 图 wireframe + FieldMap 坐标点 + DB spawn box；WASD 控制化身，服务端 CollisionMesh
+ * 按 20FPS tick 结算移动，档位 1~100（EU 公式）调步长，人工验证碰撞与 collision.ts 一致。
  *
  * 运行：
  *   mvn -f pt-visualizer/pom.xml compile exec:java \
  *       -Dexec.mainClass=org.jpstale.visualizer.MapWireframeApp -Dexec.args="E:/JPsTale/client"
  *
- * 坐标域：world (x/256, y/256, -z/256) 北正 —— FieldMap 坐标与 smd 顶点同域，
- * 标记点以同坐标放入 maps Node 下即可与 wireframe 对齐。
+ * 坐标域：world (x/256, y/256, -z/256) 北正，与 jpstale-web 渲染域同向。
  */
 public class MapWireframeApp extends SimpleApplication {
 
     private final String smdRoot;
 
-    /** mapId -> 该图 SmdMapData（spawn box 贴地面用）。加载后填充。 */
     private final SmdMapData[] mapData = new SmdMapData[FieldMap.values().length];
+    /** 每图碰撞网格（懒建） */
+    private final CollisionMesh[] collisionMesh = new CollisionMesh[FieldMap.values().length];
+
+    /** T 键调试：高亮每帧参与检测的三角形（按图分色） */
+    private boolean trisDebugOn = false;
+    private final Node trisDebugNode = new Node("trisDebug");
+
+    private DummyPlayer player;
+    private Node maps;
+    private ChaseCamera chaseCam;
+    private boolean chaseMode = false;
+
+    // 输入状态
+    private boolean keyW, keyA, keyS, keyD, shift;
+    private int level = 82; // 档位 1~100
+
+    // 20FPS tick 累加
+    private float tickAcc = 0f;
+    private static final float TICK_MS = 50f;
+
+    // HUD
+    private BitmapText hud;
 
     public MapWireframeApp(String smdRoot) {
         this.smdRoot = smdRoot;
@@ -52,13 +77,50 @@ public class MapWireframeApp extends SimpleApplication {
         flyCam.setMoveSpeed(2000f);
         cam.setFrustumFar(4000f);
 
-        Node maps = new Node("maps");
+        maps = new Node("maps");
         maps.setLocalScale(0.1f);
         rootNode.attachChild(maps);
 
-        FieldMap[] fields = FieldMap.values();
+        loadAllMaps();
+
+        maps.attachChild(trisDebugNode);
+        trisDebugNode.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
+
+        loadDbSpawns();
+
+        buildHud();
+        initInput();
+
+        // 玩家起点：village-2 (FieldMap FIELD_3, mapId=3) 出生点
+        FieldMap v2 = FieldMap.values()[3];
+        SmdMapData d3 = mapData[3];
+        double[] sp = v2.startPoints != null && v2.startPoints.length > 0 ? toDouble(v2.startPoints[0]) : toDouble(v2.center);
+        double sx = sp[0], sz = sp[1];
+        double sy = groundHeight(d3, (int) sx, (int) sz);
+
+        player = new DummyPlayer(assetManager);
+        player.setName("player");
+        maps.attachChild(player);
+        player.setMeshes(allCollisionMeshes(), 3, sx, sy, sz);
+        applyLevel();
+
+        // ChaseCamera（跟随 player）；启动默认 Fly，按 F 切换
+        chaseCam = new ChaseCamera(cam, player, inputManager);
+        chaseCam.setMaxDistance(400f);
+        chaseCam.setMinDistance(10f);
+        chaseCam.setDefaultDistance(120f);
+        chaseCam.setDragToRotate(true);
+        chaseCam.setEnabled(false);
+        flyCam.setEnabled(true);
+
+        setCamLocationNear((float) sx, (float) sz);
+        System.out.println("player start map3 (" + sx + ", " + sy + ", " + sz + ")");
+        System.out.println("controls: WASD 移动 Shift=跑 | F 切 Chase/Fly | [ / ] 调档 1~100 | 鼠标拖拽转视角");
+    }
+
+    private void loadAllMaps() {
         int loaded = 0;
-        for (FieldMap fm : fields) {
+        for (FieldMap fm : FieldMap.values()) {
             int mapId = fm.ordinal();
             Path file = Path.of(smdRoot, "field", fm.smd);
             if (!Files.exists(file)) {
@@ -72,28 +134,304 @@ public class MapWireframeApp extends SimpleApplication {
                     continue;
                 }
                 mapData[mapId] = data;
+
                 Geometry g = buildCollisionGeometry(data);
                 g.setName("map" + mapId);
                 maps.attachChild(g);
-                loaded++;
 
                 Node markers = buildFieldMapMarkers(fm, data);
                 maps.attachChild(markers);
 
+                loaded++;
                 System.out.println("map" + mapId + " " + fm.smd
-                    + " verts=" + data.nVertex + " solidFaces=" + solidFaceCount(data)
-                    + " markers=" + markers.getQuantity());
+                    + " verts=" + data.nVertex + " solidFaces=" + solidFaceCount(data));
             } catch (Exception e) {
                 System.out.println("error map" + mapId + " " + fm.smd + ": " + e);
             }
         }
-        System.out.println("Loaded " + loaded + "/" + fields.length + " maps");
-
-        // DB mapspawnpoint → 红色小 box
-        loadDbSpawns(maps);
-
-        System.out.println("markers: center=黄  startPoint=绿  gate=红  warpGate=品红  spawnBox=红  (0.1 scale, FlyCam 飞行)");
+        System.out.println("Loaded " + loaded + "/" + FieldMap.values().length + " maps");
     }
+
+    private static double[] toDouble(int[] a) {
+        return new double[]{a[0], a[1]};
+    }
+
+    private CollisionMesh collisionMesh(int mapId) {
+        if (collisionMesh[mapId] == null && mapData[mapId] != null) {
+            collisionMesh[mapId] = CollisionMesh.fromSmd(mapData[mapId]);
+        }
+        return collisionMesh[mapId];
+    }
+
+    /** 全部已加载图的碰撞网格数组（mapId 下标，无图为 null），懒构建。 */
+    private CollisionMesh[] allCollisionMeshes() {
+        CollisionMesh[] arr = new CollisionMesh[collisionMesh.length];
+        for (int i = 0; i < arr.length; i++) {
+            if (mapData[i] != null) arr[i] = collisionMesh(i);
+        }
+        return arr;
+    }
+
+    // ===================== 输入 =====================
+
+    private static final String M_FWD = "fwd", M_BACK = "back", M_LEFT = "left", M_RIGHT = "right",
+        M_RUN = "run", M_CHASE = "chase", M_LEVEL_UP = "lvlUp", M_LEVEL_DN = "lvlDn", M_TELEPORT = "tp",
+        M_TRIS = "tris";
+
+    private void initInput() {
+        inputManager.addMapping(M_FWD, new KeyTrigger(KeyInput.KEY_W));
+        inputManager.addMapping(M_BACK, new KeyTrigger(KeyInput.KEY_S));
+        inputManager.addMapping(M_LEFT, new KeyTrigger(KeyInput.KEY_A));
+        inputManager.addMapping(M_RIGHT, new KeyTrigger(KeyInput.KEY_D));
+        inputManager.addMapping(M_RUN, new KeyTrigger(KeyInput.KEY_LSHIFT));
+        inputManager.addMapping(M_CHASE, new KeyTrigger(KeyInput.KEY_F));
+        inputManager.addMapping(M_LEVEL_UP, new KeyTrigger(KeyInput.KEY_RBRACKET));
+        inputManager.addMapping(M_LEVEL_DN, new KeyTrigger(KeyInput.KEY_LBRACKET));
+        inputManager.addMapping(M_TELEPORT, new KeyTrigger(KeyInput.KEY_U));
+        inputManager.addMapping(M_TRIS, new KeyTrigger(KeyInput.KEY_T));
+
+        ActionListener al = (name, isPressed, tpf) -> {
+            switch (name) {
+                case M_FWD -> keyW = isPressed;
+                case M_BACK -> keyS = isPressed;
+                case M_LEFT -> keyA = isPressed;
+                case M_RIGHT -> keyD = isPressed;
+                case M_RUN -> shift = isPressed;
+                case M_CHASE -> {
+                    if (isPressed) toggleChase();
+                }
+                case M_LEVEL_UP -> {
+                    if (isPressed) { level = Math.min(100, level + 1); applyLevel(); }
+                }
+                case M_LEVEL_DN -> {
+                    if (isPressed) { level = Math.max(1, level - 1); applyLevel(); }
+                }
+                case M_TELEPORT -> {
+                    if (isPressed) teleportUp();
+                }
+                case M_TRIS -> {
+                    if (isPressed) toggleTrisDebug();
+                }
+            }
+        };
+        inputManager.addListener(al, M_FWD, M_BACK, M_LEFT, M_RIGHT, M_RUN, M_CHASE, M_LEVEL_UP, M_LEVEL_DN, M_TELEPORT, M_TRIS);
+    }
+
+    private void toggleChase() {
+        chaseMode = !chaseMode;
+        chaseCam.setEnabled(chaseMode);
+        flyCam.setEnabled(!chaseMode);
+        System.out.println("camera: " + (chaseMode ? "Chase" : "Fly"));
+    }
+
+    /** U 键：dummy y+100，摆脱卡住/陷落。 */
+    private void teleportUp() {
+        player.setPosition(player.getPosX(), player.getPosY() + 100, player.getPosZ());
+        updateHud();
+        System.out.println("[u] y+100 -> " + player.getPosY());
+    }
+
+    // ===================== 三角形调试（T 键）=====================
+
+    private static final ColorRGBA[] TRIS_COLORS = {
+        ColorRGBA.Cyan, ColorRGBA.Orange, ColorRGBA.Pink, ColorRGBA.White, ColorRGBA.Yellow,
+    };
+
+    private void toggleTrisDebug() {
+        trisDebugOn = !trisDebugOn;
+        trisDebugNode.setCullHint(trisDebugOn
+            ? com.jme3.scene.Spatial.CullHint.Inherit
+            : com.jme3.scene.Spatial.CullHint.Always);
+        System.out.println("[t] 三角形调试 " + (trisDebugOn ? "开" : "关"));
+        if (trisDebugOn) refreshTrisDebug();
+    }
+
+    /** 重建：把每张图在角色邻近的碰撞三角形单独画出（按图分色）。 */
+    private void refreshTrisDebug() {
+        trisDebugNode.detachAllChildren();
+        if (!trisDebugOn || player == null) return;
+        double px = player.getPosX(), pz = player.getPosZ();
+        StringBuilder sb = new StringBuilder("[t] pos=(" + (int) px + "," + (int) pz + ") 每图邻近:");
+        for (int i = 0; i < collisionMesh.length; i++) {
+            CollisionMesh cm = collisionMesh[i];
+            if (cm == null) continue;
+            java.util.List<CollisionMesh.Tri> tris = cm.nearbyTriangles(px, pz);
+            sb.append(" m").append(i).append("=").append(tris.size());
+            if (tris.isEmpty()) continue;
+            Geometry g = buildTrisSolidGeometry(tris, TRIS_COLORS[i % TRIS_COLORS.length]);
+            g.setName("trisDebug_map" + i);
+            trisDebugNode.attachChild(g);
+        }
+        System.out.println(sb);
+    }
+
+    /** 三角形 → 实心半透明三角面 mesh（Triangles 模式），叠加在蓝色 wireframe 上醒目可辨。 */
+    private Geometry buildTrisSolidGeometry(java.util.List<CollisionMesh.Tri> tris, ColorRGBA color) {
+        float[] pos = new float[tris.size() * 3 * 3];
+        int[] idx = new int[tris.size() * 3];
+        int v = 0;
+        for (int t = 0; t < tris.size(); t++) {
+            CollisionMesh.Tri tr = tris.get(t);
+            pos[v * 3] = (float) tr.x1; pos[v * 3 + 1] = (float) tr.y1; pos[v * 3 + 2] = (float) tr.z1;
+            idx[t * 3] = v++;
+            pos[v * 3] = (float) tr.x2; pos[v * 3 + 1] = (float) tr.y2; pos[v * 3 + 2] = (float) tr.z2;
+            idx[t * 3 + 1] = v++;
+            pos[v * 3] = (float) tr.x3; pos[v * 3 + 1] = (float) tr.y3; pos[v * 3 + 2] = (float) tr.z3;
+            idx[t * 3 + 2] = v++;
+        }
+        Mesh m = new Mesh();
+        m.setBuffer(VertexBuffer.Type.Position, 3, BufferUtils.createFloatBuffer(pos));
+        m.setBuffer(VertexBuffer.Type.Index, 3, BufferUtils.createIntBuffer(idx));
+        m.setMode(Mesh.Mode.Triangles);
+        m.updateBound();
+        m.setStatic();
+
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", new ColorRGBA(color.r, color.g, color.b, 0.5f));
+        mat.getAdditionalRenderState().setDepthWrite(false);
+        Geometry g = new Geometry("trisDebug", m);
+        g.setMaterial(mat);
+        g.setQueueBucket(RenderQueue.Bucket.Transparent);
+        return g;
+    }
+
+    /** 三角形 → Line 线框 mesh（每三角形 3 条边，world 坐标）。 */
+    private Geometry buildTrisLineGeometry(java.util.List<CollisionMesh.Tri> tris, ColorRGBA color) {
+        float[] pos = new float[tris.size() * 3 * 2 * 3];
+        int[] idx = new int[tris.size() * 3 * 2];
+        int v = 0, e = 0;
+        for (CollisionMesh.Tri t : tris) {
+            float[] p = {
+                (float) t.x1, (float) t.y1, (float) t.z1,
+                (float) t.x2, (float) t.y2, (float) t.z2,
+                (float) t.x3, (float) t.y3, (float) t.z3,
+            };
+            int[][] edges = {{0, 1}, {1, 2}, {2, 0}};
+            for (int[] ed : edges) {
+                pos[v * 3] = p[ed[0] * 3];
+                pos[v * 3 + 1] = p[ed[0] * 3 + 1];
+                pos[v * 3 + 2] = p[ed[0] * 3 + 2];
+                idx[e++] = v++;
+                pos[v * 3] = p[ed[1] * 3];
+                pos[v * 3 + 1] = p[ed[1] * 3 + 1];
+                pos[v * 3 + 2] = p[ed[1] * 3 + 2];
+                idx[e++] = v++;
+            }
+        }
+        Mesh m = new Mesh();
+        m.setBuffer(VertexBuffer.Type.Position, 3, BufferUtils.createFloatBuffer(pos));
+        m.setBuffer(VertexBuffer.Type.Index, 3, BufferUtils.createIntBuffer(idx));
+        m.setMode(Mesh.Mode.Lines);
+        m.updateBound();
+        m.setStatic();
+
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", color);
+        Geometry g = new Geometry("trisDebug", m);
+        g.setMaterial(mat);
+        return g;
+    }
+
+    // ===================== 档位换算 =====================
+
+    /** EU 档位 → 60fps 语义每帧位移（world）。与 jpstale-web speedLevelToRunStep 一致。 */
+    static double levelToStepF(int cnt) {
+        return (((long) cnt * 10 + 250) * 460 >> 8) / 256.0;
+    }
+
+    /** 20FPS 每 tick 步长 = step_f × 60/20 = step_f × 3（保持与前端 60fps 相同的 world/s）。 */
+    static double levelToStepPerTick(int cnt) {
+        return levelToStepF(cnt) * 3.0;
+    }
+
+    private void applyLevel() {
+        // 每 tick 走 step_f×3（world/s 与前端一致）；大步由 CCD 在 checkNextMoveCcd 内拆子步防穿
+        player.setStepPerTick(levelToStepPerTick(level));
+        updateHud();
+    }
+
+    // ===================== 主循环 tick =====================
+
+    @Override
+    public void simpleUpdate(float tpf) {
+        updateInput();
+        tickAcc += tpf * 1000f;
+        while (tickAcc >= TICK_MS) {
+            tickAcc -= TICK_MS;
+            playerTick();
+        }
+    }
+
+    private void updateInput() {
+        // 相对相机水平方向确定移动意图
+        double fwd = 0, side = 0;
+        if (keyW) fwd += 1;
+        if (keyS) fwd -= 1;
+        if (keyD) side -= 1;
+        if (keyA) side += 1;
+        boolean want = (fwd != 0 || side != 0);
+        player.setWantMove(want);
+        player.setRunning(shift);
+        if (!want) return;
+
+        // 相机朝向的水平分量作为"前"
+        Vector3f camDir = cam.getDirection();
+        double fx = camDir.x, fz = camDir.z;
+        double flen = Math.hypot(fx, fz);
+        if (flen < 1e-6) { fx = 0; fz = 1; flen = 1; }
+        fx /= flen; fz /= flen;
+        // 右 = 前 × up(0,1,0) 叉积 → (fz, 0, -fx) 归一
+        double rx = fz, rz = -fx;
+        double dx = fx * fwd + rx * side;
+        double dz = fz * fwd + rz * side;
+        player.setMoveAngle(Math.atan2(dx, dz));
+    }
+
+    private int trisRefreshCounter = 0;
+
+    private void playerTick() {
+        if (player.isWantMove()) {
+            player.tick();
+            updateHud();
+        }
+        // 三角形调试跟随角色位置周期刷新（每 5 tick ≈ 250ms）
+        if (trisDebugOn && ++trisRefreshCounter >= 5) {
+            trisRefreshCounter = 0;
+            refreshTrisDebug();
+        }
+    }
+
+    // ===================== HUD =====================
+
+    private void buildHud() {
+        hud = new BitmapText(guiFont, false);
+        hud.setSize(14);
+        hud.setColor(ColorRGBA.White);
+        hud.setLocalTranslation(8, cam.getHeight() - 20, 0);
+        guiNode.attachChild(hud);
+    }
+
+    private void updateHud() {
+        double stepF = levelToStepF(level);
+        double stepPerTick = player.getStepPerTick();
+        double perSec = stepF * 60;
+        boolean blocked = false; // tick 被挡单独标志（简单起见每次 tick 更新）
+        String txt = String.format(
+            "档 %d  MoveSpeed=%d\nstep_f=%.2f  step/tick(20fps)=%.2f  %.1f world/s\n" +
+            "pos=(%.1f, %.1f, %.1f)  map=%d  %s",
+            level, level * 10 + 250, stepF, stepPerTick, perSec,
+            player.getPosX(), player.getPosY(), player.getPosZ(), player.getMapId(),
+            chaseMode ? "ChaseCam" : "FlyCam");
+        hud.setText(txt);
+    }
+
+    private void setCamLocationNear(float x, float z) {
+        // 相机放起点附近上方，俯视
+        cam.setLocation(new Vector3f(x + 20f, 200f, z + 60f));
+        cam.lookAt(new Vector3f(x, 0, z), Vector3f.UNIT_Y);
+    }
+
+    // ===================== 渲染构建（wireframe / markers / spawn） =====================
 
     static int solidFaceCount(SmdMapData d) {
         int c = 0;
@@ -101,22 +439,17 @@ public class MapWireframeApp extends SimpleApplication {
         return c;
     }
 
-    /** DB 连接参数（与 pt-game-server 一致，仅 host 换本机可访问的 192.168.31.10）。 */
     static final String DB_URL = "jdbc:postgresql://192.168.31.10:5432/pristontale";
     static final String DB_USER = "sa";
     static final String DB_PASSWORD = "632514Go";
 
-    /** 从 gamedb.mapspawnpoint 加载全部刷怪点，红色小 box 显示（坐标为北正 world 域，与地图同域）。 */
-    private void loadDbSpawns(Node maps) {
+    private void loadDbSpawns() {
         Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         mat.setColor("Color", ColorRGBA.Red);
-        // box 半边长（world 单位；0.1 scale 下视觉 = world*0.1，小 box 用 30）
         float half = 30f;
-        int count = 0;
-        int skipped = 0;
+        int count = 0, skipped = 0;
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             PreparedStatement ps = conn.prepareStatement(
-                 "SELECT stage, x, z FROM gamedb.mapspawnpoint");
+             PreparedStatement ps = conn.prepareStatement("SELECT stage, x, z FROM gamedb.mapspawnpoint");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 int stage = rs.getInt("stage");
@@ -127,8 +460,7 @@ public class MapWireframeApp extends SimpleApplication {
                     continue;
                 }
                 float y = groundHeight(mapData[stage], x, z);
-                Box b = new Box(half, half, half);
-                Geometry g = new Geometry("spawn", b);
+                Geometry g = new Geometry("spawn", new Box(half, half, half));
                 g.setMaterial(mat);
                 g.setLocalTranslation(x, y, z);
                 g.setQueueBucket(RenderQueue.Bucket.Transparent);
@@ -142,12 +474,8 @@ public class MapWireframeApp extends SimpleApplication {
         System.out.println("DB spawns loaded: " + count + " (skipped no-map=" + skipped + ")");
     }
 
-    /**
-     * 构建碰撞面 mesh（参照 jpstale SceneBuilder.buildCollisionMesh）：
-     * 只取 meshState &amp; 1 的面，顶点压缩重映射到仅被碰撞面引用的顶点。
-     */
     private Geometry buildCollisionGeometry(SmdMapData d) {
-        double[] worldVerts = d.vertsWorldDouble(); // world：(rawX/256, rawY/256, -rawZ/256)
+        double[] worldVerts = d.vertsWorldDouble();
         int[] idx = d.solidFaceIndices();
 
         int[] loc = new int[d.nVertex];
@@ -186,35 +514,23 @@ public class MapWireframeApp extends SimpleApplication {
         return g;
     }
 
-    /** 该图 FieldMap 坐标点标记：center/startPoint/gate/warpGate。坐标已是 world 北正，与 mesh 同域。 */
     private Node buildFieldMapMarkers(FieldMap fm, SmdMapData data) {
         Node n = new Node("markers" + fm.ordinal());
-
-        // 标记球半径：world 单位（相对地图尺度，0.1 scale 下视觉很小，用稍大值）
         float r = 120f;
-        // 标记 y：取 (x,z) 附近地面高度；无地面则 y=0
         MarkerStyle center = marker(ColorRGBA.Yellow, r);
         MarkerStyle start = marker(ColorRGBA.Green, r);
         MarkerStyle gate = marker(ColorRGBA.Red, r);
         MarkerStyle warp = marker(ColorRGBA.Magenta, r);
 
-        if (fm.center != null) {
-            n.attachChild(makeMarker(center, fm.center[0], fm.center[1], data));
-        }
+        if (fm.center != null) n.attachChild(makeMarker(center, fm.center[0], fm.center[1], data));
         if (fm.startPoints != null) {
-            for (int[] p : fm.startPoints) {
-                n.attachChild(makeMarker(start, p[0], p[1], data));
-            }
+            for (int[] p : fm.startPoints) n.attachChild(makeMarker(start, p[0], p[1], data));
         }
         if (fm.gates != null) {
-            for (FieldMap.Gate g : fm.gates) {
-                n.attachChild(makeMarker(gate, g.x, g.z, data));
-            }
+            for (FieldMap.Gate g : fm.gates) n.attachChild(makeMarker(gate, g.x, g.z, data));
         }
         if (fm.warpGates != null) {
-            for (FieldMap.WarpGate w : fm.warpGates) {
-                n.attachChild(makeMarker(warp, w.x, w.z, data));
-            }
+            for (FieldMap.WarpGate w : fm.warpGates) n.attachChild(makeMarker(warp, w.x, w.z, data));
         }
         return n;
     }
@@ -232,19 +548,17 @@ public class MapWireframeApp extends SimpleApplication {
         return new MarkerStyle(mat, radius);
     }
 
-    /** 在 (x,z) 放一个标记球，y 取地形地面高度。 */
     private Geometry makeMarker(MarkerStyle style, int x, int z, SmdMapData data) {
         float y = groundHeight(data, x, z);
-        Sphere s = new Sphere(8, 8, style.radius);
-        Geometry g = new Geometry("marker", s);
+        Geometry g = new Geometry("marker", new Sphere(8, 8, style.radius));
         g.setMaterial(style.mat);
         g.setLocalTranslation(x, y, z);
         g.setQueueBucket(RenderQueue.Bucket.Transparent);
         return g;
     }
 
-    /** 简单地形采样：在 (x,z) 附近找碰撞面最高点（world y）。无则 0。 */
     static float groundHeight(SmdMapData d, int wx, int wz) {
+        if (d == null) return 0;
         double[] v = d.vertsWorldDouble();
         int[] idx = d.solidFaceIndices();
         float best = 0;

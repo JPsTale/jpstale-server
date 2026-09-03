@@ -1,5 +1,7 @@
 package org.jpstale.server.game.collision;
 
+import org.jpstale.assets.smd.CollisionMesh;
+
 import org.junit.Test;
 
 import java.util.ArrayList;

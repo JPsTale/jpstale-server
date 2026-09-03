@@ -1,5 +1,7 @@
 package org.jpstale.server.game.collision;
 
+import org.jpstale.assets.smd.CollisionMesh;
+
 import org.jpstale.server.game.model.FieldMap;
 import org.jpstale.server.game.model.MapMesh;
 import org.junit.Assume;

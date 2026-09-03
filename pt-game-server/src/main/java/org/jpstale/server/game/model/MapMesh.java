@@ -3,7 +3,7 @@ package org.jpstale.server.game.model;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.assets.smd.SmdMapData;
 import org.jpstale.assets.smd.SmdMapLoader;
-import org.jpstale.server.game.collision.CollisionMesh;
+import org.jpstale.assets.smd.CollisionMesh;
 
 import java.io.File;
 import java.io.IOException;

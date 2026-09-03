@@ -9,7 +9,7 @@ import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
-import org.jpstale.server.game.collision.CollisionMesh;
+import org.jpstale.assets.smd.CollisionMesh;
 import org.jpstale.server.game.collision.CollisionSystem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

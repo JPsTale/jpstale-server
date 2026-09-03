@@ -1,4 +1,4 @@
-package org.jpstale.server.game.collision;
+package org.jpstale.assets.smd;
 
 import org.jpstale.assets.smd.SmdMapData;
 
@@ -47,8 +47,8 @@ public class CollisionMesh {
     private final List<Tri> triangles = new ArrayList<>();
     private final Map<Long, List<Integer>> cellMap = new HashMap<>();
 
-    /** 测试用：直接从三角形列表构建 */
-    CollisionMesh(List<Tri> tris) {
+    /** 测试/工具用：直接从三角形列表构建 */
+    public CollisionMesh(List<Tri> tris) {
         this.triangles.addAll(tris);
         buildCellMap();
     }
@@ -120,6 +120,18 @@ public class CollisionMesh {
                 if (arr != null) out.addAll(arr);
             }
         }
+        return out;
+    }
+
+    /**
+     * (x,z) 邻近的碰撞三角形 —— checkNextMove/wallBlocked/getFloorHeight 用同一候选集合，
+     * 即"该点实际参与检测"的三角形。供可视化调试（把当前参与的面单独画出来）。
+     * 返回的 Tri 引用三角形内部对象，调用方只读。
+     */
+    public List<Tri> nearbyTriangles(double x, double z) {
+        List<Integer> idxs = nearbyTriangleIdx(x, z);
+        List<Tri> out = new ArrayList<>(idxs.size());
+        for (int i : idxs) out.add(triangles.get(i));
         return out;
     }
 
