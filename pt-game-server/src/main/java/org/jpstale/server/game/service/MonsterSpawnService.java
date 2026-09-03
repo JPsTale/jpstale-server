@@ -354,13 +354,17 @@ public class MonsterSpawnService {
 
             for (Monster monster : monsters) {
                 if (monster.isAlive()) {
-                    // AI 决策（每500ms一次，设状态+目标）
-                    aiEngine.update(monster);
-                    // 移动执行（每 tick 一次，根据状态更新位置）
-                    movementService.updateMonster(monster);
-                    // 更新 lastTransTime（有仇恨目标时）
-                    if (monster.getTargetPlayerId() != null) {
-                        monster.setLastTransTime(now);
+                    // i%5 错峰：每 tick 只处理 1/5 怪物(AI+移动)，5 tick 轮完。
+                    // 20FPS 下每轮间隔 250ms，等效原版 16FPS 每 4 tick 一轮的 AI 更新率。
+                    if ((monster.getId() % 5) == (tickCounter % 5)) {
+                        // AI 决策（设状态+目标）
+                        aiEngine.update(monster);
+                        // 移动执行（根据状态更新位置）
+                        movementService.updateMonster(monster);
+                        // 更新 lastTransTime（有仇恨目标时）
+                        if (monster.getTargetPlayerId() != null) {
+                            monster.setLastTransTime(now);
+                        }
                     }
                 }
             }
