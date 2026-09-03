@@ -51,9 +51,16 @@ public class CollisionBenchmark {
         List<Entity> entities = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             Entity e = new Entity();
-            e.x = minX + rnd.nextFloat() * (maxX - minX);
-            e.z = minZ + rnd.nextFloat() * (maxZ - minZ);
-            e.y = 0;
+            // 采样一个可站立地面（getFloorHeight 传极大 currentY → 取最高面），避免全部落空被挡
+            Float gy = null;
+            int tries = 0;
+            while (gy == null && tries < 100) {
+                e.x = minX + rnd.nextFloat() * (maxX - minX);
+                e.z = minZ + rnd.nextFloat() * (maxZ - minZ);
+                gy = cm.getFloorHeight(e.x, e.z, 1_000_000f);
+                tries++;
+            }
+            e.y = gy != null ? gy : 0;
             e.angle = rnd.nextDouble() * Math.PI * 2;
             entities.add(e);
         }
