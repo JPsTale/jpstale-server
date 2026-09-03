@@ -11,8 +11,8 @@ import java.util.Map;
  * 碰撞网格 —— collision.ts 的世界坐标版移植。
  * <p>
  * 数值域 = 客户端 raw/256（碰撞帧 F）：与客户端 raw 是均匀缩放，布尔结果逐位等价。
- * 与服务端世界坐标的关系：F = (worldX, worldY, -worldZ)，边界处由 CollisionSystem 做 z 取反。
- * 三角形顶点 z 在 fromMapMesh 里取反一次即可（MapMesh 顶点已是世界坐标）。
+ * 碰撞帧 F 恰好等于服务端世界坐标（worldX, worldY, worldZ），无需边界转换——
+ * fromMapMesh 直接把 jME3 顶点换成世界坐标（见其注释的推导）。
  */
 public class CollisionMesh {
 
@@ -43,7 +43,13 @@ public class CollisionMesh {
         buildCellMap();
     }
 
-    /** 从 MapMesh 构建碰撞三角形（碰撞帧 F：z 取反） */
+    /** 从 MapMesh 构建碰撞三角形。
+     * <p>
+     * 碰撞帧 F = 服务端世界坐标（worldX, worldY, worldZ）。推导：
+     * 客户端 smd-parser 读 raw 整数不取反 (fx@+8, fy@+12, fz@+16)；StageVertex 读成
+     * jME3 = (-fz/256, fy/256, -fx/256)；MapRegionService.getHeight(-z,-x) 确立了
+     * jME3.x=-worldZ、jME3.z=-worldX。故 raw/256 = (-jME3.z, jME3.y, -jME3.x) = (worldX, worldY, worldZ)。
+     */
     public static CollisionMesh fromMapMesh(MapMesh mesh) {
         float[] v = mesh.getVertices();
         int[] idx = mesh.getIndices();
@@ -52,9 +58,9 @@ public class CollisionMesh {
         for (int i = 0; i < f; i++) {
             int i0 = idx[i * 3], i1 = idx[i * 3 + 1], i2 = idx[i * 3 + 2];
             Tri t = new Tri();
-            t.x1 = v[i0 * 3];     t.y1 = v[i0 * 3 + 1]; t.z1 = -v[i0 * 3 + 2];
-            t.x2 = v[i1 * 3];     t.y2 = v[i1 * 3 + 1]; t.z2 = -v[i1 * 3 + 2];
-            t.x3 = v[i2 * 3];     t.y3 = v[i2 * 3 + 1]; t.z3 = -v[i2 * 3 + 2];
+            t.x1 = -v[i0 * 3 + 2]; t.y1 = v[i0 * 3 + 1]; t.z1 = -v[i0 * 3];
+            t.x2 = -v[i1 * 3 + 2]; t.y2 = v[i1 * 3 + 1]; t.z2 = -v[i1 * 3];
+            t.x3 = -v[i2 * 3 + 2]; t.y3 = v[i2 * 3 + 1]; t.z3 = -v[i2 * 3];
             t.minX = Math.min(Math.min(t.x1, t.x2), t.x3);
             t.maxX = Math.max(Math.max(t.x1, t.x2), t.x3);
             t.minY = Math.min(Math.min(t.y1, t.y2), t.y3);

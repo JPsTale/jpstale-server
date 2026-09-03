@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 碰撞系统：world 坐标 → 碰撞帧 F（z 取反）→ checkNextMoveCcd → world。
+ * 碰撞系统：碰撞帧 F = 世界坐标（worldX, worldY, worldZ），无需边界转换。
  */
 @Component
 public class CollisionSystem {
@@ -43,10 +43,7 @@ public class CollisionSystem {
             r.collision = false;
             return r;
         }
-        // world → 碰撞帧 F：z 取反；angle 转 F 角（sin 不变，cos 取反）
-        double fAngle = Math.atan2(Math.sin(angle), -Math.cos(angle));
-        CollisionMesh.MoveResult r = cm.checkNextMoveCcd(x, y, -z, fAngle, step, bodyWidth);
-        r.z = -r.z; // 碰撞帧 F → world
-        return r;
+        // 碰撞帧 F = 世界坐标，直接调用，无需转换
+        return cm.checkNextMoveCcd(x, y, z, angle, step, bodyWidth);
     }
 }
