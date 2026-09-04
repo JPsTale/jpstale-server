@@ -1,3 +1,4 @@
+# 公共配置（所有 profile 共享）
 server:
   port: ${PT_WEB_PORT:8080}
   servlet:
@@ -6,23 +7,12 @@ server:
 spring:
   application:
     name: pt-web-server
-  datasource:
-    dynamic:
-      primary: master
-      strict: false
-      datasource:
-        master:
-          url: jdbc:postgresql://localhost:5432/pristontale
-          username: ${DB_USER:sa}
-          password: ${DB_PASSWORD:632514Go}
-          driver-class-name: org.postgresql.Driver
   flyway:
     enabled: true
     locations: classpath:db/migration
   redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
-    database: ${REDIS_DATABASE:0}
+    port: 6379
+    database: 0
     timeout: 10s
     lettuce:
       pool:

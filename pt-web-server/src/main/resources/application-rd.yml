@@ -1,0 +1,14 @@
+# RD（Research & Development）环境
+spring:
+  datasource:
+    dynamic:
+      primary: master
+      strict: false
+      datasource:
+        master:
+          url: jdbc:postgresql://192.168.31.10:5432/pristontale
+          username: ${DB_USER:sa}
+          password: ${DB_PASSWORD:632514Go}
+          driver-class-name: org.postgresql.Driver
+  redis:
+    host: ${REDIS_HOST:192.168.31.10}

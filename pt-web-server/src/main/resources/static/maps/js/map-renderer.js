@@ -447,7 +447,7 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax, w
     //   WINDZ1/Z2(wk1/2): raw z 平移 → world x 轴摆动
     //   WINDX1/X2(wk3/4): raw x 平移 → world z 轴摆动
     // 幅度：微(1/3)=1.4 世界单位、大(2/4)=2.6，整体再按高度归一化（根不动、尖动）。
-    const baseWindMag = windKind ? (windKind === 1 || windKind === 3 ? 1.4 : 2.6) : 0;
+    const baseWindMag = windKind ? (windKind === 1 || windKind === 3 ? 0.6 : 1.2) : 0;
     const windAmpScale = (window.__ptWindAmpScale !== undefined ? window.__ptWindAmpScale : 1);
     const baseWindMagScaled = baseWindMag * windAmpScale;
     const vWindDX = (windKind === 1 || windKind === 2) ? baseWindMagScaled : 0;
@@ -500,9 +500,9 @@ _buildThreeMaterial(matIdx, mat, config, texMap, windKind, windYMin, windYMax, w
             '#include <begin_vertex>\n' +
             '  {\n' +
             `    float _ptH = clamp((transformed.y - ${windYMin.toFixed(1)}) / ${(windYMax - windYMin).toFixed(1)}, 0.0, 1.0);\n` +
-            '    float _ph = transformed.x * 0.05 + transformed.z * 0.045 + uWindTime * 2.0;\n' +
+            '    float _ph = transformed.x * 0.05 + transformed.z * 0.045 + uWindTime * 0.8;\n' +
             '    float _sw = sin(_ph) * 0.6 + sin(_ph * 1.55 + transformed.x * 0.013 + transformed.z * 0.011) * 0.4;\n' +
-            '    float _amp = 1.0 + _ptH * 0.5;\n' +
+            '    float _amp = 1.0 + _ptH * 0.3;\n' +
             '    transformed.x += uWindMag.x * _sw * _amp;\n' +
             '    transformed.z += uWindMag.y * _sw * _amp;\n' +
             '  }';
