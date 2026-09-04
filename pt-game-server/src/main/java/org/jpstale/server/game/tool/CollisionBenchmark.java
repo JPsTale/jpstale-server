@@ -1,7 +1,8 @@
 package org.jpstale.server.game.tool;
 
 import org.jpstale.assets.smd.CollisionMesh;
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.MapMesh;
 
 import java.io.File;
@@ -30,8 +31,8 @@ public class CollisionBenchmark {
         int n = args.length > 0 ? Integer.parseInt(args[0]) : 300;
         int ticks = args.length > 1 ? Integer.parseInt(args[1]) : 1000;
 
-        FieldMap fm = FieldMap.FIELD_2;
-        File f = new File(root, "field/" + fm.smd);
+        FieldInfo fm = FieldCatalog.get().get(2);
+        File f = new File(root, "field/" + fm.getModel());
         if (!f.exists()) {
             System.err.println("smd not found: " + f);
             System.exit(1);

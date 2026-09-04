@@ -1,0 +1,4062 @@
+[
+  {
+    "id": 0,
+    "shortname": "fore3",
+    "model": "forest/fore-3.smd",
+    "minimap": "fore-3",
+    "center": [
+      -16419,
+      7054
+    ],
+    "startPoints": [
+      [
+        -10585,
+        11810
+      ],
+      [
+        -13659,
+        9753
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 1,
+        "x": -8508,
+        "z": 10576
+      }
+    ],
+    "warpGates": [
+      {
+        "x": -16638,
+        "z": 6737,
+        "y": 267,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 24,
+            "x": 119112,
+            "z": -26028,
+            "y": 510,
+            "level": 55
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "forest/3ani-01.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-04.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-05.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-06.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-07.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-08.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-09.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-10.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-11.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-12.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-13.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/3ani-14.smd",
+        "bip": false
+      },
+      {
+        "model": "forest/af-boat.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 1,
+    "shortname": "fore2",
+    "model": "forest/fore-2.smd",
+    "minimap": "fore-2",
+    "center": [
+      -5427,
+      9915
+    ],
+    "startPoints": [
+      [
+        -2272,
+        10314
+      ],
+      [
+        -7192,
+        11175
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 2,
+        "x": -292,
+        "z": 9548
+      }
+    ],
+    "warpGates": [
+      {
+        "x": -3408,
+        "z": 12447,
+        "y": 251,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 1,
+            "x": -3265,
+            "z": 12583,
+            "y": 214,
+            "level": 0
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "forest/2ani-04.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "shortname": "fore1",
+    "model": "forest/fore-1.smd",
+    "minimap": "fore-1",
+    "center": [
+      4184,
+      11016
+    ],
+    "startPoints": [
+      [
+        1350,
+        13672
+      ],
+      [
+        1761,
+        10815
+      ],
+      [
+        4777,
+        10916
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 4,
+        "x": 4844,
+        "z": 6835
+      },
+      {
+        "to": 3,
+        "x": 2275,
+        "z": 14828
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 3,
+    "shortname": "ric",
+    "model": "ricarten/village-2.smd",
+    "minimap": "village-2",
+    "center": [
+      2596,
+      18738
+    ],
+    "startPoints": [
+      [
+        2592,
+        18566
+      ],
+      [
+        -1047,
+        16973
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 734,
+        "z": 20119,
+        "y": 312,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 3,
+            "x": 822,
+            "z": 19956,
+            "y": 254,
+            "level": 1
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "ricarten/v-ani01.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani02.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani03.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani04.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani05.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani06.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani07.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani08.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani09.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani10.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani11.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani12.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani13.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/v-ani14.smd",
+        "bip": false
+      },
+      {
+        "model": "ricarten/thearena.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "shortname": "waste1",
+    "model": "ruin/ruin-4.smd",
+    "minimap": "ruin-4",
+    "center": [
+      1384,
+      918
+    ],
+    "startPoints": [
+      [
+        2578,
+        5124
+      ],
+      [
+        1873,
+        -3060
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 5,
+        "x": 410,
+        "z": -4902
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 5,
+    "shortname": "waste2",
+    "model": "ruin/ruin-3.smd",
+    "minimap": "ruin-3",
+    "center": [
+      -1671,
+      -12686
+    ],
+    "startPoints": [
+      [
+        -1671,
+        -12686
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 6,
+        "x": 3051,
+        "z": -16124
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 6,
+    "shortname": "waste3",
+    "model": "ruin/ruin-2.smd",
+    "minimap": "ruin-2",
+    "center": [
+      7459,
+      -23984
+    ],
+    "startPoints": [
+      [
+        3976,
+        -19645
+      ],
+      [
+        5832,
+        -23751
+      ],
+      [
+        5615,
+        -25117
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 7,
+        "x": 10019,
+        "z": -18031
+      },
+      {
+        "to": 17,
+        "x": 4470,
+        "z": -27774
+      },
+      {
+        "to": 34,
+        "x": 12713,
+        "z": -23409
+      }
+    ],
+    "warpGates": [
+      {
+        "x": 4428,
+        "z": -22511,
+        "y": 845,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 6,
+            "x": 4547,
+            "z": -22616,
+            "y": 817,
+            "level": 0
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "ruin/ruin_ani01.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "shortname": "waste4",
+    "model": "ruin/ruin-1.smd",
+    "minimap": "ruin-1",
+    "center": [
+      16362,
+      -14959
+    ],
+    "startPoints": [
+      [
+        12242,
+        -16034
+      ],
+      [
+        12194,
+        -8969
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 8,
+        "x": 13319,
+        "z": -7102
+      }
+    ],
+    "warpGates": [
+      {
+        "x": 16809,
+        "z": -15407,
+        "y": 501,
+        "size": 128,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 13,
+            "x": -15395,
+            "z": 24185,
+            "y": 0,
+            "level": 40
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "ruin/cl-boat.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "shortname": "desert1",
+    "model": "desert/de-1.smd",
+    "minimap": "de-1",
+    "center": [
+      15005,
+      1421
+    ],
+    "startPoints": [
+      [
+        13306,
+        -2000
+      ],
+      [
+        13083,
+        2249
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 10,
+        "x": 13466,
+        "z": 5953
+      },
+      {
+        "to": 9,
+        "x": 20041,
+        "z": 892
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 9,
+    "shortname": "navisko",
+    "model": "forest/village-1.smd",
+    "minimap": "village-1",
+    "center": [
+      21928,
+      2335
+    ],
+    "startPoints": [
+      [
+        21928,
+        2335
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 11,
+        "x": 27110,
+        "z": 479
+      },
+      {
+        "to": 30,
+        "x": 21840,
+        "z": -1062
+      }
+    ],
+    "warpGates": [
+      {
+        "x": 21936,
+        "z": 1833,
+        "y": 855,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 9,
+            "x": 21826,
+            "z": 1712,
+            "y": 825,
+            "level": 0
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "forest/v2-ani01.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "shortname": "desert2",
+    "model": "desert/de-2.smd",
+    "minimap": "de-2",
+    "center": [
+      15887,
+      11161
+    ],
+    "startPoints": [
+      [
+        11859,
+        11257
+      ],
+      [
+        16169,
+        12768
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": [
+      {
+        "model": "desert/oasis-boat.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "shortname": "desert3",
+    "model": "desert/de-3.smd",
+    "minimap": "de-3",
+    "center": [
+      34758,
+      1323
+    ],
+    "startPoints": [
+      [
+        34758,
+        1323
+      ],
+      [
+        29424,
+        -322
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 12,
+        "x": 34372,
+        "z": -4277
+      }
+    ],
+    "warpGates": [
+      {
+        "x": 36128,
+        "z": 2162,
+        "y": 804,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 22,
+            "x": -11108,
+            "z": 41681,
+            "y": 343,
+            "level": 70
+          }
+        ]
+      },
+      {
+        "x": 29548,
+        "z": -2569,
+        "y": 828,
+        "size": 124,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 61,
+            "x": -12012,
+            "z": 62738,
+            "y": 173,
+            "level": 108
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "desert/ct1-boat.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "shortname": "desert4",
+    "model": "desert/de-4.smd",
+    "minimap": "de-4",
+    "center": [
+      43988,
+      -12053
+    ],
+    "startPoints": [
+      [
+        33740,
+        -6491
+      ],
+      [
+        40691,
+        -11056
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 27,
+        "x": 44545,
+        "z": -13063
+      }
+    ],
+    "warpGates": [
+      {
+        "x": 33979,
+        "z": -6080,
+        "y": 969,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 12,
+            "x": 34100,
+            "z": -6214,
+            "y": 940,
+            "level": 55
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "desert/d4-ani01.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "shortname": "dun1",
+    "model": "dungeon/dun-1.smd",
+    "minimap": "dun-1",
+    "center": [
+      -15384,
+      24310
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -15388,
+        "z": 24073,
+        "y": 100,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 7,
+            "x": 16649,
+            "z": -15238,
+            "y": 501,
+            "level": 1
+          }
+        ]
+      },
+      {
+        "x": -15305,
+        "z": 28824,
+        "y": 1,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 14,
+            "x": -6027,
+            "z": 26881,
+            "y": 99,
+            "level": 45
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "dungeon/dun-1-wheel.smd",
+        "bip": true
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "shortname": "dun2",
+    "model": "dungeon/dun-2.smd",
+    "minimap": "dun-2",
+    "center": [
+      -6108,
+      26880
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -5908,
+        "z": 26878,
+        "y": 136,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 13,
+            "x": -15314,
+            "z": 28718,
+            "y": 58,
+            "level": 40
+          }
+        ]
+      },
+      {
+        "x": -8019,
+        "z": 25768,
+        "y": 21,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 15,
+            "x": 1810,
+            "z": 28802,
+            "y": 0,
+            "level": 60
+          }
+        ]
+      },
+      {
+        "x": -3918,
+        "z": 27988,
+        "y": 21,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 15,
+            "x": 1810,
+            "z": 28802,
+            "y": 0,
+            "level": 60
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 15,
+    "shortname": "dun3",
+    "model": "dungeon/dun-3.smd",
+    "minimap": "dun-3",
+    "center": [
+      1827,
+      28586
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 1810,
+        "z": 28924,
+        "y": 0,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 14,
+            "x": -8176,
+            "z": 25775,
+            "y": 77,
+            "level": 45
+          },
+          {
+            "map": 14,
+            "x": -3738,
+            "z": 27990,
+            "y": 73,
+            "level": 45
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 16,
+    "shortname": "gmroom",
+    "model": "room/office.smd",
+    "minimap": null,
+    "center": [
+      -200000,
+      -200000
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 17,
+    "shortname": "morion1",
+    "model": "forever-fall/forever-fall-04.smd",
+    "minimap": "forever-fall-04",
+    "center": [
+      -2912,
+      -39215
+    ],
+    "startPoints": [
+      [
+        -2135,
+        -33668
+      ],
+      [
+        4073,
+        -32119
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 18,
+        "x": -2949,
+        "z": -40442
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": [
+      {
+        "model": "forever-fall/4ani-01.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-04.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-05.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-06.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-07.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-08.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-09.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-10.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/4ani-11.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "shortname": "morion2",
+    "model": "forever-fall/forever-fall-03.smd",
+    "minimap": "forever-fall-03",
+    "center": [
+      -5823,
+      -43244
+    ],
+    "startPoints": [
+      [
+        -1516,
+        -45437
+      ],
+      [
+        -3586,
+        -42886
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 19,
+        "x": -2349,
+        "z": -49830
+      }
+    ],
+    "warpGates": [
+      {
+        "x": -4730,
+        "z": -48107,
+        "y": 1173,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 18,
+            "x": -4615,
+            "z": -48002,
+            "y": 1146,
+            "level": 1
+          }
+        ]
+      },
+      {
+        "x": -6306,
+        "z": -43241,
+        "y": 779,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 25,
+            "x": 119025,
+            "z": -35680,
+            "y": 499,
+            "level": 55
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "forever-fall/3ani-01.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/3ani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/3ani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/3ani-04.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/3ani-05.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/3ani-06.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/3ani-07.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "shortname": "morion3",
+    "model": "forever-fall/forever-fall-02.smd",
+    "minimap": "forever-fall-02",
+    "center": [
+      1691,
+      -52599
+    ],
+    "startPoints": [
+      [
+        -1024,
+        -45437
+      ],
+      [
+        -1543,
+        -52333
+      ],
+      [
+        -1310,
+        -54945
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 20,
+        "x": 667,
+        "z": -59371
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": [
+      {
+        "model": "forever-fall/2ani-01.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/2ani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/2ani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/2ani-04.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/2ani-05.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "shortname": "morion4",
+    "model": "forever-fall/forever-fall-01.smd",
+    "minimap": "forever-fall-01",
+    "center": [
+      1911,
+      -70630
+    ],
+    "startPoints": [
+      [
+        1875,
+        -69871
+      ],
+      [
+        2637,
+        -60219
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 1962,
+        "z": -71184,
+        "y": 559,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 21,
+            "x": 1993,
+            "z": -73134,
+            "y": 449,
+            "level": 1
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "forever-fall/1ani-01.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-04.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-05.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-06.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-07.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-08.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-09.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-10.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-11.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-12.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-13.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-14.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-15.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-16.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-17.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-18.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-19.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-20.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-21.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-22.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-23.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-24.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-25.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-26.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/1ani-27.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "shortname": "phillai",
+    "model": "forever-fall/pilai.smd",
+    "minimap": "pilai",
+    "center": [
+      2981,
+      -75486
+    ],
+    "startPoints": [
+      [
+        2287,
+        -74131
+      ],
+      [
+        3547,
+        -75500
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 2000,
+        "z": -72907,
+        "y": 474,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 20,
+            "x": 1958,
+            "z": -70922,
+            "y": 536,
+            "level": 1
+          }
+        ]
+      },
+      {
+        "x": 2245,
+        "z": -78259,
+        "y": 745,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 21,
+            "x": 2252,
+            "z": -78041,
+            "y": 754,
+            "level": 1
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "forever-fall/piani-01.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-05.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-06.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-07.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-08.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-09.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-10.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-11.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-12.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-13.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-14.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-15.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-16.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-17.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-18.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-19.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-20.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-21.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-22.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-23.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-24.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-25.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-26.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-27.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-28.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-29.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-30.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-31.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-32.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-33.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-34.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-35.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-36.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-37.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-38.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-39.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-40.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-41.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-42.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-43.smd",
+        "bip": false
+      },
+      {
+        "model": "forever-fall/piani-boat.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 22,
+    "shortname": "cursed1",
+    "model": "dungeon/dun-4.smd",
+    "minimap": "dun-4",
+    "center": [
+      -11108,
+      41681
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -10860,
+        "z": 41666,
+        "y": 398,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 11,
+            "x": 35872,
+            "z": 2016,
+            "y": 804,
+            "level": 50
+          }
+        ]
+      },
+      {
+        "x": -12089,
+        "z": 40380,
+        "y": 95,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 23,
+            "x": -3675,
+            "z": 36597,
+            "y": 732,
+            "level": 75
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "dungeon/dun-4-ani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-06.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-07.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-08.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-09.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-14.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-15.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-16.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-17.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-18.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-19.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-20.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-21.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-22.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-23.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-24.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-25.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-26.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-27.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-28.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-29.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-30.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-31.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-32.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-33.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-34.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-35.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-36.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-4-ani-37.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "shortname": "cursed2",
+    "model": "dungeon/dun-5.smd",
+    "minimap": "dun-5",
+    "center": [
+      -3675,
+      36597
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -3665,
+        "z": 36334,
+        "y": 762,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 22,
+            "x": -12073,
+            "z": 40701,
+            "y": 95,
+            "level": 70
+          }
+        ]
+      },
+      {
+        "x": -4895,
+        "z": 37132,
+        "y": 762,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 42,
+            "x": -3660,
+            "z": 45242,
+            "y": 116,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": -2441,
+        "z": 37137,
+        "y": 762,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 42,
+            "x": -3660,
+            "z": 50266,
+            "y": 3,
+            "level": 150
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "dungeon/dun-5-ani-01.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-02.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-03.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-04.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-05.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-06.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-07.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-08.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-09.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-10.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-11.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-12.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-13.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-14.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-15.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-16.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-17.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-18.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-19.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-20.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-21.smd",
+        "bip": false
+      },
+      {
+        "model": "dungeon/dun-5-ani-22.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "shortname": "cave1",
+    "model": "cave/tcave.smd",
+    "minimap": "tcave",
+    "center": [
+      120126,
+      -26064
+    ],
+    "startPoints": [
+      [
+        119319,
+        -26034
+      ],
+      [
+        125606,
+        -24541
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 125581,
+        "z": -25086,
+        "y": 480,
+        "size": 80,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 26,
+            "x": 158627,
+            "z": -20504,
+            "y": 240,
+            "level": 60
+          }
+        ]
+      },
+      {
+        "x": 118869,
+        "z": -26017,
+        "y": 538,
+        "size": 80,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 0,
+            "x": -16490,
+            "z": 6930,
+            "y": 298,
+            "level": 1
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "cave/tcave_ani01.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani02.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani03.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani04.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani05.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani06.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani07.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani08.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani09.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani10.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani11.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani12.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani13.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani14.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani15.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/tcave_ani16.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 25,
+    "shortname": "cave2",
+    "model": "cave/mcave.smd",
+    "minimap": "mcave",
+    "center": [
+      119966,
+      -35466
+    ],
+    "startPoints": [
+      [
+        119320,
+        -35680
+      ],
+      [
+        124380,
+        -33260
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 124391,
+        "z": -32913,
+        "y": 37,
+        "size": 80,
+        "height": 20,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 26,
+            "x": 158543,
+            "z": -19557,
+            "y": 290,
+            "level": 60
+          }
+        ]
+      },
+      {
+        "x": 118808,
+        "z": -35686,
+        "y": 520,
+        "size": 80,
+        "height": 20,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 18,
+            "x": -6056,
+            "z": -43245,
+            "y": 787,
+            "level": 1
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "cave/mcave_ani01.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani02.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani03.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani04.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani05.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani06.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani07.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani08.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani09.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani10.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani11.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani12.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani13.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani14.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani15.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani16.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/mcave_ani17.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 26,
+    "shortname": "cave3",
+    "model": "cave/dcave.smd",
+    "minimap": "dcave",
+    "center": [
+      158814,
+      -20070
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 158042,
+        "z": -19525,
+        "y": 330,
+        "size": 120,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 25,
+            "x": 124396,
+            "z": -33291,
+            "y": 37,
+            "level": 55
+          }
+        ]
+      },
+      {
+        "x": 158023,
+        "z": -20453,
+        "y": 240,
+        "size": 120,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 24,
+            "x": 125566,
+            "z": -24825,
+            "y": 480,
+            "level": 60
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "cave/dcave_ani01.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani02.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani03.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani04.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani05.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani06.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani07.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani08.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani09.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani10.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani11.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani12.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani13.smd",
+        "bip": false
+      },
+      {
+        "model": "cave/dcave_ani14.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 27,
+    "shortname": "iron1",
+    "model": "iron/iron-1.smd",
+    "minimap": "iron-1",
+    "center": [
+      47286,
+      -20925
+    ],
+    "startPoints": [
+      [
+        46905,
+        -13478
+      ],
+      [
+        47357,
+        -20845
+      ],
+      [
+        46741,
+        -21349
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 28,
+        "x": 45316,
+        "z": -21407
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": [
+      {
+        "model": "iron/i1-ani01_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani02_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani03_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani04_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani05_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani06_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani07_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani08_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani09_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani10_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i1-ani11_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/iron-ani01.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/iron-ani02.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/iron-ani03.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/iron1-boat.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "shortname": "iron2",
+    "model": "iron/iron-2.smd",
+    "minimap": "iron-2",
+    "center": [
+      33938,
+      -24229
+    ],
+    "startPoints": [
+      [
+        35149,
+        -24326
+      ],
+      [
+        44893,
+        -21380
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 29,
+        "x": 33618,
+        "z": -24011
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": [
+      {
+        "model": "iron/i2-bip01.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/i2-bip02.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/i2-bip03.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/i2-bip04_ani.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i2-bip05_ani.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i2-bip06_ani.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i2-bip07_ani.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i2-bip08_ani.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i2-bip09.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/i2-bip10.smd",
+        "bip": false
+      },
+      {
+        "model": "iron/i2-bip11_ani.smd",
+        "bip": true
+      },
+      {
+        "model": "iron/i2-bip12_ani.smd",
+        "bip": true
+      }
+    ]
+  },
+  {
+    "id": 29,
+    "shortname": "eura",
+    "model": "ice/ice_ura.smd",
+    "minimap": "ice_ura",
+    "center": [
+      31090,
+      -23781
+    ],
+    "startPoints": [],
+    "fieldGates": [
+      {
+        "to": 31,
+        "x": 31848,
+        "z": -27225
+      }
+    ],
+    "warpGates": [
+      {
+        "x": 30407,
+        "z": -22232,
+        "y": 1349,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 29,
+            "x": 30610,
+            "z": -22164,
+            "y": 1304,
+            "level": 88
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "ice/ice_ani_01.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "shortname": "sod1",
+    "model": "sod/sod-1.smd",
+    "minimap": "sod-1",
+    "center": [
+      22018,
+      -6569
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": [
+      {
+        "model": "sod/s-1ani01_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani02_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani03_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani04_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani05_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani06_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani07_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani08_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani09_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani10_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani11_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani12_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani13_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani14_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani15_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani16_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani17_bip.smd",
+        "bip": true
+      },
+      {
+        "model": "sod/s-1ani18_bip.smd",
+        "bip": true
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "shortname": "ice1",
+    "model": "ice/ice1.smd",
+    "minimap": "ice1",
+    "center": [
+      32313,
+      -28529
+    ],
+    "startPoints": [],
+    "fieldGates": [
+      {
+        "to": 35,
+        "x": 34596,
+        "z": -39050
+      }
+    ],
+    "warpGates": [
+      {
+        "x": 35433,
+        "z": -31892,
+        "y": 834,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 44,
+            "x": 18039,
+            "z": 31696,
+            "y": 970,
+            "level": 105
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "ice/ice_ani_01.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leewood01.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leewood03.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leewood04.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leaf01.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leaf02.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leaf03.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leaf04.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leaf05.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leaf06.smd",
+        "bip": false
+      },
+      {
+        "model": "ice/ice_bip_leaf07.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "shortname": "questmap",
+    "model": "quest/quest_iv.smd",
+    "minimap": "quest_iv",
+    "center": [
+      22497,
+      -9605
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 33,
+    "shortname": "bc",
+    "model": "castle/castle.smd",
+    "minimap": "castle",
+    "center": [
+      35225,
+      23847
+    ],
+    "startPoints": [
+      [
+        33920,
+        23479
+      ],
+      [
+        35247,
+        23355
+      ],
+      [
+        36164,
+        23446
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 32527,
+        "z": 30693,
+        "y": 774,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 33,
+            "x": 32739,
+            "z": 30474,
+            "y": 711,
+            "level": 39
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "castle/wf_gate_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "castle/crystal_ani01.smd",
+        "bip": false
+      },
+      {
+        "model": "castle/crystal_ani02.smd",
+        "bip": false
+      },
+      {
+        "model": "castle/crystal_ani03.smd",
+        "bip": false
+      },
+      {
+        "model": "castle/crystal_ani04.smd",
+        "bip": false
+      },
+      {
+        "model": "castle/crystal_ani05.smd",
+        "bip": false
+      },
+      {
+        "model": "castle/crystal_ani06.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "shortname": "greedy",
+    "model": "greedy/greedy.smd",
+    "minimap": "greedy",
+    "center": [
+      13930,
+      -23206
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": [
+      {
+        "model": "greedy/vane1_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/vane2_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/vane3_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/vane4_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/ani_tail.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/ship_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/ship1_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/ship2_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/ship3_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi01.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi02.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi03.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi04.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi05.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi06.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi07.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi08.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi09.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_animi10.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani00.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani01.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani02.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani03.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani04.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani05.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani06.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani07.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani08.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/flower_ani09.smd",
+        "bip": false
+      },
+      {
+        "model": "greedy/door.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 35,
+    "shortname": "ice2",
+    "model": "ice/ice_2.smd",
+    "minimap": "ice2",
+    "center": [
+      36264,
+      -40182
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 37981,
+        "z": -50790,
+        "y": 1216,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 36,
+            "x": 33000,
+            "z": -50036,
+            "y": 1512,
+            "level": 92
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "ice/ice2-boat.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 36,
+    "shortname": "kelvezu",
+    "model": "boss/boss.smd",
+    "minimap": "boss",
+    "center": [
+      33000,
+      -50036
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 33012,
+        "z": -49926,
+        "y": 1533,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 35,
+            "x": 37971,
+            "z": -50460,
+            "y": 1209,
+            "level": 92
+          }
+        ]
+      },
+      {
+        "x": 33014,
+        "z": -53228,
+        "y": 1355,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 63,
+            "x": 38791,
+            "z": 67863,
+            "y": 1371,
+            "level": 113
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 37,
+    "shortname": "lost1",
+    "model": "lost/lostisland.smd",
+    "minimap": "lost",
+    "center": [
+      -12555,
+      1113
+    ],
+    "startPoints": [],
+    "fieldGates": [
+      {
+        "to": 38,
+        "x": -11586,
+        "z": -7704
+      }
+    ],
+    "warpGates": [
+      {
+        "x": -12610,
+        "z": 1349,
+        "y": 694,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 37,
+            "x": -12555,
+            "z": 1113,
+            "y": 668,
+            "level": 95
+          }
+        ]
+      },
+      {
+        "x": -14206,
+        "z": 1793,
+        "y": 174,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 59,
+            "x": -22213,
+            "z": 2128,
+            "y": 282,
+            "level": 113
+          }
+        ]
+      }
+    ],
+    "stageObjects": [
+      {
+        "model": "lost/wf_ani.smd",
+        "bip": false
+      },
+      {
+        "model": "lost/ani_ship01.smd",
+        "bip": false
+      },
+      {
+        "model": "lost/ani_ship02.smd",
+        "bip": false
+      },
+      {
+        "model": "lost/ani_ship03.smd",
+        "bip": false
+      },
+      {
+        "model": "lost/ani_ship04.smd",
+        "bip": false
+      }
+    ]
+  },
+  {
+    "id": 38,
+    "shortname": "lost2",
+    "model": "losttemple/lost_temple.smd",
+    "minimap": "losttemple",
+    "center": [
+      -11718,
+      -10794
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -12275,
+        "z": -11385,
+        "y": 533,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 40,
+            "x": 14251,
+            "z": 39089,
+            "y": 220,
+            "level": 100
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 39,
+    "shortname": "ghostcastle",
+    "model": "fall_game/fall_game.smd",
+    "minimap": null,
+    "center": [
+      5800,
+      -36747
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 40,
+    "shortname": "et1",
+    "model": "endless/dun-7.smd",
+    "minimap": "dun-7",
+    "center": [
+      14255,
+      39099
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 14242,
+        "z": 40988,
+        "y": 259,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 41,
+            "x": 5255,
+            "z": 37897,
+            "y": 86,
+            "level": 102
+          }
+        ]
+      },
+      {
+        "x": 14246,
+        "z": 38912,
+        "y": 220,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 38,
+            "x": -12272,
+            "z": -11299,
+            "y": 509,
+            "level": 98
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 41,
+    "shortname": "et2",
+    "model": "endless/dun-8.smd",
+    "minimap": "dun-8",
+    "center": [
+      5255,
+      37897
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 5253,
+        "z": 37708,
+        "y": 69,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 40,
+            "x": 14242,
+            "z": 41199,
+            "y": 220,
+            "level": 100
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 42,
+    "shortname": "cursed3",
+    "model": "dungeon/dun-6a.smd",
+    "minimap": "dun-6",
+    "center": [
+      -3660,
+      45200
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -3655,
+        "z": 50603,
+        "y": 3,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 23,
+            "x": -2700,
+            "z": 37290,
+            "y": 732,
+            "level": 75
+          }
+        ]
+      },
+      {
+        "x": -3664,
+        "z": 44886,
+        "y": 145,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 23,
+            "x": -4600,
+            "z": 37290,
+            "y": 732,
+            "level": 75
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 43,
+    "shortname": "et3",
+    "model": "endless/dun-9.smd",
+    "minimap": "dun-9",
+    "center": [
+      4896,
+      42330
+    ],
+    "startPoints": [
+      [
+        4896,
+        42330
+      ],
+      [
+        6418,
+        42330
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 4896,
+        "z": 42090,
+        "y": 230,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 41,
+            "x": 5254,
+            "z": 41361,
+            "y": 139,
+            "level": 102
+          }
+        ]
+      },
+      {
+        "x": 6408,
+        "z": 42090,
+        "y": 230,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 41,
+            "x": 5254,
+            "z": 41361,
+            "y": 139,
+            "level": 102
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 44,
+    "shortname": "ice3",
+    "model": "mine/mine-1.smd",
+    "minimap": "mine-1",
+    "center": [
+      18039,
+      31696
+    ],
+    "startPoints": [
+      [
+        18039,
+        31696
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 17862,
+        "z": 31551,
+        "y": 1018,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 31,
+            "x": 35225,
+            "z": -31965,
+            "y": 829,
+            "level": 88
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 45,
+    "shortname": "atlantis",
+    "model": "custom/town1.smd",
+    "minimap": "town1",
+    "center": [
+      -37725,
+      17198
+    ],
+    "startPoints": [
+      [
+        -40254,
+        17511
+      ],
+      [
+        -37050,
+        17456
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 46,
+    "shortname": "mf1",
+    "model": "custom/fo1.smd",
+    "minimap": "fo1",
+    "center": [
+      -35220,
+      11024
+    ],
+    "startPoints": [
+      [
+        -34758,
+        9555
+      ],
+      [
+        -39212,
+        10106
+      ],
+      [
+        -37514,
+        10880
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 45,
+        "x": -37725,
+        "z": 14828
+      },
+      {
+        "to": 52,
+        "x": 1,
+        "z": 35254
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 47,
+    "shortname": "mf2",
+    "model": "custom/fo2.smd",
+    "minimap": "fo2",
+    "center": [
+      -46733,
+      14391
+    ],
+    "startPoints": [
+      [
+        -46644,
+        10485
+      ],
+      [
+        -41291,
+        11138
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 46,
+        "x": 1,
+        "z": 40292
+      }
+    ],
+    "warpGates": [
+      {
+        "x": -44356,
+        "z": 10738,
+        "y": 433,
+        "size": 16,
+        "height": 16,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 46,
+            "x": -35275,
+            "z": 8095,
+            "y": 667,
+            "level": 150
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 48,
+    "shortname": "mf3",
+    "model": "custom/fo3.smd",
+    "minimap": "fo3",
+    "center": [
+      -57048,
+      6894
+    ],
+    "startPoints": [
+      [
+        -50646,
+        6333
+      ],
+      [
+        -55880,
+        9377
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 47,
+        "x": 2,
+        "z": 48508
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 49,
+    "shortname": "ba",
+    "model": "custom/ba1.smd",
+    "minimap": "ba1",
+    "center": [
+      -23793,
+      -19419
+    ],
+    "startPoints": [
+      [
+        -23793,
+        -19419
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 50,
+        "x": 3,
+        "z": 25680
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 50,
+    "shortname": "md1",
+    "model": "custom/ba2.smd",
+    "minimap": "ba2",
+    "center": [
+      -26258,
+      -20686
+    ],
+    "startPoints": [
+      [
+        -26258,
+        -20686
+      ],
+      [
+        -29687,
+        -21324
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 51,
+        "x": 2,
+        "z": 32203
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 51,
+    "shortname": "md2",
+    "model": "custom/ba3.smd",
+    "minimap": "ba3",
+    "center": [
+      -29541,
+      -8994
+    ],
+    "startPoints": [
+      [
+        -32435,
+        -13515
+      ],
+      [
+        -33661,
+        -8804
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 52,
+        "x": 1,
+        "z": 32225
+      }
+    ],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 52,
+    "shortname": "md3",
+    "model": "custom/ba4.smd",
+    "minimap": "ba4",
+    "center": [
+      -34798,
+      1959
+    ],
+    "startPoints": [
+      [
+        -34798,
+        1959
+      ],
+      [
+        -35393,
+        2871
+      ]
+    ],
+    "fieldGates": [
+      {
+        "to": 46,
+        "x": 1,
+        "z": 352023
+      }
+    ],
+    "warpGates": [
+      {
+        "x": -36252,
+        "z": 95,
+        "y": 1525,
+        "size": 16,
+        "height": 16,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 52,
+            "x": -33326,
+            "z": -4090,
+            "y": 1129,
+            "level": 100
+          }
+        ]
+      },
+      {
+        "x": -37476,
+        "z": 4822,
+        "y": 1456,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 53,
+            "x": 33825,
+            "z": 36598,
+            "y": 0,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": -38715,
+        "z": -298,
+        "y": 1844,
+        "size": 128,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 55,
+            "x": 64614,
+            "z": 24292,
+            "y": 100,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": -33237,
+        "z": -4230,
+        "y": 1122,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 52,
+            "x": -32410,
+            "z": -4032,
+            "y": 1106,
+            "level": 100
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 53,
+    "shortname": "sc1",
+    "model": "custom/sanc1.smd",
+    "minimap": "sanc1",
+    "center": [
+      33825,
+      36598
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 33832,
+        "z": 36334,
+        "y": 762,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 52,
+            "x": -37060,
+            "z": 4811,
+            "y": 1457,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": 32594,
+        "z": 37134,
+        "y": 762,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 54,
+            "x": 26338,
+            "z": 41668,
+            "y": 343,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": 35050,
+        "z": 37134,
+        "y": 762,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 54,
+            "x": 26338,
+            "z": 41668,
+            "y": 343,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": 33843,
+        "z": 44338,
+        "y": 148,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 54,
+            "x": 25408,
+            "z": 40665,
+            "y": 95,
+            "level": 150
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 54,
+    "shortname": "sc2",
+    "model": "custom/sanc2.smd",
+    "minimap": "sanc2",
+    "center": [
+      26338,
+      41668
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 26596,
+        "z": 41672,
+        "y": 384,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 53,
+            "x": 33825,
+            "z": 36598,
+            "y": 714,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": 25409,
+        "z": 40392,
+        "y": 95,
+        "size": 64,
+        "height": 64,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 53,
+            "x": 33844,
+            "z": 44094,
+            "y": 148,
+            "level": 150
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 55,
+    "shortname": "ad1",
+    "model": "custom/ad1.smd",
+    "minimap": "ad1",
+    "center": [
+      64616,
+      24310
+    ],
+    "startPoints": [
+      [
+        64616,
+        24310
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 64618,
+        "z": 24103,
+        "y": 100,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 52,
+            "x": -38268,
+            "z": -296,
+            "y": 1841,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": 64696,
+        "z": 28927,
+        "y": 5,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 56,
+            "x": 73892,
+            "z": 26880,
+            "y": 88,
+            "level": 150
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 56,
+    "shortname": "ad2",
+    "model": "custom/ad2.smd",
+    "minimap": "ad2",
+    "center": [
+      73892,
+      26880
+    ],
+    "startPoints": [
+      [
+        73892,
+        26880
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 74075,
+        "z": 26881,
+        "y": 136,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 55,
+            "x": 64692,
+            "z": 28661,
+            "y": 63,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": 71980,
+        "z": 25766,
+        "y": 33,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 57,
+            "x": 81812,
+            "z": 28789,
+            "y": 268,
+            "level": 150
+          }
+        ]
+      },
+      {
+        "x": 76105,
+        "z": 28000,
+        "y": 33,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 57,
+            "x": 81812,
+            "z": 28789,
+            "y": 268,
+            "level": 150
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 57,
+    "shortname": "ad3",
+    "model": "custom/ad3.smd",
+    "minimap": "ad3",
+    "center": [
+      81812,
+      28789
+    ],
+    "startPoints": [
+      [
+        81812,
+        28789
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 81809,
+        "z": 28933,
+        "y": 268,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 56,
+            "x": 71770,
+            "z": 25769,
+            "y": 90,
+            "level": 150
+          },
+          {
+            "map": 56,
+            "x": 76316,
+            "z": 27998,
+            "y": 90,
+            "level": 150
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 58,
+    "shortname": "ancient",
+    "model": "ancientw/ancientw.smd",
+    "minimap": "ancientw",
+    "center": [
+      12793,
+      73639
+    ],
+    "startPoints": [
+      [
+        12795,
+        74139
+      ],
+      [
+        16378,
+        72591
+      ],
+      [
+        9209,
+        72593
+      ],
+      [
+        12797,
+        67805
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": 12791,
+        "z": 75156,
+        "y": 458,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 61,
+            "x": -12006,
+            "z": 54413,
+            "y": 374,
+            "level": 108
+          }
+        ]
+      },
+      {
+        "x": 12795,
+        "z": 68726,
+        "y": 498,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 58,
+            "x": 12801,
+            "z": 67908,
+            "y": 545,
+            "level": 110
+          }
+        ]
+      },
+      {
+        "x": 12796,
+        "z": 68081,
+        "y": 553,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 58,
+            "x": 12795,
+            "z": 68899,
+            "y": 487,
+            "level": 110
+          }
+        ]
+      },
+      {
+        "x": 16080,
+        "z": 70515,
+        "y": 830,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 58,
+            "x": 9509,
+            "z": 70712,
+            "y": 816,
+            "level": 110
+          }
+        ]
+      },
+      {
+        "x": 9510,
+        "z": 70521,
+        "y": 829,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 58,
+            "x": 16074,
+            "z": 70700,
+            "y": 816,
+            "level": 110
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 59,
+    "shortname": "seaa",
+    "model": "seaa/seaa.smd",
+    "minimap": "seaa",
+    "center": [
+      -22247,
+      -288
+    ],
+    "startPoints": [
+      [
+        -21164,
+        -405
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -22212,
+        "z": 2269,
+        "y": 280,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 37,
+            "x": -13830,
+            "z": 1873,
+            "y": 187,
+            "level": 95
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 60,
+    "shortname": "questmap",
+    "model": "arena/arena.smd",
+    "minimap": "arena",
+    "center": [
+      488537,
+      0
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": []
+  },
+  {
+    "id": 61,
+    "shortname": "slab",
+    "model": "slab/slab.smd",
+    "minimap": "slab",
+    "center": [
+      -11976,
+      62455
+    ],
+    "startPoints": [],
+    "fieldGates": [],
+    "warpGates": [
+      {
+        "x": -12007,
+        "z": 62945,
+        "y": 173,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 11,
+            "x": 29511,
+            "z": -2350,
+            "y": 826,
+            "level": 50
+          }
+        ]
+      },
+      {
+        "x": -12003,
+        "z": 54166,
+        "y": 374,
+        "size": 64,
+        "height": 32,
+        "mode": 0,
+        "destinations": [
+          {
+            "map": 58,
+            "x": 12797,
+            "z": 75001,
+            "y": 458,
+            "level": 110
+          }
+        ]
+      }
+    ],
+    "stageObjects": []
+  },
+  {
+    "id": 62,
+    "shortname": "Seab",
+    "model": "seaa/stemple.smd",
+    "minimap": "seab",
+    "center": [
+      -32660,
+      -22038
+    ],
+    "startPoints": [
+      [
+        -32660,
+        -22038
+      ]
+    ],
+    "fieldGates": [],
+    "warpGates": [],
+    "stageObjects": []
+  }
+]

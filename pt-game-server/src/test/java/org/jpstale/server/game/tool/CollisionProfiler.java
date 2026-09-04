@@ -1,7 +1,8 @@
 package org.jpstale.server.game.tool;
 
 import org.jpstale.assets.smd.CollisionMesh;
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.MapMesh;
 
 import java.io.File;
@@ -27,13 +28,13 @@ public class CollisionProfiler {
         boolean run = args.length <= 3 || args[3].equals("run");
         double step = run ? CollisionStressTest.RUN_STEP : CollisionStressTest.WALK_STEP;
 
-        FieldMap fm = FieldMap.values()[mapId];
-        MapMesh mm = MapMesh.load(new File(root, "field/" + fm.smd));
+        FieldInfo fm = FieldCatalog.get().get(mapId);
+        MapMesh mm = MapMesh.load(new File(root, "field/" + fm.getModel()));
         if (mm == null) { System.out.println("no mesh"); return; }
         List<MapMesh> single = new ArrayList<>();
         single.add(mm);
         List<CollisionStressTest.Entity> ents = CollisionStressTest.spawn(single, perMap);
-        System.out.println("map=" + fm.smd + " ents=" + ents.size()
+        System.out.println("map=" + fm.getModel() + " ents=" + ents.size()
             + " step=" + step + " ticks=" + ticks + " 模式=" + (run ? "run(CCD)" : "walk"));
 
         CollisionMesh.PROFILE = true;

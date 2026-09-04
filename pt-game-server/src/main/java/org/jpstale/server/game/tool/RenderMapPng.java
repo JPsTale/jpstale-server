@@ -1,6 +1,7 @@
 package org.jpstale.server.game.tool;
 
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.MapMesh;
 
 import javax.imageio.ImageIO;
@@ -34,21 +35,21 @@ public class RenderMapPng {
             dir.mkdirs();
         }
 
-        for (FieldMap fm : FieldMap.values()) {
-            File f = new File(smdRoot, "field/" + fm.smd);
+        for (FieldInfo fm : FieldCatalog.get().list()) {
+            File f = new File(smdRoot, "field/" + fm.getModel());
             if (!f.exists()) {
-                System.out.println("skip (no smd): map" + fm.ordinal() + " " + fm.smd);
+                System.out.println("skip (no smd): map" + fm.getId() + " " + fm.getModel());
                 continue;
             }
             MapMesh mesh = MapMesh.load(f);
             if (mesh == null) {
-                System.out.println("skip (no mesh): map" + fm.ordinal());
+                System.out.println("skip (no mesh): map" + fm.getId());
                 continue;
             }
             BufferedImage img = render(mesh);
-            File out = new File(dir, "map" + fm.ordinal() + ".png");
+            File out = new File(dir, "map" + fm.getId() + ".png");
             ImageIO.write(img, "png", out);
-            System.out.println("map" + fm.ordinal() + " -> " + out.getName()
+            System.out.println("map" + fm.getId() + " -> " + out.getName()
                 + " " + img.getWidth() + "x" + img.getHeight()
                 + " (faces=" + mesh.getFaceCount() + ")");
         }

@@ -9,7 +9,8 @@ import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.GameMap;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterSpawnConfig;
@@ -597,17 +598,10 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
                 session.setX(sp.getX());
                 session.setZ(sp.getZ());
             } else {
-                // 无 DB 出生点：用 FieldMap 硬编码出生点/中心兜底，
+                // 无 DB 出生点：用 fields.json 出生点/中心兜底，
                 // 避免落到 (0,0) 掉进其他图（如 ric -> waste1）的区域
-                int[] sp = null;
-                if (mapId >= 0 && mapId < FieldMap.values().length) {
-                    FieldMap fm = FieldMap.values()[mapId];
-                    if (fm.startPoints != null && fm.startPoints.length > 0) {
-                        sp = fm.startPoints[0];
-                    } else {
-                        sp = fm.center;
-                    }
-                }
+                FieldInfo fm = FieldCatalog.get().get(mapId);
+                int[] sp = fm != null ? fm.fallbackStart() : null;
                 if (sp != null) {
                     session.setX(sp[0]);
                     session.setZ(sp[1]);

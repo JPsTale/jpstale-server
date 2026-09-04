@@ -1,6 +1,7 @@
 package org.jpstale.server.game.tool;
 
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.MapMesh;
 
 import java.io.File;
@@ -27,16 +28,16 @@ public class CollisionPerMapStress {
             "map", "smd", "faces", "模式", "avg(ms)", "p95(ms)", "max(ms)");
         System.out.println("----");
 
-        for (FieldMap fm : FieldMap.values()) {
-            int mapId = fm.ordinal();
-            File f = new File(root, "field/" + fm.smd);
+        for (FieldInfo fm : FieldCatalog.get().list()) {
+            int mapId = fm.getId();
+            File f = new File(root, "field/" + fm.getModel());
             if (!f.exists()) {
-                System.out.printf("%-4d %-30s skip(no file)%n", mapId, fm.smd);
+                System.out.printf("%-4d %-30s skip(no file)%n", mapId, fm.getModel());
                 continue;
             }
             MapMesh mm = MapMesh.load(f);
             if (mm == null) {
-                System.out.printf("%-4d %-30s skip(no mesh)%n", mapId, fm.smd);
+                System.out.printf("%-4d %-30s skip(no mesh)%n", mapId, fm.getModel());
                 continue;
             }
             List<MapMesh> single = new ArrayList<>();
@@ -48,7 +49,7 @@ public class CollisionPerMapStress {
                 double step = run ? CollisionStressTest.RUN_STEP : CollisionStressTest.WALK_STEP;
                 double[] s = CollisionStressTest.benchmark(ents, step, ticks, false);
                 System.out.printf("%-4d %-30s %-8d %-6s %-10.3f %-10.3f %-10.3f%n",
-                    mapId, fm.smd, faces, run ? "run" : "walk", s[0], s[1], s[2]);
+                    mapId, fm.getModel(), faces, run ? "run" : "walk", s[0], s[1], s[2]);
             }
         }
     }

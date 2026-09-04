@@ -18,7 +18,10 @@ import com.jme3.util.BufferUtils;
 import org.jpstale.assets.smd.CollisionMesh;
 import org.jpstale.assets.smd.SmdMapData;
 import org.jpstale.assets.smd.SmdMapLoader;
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
+import org.jpstale.server.game.model.FieldInfo.FieldGate;
+import org.jpstale.server.game.model.FieldInfo.WarpGate;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,7 +34,7 @@ import java.util.List;
 
 /**
  * jME3 wireframe 可视化 + 玩家化身碰撞验证：
- * 44 图 wireframe + FieldMap 坐标点 + DB spawn box；WASD 控制化身，服务端 CollisionMesh
+ * 63 图 wireframe + fields.json 坐标点 + DB spawn box；
  * 按 20FPS tick 结算移动，档位 1~100（EU 公式）调步长，人工验证碰撞与 collision.ts 一致。
  *
  * 运行：
@@ -44,9 +47,9 @@ public class MapWireframeApp extends SimpleApplication {
 
     private final String smdRoot;
 
-    private final SmdMapData[] mapData = new SmdMapData[FieldMap.values().length];
+    private final SmdMapData[] mapData = new SmdMapData[FieldCatalog.get().maxId() + 1];
     /** 每图碰撞网格（懒建） */
-    private final CollisionMesh[] collisionMesh = new CollisionMesh[FieldMap.values().length];
+    private final CollisionMesh[] collisionMesh = new CollisionMesh[FieldCatalog.get().maxId() + 1];
 
     /** T 键调试：高亮每帧参与检测的三角形（按图分色） */
     private boolean trisDebugOn = false;
@@ -91,10 +94,11 @@ public class MapWireframeApp extends SimpleApplication {
         buildHud();
         initInput();
 
-        // 玩家起点：village-2 (FieldMap FIELD_3, mapId=3) 出生点
-        FieldMap v2 = FieldMap.values()[3];
+        // 玩家起点：village-2 (field id=3) 出生点（fields.json）
+        FieldInfo v2 = FieldCatalog.get().get(3);
         SmdMapData d3 = mapData[3];
-        double[] sp = v2.startPoints != null && v2.startPoints.length > 0 ? toDouble(v2.startPoints[0]) : toDouble(v2.center);
+        java.util.List<int[]> pts = v2.getStartPoints();
+        double[] sp = pts != null && !pts.isEmpty() ? toDouble(pts.get(0)) : toDouble(v2.getCenter());
         double sx = sp[0], sz = sp[1];
         double sy = groundHeight(d3, (int) sx, (int) sz);
 
@@ -120,17 +124,17 @@ public class MapWireframeApp extends SimpleApplication {
 
     private void loadAllMaps() {
         int loaded = 0;
-        for (FieldMap fm : FieldMap.values()) {
-            int mapId = fm.ordinal();
-            Path file = Path.of(smdRoot, "field", fm.smd);
+        for (FieldInfo fm : FieldCatalog.get().list()) {
+            int mapId = fm.getId();
+            Path file = Path.of(smdRoot, "field", fm.getModel());
             if (!Files.exists(file)) {
-                System.out.println("skip (no file): map" + mapId + " " + fm.smd);
+                System.out.println("skip (no file): map" + mapId + " " + fm.getModel());
                 continue;
             }
             try {
                 SmdMapData data = SmdMapLoader.load(file);
                 if (data.nFace <= 0) {
-                    System.out.println("skip (empty): map" + mapId + " " + fm.smd);
+                    System.out.println("skip (empty): map" + mapId + " " + fm.getModel());
                     continue;
                 }
                 mapData[mapId] = data;
@@ -143,13 +147,13 @@ public class MapWireframeApp extends SimpleApplication {
                 maps.attachChild(markers);
 
                 loaded++;
-                System.out.println("map" + mapId + " " + fm.smd
+                System.out.println("map" + mapId + " " + fm.getModel()
                     + " verts=" + data.nVertex + " solidFaces=" + solidFaceCount(data));
             } catch (Exception e) {
-                System.out.println("error map" + mapId + " " + fm.smd + ": " + e);
+                System.out.println("error map" + mapId + " " + fm.getModel() + ": " + e);
             }
         }
-        System.out.println("Loaded " + loaded + "/" + FieldMap.values().length + " maps");
+        System.out.println("Loaded " + loaded + "/" + FieldCatalog.get().list().size() + " maps");
     }
 
     private static double[] toDouble(int[] a) {
@@ -513,23 +517,23 @@ public class MapWireframeApp extends SimpleApplication {
         return g;
     }
 
-    private Node buildFieldMapMarkers(FieldMap fm, SmdMapData data) {
-        Node n = new Node("markers" + fm.ordinal());
+    private Node buildFieldMapMarkers(FieldInfo fm, SmdMapData data) {
+        Node n = new Node("markers" + fm.getId());
         float r = 120f;
         MarkerStyle center = marker(ColorRGBA.Yellow, r);
         MarkerStyle start = marker(ColorRGBA.Green, r);
         MarkerStyle gate = marker(ColorRGBA.Red, r);
         MarkerStyle warp = marker(ColorRGBA.Magenta, r);
 
-        if (fm.center != null) n.attachChild(makeMarker(center, fm.center[0], fm.center[1], data));
-        if (fm.startPoints != null) {
-            for (int[] p : fm.startPoints) n.attachChild(makeMarker(start, p[0], p[1], data));
+        if (fm.getCenter() != null) n.attachChild(makeMarker(center, fm.getCenter()[0], fm.getCenter()[1], data));
+        if (fm.getStartPoints() != null) {
+            for (int[] p : fm.getStartPoints()) n.attachChild(makeMarker(start, p[0], p[1], data));
         }
-        if (fm.gates != null) {
-            for (FieldMap.Gate g : fm.gates) n.attachChild(makeMarker(gate, g.x, g.z, data));
+        if (fm.getFieldGates() != null) {
+            for (FieldGate g : fm.getFieldGates()) n.attachChild(makeMarker(gate, g.getX(), g.getZ(), data));
         }
-        if (fm.warpGates != null) {
-            for (FieldMap.WarpGate w : fm.warpGates) n.attachChild(makeMarker(warp, w.x, w.z, data));
+        if (fm.getWarpGates() != null) {
+            for (WarpGate w : fm.getWarpGates()) n.attachChild(makeMarker(warp, w.getX(), w.getZ(), data));
         }
         return n;
     }

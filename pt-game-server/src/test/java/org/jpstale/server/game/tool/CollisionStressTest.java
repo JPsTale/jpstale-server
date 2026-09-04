@@ -1,7 +1,8 @@
 package org.jpstale.server.game.tool;
 
 import org.jpstale.assets.smd.CollisionMesh;
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.MapMesh;
 
 import java.io.File;
@@ -45,13 +46,13 @@ public class CollisionStressTest {
         int ticks = args.length > 1 ? Integer.parseInt(args[1]) : 200;
 
         List<MapMesh> maps = new ArrayList<>();
-        for (FieldMap fm : FieldMap.values()) {
-            File f = new File(root, "field/" + fm.smd);
+        for (FieldInfo fm : FieldCatalog.get().list()) {
+            File f = new File(root, "field/" + fm.getModel());
             if (!f.exists()) continue;
             MapMesh mm = MapMesh.load(f);
             if (mm != null) maps.add(mm);
         }
-        System.out.println("预加载碰撞图: " + maps.size() + "/" + FieldMap.values().length);
+        System.out.println("预加载碰撞图: " + maps.size() + "/" + FieldCatalog.get().list().size());
         System.out.println("\n== 每图 " + perMap + " 怪 ==");
         System.out.println("== walk=" + WALK_STEP + " (无CCD) / run=" + RUN_STEP + " (CCD) ==");
         System.out.println("== 20FPS => 每 tick 预算 50ms；i%5 分片 => 每 tick 处理 1/5 怪 ==");

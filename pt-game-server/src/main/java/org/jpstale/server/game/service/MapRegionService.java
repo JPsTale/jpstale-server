@@ -2,21 +2,24 @@ package org.jpstale.server.game.service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
+import org.jpstale.server.game.model.FieldInfo.FieldGate;
 import org.jpstale.server.game.model.MapMesh;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.util.LinkedHashSet;
 
 /**
  * 地图区域服务。
  * <p>
- * 以 C++ InitField() 顺序为权威（FieldMap 枚举硬编码 44 张地图），
+ * 地图定义来源 {@link FieldCatalog}（fields/fields.json，EU MapGame.cpp 生成，63 张）。
  * 启动时用 {@link MapMesh}（SmdMapLoader）加载 .smd 碰撞网格。
  * <p>
  * 坐标域：world (x, y, z) = (rawX/256, rawY/256, -rawZ/256)，北正，double。
- * 与 FieldMap/DB spawn/玩家位置/碰撞全部同域，无任何翻转/交换补丁。
+ * 与 catalog/DB spawn/玩家位置/碰撞全部同域，无任何翻转/交换补丁。
  */
 @Slf4j
 @Service
@@ -31,14 +34,17 @@ public class MapRegionService {
     private String smdRoot;
 
     /** mapId -> 地图网格（一次性读入长期驻留） */
-    private final MapMesh[] meshes = new MapMesh[FieldMap.values().length];
+    private MapMesh[] meshes = new MapMesh[0];
 
     @PostConstruct
     public void init() {
+        FieldCatalog catalog = FieldCatalog.get();
+        int maxId = catalog.maxId();
+        meshes = new MapMesh[maxId + 1];
         int loaded = 0;
-        for (FieldMap map : FieldMap.values()) {
-            MapMesh mesh = MapMesh.load(new File(smdRoot, "field/" + map.smd));
-            meshes[map.ordinal()] = mesh;
+        for (FieldInfo map : catalog.list()) {
+            MapMesh mesh = MapMesh.load(new File(smdRoot, "field/" + map.getModel()));
+            meshes[map.getId()] = mesh;
             if (mesh != null) loaded++;
         }
         log.info("MapRegionService loaded {} / {} meshes from smd", loaded, meshes.length);
@@ -50,6 +56,14 @@ public class MapRegionService {
             return null;
         }
         return meshes[mapId];
+    }
+
+    private FieldInfo map(int mapId) {
+        FieldCatalog catalog = FieldCatalog.get();
+        if (mapId < 0 || mapId > catalog.maxId()) {
+            return null;
+        }
+        return catalog.get(mapId);
     }
 
     /**
@@ -64,7 +78,7 @@ public class MapRegionService {
     }
 
     /**
-     * 地图是否存在（枚举范围内且有网格）
+     * 地图是否存在（目录范围内且有网格）
      */
     public boolean isMap(int mapId) {
         return mesh(mapId) != null;
@@ -115,17 +129,21 @@ public class MapRegionService {
     }
 
     /**
-     * 当前图 + 相邻图（由 FieldGate 门目标推导），供前端绘制 mesh 背景。
+     * 当前图 + 相邻图（由 fieldGates 门目标推导），供前端绘制 mesh 背景。
      */
     public int[] getNeighborMaps(int mapId) {
-        if (mapId < 0 || mapId >= FieldMap.values().length) {
+        FieldInfo entry = map(mapId);
+        if (entry == null) {
             return new int[0];
         }
-        java.util.LinkedHashSet<Integer> set = new java.util.LinkedHashSet<>();
+        FieldCatalog catalog = FieldCatalog.get();
+        LinkedHashSet<Integer> set = new LinkedHashSet<>();
         set.add(mapId);
-        for (FieldMap.Gate gate : FieldMap.values()[mapId].gates) {
-            if (gate.to >= 0 && gate.to < FieldMap.values().length) {
-                set.add(gate.to);
+        if (entry.getFieldGates() != null) {
+            for (FieldGate gate : entry.getFieldGates()) {
+                if (catalog.has(gate.getTo())) {
+                    set.add(gate.getTo());
+                }
             }
         }
         return set.stream().mapToInt(Integer::intValue).toArray();
@@ -144,19 +162,19 @@ public class MapRegionService {
      * @return 若触发门，返回目标地图 id；否则返回 -1
      */
     public int findFieldGate(int mapId, double x, double z) {
-        if (mapId < 0 || mapId >= FieldMap.values().length) {
+        FieldInfo entry = map(mapId);
+        if (entry == null || entry.getFieldGates() == null) {
             return -1;
         }
-        FieldMap map = FieldMap.values()[mapId];
-        for (FieldMap.Gate gate : map.gates) {
-            double dx = x - gate.x;
-            double dz = z - gate.z;
+        for (FieldGate gate : entry.getFieldGates()) {
+            double dx = x - gate.getX();
+            double dz = z - gate.getZ();
             if (Math.abs(dx) > GATE_MAX_AXIS || Math.abs(dz) > GATE_MAX_AXIS) {
                 continue;
             }
             double dist = dx * dx + dz * dz;
             if (dist < (double) GATE_CONNECT_DIST * GATE_CONNECT_DIST) {
-                return gate.to;
+                return gate.getTo();
             }
         }
         return -1;
@@ -168,31 +186,33 @@ public class MapRegionService {
      * @return [x, z]，地图不存在返回 null
      */
     public int[] getStartPoint(int mapId, double x, double z) {
-        if (mapId < 0 || mapId >= FieldMap.values().length) {
+        FieldInfo entry = map(mapId);
+        if (entry == null) {
             return null;
         }
-        FieldMap map = FieldMap.values()[mapId];
-        if (map.startPoints == null || map.startPoints.length == 0) {
-            return map.center;
+        java.util.List<int[]> points = entry.getStartPoints();
+        if (points == null || points.isEmpty()) {
+            return entry.getCenter();
         }
         int best = 0;
         double bestDist = Double.MAX_VALUE;
-        for (int i = 0; i < map.startPoints.length; i++) {
-            double dx = map.startPoints[i][0] - x;
-            double dz = map.startPoints[i][1] - z;
+        for (int i = 0; i < points.size(); i++) {
+            int[] p = points.get(i);
+            double dx = p[0] - x;
+            double dz = p[1] - z;
             double dist = dx * dx + dz * dz;
             if (dist < bestDist) {
                 bestDist = dist;
                 best = i;
             }
         }
-        return map.startPoints[best];
+        return points.get(best);
     }
 
     /**
-     * 地图数量
+     * 地图数量（目录内定义数）
      */
     public int size() {
-        return FieldMap.values().length;
+        return FieldCatalog.get().list().size();
     }
 }

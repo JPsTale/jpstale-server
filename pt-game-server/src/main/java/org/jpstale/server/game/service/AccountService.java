@@ -10,7 +10,8 @@ import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.ItemMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
@@ -593,22 +594,23 @@ public class AccountService {
         session.setLevel(character.getLevel() != null ? character.getLevel() : 1);
         sessionManager.bindCharacterId(session.getChannel(), characterId, character.getName());
 
-        // 出生地图/位置（权威：FieldMap.startPoints 是玩家出生点，非刷怪点）
+        // 出生地图/位置（权威：fields.json startPoints 是玩家出生点，非刷怪点）
         int mapId = character.getLastStage() != null ? character.getLastStage() : 1;
         session.setCurrentMapId(mapId);
         float sx = 0, sz = 0;
-        if (mapId >= 0 && mapId < FieldMap.values().length) {
-            FieldMap fm = FieldMap.values()[mapId];
-            if (fm.startPoints != null && fm.startPoints.length > 0) {
-                int idx = random.nextInt(fm.startPoints.length);
-                sx = fm.startPoints[idx][0];
-                sz = fm.startPoints[idx][1];
-            } else if (fm.center != null) {
-                log.warn("当前地图没有start point:{}", fm);
-                sx = fm.center[0];
-                sz = fm.center[1];
+        FieldInfo fm = FieldCatalog.get().get(mapId);
+        if (fm != null) {
+            java.util.List<int[]> pts = fm.getStartPoints();
+            if (pts != null && !pts.isEmpty()) {
+                int idx = random.nextInt(pts.size());
+                sx = pts.get(idx)[0];
+                sz = pts.get(idx)[1];
+            } else if (fm.getCenter() != null) {
+                log.warn("当前地图没有start point:{}", mapId);
+                sx = fm.getCenter()[0];
+                sz = fm.getCenter()[1];
             } else {
-                log.warn("当前地图没有startPoint:{}", fm);
+                log.warn("当前地图没有startPoint:{}", mapId);
             }
         }
         double sy = mapRegionService.getHeight(mapId, sx, sz);

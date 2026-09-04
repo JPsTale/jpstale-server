@@ -2,7 +2,8 @@ package org.jpstale.server.game.collision;
 
 import org.jpstale.assets.smd.CollisionMesh;
 
-import org.jpstale.server.game.model.FieldMap;
+import org.jpstale.server.game.model.FieldCatalog;
+import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.MapMesh;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -27,7 +28,7 @@ public class CoordinateParityTest {
     @BeforeClass
     public static void load() {
         String root = System.getProperty("pt.smd.root", "E:\\JPsTale\\client");
-        File f = new File(root, "field/" + FieldMap.FIELD_2.smd);
+        File f = new File(root, "field/" + FieldCatalog.get().get(2).getModel());
         Assume.assumeTrue("smd not found: " + f, f.exists());
         mapMesh = MapMesh.load(f);
         Assume.assumeNotNull(mapMesh);
