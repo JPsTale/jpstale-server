@@ -1,9 +1,11 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.dao.gamedb.mapper.ItemListMapper;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
+import org.jpstale.dao.userdb.mapper.ItemMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.game.model.FieldMap;
 import org.jpstale.server.game.network.GamePacketHandler;
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Random;
 import java.util.regex.Pattern;
 
 /**
@@ -51,10 +54,12 @@ public class AccountService {
     private PlayerService playerService;
 
     @Autowired
-    private org.jpstale.dao.userdb.mapper.ItemMapper itemMapper;
+    private ItemMapper itemMapper;
 
     @Autowired
-    private org.jpstale.dao.gamedb.mapper.ItemListMapper itemListMapper;
+    private ItemListMapper itemListMapper;
+
+    private Random random = new Random();
 
     /**
      * 根据账号名查找用户
@@ -592,11 +597,15 @@ public class AccountService {
         if (mapId >= 0 && mapId < FieldMap.values().length) {
             FieldMap fm = FieldMap.values()[mapId];
             if (fm.startPoints != null && fm.startPoints.length > 0) {
-                sx = fm.startPoints[0][0];
-                sz = fm.startPoints[0][1];
+                int idx = random.nextInt(fm.startPoints.length);
+                sx = fm.startPoints[idx][0];
+                sz = fm.startPoints[idx][1];
             } else if (fm.center != null) {
+                log.warn("当前地图没有start point:{}", fm);
                 sx = fm.center[0];
                 sz = fm.center[1];
+            } else {
+                log.warn("当前地图没有startPoint:{}", fm);
             }
         }
         session.setX(sx);

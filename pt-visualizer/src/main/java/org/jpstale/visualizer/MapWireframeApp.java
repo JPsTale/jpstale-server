@@ -21,6 +21,7 @@ import com.jme3.util.BufferUtils;
 import org.jpstale.assets.smd.CollisionMesh;
 import org.jpstale.assets.smd.SmdMapData;
 import org.jpstale.assets.smd.SmdMapLoader;
+import org.jpstale.server.game.model.FieldMap;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
