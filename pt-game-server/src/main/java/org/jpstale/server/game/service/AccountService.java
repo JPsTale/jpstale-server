@@ -1,8 +1,11 @@
 package org.jpstale.server.game.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.dao.gamedb.entity.ItemList;
 import org.jpstale.dao.gamedb.mapper.ItemListMapper;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
+import org.jpstale.dao.userdb.entity.Item;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.ItemMapper;
@@ -464,20 +467,20 @@ public class AccountService {
      * 优先按 itemlist_id（唯一主键）精确匹配；旧数据无 itemlist_id 时回退到
      * idcode + QuestID=0 + 最小 ID（对齐原版 CreateItemMemoryTable 规则）。
      */
-    private org.jpstale.dao.gamedb.entity.ItemList findItemDef(org.jpstale.dao.userdb.entity.Item item) {
+    private ItemList findItemDef(Item item) {
         if (item.getItemListId() != null) {
             return itemListMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.gamedb.entity.ItemList>()
-                    .eq(org.jpstale.dao.gamedb.entity.ItemList::getId, item.getItemListId()));
+                new LambdaQueryWrapper<ItemList>()
+                    .eq(ItemList::getId, item.getItemListId()));
         }
         if (item.getItemCode() == null) {
             return null;
         }
-        List<org.jpstale.dao.gamedb.entity.ItemList> defs = itemListMapper.selectList(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.gamedb.entity.ItemList>()
-                .eq(org.jpstale.dao.gamedb.entity.ItemList::getIdCode, item.getItemCode())
-                .eq(org.jpstale.dao.gamedb.entity.ItemList::getQuestId, 0)
-                .orderByAsc(org.jpstale.dao.gamedb.entity.ItemList::getId));
+        List<ItemList> defs = itemListMapper.selectList(
+            new LambdaQueryWrapper<ItemList>()
+                .eq(ItemList::getIdCode, item.getItemCode())
+                .eq(ItemList::getQuestId, 0)
+                .orderByAsc(ItemList::getId));
         return (defs == null || defs.isEmpty()) ? null : defs.get(0);
     }
 
@@ -500,7 +503,7 @@ public class AccountService {
 
         String name = request.getName();
         int classId = request.getClassId();
-        if (name == null || !NAME_PATTERN.matcher(name).matches()) {
+        if (!NAME_PATTERN.matcher(name).matches()) {
             session.send(buildErrorResponse(CommonProto.ErrorCode.INVALID_NAME, "Invalid character name"));
             return;
         }
@@ -608,16 +611,17 @@ public class AccountService {
                 log.warn("当前地图没有startPoint:{}", fm);
             }
         }
+        double sy = mapRegionService.getHeight(mapId, sx, sz);
         session.setX(sx);
         session.setZ(sz);
-        session.setY(mapRegionService.getHeight(mapId, sx, sz));
+        session.setY(sy);
 
         // 发送进入游戏：出生地图/位置 + 完整外观 + 出生朝向（客户端据此进图渲染自机）
         MessageProto.S2C_EnterGame.Builder enterGame = MessageProto.S2C_EnterGame.newBuilder()
             .setPlayerId(characterId)
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder()
-                .setX(sx).setY((float) session.getY()).setZ(sz))
+                .setX(sx).setY((float) sy).setZ(sz))
             .setRotation(CommonProto.Rotation.newBuilder()
                 .setX(0).setY((float) -Math.PI).setZ(0))
             .setAppearance(buildAppearance(character));
@@ -626,8 +630,8 @@ public class AccountService {
             .setEnterGame(enterGame)
             .build());
 
-        log.info("Character selected: {} ({}) for account: {}, spawn at map {} ({}, {})",
-            character.getName(), characterId, accountName, mapId, sx, sz);
+        log.info("Character selected: {} ({}) for account: {}, spawn at map {} ({}, {}, {})",
+            character.getName(), characterId, accountName, mapId, sx, sy, sz);
     }
 
     /**

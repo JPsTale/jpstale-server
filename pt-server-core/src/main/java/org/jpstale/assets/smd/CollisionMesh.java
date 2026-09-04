@@ -1,7 +1,5 @@
 package org.jpstale.assets.smd;
 
-import org.jpstale.assets.smd.SmdMapData;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

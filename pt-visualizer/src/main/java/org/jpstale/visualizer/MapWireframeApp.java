@@ -10,10 +10,7 @@ import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.queue.RenderQueue;
-import com.jme3.scene.Geometry;
-import com.jme3.scene.Mesh;
-import com.jme3.scene.Node;
-import com.jme3.scene.VertexBuffer;
+import com.jme3.scene.*;
 import com.jme3.scene.shape.Box;
 import com.jme3.scene.shape.Sphere;
 import com.jme3.system.AppSettings;
@@ -29,6 +26,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * jME3 wireframe 可视化 + 玩家化身碰撞验证：
@@ -85,7 +84,7 @@ public class MapWireframeApp extends SimpleApplication {
         loadAllMaps();
 
         maps.attachChild(trisDebugNode);
-        trisDebugNode.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
+        trisDebugNode.setCullHint(Spatial.CullHint.Always);
 
         loadDbSpawns();
 
@@ -256,7 +255,7 @@ public class MapWireframeApp extends SimpleApplication {
         for (int i = 0; i < collisionMesh.length; i++) {
             CollisionMesh cm = collisionMesh[i];
             if (cm == null) continue;
-            java.util.List<CollisionMesh.Tri> tris = cm.nearbyTriangles(px, pz);
+            List<CollisionMesh.Tri> tris = cm.nearbyTriangles(px, pz);
             sb.append(" m").append(i).append("=").append(tris.size());
             if (tris.isEmpty()) continue;
             Geometry g = buildTrisSolidGeometry(tris, TRIS_COLORS[i % TRIS_COLORS.length]);
@@ -480,10 +479,9 @@ public class MapWireframeApp extends SimpleApplication {
         int[] idx = d.solidFaceIndices();
 
         int[] loc = new int[d.nVertex];
-        java.util.Arrays.fill(loc, -1);
+        Arrays.fill(loc, -1);
         int vSize = 0;
-        for (int i = 0; i < idx.length; i++) {
-            int v = idx[i];
+        for (int v : idx) {
             if (loc[v] == -1) loc[v] = vSize++;
         }
         float[] pos = new float[vSize * 3];
