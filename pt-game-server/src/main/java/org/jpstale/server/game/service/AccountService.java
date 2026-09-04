@@ -617,9 +617,9 @@ public class AccountService {
             .setPlayerId(characterId)
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder()
-                .setX(sx).setY((float) session.getY()).setZ(sz))
+                .setX(sx).setY((float) session.getY()).setZ(-sz))
             .setRotation(CommonProto.Rotation.newBuilder()
-                .setX(0).setY(0).setZ(0))
+                .setX(0).setY((float) -Math.PI).setZ(0))
             .setAppearance(buildAppearance(character));
 
         session.send(MessageProto.ServerMessage.newBuilder()
