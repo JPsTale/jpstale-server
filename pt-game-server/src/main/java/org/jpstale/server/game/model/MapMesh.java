@@ -38,11 +38,13 @@ public class MapMesh {
     /** 从 .smd 文件加载（world double）。 */
     public static MapMesh load(File file) {
         if (!file.exists()) {
+            log.info("MapMesh could not be loaded for {}", file.getAbsolutePath());
             return null;
         }
         try {
             SmdMapData d = SmdMapLoader.load(file.toPath());
             if (d.nVertex <= 0 || d.nFace <= 0) {
+                log.info("MapMesh could not be loaded for {}", file.getAbsolutePath());
                 return null;
             }
             return new MapMesh(d);
