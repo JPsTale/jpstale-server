@@ -26,7 +26,7 @@ public class RenderMapPng {
     private static final Color LINE = new Color(0x4a5a4e);
 
     public static void main(String[] args) throws Exception {
-        String smdRoot = args.length > 0 ? args[0] : "/data/PristonTale/exm/run";
+        String smdRoot = args.length > 0 ? args[0] : "/data/PristonTale/apps/client";
         String outDir = args.length > 1 ? args[1]
             : "/data/PristonTale/src/jpstale-server/pt-web-server/src/main/resources/static/spawn-debug/maps";
         File dir = new File(outDir);

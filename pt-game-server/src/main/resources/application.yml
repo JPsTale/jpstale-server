@@ -31,4 +31,4 @@ pt:
     external-ip: ${PT_EXTERNAL_IP:192.168.31.10}
     external-port: ${PT_EXTERNAL_PORT:10007}
   field:
-    smd-root: ${PT_SMD_ROOT:/data/PristonTale/exm/run}
+    smd-root: ${PT_SMD_ROOT:.}

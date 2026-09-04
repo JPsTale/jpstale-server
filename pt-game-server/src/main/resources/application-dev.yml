@@ -12,3 +12,7 @@ spring:
           driver-class-name: org.postgresql.Driver
   redis:
     host: 192.168.31.10
+
+pt:
+  field:
+    smd-root: /data/PristonTale/apps/client

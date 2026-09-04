@@ -27,7 +27,7 @@ public class MapRegionService {
     /** 门最大轴向距离（world 单位） */
     private static final int GATE_MAX_AXIS = 16384;
 
-    @Value("${pt.field.smd-root:/data/PristonTale/client}")
+    @Value("${pt.field.smd-root}")
     private String smdRoot;
 
     /** mapId -> 地图网格（一次性读入长期驻留） */
