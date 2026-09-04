@@ -45,7 +45,10 @@ public class MapRegionService {
     }
 
     private MapMesh mesh(int mapId) {
-        if (mapId < 0 || mapId >= meshes.length) return null;
+        if (mapId < 0 || mapId >= meshes.length) {
+            log.info("MapRegionService mapId {} out of bounds", mapId);
+            return null;
+        }
         return meshes[mapId];
     }
 
@@ -54,7 +57,9 @@ public class MapRegionService {
      */
     public double[] getAabb(int mapId) {
         MapMesh m = mesh(mapId);
-        if (m == null) return null;
+        if (m == null) {
+            return null;
+        }
         return new double[]{m.getMinX(), m.getMaxX(), m.getMinZ(), m.getMaxZ()};
     }
 
@@ -102,7 +107,10 @@ public class MapRegionService {
      */
     public double getHeight(int mapId, double x, double z) {
         MapMesh m = mesh(mapId);
-        if (m == null) return 0;
+        if (m == null) {
+            log.warn("map not found: {}", mapId);
+            return 0;
+        }
         return m.getHeight(x, z);
     }
 
