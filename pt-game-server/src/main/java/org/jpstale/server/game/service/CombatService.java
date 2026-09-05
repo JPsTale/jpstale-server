@@ -215,9 +215,11 @@ public class CombatService {
         session.setX(x);
         session.setZ(z);
         if (session.getCurrentMapId() != mapId) {
+            aoiManager.onPlayerLeave(session);
             aoiManager.removePlayer(session);
             session.setCurrentMapId(mapId);
             aoiManager.addPlayer(session, x, z);
+            aoiManager.onPlayerEnter(session);
         }
         log.info("Player {} died, respawn to map {} ({},{}) hp {}", player.getName(), mapId, x, z, half);
         // 通知前端：重新进入出生地图（半血）

@@ -137,6 +137,8 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
                 // 断线重连兜底：READER_IDLE 未触发（如客户端直接断网）时，生成 token 供 5 分钟内重连
                 reconnectionManager.generateReconnectToken(session);
             }
+            // 广播 Disappear 给视野内玩家（登出/断线离开世界）
+            aoiManager.onPlayerLeave(session);
             aoiManager.removePlayer(session);
             // 清理玩家缓存（重登时重新权威加载）
             if (session.getCharacterId() != null) {

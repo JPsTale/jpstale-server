@@ -156,9 +156,9 @@ message S2C_CreateCharacterResult {
 // ==================== 玩家消息 (200-299) ====================
 
 message C2S_PlayerMove {
-  Position new_position = 1;
-  int64 timestamp = 2;
-  float speed = 3;
+  float angle = 1;   // 移动方向弧度（0=+Z 北，atan2(dx,dz)）
+  int32 mode = 2;    // 0=IDLE 1=WALK 2=RUN（PlayerMoveMode）
+  int64 timestamp = 3;
 }
 
 message C2S_PlayerAction {
@@ -196,8 +196,10 @@ message S2C_PlayerDisappear {
 
 message S2C_PlayerMove {
   int64 player_id = 1;
-  Position position = 2;
-  int64 timestamp = 3;
+  Position position = 2;   // 权威位置 world float
+  float angle = 3;         // 朝向弧度（0=+Z 北）
+  int32 anim_state = 4;    // 动画状态值（客户端 STATE 枚举值: 0x0040 STAND / 0x0050 WALK / 0x0060 RUN）
+  int64 timestamp = 5;
 }
 
 // 进入游戏：选角色成功后服务端主动下发（对齐原版 RECORDDATA 进图语义）。

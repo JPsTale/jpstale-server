@@ -1,8 +1,10 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -34,6 +36,31 @@ public class AOIManager {
 
     @Autowired
     private SessionManager sessionManager;
+
+    @Autowired
+    private PlayerService playerService;
+
+    /**
+     * 构建完整的外观快照 Appear（Phase 3：class/level/position/hp 全量下发，客户端据此渲染）。
+     */
+    private MessageProto.S2C_PlayerAppear buildAppear(PlayerSession session) {
+        MessageProto.S2C_PlayerAppear.Builder b = MessageProto.S2C_PlayerAppear.newBuilder()
+            .setPlayerId(session.getCharacterId())
+            .setName(session.getCharacterName() != null ? session.getCharacterName() : "")
+            .setLevel(session.getLevel())
+            .setHp(session.getHp())
+            .setMaxHp(session.getMaxHp())
+            .setPosition(CommonProto.Position.newBuilder()
+                .setX((float) session.getX())
+                .setY((float) session.getY())
+                .setZ((float) session.getZ())
+                .build());
+        Player p = playerService.getPlayer(session);
+        if (p != null) {
+            b.setClassId(p.getJob());
+        }
+        return b.build();
+    }
 
     // X坐标 → 玩家ID → 玩家会话
     private final ConcurrentSkipListMap<Integer, ConcurrentHashMap<Long, PlayerSession>> xMap 
@@ -144,6 +171,40 @@ public class AOIManager {
     }
 
     /**
+     * 玩家进入（进游戏 / 切换地图）后的一次性视野广播：
+     * 向新玩家下发视野内现有玩家 Appear，同时向现有玩家下发新玩家 Appear。
+     * 坐标系统一为世界坐标，天然支持跨图互见。
+     */
+    public void onPlayerEnter(PlayerSession session) {
+        Long playerId = session.getCharacterId();
+        if (playerId == null) return;
+
+        MessageProto.S2C_PlayerAppear selfAppear = buildAppear(session);
+        for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ())) {
+            if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
+            nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
+            nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
+        }
+    }
+
+    /**
+     * 玩家离开（登出/断线/回选角）时向视野内玩家广播 Disappear。
+     * 注意：切图（switchMap）不应调用 —— 无缝世界坐标不变，旧图邻居仍相邻可见。
+     */
+    public void onPlayerLeave(PlayerSession session) {
+        Long playerId = session.getCharacterId();
+        if (playerId == null) return;
+
+        MessageProto.S2C_PlayerDisappear msg = MessageProto.S2C_PlayerDisappear.newBuilder()
+            .setPlayerId(playerId)
+            .build();
+        for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ())) {
+            if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
+            nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
+        }
+    }
+
+    /**
      * 检查进出视野的实体
      * 双阈值：出现用 VIEW_RANGE（1086，进入半径），消失用 VIEW_RANGE_DISCONNECT（1810，
      * 离开半径）→ 视野边缘抖动不触发 Disappear→Appear 反复。
@@ -163,20 +224,14 @@ public class AOIManager {
         // 新进入视野的玩家 → 发送 Appear
         for (PlayerSession session : newVisible) {
             if (!oldVisible.contains(session) && session.getCharacterId() != movedPlayer.getCharacterId()) {
-                // 通知移动玩家：新玩家出现
+                // 通知移动玩家：新玩家出现（全量快照）
                 movedPlayer.send(MessageProto.ServerMessage.newBuilder()
-                    .setPlayerAppear(MessageProto.S2C_PlayerAppear.newBuilder()
-                        .setPlayerId(session.getCharacterId())
-                        .setName(session.getCharacterName() != null ? session.getCharacterName() : "")
-                        .build())
+                    .setPlayerAppear(buildAppear(session))
                     .build());
 
-                // 通知新玩家：移动玩家出现
+                // 通知新玩家：移动玩家出现（全量快照）
                 session.send(MessageProto.ServerMessage.newBuilder()
-                    .setPlayerAppear(MessageProto.S2C_PlayerAppear.newBuilder()
-                        .setPlayerId(movedPlayer.getCharacterId())
-                        .setName(movedPlayer.getCharacterName() != null ? movedPlayer.getCharacterName() : "")
-                        .build())
+                    .setPlayerAppear(buildAppear(movedPlayer))
                     .build());
             }
         }

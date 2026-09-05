@@ -48,4 +48,20 @@ public enum PlayerMoveState {
     public boolean canMove() {
         return this == IDLE || this == WALK || this == RUN;
     }
+
+    /**
+     * 从 C2S_PlayerMove.mode 解析移动状态
+     * <ul>
+     *   <li>0 → IDLE</li>
+     *   <li>1 → WALK</li>
+     *   <li>2 → RUN</li>
+     * </ul>
+     */
+    public static PlayerMoveState fromMode(int mode) {
+        return switch (mode) {
+            case 1 -> WALK;
+            case 2 -> RUN;
+            default -> IDLE;
+        };
+    }
 }

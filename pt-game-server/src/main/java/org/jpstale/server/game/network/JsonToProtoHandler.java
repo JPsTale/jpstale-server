@@ -184,6 +184,7 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
             case "game.leave" -> {
                 if (session != null) {
                     // 离开游戏 → 回到"已选角"阶段（保留登录态），移出 AOI
+                    aoiManager.onPlayerLeave(session);
                     aoiManager.removePlayer(session);
                     session.setState(SessionState.CHARACTER_SELECTED);
                 }
@@ -305,13 +306,11 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
                         .build();
                 }
                 case "game.move" -> {
+                    // 移动意图（新协议：angle+mode，客户端不再上报位置）
                     return MessageProto.ClientMessage.newBuilder()
                         .setPlayerMove(MessageProto.C2S_PlayerMove.newBuilder()
-                            .setNewPosition(CommonProto.Position.newBuilder()
-                                .setX((float) data.path("x").asDouble(0))
-                                .setY((float) data.path("y").asDouble(0))
-                                .setZ((float) data.path("z").asDouble(0))
-                                .build())
+                            .setAngle((float) data.path("angle").asDouble(0))
+                            .setMode(data.path("mode").asInt(0))
                             .build())
                         .build();
                 }
@@ -562,6 +561,8 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
 
         // 重新加入 AOI
         aoiManager.addPlayer(session, pending.x(), pending.z());
+        // 重新进图：向视野内现有玩家 + 自己广播外观快照
+        aoiManager.onPlayerEnter(session);
 
         // 通知客户端重连成功（回到游戏）
         sendJson(ctx, Map.of(
@@ -619,6 +620,9 @@ public class JsonToProtoHandler extends ChannelDuplexHandler {
 
         aoiManager.addPlayer(session, session.getX(), session.getZ());
         session.setState(SessionState.PLAYING);
+
+        // 进图完成后：向视野内现有玩家 + 自己广播外观快照（跨图互见之进入侧）
+        aoiManager.onPlayerEnter(session);
 
         // 权威加载角色属性/装备，并把真实 HP/MP/等级同步到会话（供快照下发）
         org.jpstale.server.game.model.Player player = playerService.getOrCreate(session);

@@ -11,6 +11,8 @@ import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.assets.smd.CollisionMesh;
 import org.jpstale.server.game.collision.CollisionSystem;
+import org.jpstale.server.proto.base.CommonProto;
+import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -44,9 +46,6 @@ public class MovementService {
 
     @Autowired
     private PlayerService playerService;
-
-    @Autowired
-    private PlayerStatCalculator statCalculator;
 
     /**
      * 更新怪物位置（每 tick 调用一次）
@@ -85,37 +84,101 @@ public class MovementService {
         }
     }
 
+    // ---------- EU 步长语义（对齐客户端 speedLevelToRunStep + pt-visualizer levelToStepPerTick） ----------
+    // 客户端 60fps 渲染：step_f = ((cnt*10+250)*coeff>>8)/256 world（走用 ×180 系数）。
+    // 服务端 20fps tick：step/tick = step_f × 3（保持与客户端相同的 world/s）。
+    // 弃用 PlayerStatCalculator ×256 速度链：其 runSpeed 返回 raw 单位/秒，而碰撞 move 用 world 单位 —— 会放大 256 倍。
+    private static final long EU_COEFF_RUN = 460;
+    private static final long EU_COEFF_WALK = 180;
+
+    static int moveSpeedOf(int cnt) {
+        return cnt * 10 + 250;
+    }
+
+    /** 步长（60fps 语义）：((MoveSpeed*coeff)>>8)/256 */
+    static double stepOfF(int cnt, long coeff) {
+        return ((long) moveSpeedOf(cnt) * coeff >> 8) / 256.0;
+    }
+
+    /** 20fps 每 tick 步长 = stepOfF × 3（客户端 60fps → 服务端 20fps） */
+    static double stepPerTick(int cnt, long coeff) {
+        return stepOfF(cnt, coeff) * 3.0;
+    }
+
     /**
      * 服务端权威玩家移动：每 tick 调用一次。
-     * 遍历所有在线玩家，对处于 WALK/RUN 状态者按速度+方向更新位置。
+     * 对处于 WALK/RUN 状态者按 EU 步长推进位置，碰撞受阻则不移动；
+     * 每 tick 向视野内玩家（含自己）广播权威位置 → 客户端据此阈值收敛。
+     * IDLE 玩家仅在停止瞬间广播一次（anim 切换，让视野内玩家停下），避免持续刷包。
      */
     public void tickPlayers() {
         for (PlayerSession session : sessionManager.getAllSessions()) {
             if (!session.isPlaying()) continue;
 
             PlayerMoveState state = session.getMoveState();
-            if (!state.isMoving()) continue;
+            if (state == PlayerMoveState.ATTACK || state == PlayerMoveState.DEAD) continue;
 
-            Player p = playerService.getPlayer(session);
-            if (p == null) continue;
+            if (state.isMoving()) {
+                Player p = playerService.getPlayer(session);
+                if (p == null) continue;
 
-            // 步进 = 速度(单位/秒) × tick 毫秒 / 1000
-            double speed = state.isRunning() ? statCalculator.runSpeed(p) : statCalculator.walkSpeed(p);
-            double step = speed * (GameConstants.TICK_MS / 1000.0);
-            double angle = session.getMoveAngle();
-            int mapId = session.getCurrentMapId();
+                // 步长：EU 档位 → per tick（跑 ×460 / 走 ×180）；当前档位固定用最高档 25
+                final int euCnt = 25;
+                double step = state.isRunning()
+                    ? stepPerTick(euCnt, EU_COEFF_RUN)
+                    : stepPerTick(euCnt, EU_COEFF_WALK);
+                double angle = session.getMoveAngle();
+                int mapId = session.getCurrentMapId();
 
-            CollisionMesh.MoveResult r = collisionSystem.move(mapId, session.getX(), session.getY(), session.getZ(), angle, step, 11);
-            if (r.collision) {
-                continue; // 被地形阻挡：原地不动
+                CollisionMesh.MoveResult r = collisionSystem.move(mapId, session.getX(), session.getY(), session.getZ(), angle, step, 11);
+                if (!r.collision) {
+                    session.setX(r.x);
+                    session.setY(r.y);
+                    session.setZ(r.z);
+                }
+                // 更新 AOI（collision 时 session 坐标未变，onPlayerMove 内部自动跳过同格）
+                aoiManager.onPlayerMove(session, session.getX(), session.getZ());
+
+                // 广播权威位置 + 动画（含自己）：客户端以 S2C_PlayerMove 做阈值收敛
+                broadcastMove(session);
+            } else if (session.getLastSyncedAnimState() != 0x0040) {
+                // IDLE：停止瞬间广播一次 STAND（即使坐标未变）
+                broadcastMove(session);
             }
-
-            session.setX(r.x);
-            session.setY(r.y);
-            session.setZ(r.z);
-            // 更新 AOI（怪物刷怪 proximity / 玩家互见）
-            aoiManager.onPlayerMove(session, r.x, r.z);
         }
+    }
+
+    /** 广播玩家权威位置 + 动画状态给视野内所有玩家（含自己）。 */
+    private void broadcastMove(PlayerSession session) {
+        int animState = animStateOf(session.getMoveState());
+        session.setLastSyncedAnimState(animState);
+
+        MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
+            .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
+                .setPlayerId(session.getCharacterId())
+                .setPosition(CommonProto.Position.newBuilder()
+                    .setX((float) session.getX())
+                    .setY((float) session.getY())
+                    .setZ((float) session.getZ())
+                    .build())
+                .setAngle((float) session.getMoveAngle())
+                .setAnimState(animState)
+                .setTimestamp(System.currentTimeMillis())
+                .build())
+            .build();
+
+        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(session.getX(), session.getZ())) {
+            nearbySession.send(moveMessage);
+        }
+    }
+
+    /** moveState → 客户端 STATE 动画值（STAND/WALK/RUN） */
+    private static int animStateOf(PlayerMoveState state) {
+        return switch (state) {
+            case WALK -> 0x0050;
+            case RUN -> 0x0060;
+            default -> 0x0040;
+        };
     }
 
     /**

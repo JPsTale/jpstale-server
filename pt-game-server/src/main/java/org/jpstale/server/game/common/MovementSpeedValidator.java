@@ -28,31 +28,21 @@ public class MovementSpeedValidator implements InputValidator {
     public ValidationResult validate(PlayerSession session, MessageProto.ClientMessage message) {
         MessageProto.C2S_PlayerMove move = message.getPlayerMove();
 
-        // TODO: 获取玩家上次移动时间和位置，计算实际速度
-        // 暂时简单验证位置是否有效
-        if (move.getNewPosition() == null) {
-            return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Invalid position");
+        // 新协议：客户端只上报移动意图（angle+mode），不采位置 → 无需校验 position。
+        // mode ∈ {0 IDLE, 1 WALK, 2 RUN}；angle 需为有限弧度。
+        if (move.getMode() < 0 || move.getMode() > 2) {
+            return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Invalid move mode");
         }
 
-        // 检查坐标是否在合理范围内
-        float x = move.getNewPosition().getX();
-        float y = move.getNewPosition().getY();
-        float z = move.getNewPosition().getZ();
-
-        if (Float.isNaN(x) || Float.isNaN(y) || Float.isNaN(z)) {
-            return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "NaN position");
+        float angle = move.getAngle();
+        if (Float.isNaN(angle) || Float.isInfinite(angle)) {
+            return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Invalid angle");
         }
 
-        if (Float.isInfinite(x) || Float.isInfinite(y) || Float.isInfinite(z)) {
-            return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Infinite position");
-        }
-
-        // TODO: 实现完整的速度验证逻辑
-        // 1. 获取玩家上次移动时间
-        // 2. 计算时间差
-        // 3. 计算移动距离
-        // 4. 计算速度 = 距离 / 时间
-        // 5. 检查速度是否超过最大速度 * 容差
+        // TODO: 实现基于 tick 权威位移的速度验证（防加速）
+        // 1. 记录上次意图时间/方向
+        // 2. 对比 tickPlayers 计算的理论位移
+        // 3. 检查是否超过 EU 步长上限 * 容差
 
         return ValidationResult.success();
     }

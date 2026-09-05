@@ -653,6 +653,7 @@ public class AccountService {
 
         // 移出 AOI（若在游戏中）
         if (session.isPlaying()) {
+            aoiManager.onPlayerLeave(session);
             aoiManager.removePlayer(session);
         }
 
@@ -685,6 +686,7 @@ public class AccountService {
 
         // 移出 AOI（若在游戏中）
         if (session.isPlaying()) {
+            aoiManager.onPlayerLeave(session);
             aoiManager.removePlayer(session);
         }
 

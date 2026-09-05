@@ -34,6 +34,8 @@ public class PlayerSession {
     private double moveAngle;
     /** 移动状态机（IDLE/WALK/RUN/ATTACK/DEAD） */
     private PlayerMoveState moveState = PlayerMoveState.IDLE;
+    /** 已广播的动画状态值（0x0040 STAND / 0x0050 WALK / 0x0060 RUN），-1 表示未广播过 */
+    private int lastSyncedAnimState = -1;
 
     // 玩家战斗状态（调试工具用）
     private int hp = 100;

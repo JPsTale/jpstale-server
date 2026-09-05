@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.network.GamePacketHandler;
+import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.proto.base.CommonProto;
@@ -56,59 +57,18 @@ public class WorldService {
     }
 
     /**
-     * 报文入口：玩家移动
+     * 报文入口：玩家移动意图（C2S_PlayerMove{angle, mode}）。
+     * 只记录方向 + 走/跑状态，不采客户端位置 —— 位置由 MovementService.tickPlayers 权威推进。
      */
     @GamePacketHandler(MessageProto.ClientMessage.PLAYER_MOVE_FIELD_NUMBER)
     public void handleMove(PlayerSession session, MessageProto.ClientMessage message) {
-        MessageProto.C2S_PlayerMove move = message.getPlayerMove();
-
         if (session == null || !session.isPlaying()) {
             return;
         }
 
-        // 获取新位置
-        float newX = move.getNewPosition().getX();
-        float newY = move.getNewPosition().getY();
-        float newZ = move.getNewPosition().getZ();
-
-        // 更新 Session 位置（用于怪物刷怪 proximity check）
-        session.setX(newX);
-        session.setZ(newZ);
-        // Y 权威用地形高度（客户端/前端不提供真实 Y，高度差用于怪物视野判定）
-        session.setY(mapRegionService.getHeight(session.getCurrentMapId(), newX, newZ));
-
-        // 验证位置是否有效
-        int mapId = session.getCurrentMapId();
-        if (!mapManager.isValidPosition(mapId, newX, newZ)) {
-            log.warn("Invalid position for player {}: ({}, {}, {})",
-                session.getCharacterName(), newX, newY, newZ);
-            return;
-        }
-
-        // 更新 AOI
-        aoiManager.onPlayerMove(session, newX, newZ);
-
-        // 跨图检测（对齐原版 FindStageField）
-        checkMapSwitch(session);
-
-        // 广播移动给视野内的玩家
-        MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
-            .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
-                .setPlayerId(session.getCharacterId())
-                .setPosition(CommonProto.Position.newBuilder()
-                    .setX(newX)
-                    .setY(newY)
-                    .setZ(newZ)
-                    .build())
-                .setTimestamp(System.currentTimeMillis())
-                .build())
-            .build();
-
-        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(newX, newZ)) {
-            if (nearbySession.getCharacterId() != session.getCharacterId()) {
-                nearbySession.send(moveMessage);
-            }
-        }
+        MessageProto.C2S_PlayerMove move = message.getPlayerMove();
+        session.setMoveAngle(move.getAngle());
+        session.setMoveState(PlayerMoveState.fromMode(move.getMode()));
     }
 
 /**
@@ -131,6 +91,8 @@ public class WorldService {
 
         // 重新加入 AOI
         aoiManager.addPlayer(session, newX, newZ);
+        // 跨图：重发视野内外观快照（双方互见）
+        aoiManager.onPlayerEnter(session);
 
         // 通知客户端切图（前端切换地图背景/刷怪，坐标不变）
         session.sendText("{\"type\":\"game.mapSwitched\",\"data\":{"
@@ -139,5 +101,44 @@ public class WorldService {
             + ",\"x\":" + newX
             + ",\"z\":" + newZ
             + "}}");
+
+        // 切图后广播权威位置（含自己）：即便坐标未变，也同步一次让客户端刷新 amount/anim
+        broadcastMove(session);
+    }
+
+    /**
+     * 向视野内玩家（含自己）广播权威位置。
+     */
+    private void broadcastMove(PlayerSession session) {
+        int animState = animStateOf(session.getMoveState());
+        MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
+            .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
+                .setPlayerId(session.getCharacterId())
+                .setPosition(CommonProto.Position.newBuilder()
+                    .setX((float) session.getX())
+                    .setY((float) session.getY())
+                    .setZ((float) session.getZ())
+                    .build())
+                .setAngle((float) session.getMoveAngle())
+                .setAnimState(animState)
+                .setTimestamp(System.currentTimeMillis())
+                .build())
+            .build();
+
+        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(session.getX(), session.getZ())) {
+            nearbySession.send(moveMessage);
+        }
+    }
+
+    /**
+     * moveState → anim_state（客户端 STATE 枚举值：STAND/WALK/RUN）。
+     * IDLE/ATTACK/DEAD 统一归 STAND（一次性行为动画由 S2C_PlayerState 事件驱动）。
+     */
+    private static int animStateOf(PlayerMoveState state) {
+        return switch (state) {
+            case WALK -> 0x0050;
+            case RUN -> 0x0060;
+            default -> 0x0040;
+        };
     }
 }
