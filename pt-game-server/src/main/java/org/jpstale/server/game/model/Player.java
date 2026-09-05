@@ -4,6 +4,7 @@ import lombok.Data;
 import org.jpstale.server.game.model.Equipment;
 import org.jpstale.server.game.model.Inventory;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.proto.base.CommonProto;
 
 /**
  * 玩家游戏数据
@@ -47,6 +48,9 @@ public class Player {
     // 物品
     private Inventory inventory;
     private Equipment equipment;
+
+    /** 完整外观（头/防具/时装/武器），进场时由 AccountService 计算一次缓存；AOI Appear 下发用 */
+    private CommonProto.CharacterAppearance appearance;
 
     /** 元素抗性 [8]：0生物 1大地 2火 3冰 4雷 5毒 6水 7风（来自装备实例） */
     private int[] resistances = new int[8];

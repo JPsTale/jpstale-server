@@ -60,6 +60,9 @@ public class AOIManager {
         Player p = playerService.getPlayer(session);
         if (p != null) {
             b.setClassId(p.getJob());
+            if (p.getAppearance() != null) {
+                b.setAppearance(p.getAppearance());
+            }
         }
         return b.build();
     }

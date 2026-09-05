@@ -188,6 +188,7 @@ message S2C_PlayerAppear {
   Position position = 5;
   int32 hp = 6;
   int32 max_hp = 7;
+  CharacterAppearance appearance = 8;  // 完整外观（头/防具/时装/武器），客户端据此渲染远端
 }
 
 message S2C_PlayerDisappear {

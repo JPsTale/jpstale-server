@@ -174,7 +174,10 @@ public class MovementService {
                 .build())
             .build();
 
-        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(session.getX(), session.getZ())) {
+        // 广播范围用 DISCONNECT(1810) 而非 CONNECT(1086)：进入 1086~1810 环带的
+        // 远端仍处于可见集合（EU 双阈值，出 1810 才 Disappear），若按 1086 广播，
+        // 该区间玩家收不到位置/动画更新会停在最后一条 RUN 上"原地跑步"。
+        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(session.getX(), session.getZ(), AOIManager.VIEW_RANGE_DISCONNECT)) {
             nearbySession.send(moveMessage);
         }
     }

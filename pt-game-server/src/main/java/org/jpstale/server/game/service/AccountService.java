@@ -637,6 +637,14 @@ public class AccountService {
             log.warn("Load player {} failed on selectCharacter: {}", characterId, e.toString());
         }
 
+        // 外观（头/防具/武器）先算好：缓存到在线 Player（onPlayerEnter 的 Appear 广播要用），
+        // 再用于下方 EnterGame 自机外观。
+        CommonProto.CharacterAppearance appearance = buildAppearance(character);
+        Player cachedPlayer = playerService.getPlayer(session);
+        if (cachedPlayer != null) {
+            cachedPlayer.setAppearance(appearance);
+        }
+
         // 计入 AOI 广播链：先注册自身，再向视野内现有玩家 + 自己广播外观快照
         aoiManager.addPlayer(session, sx, sz);
         aoiManager.onPlayerEnter(session);
@@ -649,7 +657,7 @@ public class AccountService {
                 .setX(sx).setY((float) sy).setZ(sz))
             .setRotation(CommonProto.Rotation.newBuilder()
                 .setX(0).setY((float) -Math.PI).setZ(0))
-            .setAppearance(buildAppearance(character));
+            .setAppearance(appearance);
 
         session.send(MessageProto.ServerMessage.newBuilder()
             .setEnterGame(enterGame)
