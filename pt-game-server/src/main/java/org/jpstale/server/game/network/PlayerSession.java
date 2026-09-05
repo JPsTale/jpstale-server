@@ -44,6 +44,8 @@ public class PlayerSession {
     private volatile double pendingMoveY;
     private volatile double pendingMoveZ;
     private volatile double pendingMoveAngle;
+    /** 动画覆盖：0=按 mode 推导；非 0（如掉落 0x70/0x71/0x72）时 S2C 广播用它 */
+    private volatile int pendingMoveAnimState;
     /** 上一条已接受位置的时间戳(ms)；0=尚未接受（首条不限速） */
     private long lastMoveAcceptedMs;
 

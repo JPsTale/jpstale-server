@@ -158,14 +158,17 @@ public class MovementService {
         session.setMoveState(PlayerMoveState.fromMode(mode));
         session.setLastMoveAcceptedMs(nowMs);
 
+        // 动画状态：客户端提供了非 0 覆盖（掉落 0x70/0x71/0x72）→ 原样广播；否则按 mode 推导
+        int anim = session.getPendingMoveAnimState();
+        if (anim == 0) anim = animStateOf(session.getMoveState());
+
         // 更新 AOI（同格自动跳过）并广播给视野内玩家（含自己）
         aoiManager.onPlayerMove(session, nx, nz);
-        broadcastMove(session);
+        broadcastMove(session, anim);
     }
 
     /** 广播玩家权威位置 + 动画状态给视野内所有玩家（含自己）。 */
-    private void broadcastMove(PlayerSession session) {
-        int animState = animStateOf(session.getMoveState());
+    private void broadcastMove(PlayerSession session, int animState) {
         int prevAnim = session.getLastSyncedAnimState();
         if (animState != prevAnim) {
             log.info("[MOVE] {} (id={}) anim state 0x{} -> 0x{} pos=({},{})",

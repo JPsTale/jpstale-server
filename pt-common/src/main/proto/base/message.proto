@@ -160,6 +160,8 @@ message C2S_PlayerMove {
   float angle = 2;        // 移动方向弧度（0=+Z 北，atan2(dx,dz)）
   int32 mode = 3;         // 0=IDLE 1=WALK 2=RUN（PlayerMoveMode）
   int64 timestamp = 4;    // 客户端本地时间(ms)
+  int32 anim_state = 5;   // 动画状态覆盖（0=按 mode 推导 STAND/WALK/RUN；掉落时上报
+                          // FALLDOWN=0x70/FALLSTAND=0x71/FALLDAMAGE=0x72，服务端原样广播）
 }
 
 message C2S_PlayerAction {

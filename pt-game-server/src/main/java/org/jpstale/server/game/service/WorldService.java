@@ -77,6 +77,7 @@ public class WorldService {
         session.setPendingMoveZ(pos.getZ());
         session.setPendingMoveAngle(move.getAngle());
         session.setPendingMoveMode(move.getMode());
+        session.setPendingMoveAnimState(move.getAnimState());
     }
 
 /**
