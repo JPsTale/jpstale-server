@@ -3,7 +3,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.core.Server;
 import org.jpstale.server.game.service.MonsterSpawnService;
 import org.jpstale.server.game.service.MovementService;
-import org.jpstale.server.game.service.SnapshotPushService;
 import org.jpstale.server.game.service.WorldService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -25,9 +24,6 @@ public class GameServer implements Server {
     @Autowired
     private WorldService worldService;
 
-    @Autowired
-    private SnapshotPushService snapshotPushService;
-
     @Override
     public void init() {
         log.info("GameServer init");
@@ -40,7 +36,6 @@ public class GameServer implements Server {
         movementService.tickPlayers();
         // 主动检查玩家是否跨图（依据 PlayerSession 当前位置）
         worldService.tick();
-        snapshotPushService.tick();
     }
 
     @Override
