@@ -12,6 +12,7 @@ import org.jpstale.dao.userdb.mapper.ItemMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.game.model.FieldCatalog;
 import org.jpstale.server.game.model.FieldInfo;
+import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
@@ -617,6 +618,28 @@ public class AccountService {
         session.setX(sx);
         session.setZ(sz);
         session.setY(sy);
+
+        // 完成进场：状态进 PLAYING + 加载权威角色（移动循环依赖 PLAYING 与 Player 缓存）。
+        // 客户端在 selectCharacter 后只发 playerMove/ping，不会走 game.enterMap，
+        // 因此进场（PLAYING + AOI 注册 + 外观广播）必须在此完成。
+        session.setState(SessionState.PLAYING);
+
+        try {
+            Player onlinePlayer = playerService.getOrCreate(session);
+            if (onlinePlayer != null) {
+                session.setHp(onlinePlayer.getHp());
+                session.setMaxHp(onlinePlayer.getMaxHp());
+                session.setMp(onlinePlayer.getMp());
+                session.setMaxMp(onlinePlayer.getMaxMp());
+                session.setLevel(onlinePlayer.getLevel());
+            }
+        } catch (Exception e) {
+            log.warn("Load player {} failed on selectCharacter: {}", characterId, e.toString());
+        }
+
+        // 计入 AOI 广播链：先注册自身，再向视野内现有玩家 + 自己广播外观快照
+        aoiManager.addPlayer(session, sx, sz);
+        aoiManager.onPlayerEnter(session);
 
         // 发送进入游戏：出生地图/位置 + 完整外观 + 出生朝向（客户端据此进图渲染自机）
         MessageProto.S2C_EnterGame.Builder enterGame = MessageProto.S2C_EnterGame.newBuilder()

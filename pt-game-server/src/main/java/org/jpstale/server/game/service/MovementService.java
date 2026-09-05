@@ -151,6 +151,13 @@ public class MovementService {
     /** 广播玩家权威位置 + 动画状态给视野内所有玩家（含自己）。 */
     private void broadcastMove(PlayerSession session) {
         int animState = animStateOf(session.getMoveState());
+        int prevAnim = session.getLastSyncedAnimState();
+        if (animState != prevAnim) {
+            log.info("[MOVE] {} (id={}) anim state {} -> 0x{:04X} pos=({},{})",
+                session.getCharacterName(), session.getCharacterId(),
+                String.format("0x%04X", prevAnim), animState,
+                (float) session.getX(), (float) session.getZ());
+        }
         session.setLastSyncedAnimState(animState);
 
         MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()

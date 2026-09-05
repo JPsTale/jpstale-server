@@ -84,7 +84,9 @@ public class AOIManager {
         addToMap(yMap, gridZ, session);
         playerGrids.put(session.getCharacterId(), new int[]{gridX, gridZ});
 
-        log.debug("Player {} added to AOI at grid ({}, {})", session.getCharacterName(), gridX, gridZ);
+        log.info("[AOI] {} (id={}) addPlayer grid=({},{}) pos=({},{})",
+            session.getCharacterName(), session.getCharacterId(), gridX, gridZ,
+            (float) x, (float) z);
     }
 
     /**
@@ -100,7 +102,9 @@ public class AOIManager {
             removeFromMap(yMap, grids[1], session);
         }
 
-        log.debug("Player {} removed from AOI", session.getCharacterName());
+        log.info("[AOI] {} (id={}) removePlayer grid=({},{})",
+            session.getCharacterName(), playerId,
+            grids != null ? grids[0] : -1, grids != null ? grids[1] : -1);
     }
 
     /**
@@ -125,10 +129,14 @@ public class AOIManager {
         removeFromMap(xMap, oldGridX, session);
         removeFromMap(yMap, oldGridZ, session);
 
-        // 添加到新位置
+        // 移动到新位置
         addToMap(xMap, newGridX, session);
         addToMap(yMap, newGridZ, session);
         playerGrids.put(playerId, new int[]{newGridX, newGridZ});
+
+        log.info("[AOI] {} (id={}) grid {}->{} pos=({},{})",
+            session.getCharacterName(), playerId, oldGridX, newGridX,
+            (float) newX, (float) newZ);
 
         // 检查进出视野的实体
         checkVisibility(session, oldGridX, oldGridZ, newGridX, newGridZ);
@@ -180,13 +188,18 @@ public class AOIManager {
         if (playerId == null) return;
 
         MessageProto.S2C_PlayerAppear selfAppear = buildAppear(session);
+        StringBuilder appearLog = new StringBuilder();
         for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ())) {
             if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
             // 新玩家：附近已有玩家的外观快照（此前漏发——新玩家视野是空的）
             session.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
             // 附近玩家：新玩家的外观快照
             nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
+            appearLog.append(nearby.getCharacterId()).append(",");
         }
+        log.info("[AOI] {} (id={}) onPlayerEnter pos=({},{}) nearby=[{}]",
+            session.getCharacterName(), playerId,
+            (float) session.getX(), (float) session.getZ(), appearLog);
     }
 
     /**
@@ -204,6 +217,9 @@ public class AOIManager {
             if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
             nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
         }
+        log.info("[AOI] {} (id={}) onPlayerLeave pos=({},{})",
+            session.getCharacterName(), playerId,
+            (float) session.getX(), (float) session.getZ());
     }
 
     /**
@@ -224,6 +240,7 @@ public class AOIManager {
         Set<PlayerSession> newVisible = getNearbyPlayers(movedPlayer.getX(), movedPlayer.getZ(), VIEW_RANGE);
 
         // 新进入视野的玩家 → 发送 Appear
+        StringBuilder appearLog = new StringBuilder();
         for (PlayerSession session : newVisible) {
             if (!oldVisible.contains(session) && session.getCharacterId() != movedPlayer.getCharacterId()) {
                 // 通知移动玩家：新玩家出现（全量快照）
@@ -235,10 +252,12 @@ public class AOIManager {
                 session.send(MessageProto.ServerMessage.newBuilder()
                     .setPlayerAppear(buildAppear(movedPlayer))
                     .build());
+                appearLog.append(session.getCharacterId()).append(",");
             }
         }
 
         // 离开视野的玩家 → 发送 Disappear
+        StringBuilder disappearLog = new StringBuilder();
         for (PlayerSession session : oldVisible) {
             if (!newVisible.contains(session) && session.getCharacterId() != movedPlayer.getCharacterId()) {
                 // 通知移动玩家：玩家离开
@@ -254,7 +273,13 @@ public class AOIManager {
                         .setPlayerId(movedPlayer.getCharacterId())
                         .build())
                     .build());
+                disappearLog.append(session.getCharacterId()).append(",");
             }
+        }
+        if (appearLog.length() > 0 || disappearLog.length() > 0) {
+            log.info("[AOI] {} (id={}) grid {}->{} appear=[{}] disappear=[{}]",
+                movedPlayer.getCharacterName(), movedPlayer.getCharacterId(),
+                oldGridX, newGridX, appearLog, disappearLog);
         }
     }
 
