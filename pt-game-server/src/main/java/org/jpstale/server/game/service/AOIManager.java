@@ -182,7 +182,9 @@ public class AOIManager {
         MessageProto.S2C_PlayerAppear selfAppear = buildAppear(session);
         for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ())) {
             if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
-            nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
+            // 新玩家：附近已有玩家的外观快照（此前漏发——新玩家视野是空的）
+            session.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
+            // 附近玩家：新玩家的外观快照
             nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
         }
     }
