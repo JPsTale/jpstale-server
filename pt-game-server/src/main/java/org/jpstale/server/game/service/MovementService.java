@@ -153,9 +153,9 @@ public class MovementService {
         int animState = animStateOf(session.getMoveState());
         int prevAnim = session.getLastSyncedAnimState();
         if (animState != prevAnim) {
-            log.info("[MOVE] {} (id={}) anim state {} -> 0x{:04X} pos=({},{})",
+            log.info("[MOVE] {} (id={}) anim state 0x{} -> 0x{} pos=({},{})",
                 session.getCharacterName(), session.getCharacterId(),
-                String.format("0x%04X", prevAnim), animState,
+                String.format("%04X", prevAnim), String.format("%04X", animState),
                 (float) session.getX(), (float) session.getZ());
         }
         session.setLastSyncedAnimState(animState);

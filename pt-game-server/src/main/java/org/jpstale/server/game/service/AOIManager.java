@@ -9,7 +9,9 @@ import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,6 +75,10 @@ public class AOIManager {
     // 玩家ID → 当前网格坐标 [x, z]
     private final ConcurrentHashMap<Long, int[]> playerGrids = new ConcurrentHashMap<>();
 
+    // 玩家ID(观察者) → 当前可见的其他玩家ID集合（持久化，双阈值升降的核心状态）
+    // 进入 CONNECT(1086) 半径 → 加入并 Appear；超出 DISCONNECT(1810) → 移除并 Disappear。
+    private final ConcurrentHashMap<Long, Set<Long>> visiblePlayers = new ConcurrentHashMap<>();
+
     /**
      * 添加玩家到 AOI
      */
@@ -83,6 +89,7 @@ public class AOIManager {
         addToMap(xMap, gridX, session);
         addToMap(yMap, gridZ, session);
         playerGrids.put(session.getCharacterId(), new int[]{gridX, gridZ});
+        visiblePlayers.put(session.getCharacterId(), ConcurrentHashMap.newKeySet());
 
         log.info("[AOI] {} (id={}) addPlayer grid=({},{}) pos=({},{})",
             session.getCharacterName(), session.getCharacterId(), gridX, gridZ,
@@ -100,6 +107,12 @@ public class AOIManager {
         if (grids != null) {
             removeFromMap(xMap, grids[0], session);
             removeFromMap(yMap, grids[1], session);
+        }
+
+        // 清理可见集合：观察者自身的 + 其余观察者集合中引用本玩家的条目
+        visiblePlayers.remove(playerId);
+        for (Set<Long> set : visiblePlayers.values()) {
+            set.remove(playerId);
         }
 
         log.info("[AOI] {} (id={}) removePlayer grid=({},{})",
@@ -188,6 +201,8 @@ public class AOIManager {
         if (playerId == null) return;
 
         MessageProto.S2C_PlayerAppear selfAppear = buildAppear(session);
+        Set<Long> visible = visiblePlayers.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet());
+        visible.clear();
         StringBuilder appearLog = new StringBuilder();
         for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ())) {
             if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
@@ -195,6 +210,10 @@ public class AOIManager {
             session.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
             // 附近玩家：新玩家的外观快照
             nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
+            // 双方可见集合同步播种，避免首次跨格移动时重复 Appear
+            visible.add(nearby.getCharacterId());
+            visiblePlayers.computeIfAbsent(nearby.getCharacterId(), k -> ConcurrentHashMap.newKeySet())
+                .add(playerId);
             appearLog.append(nearby.getCharacterId()).append(",");
         }
         log.info("[AOI] {} (id={}) onPlayerEnter pos=({},{}) nearby=[{}]",
@@ -213,9 +232,14 @@ public class AOIManager {
         MessageProto.S2C_PlayerDisappear msg = MessageProto.S2C_PlayerDisappear.newBuilder()
             .setPlayerId(playerId)
             .build();
-        for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ())) {
+        for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ(), VIEW_RANGE_DISCONNECT)) {
             if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
             nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
+        }
+        // 清理可见集合（与 removePlayer 一致）
+        visiblePlayers.remove(playerId);
+        for (Set<Long> set : visiblePlayers.values()) {
+            set.remove(playerId);
         }
         log.info("[AOI] {} (id={}) onPlayerLeave pos=({},{})",
             session.getCharacterName(), playerId,
@@ -224,62 +248,76 @@ public class AOIManager {
 
     /**
      * 检查进出视野的实体
-     * 双阈值：出现用 VIEW_RANGE（1086，进入半径），消失用 VIEW_RANGE_DISCONNECT（1810，
-     * 离开半径）→ 视野边缘抖动不触发 Disappear→Appear 反复。
+     * 双阈值（EU 语义）：进入 CONNECT(1086) 半径 → Appear；超出 DISCONNECT(1810) → Disappear。
+     * 可见性基于持久化的 visiblePlayers 集合（而非跨格时从旧格中心重建）：
+     * 全程停留在 [1086, 1810] 环带内的玩家不会反复 Disappear→Appear，也不会在重进 1086 时漏发 Appear。
      */
     private void checkVisibility(PlayerSession movedPlayer,
                                int oldGridX, int oldGridZ,
                                int newGridX, int newGridZ) {
-        // 旧视野：旧格中心为锚 + 消失阈值（session 坐标已是新位置，故用格子中心近似旧锚点）
-        final int half = GRID_SIZE / 2;
-        double oldAnchorX = (long) oldGridX * GRID_SIZE + half;
-        double oldAnchorZ = (long) oldGridZ * GRID_SIZE + half;
-        Set<PlayerSession> oldVisible = getNearbyPlayers(oldAnchorX, oldAnchorZ, VIEW_RANGE_DISCONNECT);
+        Long moverId = movedPlayer.getCharacterId();
+        if (moverId == null) return;
 
-        // 新视野：实际新位置为锚 + 出现阈值（精确对称）
-        Set<PlayerSession> newVisible = getNearbyPlayers(movedPlayer.getX(), movedPlayer.getZ(), VIEW_RANGE);
+        double mx = movedPlayer.getX();
+        double mz = movedPlayer.getZ();
+        Set<Long> visible = visiblePlayers.computeIfAbsent(moverId, k -> ConcurrentHashMap.newKeySet());
 
-        // 新进入视野的玩家 → 发送 Appear
+        // 1) 新进入 CONNECT 半径的玩家 → 双向 Appear（并同步双方可见集合，防重复）
         StringBuilder appearLog = new StringBuilder();
-        for (PlayerSession session : newVisible) {
-            if (!oldVisible.contains(session) && session.getCharacterId() != movedPlayer.getCharacterId()) {
+        for (PlayerSession session : getNearbyPlayers(mx, mz, VIEW_RANGE)) {
+            Long otherId = session.getCharacterId();
+            if (otherId == null || otherId.equals(moverId)) continue;
+            if (visible.add(otherId)) {
                 // 通知移动玩家：新玩家出现（全量快照）
                 movedPlayer.send(MessageProto.ServerMessage.newBuilder()
                     .setPlayerAppear(buildAppear(session))
                     .build());
-
                 // 通知新玩家：移动玩家出现（全量快照）
                 session.send(MessageProto.ServerMessage.newBuilder()
                     .setPlayerAppear(buildAppear(movedPlayer))
                     .build());
-                appearLog.append(session.getCharacterId()).append(",");
+                visiblePlayers.computeIfAbsent(otherId, k -> ConcurrentHashMap.newKeySet()).add(moverId);
+                appearLog.append(otherId).append(",");
             }
         }
 
-        // 离开视野的玩家 → 发送 Disappear
+        // 2) 移出 DISCONNECT 扫描半径的玩家 → 双向 Disappear（并清理双方可见集合）
         StringBuilder disappearLog = new StringBuilder();
-        for (PlayerSession session : oldVisible) {
-            if (!newVisible.contains(session) && session.getCharacterId() != movedPlayer.getCharacterId()) {
+        Set<Long> candidates = new HashSet<>();
+        for (PlayerSession session : getNearbyPlayers(mx, mz, VIEW_RANGE_DISCONNECT)) {
+            Long otherId = session.getCharacterId();
+            if (otherId != null && !otherId.equals(moverId)) candidates.add(otherId);
+        }
+        List<Long> toRemove = new ArrayList<>();
+        for (Long otherId : visible) {
+            if (!candidates.contains(otherId)) {
+                toRemove.add(otherId);
                 // 通知移动玩家：玩家离开
                 movedPlayer.send(MessageProto.ServerMessage.newBuilder()
                     .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
-                        .setPlayerId(session.getCharacterId())
+                        .setPlayerId(otherId)
                         .build())
                     .build());
-
                 // 通知离开玩家：移动玩家离开
-                session.send(MessageProto.ServerMessage.newBuilder()
-                    .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
-                        .setPlayerId(movedPlayer.getCharacterId())
-                        .build())
-                    .build());
-                disappearLog.append(session.getCharacterId()).append(",");
+                PlayerSession otherSession = sessionManager.getSessionByCharacterId(otherId);
+                if (otherSession != null) {
+                    otherSession.send(MessageProto.ServerMessage.newBuilder()
+                        .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
+                            .setPlayerId(moverId)
+                            .build())
+                        .build());
+                    Set<Long> otherVisible = visiblePlayers.get(otherId);
+                    if (otherVisible != null) otherVisible.remove(moverId);
+                }
+                disappearLog.append(otherId).append(",");
             }
         }
+        visible.removeAll(toRemove);
+
         if (appearLog.length() > 0 || disappearLog.length() > 0) {
-            log.info("[AOI] {} (id={}) grid {}->{} appear=[{}] disappear=[{}]",
-                movedPlayer.getCharacterName(), movedPlayer.getCharacterId(),
-                oldGridX, newGridX, appearLog, disappearLog);
+            log.info("[AOI] {} (id={}) grid {}->{} appear=[{}] disappear=[{}] pos=({},{})",
+                movedPlayer.getCharacterName(), moverId,
+                oldGridX, newGridX, appearLog, disappearLog, (float) mx, (float) mz);
         }
     }
 
