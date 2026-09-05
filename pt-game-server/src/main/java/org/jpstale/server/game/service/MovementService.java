@@ -5,7 +5,6 @@ import org.jpstale.server.common.codec.GameConstants;
 import org.jpstale.server.game.model.AiContext;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterState;
-import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
@@ -17,16 +16,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * 移动服务
- * 每 tick 由 updateAndCleanup() 调用，根据怪物当前状态执行位置更新。
+ * 移动服务。
  *
- * 原版 PT 怪物移动逻辑（exm Character.cpp）：
+ * 玩家（客户端位置上权威，方向二）：每 tick 由 GameServer.tick() 调 tickPlayers()，
+ * 消费客户端上报的位置做限速/防瞬移校验后应用，并走 AOI + 广播。
+ *
+ * 怪物（服务端权威）：updateMonster() 依状态推进（追击/巡逻/归位），
+ * 对齐原版 PT 怪物移动逻辑（exm Character.cpp）：
  * - 通过 GetSin/GetCos 查表 + angle 计算位移方向
  * - step 是固定值（walk=4, run=8 @16tick/s），与 DB Move_Speed 无关
  * - 每 tick 加到 pX/pZ 上
- *
  * 本服务使用简化向量方向（直接朝目标方向），与原版角速度效果等价。
- * step 值按 20tick/s 缩放（×0.8）保持原版实际移动速度。
  */
 @Slf4j
 @Component
@@ -43,9 +43,6 @@ public class MovementService {
 
     @Autowired
     private CollisionSystem collisionSystem;
-
-    @Autowired
-    private PlayerService playerService;
 
     /**
      * 更新怪物位置（每 tick 调用一次）
@@ -84,10 +81,9 @@ public class MovementService {
         }
     }
 
-    // ---------- EU 步长语义（对齐客户端 speedLevelToRunStep + pt-visualizer levelToStepPerTick） ----------
-    // 客户端 60fps 渲染：step_f = ((cnt*10+250)*coeff>>8)/256 world（走用 ×180 系数）。
-    // 服务端 20fps tick：step/tick = step_f × 3（保持与客户端相同的 world/s）。
-    // 弃用 PlayerStatCalculator ×256 速度链：其 runSpeed 返回 raw 单位/秒，而碰撞 move 用 world 单位 —— 会放大 256 倍。
+    // ---------- EU 步长（仅作玩家移动"客户端位置上权威"的限速基准） ----------
+    // 客户端 60fps 语义：step_f = ((cnt*10+250)*coeff>>8)/256 world（走用 ×180 系数）。
+    // 玩家位置由客户端上报，服务端不再积分；stepOfF×3/50ms 折算成 world/ms 上限用于限速。
     private static final long EU_COEFF_RUN = 460;
     private static final long EU_COEFF_WALK = 180;
 
@@ -167,7 +163,7 @@ public class MovementService {
         broadcastMove(session, anim);
     }
 
-    /** 广播玩家权威位置 + 动画状态给视野内所有玩家（含自己）。 */
+    /** 广播玩家位置（服务端校验后）+ 动画状态给视野内所有玩家（含自己）。 */
     private void broadcastMove(PlayerSession session, int animState) {
         int prevAnim = session.getLastSyncedAnimState();
         if (animState != prevAnim) {
