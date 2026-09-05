@@ -28,22 +28,26 @@ public class MovementSpeedValidator implements InputValidator {
     public ValidationResult validate(PlayerSession session, MessageProto.ClientMessage message) {
         MessageProto.C2S_PlayerMove move = message.getPlayerMove();
 
-        // 新协议：客户端只上报移动意图（angle+mode），不采位置 → 无需校验 position。
-        // mode ∈ {0 IDLE, 1 WALK, 2 RUN}；angle 需为有限弧度。
+        // 客户端位置上权威：报文带 position{world float} + angle + mode。
+        // 服务端层校验有限性；限速/防瞬移在核心 loop 消费时按 Δt 距离校验。
         if (move.getMode() < 0 || move.getMode() > 2) {
             return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Invalid move mode");
         }
-
+        if (!move.hasPosition()) {
+            return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Missing position");
+        }
         float angle = move.getAngle();
         if (Float.isNaN(angle) || Float.isInfinite(angle)) {
             return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Invalid angle");
         }
-
-        // TODO: 实现基于 tick 权威位移的速度验证（防加速）
-        // 1. 记录上次意图时间/方向
-        // 2. 对比 tickPlayers 计算的理论位移
-        // 3. 检查是否超过 EU 步长上限 * 容差
-
+        float x = move.getPosition().getX();
+        float y = move.getPosition().getY();
+        float z = move.getPosition().getZ();
+        if (Float.isNaN(x) || Float.isInfinite(x)
+            || Float.isNaN(y) || Float.isInfinite(y)
+            || Float.isNaN(z) || Float.isInfinite(z)) {
+            return ValidationResult.fail(CommonProto.ErrorCode.POSITION_INVALID, "Invalid position");
+        }
         return ValidationResult.success();
     }
 }

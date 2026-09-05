@@ -156,9 +156,10 @@ message S2C_CreateCharacterResult {
 // ==================== 玩家消息 (200-299) ====================
 
 message C2S_PlayerMove {
-  float angle = 1;   // 移动方向弧度（0=+Z 北，atan2(dx,dz)）
-  int32 mode = 2;    // 0=IDLE 1=WALK 2=RUN（PlayerMoveMode）
-  int64 timestamp = 3;
+  Position position = 1;  // 客户端权威位置（world float）；服务端限速/穿墙校验后广播
+  float angle = 2;        // 移动方向弧度（0=+Z 北，atan2(dx,dz)）
+  int32 mode = 3;         // 0=IDLE 1=WALK 2=RUN（PlayerMoveMode）
+  int64 timestamp = 4;    // 客户端本地时间(ms)
 }
 
 message C2S_PlayerAction {

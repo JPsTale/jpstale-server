@@ -105,47 +105,62 @@ public class MovementService {
         return stepOfF(cnt, coeff) * 3.0;
     }
 
+    // ======== 客户端位置上权威（方向二）限速参数 ========
+    /** 最高档跑 ≈ stepOfF(25,RUN)×3 per 50ms ⇒ world/ms */
+    private static final double PLAYER_MAX_RUN_PER_MS = stepOfF(25, EU_COEFF_RUN) * 3.0 / 50.0; // ≈0.2105
+    private static final double SPEED_TOLERANCE = 1.3; // 30% 容差（网络抖动/客户端碰撞细微差异）
+    private static final double SNAP_SLACK = 3.0;      // 绝对 slack（world），容忍停止/转身等小跳跃
+
     /**
-     * 服务端权威玩家移动：每 tick 调用一次。
-     * 对处于 WALK/RUN 状态者按 EU 步长推进位置，碰撞受阻则不移动；
-     * 每 tick 向视野内玩家（含自己）广播权威位置 → 客户端据此阈值收敛。
-     * IDLE 玩家仅在停止瞬间广播一次（anim 切换，让视野内玩家停下），避免持续刷包。
+     * 每 tick（核心 loop）消费客户端上报的移动：
+     * 限速/防瞬移校验 → 应用位置 → AOI → 广播。位置只在核心 loop 线程被修改。
      */
     public void tickPlayers() {
+        long now = System.currentTimeMillis();
         for (PlayerSession session : sessionManager.getAllSessions()) {
             if (!session.isPlaying()) continue;
+            int mode = session.getPendingMoveMode();
+            if (mode < 0) continue;
+            session.setPendingMoveMode(-1);
+            applyClientMove(session, mode, now);
+        }
+    }
 
-            PlayerMoveState state = session.getMoveState();
-            if (state == PlayerMoveState.ATTACK || state == PlayerMoveState.DEAD) continue;
+    /** 应用一条客户端上报的移动（含限速校验）。 */
+    private void applyClientMove(PlayerSession session, int mode, long nowMs) {
+        double nx = session.getPendingMoveX();
+        double ny = session.getPendingMoveY();
+        double nz = session.getPendingMoveZ();
+        double nAngle = session.getPendingMoveAngle();
+        if (mode < 0 || mode > 2) mode = 0;
+        // 有限性校验（防 NaN/Inf 注入）
+        if (Double.isNaN(nx) || Double.isInfinite(nx) ||
+            Double.isNaN(ny) || Double.isInfinite(ny) ||
+            Double.isNaN(nz) || Double.isInfinite(nz) ||
+            Double.isNaN(nAngle) || Double.isInfinite(nAngle)) return;
 
-            if (state.isMoving()) {
-                Player p = playerService.getPlayer(session);
-                if (p == null) continue;
+        double dist = Math.hypot(nx - session.getX(), nz - session.getZ());
 
-                // 步长：EU 档位 → per tick（跑 ×460 / 走 ×180）；当前档位固定用最高档 25
-                final int euCnt = 25;
-                double step = state.isRunning()
-                    ? stepPerTick(euCnt, EU_COEFF_RUN)
-                    : stepPerTick(euCnt, EU_COEFF_WALK);
-                double angle = session.getMoveAngle();
-                int mapId = session.getCurrentMapId();
-
-                CollisionMesh.MoveResult r = collisionSystem.move(mapId, session.getX(), session.getY(), session.getZ(), angle, step, 11);
-                if (!r.collision) {
-                    session.setX(r.x);
-                    session.setY(r.y);
-                    session.setZ(r.z);
-                }
-                // 更新 AOI（collision 时 session 坐标未变，onPlayerMove 内部自动跳过同格）
-                aoiManager.onPlayerMove(session, session.getX(), session.getZ());
-
-                // 广播权威位置 + 动画（含自己）：客户端以 S2C_PlayerMove 做阈值收敛
-                broadcastMove(session);
-            } else if (session.getLastSyncedAnimState() != 0x0040) {
-                // IDLE：停止瞬间广播一次 STAND（即使坐标未变）
-                broadcastMove(session);
+        // 限速：距离 > 最高跑速×Δt×容差+slack → 拒绝（加速/瞬移/穿图）；首条不设限
+        long lastAccepted = session.getLastMoveAcceptedMs();
+        if (lastAccepted > 0) {
+            double dtMs = Math.max(0, nowMs - lastAccepted);
+            double maxDist = PLAYER_MAX_RUN_PER_MS * dtMs * SPEED_TOLERANCE + SNAP_SLACK;
+            if (dist > maxDist) {
+                return; // 拒绝：不更新位置（等待其回到合法范围内）
             }
         }
+
+        session.setX(nx);
+        session.setY(ny);
+        session.setZ(nz);
+        session.setMoveAngle(nAngle);
+        session.setMoveState(PlayerMoveState.fromMode(mode));
+        session.setLastMoveAcceptedMs(nowMs);
+
+        // 更新 AOI（同格自动跳过）并广播给视野内玩家（含自己）
+        aoiManager.onPlayerMove(session, nx, nz);
+        broadcastMove(session);
     }
 
     /** 广播玩家权威位置 + 动画状态给视野内所有玩家（含自己）。 */

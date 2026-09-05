@@ -37,6 +37,16 @@ public class PlayerSession {
     /** 已广播的动画状态值（0x0040 STAND / 0x0050 WALK / 0x0060 RUN），-1 表示未广播过 */
     private int lastSyncedAnimState = -1;
 
+    // ======== 客户端位置上权威（方向二）：Netty IO 线程写待处理移动，核心 loop 消费 ========
+    /** 是否有待处理移动（-1=无；>=0 时表示 mode 0/1/2 待应用） */
+    private volatile int pendingMoveMode = -1;
+    private volatile double pendingMoveX;
+    private volatile double pendingMoveY;
+    private volatile double pendingMoveZ;
+    private volatile double pendingMoveAngle;
+    /** 上一条已接受位置的时间戳(ms)；0=尚未接受（首条不限速） */
+    private long lastMoveAcceptedMs;
+
     // 玩家战斗状态（调试工具用）
     private int hp = 100;
     private int maxHp = 100;

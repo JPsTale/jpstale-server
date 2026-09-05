@@ -57,18 +57,26 @@ public class WorldService {
     }
 
     /**
-     * 报文入口：玩家移动意图（C2S_PlayerMove{angle, mode}）。
-     * 只记录方向 + 走/跑状态，不采客户端位置 —— 位置由 MovementService.tickPlayers 权威推进。
+     * 报文入口：客户端位置上权威（C2S_PlayerMove{position, angle, mode}）。
+     * 只把上报存入 session.pendingMove —— 实际"限速校验 + AOI + 广播"由核心 loop 的
+     * movementService.tickPlayers() 消费，保证位置只在一个线程（核心 loop）上被应用，
+     * 与怪物 AI / 跨图判定无数据竞争。
      */
     @GamePacketHandler(MessageProto.ClientMessage.PLAYER_MOVE_FIELD_NUMBER)
     public void handleMove(PlayerSession session, MessageProto.ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }
-
         MessageProto.C2S_PlayerMove move = message.getPlayerMove();
-        session.setMoveAngle(move.getAngle());
-        session.setMoveState(PlayerMoveState.fromMode(move.getMode()));
+        if (!move.hasPosition()) {
+            return;
+        }
+        CommonProto.Position pos = move.getPosition();
+        session.setPendingMoveX(pos.getX());
+        session.setPendingMoveY(pos.getY());
+        session.setPendingMoveZ(pos.getZ());
+        session.setPendingMoveAngle(move.getAngle());
+        session.setPendingMoveMode(move.getMode());
     }
 
 /**
