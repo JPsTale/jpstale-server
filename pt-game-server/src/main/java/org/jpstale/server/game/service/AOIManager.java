@@ -27,7 +27,10 @@ public class AOIManager {
     // 出现/消失用双阈值避免抖动；服务端不裁剪，视野内全部可见。
     public static final float VIEW_RANGE = 1086f;
     public static final float VIEW_RANGE_DISCONNECT = 1810f;
-    private static final int GRID_SIZE = 10;
+    // 网格边长（world 单位）：应远大于最大移动步长（RUN 高档 ~10.5/tick），
+    // 否则每 1~2 帧换格触发全套 AOI 更新（push 风暴）。
+    // 取视野 1086 的 ~1/8，一格容纳十几步移动。
+    private static final int GRID_SIZE = 128;
 
     @Autowired
     private SessionManager sessionManager;
@@ -113,6 +116,7 @@ public class AOIManager {
 
     /**
      * 获取指定范围内的所有玩家
+     * 分区候选 → 精确距离过滤（利用 session 最新 x/z）
      */
     public Set<PlayerSession> getNearbyPlayers(double x, double z, float range) {
         int gridX = toGrid(x);
@@ -125,11 +129,15 @@ public class AOIManager {
         // 取交集
         xPlayers.retainAll(yPlayers);
 
-        // 精确距离过滤
-        Set<PlayerSession> result = new HashSet<>();
+        // 精确距离过滤（session 坐标由调用方先 setX/setZ 保证最新）
+        float rangeSq = range * range;
+        Set<PlayerSession> result = new HashSet<>(xPlayers.size());
         for (PlayerSession session : xPlayers) {
-            // TODO: 获取玩家实际位置进行精确过滤
-            result.add(session);
+            double dx = session.getX() - x;
+            double dz = session.getZ() - z;
+            if (dx * dx + dz * dz <= rangeSq) {
+                result.add(session);
+            }
         }
 
         return result;
@@ -137,14 +145,20 @@ public class AOIManager {
 
     /**
      * 检查进出视野的实体
+     * 双阈值：出现用 VIEW_RANGE（1086，进入半径），消失用 VIEW_RANGE_DISCONNECT（1810，
+     * 离开半径）→ 视野边缘抖动不触发 Disappear→Appear 反复。
      */
-    private void checkVisibility(PlayerSession movedPlayer, 
-                               int oldGridX, int oldGridZ, 
+    private void checkVisibility(PlayerSession movedPlayer,
+                               int oldGridX, int oldGridZ,
                                int newGridX, int newGridZ) {
-        // 旧视野内的玩家
-        Set<PlayerSession> oldVisible = getNearbyPlayers(oldGridX * GRID_SIZE, oldGridZ * GRID_SIZE);
-        // 新视野内的玩家
-        Set<PlayerSession> newVisible = getNearbyPlayers(newGridX * GRID_SIZE, newGridZ * GRID_SIZE);
+        // 旧视野：旧格中心为锚 + 消失阈值（session 坐标已是新位置，故用格子中心近似旧锚点）
+        final int half = GRID_SIZE / 2;
+        double oldAnchorX = (long) oldGridX * GRID_SIZE + half;
+        double oldAnchorZ = (long) oldGridZ * GRID_SIZE + half;
+        Set<PlayerSession> oldVisible = getNearbyPlayers(oldAnchorX, oldAnchorZ, VIEW_RANGE_DISCONNECT);
+
+        // 新视野：实际新位置为锚 + 出现阈值（精确对称）
+        Set<PlayerSession> newVisible = getNearbyPlayers(movedPlayer.getX(), movedPlayer.getZ(), VIEW_RANGE);
 
         // 新进入视野的玩家 → 发送 Appear
         for (PlayerSession session : newVisible) {
@@ -188,7 +202,8 @@ public class AOIManager {
     }
 
     private int toGrid(double coord) {
-        return (int) (coord / GRID_SIZE);
+        // floorDiv：负数坐标（地图 center 有负值）下格子边界对称，避免 truncate 跨 0 轴不对称
+        return Math.floorDiv((int) coord, GRID_SIZE);
     }
 
     private void addToMap(ConcurrentSkipListMap<Integer, ConcurrentHashMap<Long, PlayerSession>> map, 
