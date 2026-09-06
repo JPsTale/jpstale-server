@@ -184,7 +184,6 @@ public class EventService {
 
         for (int i = 0; i < toSpawn; i++) {
             Monster monster = new Monster();
-            monster.setId(System.nanoTime() + i);
             monster.setName("Event Monster");
             monster.setLevel(1);
             monster.setHp(100);

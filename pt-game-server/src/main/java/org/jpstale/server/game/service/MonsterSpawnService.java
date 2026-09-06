@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 怪物生成服务
@@ -80,8 +79,6 @@ public class MonsterSpawnService {
     private long tickCounter = 0;
     /** 每张地图的总权重 */
     private final Map<Integer, Integer> totalWeightByMap = new ConcurrentHashMap<>();
-
-    private final AtomicLong monsterIdGenerator = new AtomicLong(1);
 
     @PostConstruct
     public void init() {
@@ -276,8 +273,6 @@ public class MonsterSpawnService {
 
     private Monster createMonster(MonsterList template, int mapId, SpawnPoint point) {
         Monster monster = new Monster();
-        monster.setId(monsterIdGenerator.getAndIncrement());
-        monster.setTemplateId(template.getMonsterId() != null ? template.getMonsterId() : 0);
         monster.setName(template.getName());
         monster.setLevel(template.getLevel() != null ? template.getLevel() : 1);
         monster.setHp(template.getHp() != null ? template.getHp() : 1);

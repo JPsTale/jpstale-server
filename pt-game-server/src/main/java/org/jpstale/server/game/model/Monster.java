@@ -1,14 +1,19 @@
 package org.jpstale.server.game.model;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import org.jpstale.server.game.entity.BaseEntity;
+import org.jpstale.server.game.entity.EntityIdSource;
 
 /**
  * 怪物实体
+ *
+ * 由 BaseEntity 继承运行时 id/mapId/x/y/z/angle;本类保留怪模板与运行时游戏数据。
  */
-@Data
-public class Monster {
+@Getter
+@Setter
+public class Monster extends BaseEntity {
 
-    private long id;
     private int templateId;
     private String name;
     private int level;
@@ -21,11 +26,6 @@ public class Monster {
     private float speed;
     private float attackRange;
     private float attackSpeed; // 攻击间隔（毫秒）
-    private int mapId;
-    private double x;
-    private double y;
-    private double z;
-    private double angle; // 面朝方向（弧度，0=Z+方向）
     private MonsterState state;
     private Long targetPlayerId; // 当前仇恨目标
     private long lastMoveTime;
@@ -55,6 +55,16 @@ public class Monster {
     private double lastBroadcastZ = Double.NaN;
 
     public Monster() {
+        super(EntityIdSource.nextId());
+        initDefaults();
+    }
+
+    public Monster(long id) {
+        super(id);
+        initDefaults();
+    }
+
+    private void initDefaults() {
         this.state = MonsterState.IDLE;
         this.attackRange = 2.0f;
         this.attackSpeed = 1000.0f; // 1秒
