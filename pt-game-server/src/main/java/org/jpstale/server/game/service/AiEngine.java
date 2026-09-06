@@ -152,11 +152,10 @@ public class AiEngine {
             return null;
         }
         double sight = Math.min(monster.getViewsight(), AOIManager.VIEW_RANGE);
-        Set<PlayerSession> nearby = aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), (float) sight);
+        Set<PlayerEntity> nearby = aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), (float) sight);
         PlayerEntity nearest = null;
         double nearestDistSq = Double.MAX_VALUE;
-        for (PlayerSession session : nearby) {
-            PlayerEntity entity = playerService.getEntity(session);
+        for (PlayerEntity entity : nearby) {
             if (entity == null || !entity.isPlaying() || entity.getMapId() != monster.getMapId()) {
                 continue;
             }

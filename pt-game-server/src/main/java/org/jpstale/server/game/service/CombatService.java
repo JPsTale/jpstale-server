@@ -217,10 +217,10 @@ public class CombatService {
             entity.setZ(z);
             if (switchedMap) {
                 entity.setMapId(mapId);
-                aoiManager.onPlayerLeave(session);
-                aoiManager.removePlayer(session);
-                aoiManager.addPlayer(session, x, z);
-                aoiManager.onPlayerEnter(session);
+                aoiManager.onPlayerLeave(entity);
+                aoiManager.removePlayer(entity);
+                aoiManager.addPlayer(entity);
+                aoiManager.onPlayerEnter(entity);
             }
         }
         log.info("Player {} died, respawn to map {} ({},{}) hp {}", player.getName(), mapId, x, z, half);

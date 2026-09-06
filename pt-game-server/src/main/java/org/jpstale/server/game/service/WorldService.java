@@ -97,16 +97,16 @@ public class WorldService {
         double newX = e.getX();
         double newZ = e.getZ();
 
-        // 移出旧图 AOI
-        aoiManager.removePlayer(session);
+        // 移出旧图 AOI(实体化成员)
+        aoiManager.removePlayer(e);
 
         // 更新地图（坐标保持连续不变）
         e.setMapId(newMapId);
 
         // 重新加入 AOI
-        aoiManager.addPlayer(session, newX, newZ);
+        aoiManager.addPlayer(e);
         // 跨图：重发视野内外观快照（双方互见）
-        aoiManager.onPlayerEnter(session);
+        aoiManager.onPlayerEnter(e);
 
         // 通知客户端切图（前端切换地图背景/刷怪，坐标不变）
         session.sendText("{\"type\":\"game.mapSwitched\",\"data\":{"
@@ -139,8 +139,9 @@ public class WorldService {
                 .build())
             .build();
 
-        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(e.getX(), e.getZ())) {
-            nearbySession.send(moveMessage);
+        for (PlayerEntity nearby : aoiManager.getNearbyPlayers(e.getX(), e.getZ())) {
+            PlayerSession ns = nearby.getSession();
+            if (ns != null) ns.send(moveMessage);
         }
     }
 

@@ -163,8 +163,8 @@ public class MovementService {
         int anim = session.getPendingMoveAnimState();
         if (anim == 0) anim = animStateOf(entity.getMoveState());
 
-        // 更新 AOI（同格自动跳过）并广播给视野内玩家（含自己）
-        aoiManager.onPlayerMove(session, nx, nz);
+        // 更新 AOI（坐标已在实体上，同格自动跳过）并广播给视野内玩家（含自己）
+        aoiManager.onPlayerMove(entity);
         broadcastMove(session, entity, anim);
     }
 
@@ -196,8 +196,9 @@ public class MovementService {
         // 广播范围用 DISCONNECT(1810) 而非 CONNECT(1086)：进入 1086~1810 环带的
         // 远端仍处于可见集合（EU 双阈值，出 1810 才 Disappear），若按 1086 广播，
         // 该区间玩家收不到位置/动画更新会停在最后一条 RUN 上"原地跑步"。
-        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(entity.getX(), entity.getZ(), AOIManager.VIEW_RANGE_DISCONNECT)) {
-            nearbySession.send(moveMessage);
+        for (PlayerEntity nearby : aoiManager.getNearbyPlayers(entity.getX(), entity.getZ(), AOIManager.VIEW_RANGE_DISCONNECT)) {
+            PlayerSession ns = nearby.getSession();
+            if (ns != null) ns.send(moveMessage);
         }
     }
 

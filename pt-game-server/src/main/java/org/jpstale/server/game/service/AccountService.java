@@ -641,15 +641,10 @@ public class AccountService {
             cachedPlayer.setAppearance(appearance);
         }
 
-        // 计入 AOI 广播链：先注册自身，再向视野内现有玩家 + 自己广播外观快照
-        aoiManager.addPlayer(session, sx, sz);
-        aoiManager.onPlayerEnter(session);
-
-        // 建立在线 PlayerEntity(运行时实体,怪 AI/索敌/攻击以此为目标)
-        try {
-            playerService.ensureEntity(session);
-        } catch (Exception e) {
-            log.warn("ensure PlayerEntity failed on selectCharacter: {}", e.toString());
+        // 计入 AOI 广播链：先注册自身(实体成员)，再向视野内现有玩家 + 自己广播外观快照
+        if (playerEntity != null) {
+            aoiManager.addPlayer(playerEntity);
+            aoiManager.onPlayerEnter(playerEntity);
         }
 
         // 发送进入游戏：出生地图/位置 + 完整外观 + 出生朝向（客户端据此进图渲染自机）
@@ -687,8 +682,11 @@ public class AccountService {
 
         // 移出 AOI（若在游戏中）
         if (session.isPlaying()) {
-            aoiManager.onPlayerLeave(session);
-            aoiManager.removePlayer(session);
+            PlayerEntity e = session.getEntity();
+            if (e != null) {
+                aoiManager.onPlayerLeave(e);
+                aoiManager.removePlayer(e);
+            }
         }
 
         // 存档角色数据（属性/属性点/经验/金币落库）
@@ -720,8 +718,11 @@ public class AccountService {
 
         // 移出 AOI（若在游戏中）
         if (session.isPlaying()) {
-            aoiManager.onPlayerLeave(session);
-            aoiManager.removePlayer(session);
+            PlayerEntity e = session.getEntity();
+            if (e != null) {
+                aoiManager.onPlayerLeave(e);
+                aoiManager.removePlayer(e);
+            }
         }
 
         // 存档角色数据

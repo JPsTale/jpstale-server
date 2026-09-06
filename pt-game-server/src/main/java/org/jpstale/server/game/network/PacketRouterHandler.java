@@ -9,6 +9,7 @@ import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.common.ValidationInterceptor;
 import org.jpstale.server.game.common.ValidationResult;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.GameTokenService;
 import org.jpstale.server.proto.base.CommonProto;
@@ -138,8 +139,11 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
                 reconnectionManager.generateReconnectToken(session);
             }
             // 广播 Disappear 给视野内玩家（登出/断线离开世界）
-            aoiManager.onPlayerLeave(session);
-            aoiManager.removePlayer(session);
+            PlayerEntity e = session.getEntity();
+            if (e != null) {
+                aoiManager.onPlayerLeave(e);
+                aoiManager.removePlayer(e);
+            }
             // 清理玩家缓存（重登时重新权威加载）
             if (session.getCharacterId() != null) {
                 playerService.persistAndRemove(session.getCharacterId());
