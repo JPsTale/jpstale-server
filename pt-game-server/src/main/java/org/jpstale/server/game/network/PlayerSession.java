@@ -2,11 +2,15 @@ package org.jpstale.server.game.network;
 
 import io.netty.channel.Channel;
 import lombok.Data;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.proto.base.MessageProto;
 
 /**
  * 玩家会话
  * 绑定 Channel 和玩家信息
+ *
+ * D11:职责回归纯网络/会话;游戏数据与坐标权威将迁往 PlayerEntity。
+ * 当前过渡期仍保留坐标/血量等镜像字段供既有移动/AOI 链路使用,entity 指向场上玩家实体。
  */
 @Data
 public class PlayerSession {
@@ -16,6 +20,9 @@ public class PlayerSession {
     private Long characterId;
     private String characterName;
     private SessionState state = SessionState.CONNECTED;
+
+    /** D11:指向当前场上玩家实体(游戏数据/坐标权威未来所在) */
+    private PlayerEntity entity;
 
     /** 断线后是否允许重连（顶号踢人时置 false） */
     private boolean allowReconnect = true;

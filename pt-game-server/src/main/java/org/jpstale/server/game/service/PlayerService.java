@@ -9,6 +9,8 @@ import org.jpstale.dao.userdb.entity.Item;
 import org.jpstale.dao.userdb.mapper.CharacterExpDefMapper;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.ItemMapper;
+import org.jpstale.server.game.entity.PlayerEntity;
+import org.jpstale.server.game.entity.EntityIdSource;
 import org.jpstale.server.game.model.ItemStack;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
@@ -104,6 +106,45 @@ public class PlayerService {
         return players.get(session.getCharacterId());
     }
 
+    // ======== 在线 PlayerEntity(D11/实体化) ========
+
+    /** charId → 在线玩家实体 */
+    private final Map<Long, PlayerEntity> entities = new ConcurrentHashMap<>();
+
+    /**
+     * 确保该会话存在对应 PlayerEntity(进图后调用);不存在则创建并挂到 session.entity。
+     */
+    public PlayerEntity ensureEntity(PlayerSession session) {
+        if (session == null || session.getCharacterId() == null) {
+            return null;
+        }
+        Long cid = session.getCharacterId();
+        PlayerEntity entity = entities.get(cid);
+        if (entity == null) {
+            Player p = getOrCreate(session);
+            entity = new PlayerEntity(EntityIdSource.nextId(), cid, p, session);
+            entities.put(cid, entity);
+            session.setEntity(entity);
+            log.info("PlayerEntity created: char={} runtimeId={}", cid, entity.getId());
+        }
+        return entity;
+    }
+
+    /** 会话对应实体;未 ensure 过则 null */
+    public PlayerEntity getEntity(PlayerSession session) {
+        return session != null && session.getCharacterId() != null
+            ? entities.get(session.getCharacterId())
+            : null;
+    }
+
+    /** 移除在线实体(下线/踢号) */
+    public void removeEntity(long characterId) {
+        PlayerEntity entity = entities.remove(characterId);
+        if (entity != null && entity.getSession() != null) {
+            entity.getSession().setEntity(null);
+        }
+    }
+
     public void removePlayer(long characterId) {
         players.remove(characterId);
     }
@@ -116,6 +157,7 @@ public class PlayerService {
             log.info("Player {} saved on exit", p.getName());
         }
         players.remove(characterId);
+        removeEntity(characterId);
     }
 
     /**

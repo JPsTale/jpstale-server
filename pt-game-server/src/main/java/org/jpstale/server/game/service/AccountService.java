@@ -649,6 +649,13 @@ public class AccountService {
         aoiManager.addPlayer(session, sx, sz);
         aoiManager.onPlayerEnter(session);
 
+        // 建立在线 PlayerEntity(运行时实体,怪 AI/索敌/攻击以此为目标)
+        try {
+            playerService.ensureEntity(session);
+        } catch (Exception e) {
+            log.warn("ensure PlayerEntity failed on selectCharacter: {}", e.toString());
+        }
+
         // 发送进入游戏：出生地图/位置 + 完整外观 + 出生朝向（客户端据此进图渲染自机）
         MessageProto.S2C_EnterGame.Builder enterGame = MessageProto.S2C_EnterGame.newBuilder()
             .setPlayerId(characterId)

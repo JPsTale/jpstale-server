@@ -42,6 +42,10 @@ public class MonsterSpawnService {
     private static final int PROXIMITY_DISTANCE_SQ = 0x1C2000;
     /** 出生点最大检测范围 */
     private static final int PROXIMITY_LIMIT = 4096;
+    /** D10 邻近模拟半径(world,对齐 DISCONNECT 1810):此范围内才开始跑怪 AI+移动 */
+    private static final float ACTIVE_RADIUS = AOIManager.VIEW_RANGE_DISCONNECT;
+    /** D10 回收:连续无玩家临近超过该时长则移除(ms) */
+    private static final long NO_PLAYER_REMOVE_MS = 60 * 1000;
 
     @Autowired
     private MapManager mapManager;
@@ -376,48 +380,61 @@ public class MonsterSpawnService {
             int mapId = entry.getKey();
             GameMap gameMap = mapManager.getMap(mapId);
             List<Monster> monsters = entry.getValue();
+            if (monsters.isEmpty()) continue;
 
+            // 邻近门控(D3/D10):用 AOI 网格查怪周围 ACTIVE_RADIUS 内是否有玩家;
+            // 无缝全局坐标下与可见性口径一致,不按 mapId 人为切分。移动每 tick 执行(不再 id%5 错峰)。
+            // 注:坐标读源自 PlayerSession 镜像;D11/M3 玩家坐标收敛到 PlayerEntity 后,
+            //    getNearbyPlayers 内部读源切换为实体,此处调用不变。
             for (Monster monster : monsters) {
-                if (monster.isAlive()) {
-                    // i%5 错峰：每 tick 只处理 1/5 怪物(AI+移动)，5 tick 轮完。
-                    // 20FPS 下每轮间隔 250ms，等效原版 16FPS 每 4 tick 一轮的 AI 更新率。
-                    if ((monster.getId() % 5) == (tickCounter % 5)) {
-                        // AI 决策（设状态+目标）
-                        aiEngine.update(monster);
-                        // 移动执行（根据状态更新位置）
-                        movementService.updateMonster(monster);
-                        // 位置/动画变化 → 广播给观察者
-                        monsterAOI.broadcastMove(monster);
-                        // 更新 lastTransTime（有仇恨目标时）
-                        if (monster.getTargetPlayerId() != null) {
-                            monster.setLastTransTime(now);
-                        }
-                    }
+                if (!monster.isAlive()) continue;
+                if (!aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), ACTIVE_RADIUS).isEmpty()) {
+                    monster.setLastNearPlayerMs(now);
+                    // AI 决策(设状态/目标/结算攻击)
+                    aiEngine.update(monster);
+                    // 移动执行(按状态推进,20Hz)
+                    movementService.updateMonster(monster);
+                    // 位置/动画变化 → 广播给观察者
+                    monsterAOI.broadcastMove(monster);
                 }
             }
 
-            // 清理死亡怪物（5分钟无玩家交互则移除）
+            // 清理:死亡超 respawnTime 移除;存活但连续 60s 无玩家临近移除(D10)
             monsters.removeIf(m -> {
                 if (!m.isAlive()) {
-                    // 5分钟超时或死亡时间超过respawnTime → 从列表移除
                     if (now - m.getDeathTime() >= m.getRespawnTime()) {
-                        // 通知观察者消失 + 归还出生点计数
                         monsterAOI.onMonsterRemoved(m);
                         findSpawnPoint(gameMap, m.getSpawnPointIndex())
                             .ifPresent(SpawnPoint::onMonsterDeath);
+                        log.info("[Spawn] {}#{} removed after death", m.getName(), m.getId());
                         return true;
                     }
-                }
-                // 5分钟无玩家交互的活着怪物也移除（原版逻辑）
-                if (m.isAlive() && now - m.getLastTransTime() > 5 * 60 * 1000) {
+                } else if (now - m.getLastNearPlayerMs() > NO_PLAYER_REMOVE_MS) {
                     monsterAOI.onMonsterRemoved(m);
                     findSpawnPoint(gameMap, m.getSpawnPointIndex())
                         .ifPresent(SpawnPoint::onMonsterDeath);
+                    log.info("[Spawn] {}#{} removed, no player nearby {}ms", m.getName(), m.getId(),
+                        now - m.getLastNearPlayerMs());
                     return true;
                 }
                 return false;
             });
         }
+    }
+
+    /** D10:怪物是否处于任一玩家 ACTIVE_RADIUS(1810) 内 */
+    private boolean nearAnyPlayer(Monster monster, List<PlayerSession> playersOnMap) {
+        if (playersOnMap.isEmpty()) return false;
+        double r = ACTIVE_RADIUS;
+        double rSq = r * r;
+        for (PlayerSession s : playersOnMap) {
+            double dx = monster.getX() - s.getX();
+            double dz = monster.getZ() - s.getZ();
+            if (dx * dx + dz * dz <= rSq) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int getAliveMonsterCount(int mapId) {

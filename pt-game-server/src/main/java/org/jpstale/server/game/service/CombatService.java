@@ -1,6 +1,7 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.service.MonsterSpawnService;
 import org.jpstale.server.game.model.DamageResult;
@@ -111,7 +112,10 @@ public class CombatService {
 
         // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）
         if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {
-            aiEngine.setTargetPlayer(monster, player.getSession(), player.getX(), player.getZ());
+            PlayerEntity entity = playerService.ensureEntity(player.getSession());
+            if (entity != null) {
+                aiEngine.setTargetPlayer(monster, entity, player.getX(), player.getZ());
+            }
         }
 
         // 发送攻击结果给攻击者

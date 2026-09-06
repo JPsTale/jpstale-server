@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.common.codec.GameConstants;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.AiContext;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterState;
@@ -55,8 +56,8 @@ public class MovementService {
 
         switch (monster.getState()) {
             case CHASE: {
-                // 追击：朝玩家位置以 run 速度移动
-                PlayerSession target = context.getTargetPlayer();
+                // 追击：朝目标玩家实体位置以 run 速度移动
+                PlayerEntity target = context.getTargetPlayer();
                 if (target == null) break;
                 double tx = target.getX();
                 double tz = target.getZ();

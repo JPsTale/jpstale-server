@@ -54,6 +54,9 @@ public class Monster extends BaseEntity {
     private double lastBroadcastX = Double.NaN;
     private double lastBroadcastZ = Double.NaN;
 
+    /** D10 邻近回收：最近一次"有玩家临近(DISCONNECT 内)"的时间(ms) */
+    private long lastNearPlayerMs = System.currentTimeMillis();
+
     public Monster() {
         super(EntityIdSource.nextId());
         initDefaults();
