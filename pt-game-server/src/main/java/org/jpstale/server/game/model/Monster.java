@@ -46,6 +46,14 @@ public class Monster {
     private double spawnZ;              // 出生点Z坐标
     private long lastTransTime;        // 最后与玩家交互时间
 
+    // 客户端渲染：资产相对路径（如 char/monster/monimp/monimp-a.inx）
+    private String modelFile;
+
+    // 广播节流（AOI 写入）：动画 token / 位置只在变化时下发给观察者
+    private int lastBroadcastAnim = -1;
+    private double lastBroadcastX = Double.NaN;
+    private double lastBroadcastZ = Double.NaN;
+
     public Monster() {
         this.state = MonsterState.IDLE;
         this.attackRange = 2.0f;

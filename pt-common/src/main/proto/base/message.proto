@@ -251,6 +251,8 @@ message S2C_MonsterAppear {
   Position position = 5;
   int32 hp = 6;
   int32 max_hp = 7;
+  string model_file = 8; // 客户端渲染资源（资产相对路径，如 char/monster/monimp/monimp-a.inx）
+  float angle = 9;       // 面朝方向（弧度，0=Z+）
 }
 
 message S2C_MonsterDisappear {
@@ -260,6 +262,8 @@ message S2C_MonsterDisappear {
 message S2C_MonsterMove {
   int64 monster_id = 1;
   Position position = 2;
+  float angle = 3;      // 面朝方向（弧度，0=Z+）
+  int32 anim_state = 4; // 动画 token：0x0040 STAND / 0x0050 WALK / 0x0060 RUN / 0x0100 ATTACK
 }
 
 message S2C_MonsterState {

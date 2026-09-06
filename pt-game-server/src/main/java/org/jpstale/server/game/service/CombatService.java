@@ -44,6 +44,9 @@ public class CombatService {
     @Autowired
     private AiEngine aiEngine;
 
+    @Autowired
+    private MonsterAOI monsterAOI;
+
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
     private static final long ATTACK_COOLDOWN_MS = 1000;
 
@@ -166,16 +169,8 @@ public class CombatService {
         // 权威落库：经验/金币/等级/属性点写回 characterinfo
         playerService.persistStats(killer);
 
-        // 发送死亡消息
-        MessageProto.ServerMessage deathMsg = MessageProto.ServerMessage.newBuilder()
-            .setMonsterDeath(MessageProto.S2C_MonsterDeath.newBuilder()
-                .setMonsterId(monster.getId())
-                .setKillerId(killer.getId())
-                .setExp(exp)
-                .setGold(gold)
-                .build())
-            .build();
-        messageSender.sendToPlayer(killer.getId(), deathMsg);
+        // 通知视野内观察者：击杀者带 exp/gold；其余只收死亡事件。尸体不保留（AOI 清出）。
+        monsterAOI.onMonsterDeath(monster, killer.getId(), exp, gold);
     }
 
     private boolean checkAttackCooldown(long playerId) {

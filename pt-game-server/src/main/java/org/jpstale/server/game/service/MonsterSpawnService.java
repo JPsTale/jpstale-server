@@ -63,6 +63,9 @@ public class MonsterSpawnService {
     private MovementService movementService;
 
     @Autowired
+    private MonsterAOI monsterAOI;
+
+    @Autowired
     private MonsterListMapper monsterListMapper;
 
     /** mapId → 该地图所有活着的怪物 */
@@ -191,6 +194,9 @@ public class MonsterSpawnService {
 
         // AI 更新 + 清理死亡怪物
         updateAndCleanup(currentTimeMillis);
+
+        // 怪物 AOI：出现/消失/移动的可见性同步（覆盖新刷怪与玩家走动）
+        monsterAOI.syncSessions();
     }
 
     // ======== 出生点 active 状态更新 ========
@@ -297,6 +303,9 @@ public class MonsterSpawnService {
         monster.setMapId(mapId);
         monster.setState(MonsterState.IDLE);
         monster.setLastTransTime(System.currentTimeMillis());
+        // 客户端渲染资源路径：DB modelfile（如 char\monster\Monimp\Monimp-a.INI）→
+        // 规范化为磁盘实际小写 .inx 路径（Linux 大小写敏感）。
+        monster.setModelFile(normalizeModelPath(template.getModelFile()));
 
         // 在出生点附近随机偏移
         int offsetRange = point.getRange() > 0 ? point.getRange() : 200;
@@ -311,6 +320,27 @@ public class MonsterSpawnService {
         monster.setSpawnZ(point.getZ());
 
         return monster;
+    }
+
+    /**
+     * 规范化 DB modelfile → 客户端 .inx 资源路径：
+     * 反斜杠→斜杠、转小写（Linux 大小写敏感）、去扩展名后统一补 .inx。
+     * 例：char\monster\Monimp\Monimp-a.INI → char/monster/monimp/monimp-a.inx
+     */
+    private static String normalizeModelPath(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String s = raw.replace('\\', '/').trim().toLowerCase();
+        int slash = s.lastIndexOf('/');
+        String dir = slash >= 0 ? s.substring(0, slash) : "";
+        String name = slash >= 0 ? s.substring(slash + 1) : s;
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) {
+            name = name.substring(0, dot);
+        }
+        String base = dir.isEmpty() ? name : dir + "/" + name;
+        return base + ".inx";
     }
 
     private static int parseExp(String exp) {
@@ -361,6 +391,8 @@ public class MonsterSpawnService {
                         aiEngine.update(monster);
                         // 移动执行（根据状态更新位置）
                         movementService.updateMonster(monster);
+                        // 位置/动画变化 → 广播给观察者
+                        monsterAOI.broadcastMove(monster);
                         // 更新 lastTransTime（有仇恨目标时）
                         if (monster.getTargetPlayerId() != null) {
                             monster.setLastTransTime(now);
@@ -374,7 +406,8 @@ public class MonsterSpawnService {
                 if (!m.isAlive()) {
                     // 5分钟超时或死亡时间超过respawnTime → 从列表移除
                     if (now - m.getDeathTime() >= m.getRespawnTime()) {
-                        // 归还出生点计数
+                        // 通知观察者消失 + 归还出生点计数
+                        monsterAOI.onMonsterRemoved(m);
                         findSpawnPoint(gameMap, m.getSpawnPointIndex())
                             .ifPresent(SpawnPoint::onMonsterDeath);
                         return true;
@@ -382,6 +415,7 @@ public class MonsterSpawnService {
                 }
                 // 5分钟无玩家交互的活着怪物也移除（原版逻辑）
                 if (m.isAlive() && now - m.getLastTransTime() > 5 * 60 * 1000) {
+                    monsterAOI.onMonsterRemoved(m);
                     findSpawnPoint(gameMap, m.getSpawnPointIndex())
                         .ifPresent(SpawnPoint::onMonsterDeath);
                     return true;
