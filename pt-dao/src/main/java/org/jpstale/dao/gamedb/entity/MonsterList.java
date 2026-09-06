@@ -107,6 +107,8 @@ public class MonsterList {
     private String propertyMon;
     @TableField("movespeed")
     private Integer moveSpeed;
+    @TableField("has_run")
+    private Boolean hasRun;
     @TableField("potionpercent")
     private Integer potionPercent;
     @TableField("potions")
