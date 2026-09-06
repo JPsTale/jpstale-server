@@ -274,7 +274,6 @@ public class PlayerService {
         p.setLevel(info.getLevel() != null ? info.getLevel() : 1);
         p.setExp(info.getExperience() != null ? info.getExperience().intValue() : 0);
         p.setGold(info.getGold() != null ? info.getGold() : 0);
-        p.setCurrentMapId(info.getLastStage() != null ? info.getLastStage() : 0);
 
         // 属性（权威，DB 为准）：1级职业固定分配 + 玩家分配点；StatePoint 为未分配点
         p.setStrength(info.getStrength() != null ? info.getStrength() : 10);

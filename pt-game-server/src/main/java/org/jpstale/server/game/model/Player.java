@@ -39,12 +39,6 @@ public class Player {
     private int sp;
     private int maxSp;
 
-    // 位置
-    private int currentMapId;
-    private float x;
-    private float y;
-    private float z;
-
     // 物品
     private Inventory inventory;
     private Equipment equipment;
@@ -69,16 +63,4 @@ public class Player {
     public String getName() {
         return name;
     }
-
-    public int getCurrentMapId() {
-        return currentMapId;
-    }
-
-    public float getX() { return x; }
-    public float getY() { return y; }
-    public float getZ() { return z; }
-
-    public void setX(float x) { this.x = x; }
-    public void setY(float y) { this.y = y; }
-    public void setZ(float z) { this.z = z; }
 }

@@ -115,12 +115,9 @@ public class CombatService {
             result.getFinalDamage(), result.getRawDamage(), result.isCritical(),
             monster.getHp(), monster.getMaxHp());
 
-        // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）
+        // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）。坐标取实体
         if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {
-            PlayerEntity entity = playerService.ensureEntity(player.getSession());
-            if (entity != null) {
-                aiEngine.setTargetPlayer(monster, entity, player.getX(), player.getZ());
-            }
+            aiEngine.setTargetPlayer(monster, attackerEntity, attackerEntity.getX(), attackerEntity.getZ());
         }
 
         // 发送攻击结果给攻击者
@@ -134,9 +131,9 @@ public class CombatService {
             .build();
         messageSender.sendToPlayer(player.getId(), attackMsg);
 
-        // 广播给附近玩家
-        messageSender.broadcastToArea(player.getCurrentMapId(),
-            player.getX(), player.getZ(), 50, attackMsg);
+        // 广播给附近玩家（范围取实体坐标）
+        messageSender.broadcastToArea(attackerEntity.getMapId(),
+            (float) attackerEntity.getX(), (float) attackerEntity.getZ(), 50, attackMsg);
 
         // 检查怪物是否死亡
         if (monster.getHp() <= 0) {
@@ -212,8 +209,6 @@ public class CombatService {
         int half = Math.max(1, player.getMaxHp() / 2);
 
         player.setHp(half);
-        player.setX(x);
-        player.setZ(z);
 
         // 坐标/地图权威在 PlayerEntity;跨图才做 AOI 摘除/重挂(无缝坐标下相邻仍可见,由 AOI 判断)
         if (entity != null) {
