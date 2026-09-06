@@ -203,11 +203,12 @@ public class MonsterAOI {
             .build();
     }
 
-    /** MonsterState → 客户端动画 token（对齐 S2C_MonsterMove.anim_state 注释） */
+    /** MonsterState → 客户端动画 token（对齐 S2C_MonsterMove.anim_state 注释）
+     *  追逐:能跑(RUN 0x60)才发跑,否则走(WALK 0x50)——与 MovementService 速度档同源 */
     public static int animOf(Monster m) {
         MonsterState state = m.getState();
         return switch (state) {
-            case CHASE -> 0x0060;
+            case CHASE -> m.isCanRun() ? 0x0060 : 0x0050;
             case PATROL, RETURN -> 0x0050;
             case ATTACK -> 0x0100;
             default -> 0x0040;

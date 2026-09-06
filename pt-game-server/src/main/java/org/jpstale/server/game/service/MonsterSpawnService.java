@@ -289,6 +289,8 @@ public class MonsterSpawnService {
         monster.setAbsorption(template.getAbsorb() != null ? template.getAbsorb() : 0);
         monster.setViewsight(template.getViewSight() != null ? template.getViewSight() : 200);
         monster.setIntelligence(template.getInteligence() != null ? template.getInteligence() : 0);
+        // canRun:IQ≥6(原版切 RUN 的前提;资产是否有 run 动画的最终判定在客户端,无则自然落 walk 动画)
+        monster.setCanRun(monster.getIntelligence() >= 6);
         // 本性（原版 Nature）：Evil 主动攻击；Neutral/Normal 被动（受击反击）；Good 中立
         monster.setNature(natureOf(template.getMonsterType()));
         // 活动/归位范围：以视野 1.5 倍为界（原版 MoveRange，monsterlist 无此列）

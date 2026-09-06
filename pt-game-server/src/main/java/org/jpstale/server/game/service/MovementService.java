@@ -56,12 +56,13 @@ public class MovementService {
 
         switch (monster.getState()) {
             case CHASE: {
-                // 追击：朝目标玩家实体位置以 run 速度移动
+                // 追击：朝目标玩家实体位置移动;速度档与动画同源:能跑才跑,否则走(原版 IQ≥6+run 动画)
                 PlayerEntity target = context.getTargetPlayer();
                 if (target == null) break;
                 double tx = target.getX();
                 double tz = target.getZ();
-                moveToward(monster, tx, tz, GameConstants.MONSTER_RUN_STEP);
+                double step = monster.isCanRun() ? GameConstants.MONSTER_RUN_STEP : GameConstants.MONSTER_WALK_STEP;
+                moveToward(monster, tx, tz, step);
                 break;
             }
             case PATROL: {

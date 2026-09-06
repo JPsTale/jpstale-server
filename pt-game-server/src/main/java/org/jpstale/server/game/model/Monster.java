@@ -40,6 +40,9 @@ public class Monster extends BaseEntity {
     private int nature;         // 本性：1=Evil主动攻击, 0=Neutral被动(受击反击), 2=Good中立
     private float moveRange;    // 活动/归位范围（出生点为中心）
 
+    /** 能否跑步(IQ≥6,原版以此决定 run 动画与跑速档);出生时由模板 intelligence 决定 */
+    private boolean canRun;
+
     // 出生点信息（归位用）
     private int spawnPointIndex = -1;  // 所属出生点索引
     private double spawnX;              // 出生点X坐标
