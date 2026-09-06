@@ -43,6 +43,9 @@ public class MonsterSpawnService {
     private static final int PROXIMITY_DISTANCE_SQ = 0x1C2000;
     /** 出生点最大检测范围 */
     private static final int PROXIMITY_LIMIT = 4096;
+    /** 实体避让:怪物中心最小间距(世界),防止追击/刷怪时重叠成"合成怪"(原版 CheckOtherPlayPosi) */
+    private static final double MONSTER_MIN_SEP = 16.0;
+    private static final double MONSTER_MIN_SEP_SQ = MONSTER_MIN_SEP * MONSTER_MIN_SEP;
 
     @Autowired
     private MapManager mapManager;
@@ -310,6 +313,8 @@ public class MonsterSpawnService {
         monster.setZ(point.getZ() + ThreadLocalRandom.current().nextInt(offsetRange * 2) - offsetRange);
         // Y 权威用地形高度（怪物视野高度差判定用，SpawnPoint 无 Y）
         monster.setY(mapRegionService.getHeight(mapId, monster.getX(), monster.getZ()));
+        // 出生朝向随机(对齐原版 OpenMonster:Angle.y=(GetCurrentTime()<<2)&ANGCLIP,让出生姿态不千篇一律)
+        monster.setAngle(ThreadLocalRandom.current().nextDouble() * Math.PI * 2);
 
         // 记录出生点（归位用）
         monster.setSpawnPointIndex(point.getId());
@@ -397,6 +402,9 @@ public class MonsterSpawnService {
                 }
             }
 
+            // 实体间避让:同图怪两两推开(防重叠成"合成怪")。O(n²)但对每图上限有限、活跃时才关键。
+            separateMonsters(monsters);
+
             // 清理:死亡超 respawnTime 移除;存活但连续 60s 无玩家临近移除(D10)
             monsters.removeIf(m -> {
                 if (!m.isAlive()) {
@@ -417,6 +425,44 @@ public class MonsterSpawnService {
                 }
                 return false;
             });
+        }
+    }
+
+    /**
+     * 同图怪物两两避让:间距 < MONSTER_MIN_SEP 则沿连线各推开一半。
+     * 对齐原版 CheckOtherPlayPosi 的"单位间不重叠"语义;分离后广播位置。
+     */
+    private void separateMonsters(List<Monster> monsters) {
+        int n = monsters.size();
+        if (n < 2) return;
+        for (int i = 0; i < n; i++) {
+            Monster a = monsters.get(i);
+            if (a == null || !a.isAlive()) continue;
+            for (int j = i + 1; j < n; j++) {
+                Monster b = monsters.get(j);
+                if (b == null || !b.isAlive()) continue;
+                double dx = b.getX() - a.getX();
+                double dz = b.getZ() - a.getZ();
+                double d2 = dx * dx + dz * dz;
+                if (d2 >= MONSTER_MIN_SEP_SQ) continue;
+                double d = Math.sqrt(d2);
+                double push = (MONSTER_MIN_SEP - d) * 0.5;
+                double nx;
+                double nz;
+                if (d > 1e-3) {
+                    nx = dx / d;
+                    nz = dz / d;
+                } else {
+                    nx = 1.0;
+                    nz = 0.0;
+                }
+                a.setX(a.getX() - nx * push);
+                a.setZ(a.getZ() - nz * push);
+                b.setX(b.getX() + nx * push);
+                b.setZ(b.getZ() + nz * push);
+                monsterAOI.broadcastMove(a);
+                monsterAOI.broadcastMove(b);
+            }
         }
     }
 
