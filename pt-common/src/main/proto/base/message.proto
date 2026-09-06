@@ -192,6 +192,7 @@ message S2C_PlayerAppear {
   int32 hp = 6;
   int32 max_hp = 7;
   CharacterAppearance appearance = 8;  // 完整外观（头/防具/时装/武器），客户端据此渲染远端
+  float angle = 9;                     // 当前朝向（弧度，0=+Z），远端出现即正确显示朝向
 }
 
 message S2C_PlayerDisappear {

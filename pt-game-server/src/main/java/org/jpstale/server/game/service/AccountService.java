@@ -624,12 +624,13 @@ public class AccountService {
             log.warn("Load player {} failed on selectCharacter: {}", characterId, e.toString());
         }
 
-        // 出生位置写入(坐标权威在 PlayerEntity)
+        // 出生位置/朝向写入(坐标权威在 PlayerEntity;朝向与下方 EnterGame rotation.y 一致)
         if (playerEntity != null) {
             playerEntity.setMapId(mapId);
             playerEntity.setX(sx);
             playerEntity.setZ(sz);
             playerEntity.setY(sy);
+            playerEntity.setAngle(-Math.PI);
         }
 
         // 外观（头/防具/武器）先算好：缓存到在线 Player（onPlayerEnter 的 Appear 广播要用），

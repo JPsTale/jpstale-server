@@ -68,7 +68,8 @@ public class AOIManager {
                 .setX((float) e.getX())
                 .setY((float) e.getY())
                 .setZ((float) e.getZ())
-                .build());
+                .build())
+            .setAngle((float) e.getAngle());
         if (p != null) {
             b.setClassId(p.getJob());
             if (p.getAppearance() != null) {
