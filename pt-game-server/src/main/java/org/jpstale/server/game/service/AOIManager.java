@@ -1,6 +1,7 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
@@ -44,20 +45,30 @@ public class AOIManager {
 
     /**
      * 构建完整的外观快照 Appear（Phase 3：class/level/position/hp 全量下发，客户端据此渲染）。
+     * 属性/坐标读 PlayerEntity;外观数据在 Player。
      */
     private MessageProto.S2C_PlayerAppear buildAppear(PlayerSession session) {
+        PlayerEntity e = session.getEntity();
+        if (e == null) {
+            // 理论不进(ensure 先于 addPlayer);防御性给空快照避免 NPE
+            return MessageProto.S2C_PlayerAppear.newBuilder()
+                .setPlayerId(session.getCharacterId())
+                .setName(session.getCharacterName() != null ? session.getCharacterName() : "")
+                .setPosition(CommonProto.Position.newBuilder().build())
+                .build();
+        }
+        Player p = e.getPlayer();
         MessageProto.S2C_PlayerAppear.Builder b = MessageProto.S2C_PlayerAppear.newBuilder()
             .setPlayerId(session.getCharacterId())
             .setName(session.getCharacterName() != null ? session.getCharacterName() : "")
-            .setLevel(session.getLevel())
-            .setHp(session.getHp())
-            .setMaxHp(session.getMaxHp())
+            .setLevel(e.getLevel())
+            .setHp(e.getHp())
+            .setMaxHp(e.getMaxHp())
             .setPosition(CommonProto.Position.newBuilder()
-                .setX((float) session.getX())
-                .setY((float) session.getY())
-                .setZ((float) session.getZ())
+                .setX((float) e.getX())
+                .setY((float) e.getY())
+                .setZ((float) e.getZ())
                 .build());
-        Player p = playerService.getPlayer(session);
         if (p != null) {
             b.setClassId(p.getJob());
             if (p.getAppearance() != null) {
@@ -180,12 +191,14 @@ public class AOIManager {
         // 取交集
         xPlayers.retainAll(yPlayers);
 
-        // 精确距离过滤（session 坐标由调用方先 setX/setZ 保证最新）
+        // 精确距离过滤（玩家坐标权威在 PlayerEntity,由调用方写入保证最新）
         float rangeSq = range * range;
         Set<PlayerSession> result = new HashSet<>(xPlayers.size());
         for (PlayerSession session : xPlayers) {
-            double dx = session.getX() - x;
-            double dz = session.getZ() - z;
+            PlayerEntity e = session.getEntity();
+            if (e == null) continue; // 未建实体的玩家不参与
+            double dx = e.getX() - x;
+            double dz = e.getZ() - z;
             if (dx * dx + dz * dz <= rangeSq) {
                 result.add(session);
             }
@@ -202,12 +215,14 @@ public class AOIManager {
     public void onPlayerEnter(PlayerSession session) {
         Long playerId = session.getCharacterId();
         if (playerId == null) return;
+        PlayerEntity selfEntity = session.getEntity();
+        if (selfEntity == null) return;
 
         MessageProto.S2C_PlayerAppear selfAppear = buildAppear(session);
         Set<Long> visible = visiblePlayers.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet());
         visible.clear();
         StringBuilder appearLog = new StringBuilder();
-        for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ())) {
+        for (PlayerSession nearby : getNearbyPlayers(selfEntity.getX(), selfEntity.getZ())) {
             if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
             // 新玩家：附近已有玩家的外观快照（此前漏发——新玩家视野是空的）
             session.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
@@ -221,7 +236,7 @@ public class AOIManager {
         }
         log.info("[AOI] {} (id={}) onPlayerEnter pos=({},{}) nearby=[{}]",
             session.getCharacterName(), playerId,
-            (float) session.getX(), (float) session.getZ(), appearLog);
+            (float) selfEntity.getX(), (float) selfEntity.getZ(), appearLog);
     }
 
     /**
@@ -231,11 +246,13 @@ public class AOIManager {
     public void onPlayerLeave(PlayerSession session) {
         Long playerId = session.getCharacterId();
         if (playerId == null) return;
+        PlayerEntity selfEntity = session.getEntity();
+        if (selfEntity == null) return;
 
         MessageProto.S2C_PlayerDisappear msg = MessageProto.S2C_PlayerDisappear.newBuilder()
             .setPlayerId(playerId)
             .build();
-        for (PlayerSession nearby : getNearbyPlayers(session.getX(), session.getZ(), VIEW_RANGE_DISCONNECT)) {
+        for (PlayerSession nearby : getNearbyPlayers(selfEntity.getX(), selfEntity.getZ(), VIEW_RANGE_DISCONNECT)) {
             if (nearby.getCharacterId() == null || nearby.getCharacterId().equals(playerId)) continue;
             nearby.send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
         }
@@ -246,7 +263,7 @@ public class AOIManager {
         }
         log.info("[AOI] {} (id={}) onPlayerLeave pos=({},{})",
             session.getCharacterName(), playerId,
-            (float) session.getX(), (float) session.getZ());
+            (float) selfEntity.getX(), (float) selfEntity.getZ());
     }
 
     /**
@@ -260,9 +277,11 @@ public class AOIManager {
                                int newGridX, int newGridZ) {
         Long moverId = movedPlayer.getCharacterId();
         if (moverId == null) return;
+        PlayerEntity moverEntity = movedPlayer.getEntity();
+        if (moverEntity == null) return;
 
-        double mx = movedPlayer.getX();
-        double mz = movedPlayer.getZ();
+        double mx = moverEntity.getX();
+        double mz = moverEntity.getZ();
         Set<Long> visible = visiblePlayers.computeIfAbsent(moverId, k -> ConcurrentHashMap.newKeySet());
 
         // 1) 新进入 CONNECT 半径的玩家 → 双向 Appear（并同步双方可见集合，防重复）

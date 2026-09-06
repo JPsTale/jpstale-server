@@ -1,6 +1,7 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.network.PlayerSession;
@@ -44,7 +45,8 @@ public class MonsterAOI {
     public void syncSessions() {
         Set<Long> active = ConcurrentHashMap.newKeySet();
         for (PlayerSession session : sessionManager.getAllSessions()) {
-            if (!session.isPlaying() || session.getCurrentMapId() < 0) {
+            PlayerEntity e = session != null ? session.getEntity() : null;
+            if (e == null || !session.isPlaying() || e.getMapId() < 0) {
                 continue;
             }
             Long pid = session.getCharacterId();
@@ -52,20 +54,20 @@ public class MonsterAOI {
                 continue;
             }
             active.add(pid);
-            List<Monster> monsters = monsterSpawnService.getMonstersByMap(session.getCurrentMapId());
-            reconcile(session, monsters);
+            List<Monster> monsters = monsterSpawnService.getMonstersByMap(e.getMapId());
+            reconcile(e, monsters);
         }
         // 清理已离线/未 playing 会话的残留可见集
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));
     }
 
-    private void reconcile(PlayerSession session, List<Monster> monsters) {
-        Long pid = session.getCharacterId();
+    private void reconcile(PlayerEntity player, List<Monster> monsters) {
+        Long pid = player.getSession() != null ? player.getSession().getCharacterId() : null;
         if (pid == null) {
             return;
         }
-        double sx = session.getX();
-        double sz = session.getZ();
+        double sx = player.getX();
+        double sz = player.getZ();
         Set<Long> visible = visibleByPlayer.computeIfAbsent(pid, k -> ConcurrentHashMap.newKeySet());
         double connectSq = (double) CONNECT * CONNECT;
         double disconnectSq = (double) DISCONNECT * DISCONNECT;
@@ -82,11 +84,11 @@ public class MonsterAOI {
             double distSq = dx * dx + dz * dz;
             if (distSq > disconnectSq) {
                 if (visible.remove(mid)) {
-                    sendDisappear(session, mid);
+                    sendDisappear(player.getSession(), mid);
                 }
             } else if (distSq <= connectSq) {
                 if (visible.add(mid)) {
-                    sendAppear(session, m);
+                    sendAppear(player.getSession(), m);
                 }
             }
         }

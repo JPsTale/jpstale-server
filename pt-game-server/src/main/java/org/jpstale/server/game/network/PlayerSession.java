@@ -1,18 +1,27 @@
 package org.jpstale.server.game.network;
 
 import io.netty.channel.Channel;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.proto.base.MessageProto;
 
 /**
- * 玩家会话
- * 绑定 Channel 和玩家信息
+ * 玩家会话(纯网络/会话层,D11/M3)。
  *
- * D11:职责回归纯网络/会话;游戏数据与坐标权威将迁往 PlayerEntity。
- * 当前过渡期仍保留坐标/血量等镜像字段供既有移动/AOI 链路使用,entity 指向场上玩家实体。
+ * 只承担:连接、身份(charId/account/name/state)、指向场上玩家实体的引用(entity)、
+ * 以及"客户端上报移动的 IO 缓冲"(pendingMove*,属网络输入缓冲,核心 loop 消费后写实体)。
+ *
+ * 不持有任何游戏状态:坐标/移动/血量/等级一律在 PlayerEntity
+ * (坐标/移动状态在实体字段,属性/血量/等级经实体转发到其 Player)。
+ * 业务代码应直接操作 session.getEntity(),不要再经 session 转发游戏字段。
  */
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"channel", "entity"})
+@EqualsAndHashCode(exclude = {"channel", "entity"})
 public class PlayerSession {
 
     private final Channel channel;
@@ -21,31 +30,16 @@ public class PlayerSession {
     private String characterName;
     private SessionState state = SessionState.CONNECTED;
 
-    /** D11:指向当前场上玩家实体(游戏数据/坐标权威未来所在) */
-    private PlayerEntity entity;
-
     /** 断线后是否允许重连（顶号踢人时置 false） */
     private boolean allowReconnect = true;
 
     /** 断线时是否已下发过重连 token（避免 READER_IDLE 与 channelInactive 双路径重复生成） */
     private boolean reconnectTokenIssued = false;
 
-    // 玩家位置（world double：(rawX/256, rawY/256, -rawZ/256)，北正，与碰撞同域）
-    private int currentMapId;
-    private double x;
-    private double y;
-    private double z;
-
-    // ======== 服务端权威移动状态 ========
-    /** 移动方向（弧度，0=Z+方向，atan2(dx,dz)） */
-    private double moveAngle;
-    /** 移动状态机（IDLE/WALK/RUN/ATTACK/DEAD） */
-    private PlayerMoveState moveState = PlayerMoveState.IDLE;
-    /** 已广播的动画状态值（0x0040 STAND / 0x0050 WALK / 0x0060 RUN），-1 表示未广播过 */
-    private int lastSyncedAnimState = -1;
+    /** 场上玩家实体(游戏数据/坐标权威所在) */
+    private PlayerEntity entity;
 
     // ======== 客户端位置上权威（方向二）：Netty IO 线程写待处理移动，核心 loop 消费 ========
-    /** 是否有待处理移动（-1=无；>=0 时表示 mode 0/1/2 待应用） */
     private volatile int pendingMoveMode = -1;
     private volatile double pendingMoveX;
     private volatile double pendingMoveY;
@@ -55,13 +49,6 @@ public class PlayerSession {
     private volatile int pendingMoveAnimState;
     /** 上一条已接受位置的时间戳(ms)；0=尚未接受（首条不限速） */
     private long lastMoveAcceptedMs;
-
-    // 玩家战斗状态（调试工具用）
-    private int hp = 100;
-    private int maxHp = 100;
-    private int mp = 50;
-    private int maxMp = 50;
-    private int level = 1;
 
     public PlayerSession(Channel channel) {
         this.channel = channel;

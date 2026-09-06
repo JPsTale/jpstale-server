@@ -1,6 +1,7 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
@@ -49,8 +50,10 @@ public class WorldService {
      * （对齐原版 FindStageField：先 AABB 粗筛，交界处用地形面精确判定）
      */
     private void checkMapSwitch(PlayerSession session) {
-        int currentMapId = session.getCurrentMapId();
-        int targetMap = mapRegionService.findMapPrecise(currentMapId, session.getX(), session.getZ());
+        PlayerEntity e = session.getEntity();
+        if (e == null) return;
+        int currentMapId = e.getMapId();
+        int targetMap = mapRegionService.findMapPrecise(currentMapId, e.getX(), e.getZ());
         if (targetMap >= 0 && targetMap != currentMapId) {
             switchMap(session, targetMap);
         }
@@ -84,19 +87,21 @@ public class WorldService {
      * 切换地图：无缝大世界，玩家坐标不变（从边界走/跑进入），只更新 mapId + AOI 换图 + 通知客户端。
      */
     public void switchMap(PlayerSession session, int newMapId) {
-        int oldMapId = session.getCurrentMapId();
+        PlayerEntity e = session.getEntity();
+        if (e == null) return;
+        int oldMapId = e.getMapId();
         log.info("Player {} switching map {} -> {} at ({}, {})",
             session.getCharacterName(), oldMapId, newMapId,
-            Math.round(session.getX()), Math.round(session.getZ()));
+            Math.round(e.getX()), Math.round(e.getZ()));
 
-        double newX = session.getX();
-        double newZ = session.getZ();
+        double newX = e.getX();
+        double newZ = e.getZ();
 
         // 移出旧图 AOI
         aoiManager.removePlayer(session);
 
         // 更新地图（坐标保持连续不变）
-        session.setCurrentMapId(newMapId);
+        e.setMapId(newMapId);
 
         // 重新加入 AOI
         aoiManager.addPlayer(session, newX, newZ);
@@ -112,29 +117,29 @@ public class WorldService {
             + "}}");
 
         // 切图后广播权威位置（含自己）：即便坐标未变，也同步一次让客户端刷新 amount/anim
-        broadcastMove(session);
+        broadcastMove(session, e);
     }
 
     /**
-     * 向视野内玩家（含自己）广播权威位置。
+     * 向视野内玩家（含自己）广播权威位置。数据读 PlayerEntity。
      */
-    private void broadcastMove(PlayerSession session) {
-        int animState = animStateOf(session.getMoveState());
+    private void broadcastMove(PlayerSession session, PlayerEntity e) {
+        int animState = animStateOf(e.getMoveState());
         MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
             .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
                 .setPlayerId(session.getCharacterId())
                 .setPosition(CommonProto.Position.newBuilder()
-                    .setX((float) session.getX())
-                    .setY((float) session.getY())
-                    .setZ((float) session.getZ())
+                    .setX((float) e.getX())
+                    .setY((float) e.getY())
+                    .setZ((float) e.getZ())
                     .build())
-                .setAngle((float) session.getMoveAngle())
+                .setAngle((float) e.getAngle())
                 .setAnimState(animState)
                 .setTimestamp(System.currentTimeMillis())
                 .build())
             .build();
 
-        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(session.getX(), session.getZ())) {
+        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(e.getX(), e.getZ())) {
             nearbySession.send(moveMessage);
         }
     }

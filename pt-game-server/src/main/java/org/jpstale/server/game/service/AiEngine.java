@@ -241,10 +241,6 @@ public class AiEngine {
         DamageResult result = damageCalculator.calculateMonsterToPlayer(monster, player);
         int newHp = Math.max(0, player.getHp() - result.getFinalDamage());
         player.setHp(newHp);
-        PlayerSession session = target.getSession();
-        if (session != null) {
-            session.setHp(newHp);
-        }
 
         log.info("[MonsterAI] {}#{} ATK {} dmg={} ({}->{}), interval={}ms",
             monster.getName(), monster.getId(), targetName(target),

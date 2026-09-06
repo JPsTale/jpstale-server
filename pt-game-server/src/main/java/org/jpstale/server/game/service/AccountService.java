@@ -10,6 +10,7 @@ import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.ItemMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.FieldCatalog;
 import org.jpstale.server.game.model.FieldInfo;
 import org.jpstale.server.game.model.Player;
@@ -588,16 +589,10 @@ public class AccountService {
         // 绑定角色到 Session
         session.setCharacterId(characterId);
         session.setCharacterName(character.getName());
-        session.setHp(100);
-        session.setMaxHp(100);
-        session.setMp(50);
-        session.setMaxMp(50);
-        session.setLevel(character.getLevel() != null ? character.getLevel() : 1);
         sessionManager.bindCharacterId(session.getChannel(), characterId, character.getName());
 
         // 出生地图/位置（权威：fields.json startPoints 是玩家出生点，非刷怪点）
         int mapId = character.getLastStage() != null ? character.getLastStage() : 1;
-        session.setCurrentMapId(mapId);
         float sx = 0, sz = 0;
         FieldInfo fm = FieldCatalog.get().get(mapId);
         if (fm != null) {
@@ -615,26 +610,26 @@ public class AccountService {
             }
         }
         double sy = mapRegionService.getHeight(mapId, sx, sz);
-        session.setX(sx);
-        session.setZ(sz);
-        session.setY(sy);
 
-        // 完成进场：状态进 PLAYING + 加载权威角色（移动循环依赖 PLAYING 与 Player 缓存）。
+        // 完成进场：状态进 PLAYING + 加载权威角色 + 建立 PlayerEntity(坐标/状态权威在实体)
         // 客户端在 selectCharacter 后只发 playerMove/ping，不会走 game.enterMap，
-        // 因此进场（PLAYING + AOI 注册 + 外观广播）必须在此完成。
+        // 因此进场（PLAYING + 实体建立 + AOI 注册 + 外观广播）必须在此完成。
         session.setState(SessionState.PLAYING);
 
+        PlayerEntity playerEntity = null;
         try {
-            Player onlinePlayer = playerService.getOrCreate(session);
-            if (onlinePlayer != null) {
-                session.setHp(onlinePlayer.getHp());
-                session.setMaxHp(onlinePlayer.getMaxHp());
-                session.setMp(onlinePlayer.getMp());
-                session.setMaxMp(onlinePlayer.getMaxMp());
-                session.setLevel(onlinePlayer.getLevel());
-            }
+            playerService.getOrCreate(session);
+            playerEntity = playerService.ensureEntity(session);
         } catch (Exception e) {
             log.warn("Load player {} failed on selectCharacter: {}", characterId, e.toString());
+        }
+
+        // 出生位置写入(坐标权威在 PlayerEntity)
+        if (playerEntity != null) {
+            playerEntity.setMapId(mapId);
+            playerEntity.setX(sx);
+            playerEntity.setZ(sz);
+            playerEntity.setY(sy);
         }
 
         // 外观（头/防具/武器）先算好：缓存到在线 Player（onPlayerEnter 的 Appear 广播要用），

@@ -123,8 +123,11 @@ public class MovementService {
         }
     }
 
-    /** 应用一条客户端上报的移动（含限速校验）。 */
+    /** 应用一条客户端上报的移动（含限速校验）。坐标/状态写入 PlayerEntity。 */
     private void applyClientMove(PlayerSession session, int mode, long nowMs) {
+        PlayerEntity entity = session.getEntity();
+        if (entity == null) return; // 未进图/未建实体,忽略上报
+
         double nx = session.getPendingMoveX();
         double ny = session.getPendingMoveY();
         double nz = session.getPendingMoveZ();
@@ -136,7 +139,7 @@ public class MovementService {
             Double.isNaN(nz) || Double.isInfinite(nz) ||
             Double.isNaN(nAngle) || Double.isInfinite(nAngle)) return;
 
-        double dist = Math.hypot(nx - session.getX(), nz - session.getZ());
+        double dist = Math.hypot(nx - entity.getX(), nz - entity.getZ());
 
         // 限速：距离 > 最高跑速×Δt×容差+slack → 拒绝（加速/瞬移/穿图）；首条不设限
         long lastAccepted = session.getLastMoveAcceptedMs();
@@ -148,42 +151,42 @@ public class MovementService {
             }
         }
 
-        session.setX(nx);
-        session.setY(ny);
-        session.setZ(nz);
-        session.setMoveAngle(nAngle);
-        session.setMoveState(PlayerMoveState.fromMode(mode));
+        entity.setX(nx);
+        entity.setY(ny);
+        entity.setZ(nz);
+        entity.setAngle(nAngle);
+        entity.setMoveState(PlayerMoveState.fromMode(mode));
         session.setLastMoveAcceptedMs(nowMs);
 
         // 动画状态：客户端提供了非 0 覆盖（掉落 0x70/0x71/0x72）→ 原样广播；否则按 mode 推导
         int anim = session.getPendingMoveAnimState();
-        if (anim == 0) anim = animStateOf(session.getMoveState());
+        if (anim == 0) anim = animStateOf(entity.getMoveState());
 
         // 更新 AOI（同格自动跳过）并广播给视野内玩家（含自己）
         aoiManager.onPlayerMove(session, nx, nz);
-        broadcastMove(session, anim);
+        broadcastMove(session, entity, anim);
     }
 
-    /** 广播玩家位置（服务端校验后）+ 动画状态给视野内所有玩家（含自己）。 */
-    private void broadcastMove(PlayerSession session, int animState) {
-        int prevAnim = session.getLastSyncedAnimState();
+    /** 广播玩家位置（服务端校验后）+ 动画状态给视野内所有玩家（含自己）。数据读 PlayerEntity。 */
+    private void broadcastMove(PlayerSession session, PlayerEntity entity, int animState) {
+        int prevAnim = entity.getLastSyncedAnimState();
         if (animState != prevAnim) {
             log.info("[MOVE] {} (id={}) anim state 0x{} -> 0x{} pos=({},{})",
                 session.getCharacterName(), session.getCharacterId(),
                 String.format("%04X", prevAnim), String.format("%04X", animState),
-                (float) session.getX(), (float) session.getZ());
+                (float) entity.getX(), (float) entity.getZ());
         }
-        session.setLastSyncedAnimState(animState);
+        entity.setLastSyncedAnimState(animState);
 
         MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
             .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
                 .setPlayerId(session.getCharacterId())
                 .setPosition(CommonProto.Position.newBuilder()
-                    .setX((float) session.getX())
-                    .setY((float) session.getY())
-                    .setZ((float) session.getZ())
+                    .setX((float) entity.getX())
+                    .setY((float) entity.getY())
+                    .setZ((float) entity.getZ())
                     .build())
-                .setAngle((float) session.getMoveAngle())
+                .setAngle((float) entity.getAngle())
                 .setAnimState(animState)
                 .setTimestamp(System.currentTimeMillis())
                 .build())
@@ -192,7 +195,7 @@ public class MovementService {
         // 广播范围用 DISCONNECT(1810) 而非 CONNECT(1086)：进入 1086~1810 环带的
         // 远端仍处于可见集合（EU 双阈值，出 1810 才 Disappear），若按 1086 广播，
         // 该区间玩家收不到位置/动画更新会停在最后一条 RUN 上"原地跑步"。
-        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(session.getX(), session.getZ(), AOIManager.VIEW_RANGE_DISCONNECT)) {
+        for (PlayerSession nearbySession : aoiManager.getNearbyPlayers(entity.getX(), entity.getZ(), AOIManager.VIEW_RANGE_DISCONNECT)) {
             nearbySession.send(moveMessage);
         }
     }

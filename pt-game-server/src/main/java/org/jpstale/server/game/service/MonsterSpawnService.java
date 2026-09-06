@@ -8,6 +8,7 @@ import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.MapManager;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.GameMap;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterWave;
@@ -208,13 +209,14 @@ public class MonsterSpawnService {
             sp.setActive(false);
         }
 
-        // 遍历所有在线玩家，标记附近的出生点为 active
+        // 遍历所有在线玩家(坐标权威在实体)，标记附近的出生点为 active
         for (PlayerSession session : sessionManager.getAllSessions()) {
-            if (!session.isPlaying()) continue;
+            PlayerEntity e = session != null ? session.getEntity() : null;
+            if (e == null || !session.isPlaying()) continue;
 
             for (SpawnPoint sp : gameMap.getSpawnPoints()) {
-                int dx = sp.getX() - (int) session.getX();
-                int dz = sp.getZ() - (int) session.getZ();
+                int dx = sp.getX() - (int) e.getX();
+                int dz = sp.getZ() - (int) e.getZ();
                 int distSq = dx * dx + dz * dz;
                 if (distSq < PROXIMITY_DISTANCE_SQ
                     && Math.abs(dx) < PROXIMITY_LIMIT
@@ -420,21 +422,6 @@ public class MonsterSpawnService {
                 return false;
             });
         }
-    }
-
-    /** D10:怪物是否处于任一玩家 ACTIVE_RADIUS(1810) 内 */
-    private boolean nearAnyPlayer(Monster monster, List<PlayerSession> playersOnMap) {
-        if (playersOnMap.isEmpty()) return false;
-        double r = ACTIVE_RADIUS;
-        double rSq = r * r;
-        for (PlayerSession s : playersOnMap) {
-            double dx = monster.getX() - s.getX();
-            double dz = monster.getZ() - s.getZ();
-            if (dx * dx + dz * dz <= rSq) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private int getAliveMonsterCount(int mapId) {

@@ -34,9 +34,6 @@ public class WebSocketServer {
     private int wsPort;
 
     @Autowired
-    private JsonToProtoHandler jsonToProtoHandler;
-
-    @Autowired
     private PacketRouterHandler packetRouterHandler;
 
     @Autowired
@@ -60,7 +57,6 @@ public class WebSocketServer {
                                 .addLast(new HttpObjectAggregator(64 * 1024))
                                 .addLast(new WebSocketServerProtocolHandler("/ws"))
                                 .addLast(serverHeartbeatHandler)
-                                .addLast(jsonToProtoHandler)
                                 .addLast(packetRouterHandler);
                         }
                     })

@@ -91,7 +91,12 @@ public class CombatService {
             return;
         }
 
-        Monster monster = findMonsterById(monsterId, player.getSession().getCurrentMapId());
+        PlayerSession session = player.getSession();
+        PlayerEntity attackerEntity = session != null ? session.getEntity() : null;
+        if (attackerEntity == null) {
+            return;
+        }
+        Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
         if (monster == null || !monster.isAlive()) {
             return;
         }
@@ -161,8 +166,6 @@ public class CombatService {
             killer.setLevel(newLevel);
             killer.setStatePoint(killer.getStatePoint() + gained);
             playerService.recalcPanel(killer);
-            // 同步会话等级（快照/状态栏用）
-            killer.getSession().setLevel(newLevel);
             log.info("{} leveled up {} -> {} (+{} stat points, total {})",
                 killer.getName(), newLevel - gained / 5, newLevel, gained, killer.getStatePoint());
             // 通知客户端升级（JSON，刷新面板）
@@ -200,6 +203,7 @@ public class CombatService {
      */
     public void respawnPlayer(Player player) {
         PlayerSession session = player.getSession();
+        PlayerEntity entity = session != null ? session.getEntity() : null;
         int job = player.getJob();
         int mapId = job <= 4 ? 3 : 21;
         int[] start = mapRegionService.getStartPoint(mapId, 0, 0);
@@ -208,17 +212,21 @@ public class CombatService {
         int half = Math.max(1, player.getMaxHp() / 2);
 
         player.setHp(half);
-        session.setHp(half);
         player.setX(x);
         player.setZ(z);
-        session.setX(x);
-        session.setZ(z);
-        if (session.getCurrentMapId() != mapId) {
-            aoiManager.onPlayerLeave(session);
-            aoiManager.removePlayer(session);
-            session.setCurrentMapId(mapId);
-            aoiManager.addPlayer(session, x, z);
-            aoiManager.onPlayerEnter(session);
+
+        // 坐标/地图权威在 PlayerEntity;跨图才做 AOI 摘除/重挂(无缝坐标下相邻仍可见,由 AOI 判断)
+        if (entity != null) {
+            boolean switchedMap = entity.getMapId() != mapId;
+            entity.setX(x);
+            entity.setZ(z);
+            if (switchedMap) {
+                entity.setMapId(mapId);
+                aoiManager.onPlayerLeave(session);
+                aoiManager.removePlayer(session);
+                aoiManager.addPlayer(session, x, z);
+                aoiManager.onPlayerEnter(session);
+            }
         }
         log.info("Player {} died, respawn to map {} ({},{}) hp {}", player.getName(), mapId, x, z, half);
         // 通知前端：重新进入出生地图（半血）
