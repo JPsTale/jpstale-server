@@ -43,10 +43,6 @@ public class MonsterSpawnService {
     private static final int PROXIMITY_DISTANCE_SQ = 0x1C2000;
     /** 出生点最大检测范围 */
     private static final int PROXIMITY_LIMIT = 4096;
-    /** D10 邻近模拟半径(world,对齐 DISCONNECT 1810):此范围内才开始跑怪 AI+移动 */
-    private static final float ACTIVE_RADIUS = AOIManager.VIEW_RANGE_DISCONNECT;
-    /** D10 回收:连续无玩家临近超过该时长则移除(ms) */
-    private static final long NO_PLAYER_REMOVE_MS = 60 * 1000;
 
     @Autowired
     private MapManager mapManager;
@@ -384,13 +380,13 @@ public class MonsterSpawnService {
             List<Monster> monsters = entry.getValue();
             if (monsters.isEmpty()) continue;
 
-            // 邻近门控(D3/D10):用 AOI 网格查怪周围 ACTIVE_RADIUS 内是否有玩家;
+            // 邻近门控(D3/D10):用 AOI 网格查怪周围 AIConstants.ACTIVE_RADIUS 内是否有玩家;
             // 无缝全局坐标下与可见性口径一致,不按 mapId 人为切分。移动每 tick 执行(不再 id%5 错峰)。
             // 注:坐标读源自 PlayerSession 镜像;D11/M3 玩家坐标收敛到 PlayerEntity 后,
             //    getNearbyPlayers 内部读源切换为实体,此处调用不变。
             for (Monster monster : monsters) {
                 if (!monster.isAlive()) continue;
-                if (!aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), ACTIVE_RADIUS).isEmpty()) {
+                if (!aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), AIConstants.ACTIVE_RADIUS).isEmpty()) {
                     monster.setLastNearPlayerMs(now);
                     // AI 决策(设状态/目标/结算攻击)
                     aiEngine.update(monster);
@@ -411,7 +407,7 @@ public class MonsterSpawnService {
                         log.info("[Spawn] {}#{} removed after death", m.getName(), m.getId());
                         return true;
                     }
-                } else if (now - m.getLastNearPlayerMs() > NO_PLAYER_REMOVE_MS) {
+                } else if (now - m.getLastNearPlayerMs() > AIConstants.NO_PLAYER_REMOVE_MS) {
                     monsterAOI.onMonsterRemoved(m);
                     findSpawnPoint(gameMap, m.getSpawnPointIndex())
                         .ifPresent(SpawnPoint::onMonsterDeath);

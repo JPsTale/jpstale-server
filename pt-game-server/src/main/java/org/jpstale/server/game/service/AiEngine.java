@@ -33,13 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class AiEngine {
 
-    /** 扫描高度容差(world,对齐原版 |ΔY|<140) */
-    private static final double SCAN_HEIGHT_DIFF = 140.0;
-    /** 近战高度容差(world,对齐原版 |ΔY|<64*fONE → 64) */
-    private static final double ATTACK_HEIGHT_DIFF = 64.0;
-    /** 目标丢失下限:视野过小时兜底用(world,对应 CONNECT 1086) */
-    private static final double MIN_LOSE_RANGE = 1086.0;
-
     @Autowired
     private AOIManager aoiManager;
 
@@ -168,7 +161,7 @@ public class AiEngine {
                 continue;
             }
             double dy = monster.getY() - entity.getY();
-            if (Math.abs(dy) > SCAN_HEIGHT_DIFF) {
+            if (Math.abs(dy) > AIConstants.SCAN_HEIGHT_DIFF) {
                 continue;
             }
             double d = distXZ(monster, entity);
@@ -221,7 +214,7 @@ public class AiEngine {
             return false;
         }
         double dy = monster.getY() - target.getY();
-        return Math.abs(dy) < ATTACK_HEIGHT_DIFF;
+        return Math.abs(dy) < AIConstants.ATTACK_HEIGHT_DIFF;
     }
 
     /** 按攻击冷却结算一次伤害(对齐原版:站桩出刀,帧外由 tick 决定出手节奏) */
@@ -258,7 +251,7 @@ public class AiEngine {
 
     private double loseRangeOf(Monster monster) {
         double sight = monster.getViewsight();
-        return Math.max(sight <= 0 ? MIN_LOSE_RANGE : sight, MIN_LOSE_RANGE);
+        return Math.max(sight <= 0 ? AIConstants.MIN_LOSE_RANGE : sight, AIConstants.MIN_LOSE_RANGE);
     }
 
     private double distXZ(Monster monster, PlayerEntity entity) {
