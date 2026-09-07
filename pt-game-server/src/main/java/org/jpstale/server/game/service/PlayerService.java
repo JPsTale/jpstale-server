@@ -13,7 +13,10 @@ import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.entity.EntityIdSource;
 import org.jpstale.server.game.model.ItemStack;
 import org.jpstale.server.game.model.Player;
+import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.proto.base.CommonProto;
+import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -211,6 +214,118 @@ public class PlayerService {
     }
 
     /**
+     * 构建 S2C_PlayerState（HUD 低帧状态通道）：
+     * hp/mp/sp/level/gold/exp + 位置 + 名字，进图/血量变化时推送。
+     */
+    public MessageProto.S2C_PlayerState.Builder buildPlayerState(Player p) {
+        PlayerEntity entity = p.getSession() != null ? p.getSession().getEntity() : null;
+        float x = 0, y = 0, z = 0;
+        int mapId = 0;
+        if (entity != null) {
+            x = (float) entity.getX();
+            y = (float) entity.getY();
+            z = (float) entity.getZ();
+            mapId = entity.getMapId();
+        }
+        return MessageProto.S2C_PlayerState.newBuilder()
+            .setPlayerId(p.getId())
+            .setMapId(mapId)
+            .setPosition(CommonProto.Position.newBuilder().setX(x).setY(y).setZ(z))
+            .setHp(p.getHp()).setMp(p.getMp())
+            .setMaxHp(p.getMaxHp()).setMaxMp(p.getMaxMp())
+            .setSp(p.getSp()).setMaxSp(p.getMaxSp())
+            .setLevel(p.getLevel())
+            .setGold(p.getGold())
+            .setExp(p.getExp())
+            .setNextExp(getExpForLevel(p.getLevel() + 1))
+            .setPlayerName(p.getName() != null ? p.getName() : "");
+    }
+
+    /**
+     * 构建 S2C_CharacterStatus（角色信息面板完整数据），字段与 characterPanel 一致。
+     */
+    public MessageProto.S2C_CharacterStatus.Builder buildCharacterStatus(Player p) {
+        int[] base = statCalculator.baseAttack(p);
+        int[] res = p.getResistances() != null ? p.getResistances() : new int[8];
+        return MessageProto.S2C_CharacterStatus.newBuilder()
+            .setPlayerId(p.getId())
+            .setName(p.getName() != null ? p.getName() : "")
+            .setJob(p.getJob())
+            .setLevel(p.getLevel())
+            .setExp(p.getExp())
+            .setNextExp(getExpForLevel(p.getLevel() + 1))
+            .setGold(p.getGold())
+            .setStrength(p.getStrength()).setSpirit(p.getSpirit())
+            .setTalent(p.getTalent()).setAgility(p.getAgility()).setHealth(p.getHealth())
+            .setStatePoint(p.getStatePoint())
+            .setTotalStatPoints(PlayerStatCalculator.totalStatPoints(p.getLevel()))
+            .setHp(p.getHp()).setMaxHp(p.getMaxHp())
+            .setMp(p.getMp()).setMaxMp(p.getMaxMp())
+            .setSp(p.getSp()).setMaxSp(p.getMaxSp())
+            .setAttackMin(base[0]).setAttackMax(base[1])
+            .setAttackRating(statCalculator.attackRating(p))
+            .setDefense(statCalculator.defense(p))
+            .setAbsorption(statCalculator.absorption(p))
+            .setMoveSpeed(statCalculator.moveSpeedStat(p))
+            .setWalkSpeed((int) statCalculator.walkSpeed(p))
+            .setRunSpeed((int) statCalculator.runSpeed(p))
+            .setAttackSpeed(statCalculator.attackSpeed(p))
+            .setCritical(statCalculator.criticalHit(p))
+            .setBlock(statCalculator.blockChance(p))
+            .setShootingRange(statCalculator.shootingRange(p))
+            .setMaxWeight(statCalculator.maxWeight(p))
+            .setResBionic(res[0]).setResPoison(res[5])
+            .setResFire(res[2]).setResLightning(res[4]).setResIce(res[3]);
+    }
+
+    /**
+     * 推送玩家完整状态：S2C_PlayerState（HUD）+ S2C_CharacterStatus（角色面板）。
+     * 进图 / 属性分配 / 战斗血量变化后调用。
+     */
+    public void sendPlayerStatus(PlayerSession session, Player p) {
+        if (session == null || !session.isLoggedIn()) {
+            return;
+        }
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setPlayerState(buildPlayerState(p))
+            .build());
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setCharacterStatus(buildCharacterStatus(p))
+            .build());
+    }
+
+    /**
+     * 报文入口：属性分配（服务端权威）。
+     * C2S_AllocateStat{stat, points}: stat 为 strength/spirit/talent/agility/health，
+     * 或撤销标记 "undo"（回退最近一次分配）。成功后回推 PlayerState+CharacterStatus。
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.ALLOCATE_STAT_FIELD_NUMBER)
+    public void handleAllocateStat(PlayerSession session, MessageProto.ClientMessage message) {
+        if (session == null || !session.isPlaying() || session.getCharacterId() == null) {
+            return;
+        }
+        Player p = getPlayer(session);
+        if (p == null) {
+            return;
+        }
+        MessageProto.C2S_AllocateStat req = message.getAllocateStat();
+        boolean ok = "undo".equals(req.getStat())
+            ? undoStat(p)
+            : allocateStat(p, req.getStat(), req.getPoints() > 0 ? req.getPoints() : 1);
+
+        if (ok) {
+            sendPlayerStatus(session, p);
+        } else {
+            session.send(MessageProto.ServerMessage.newBuilder()
+                .setError(MessageProto.S2C_Error.newBuilder()
+                    .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
+                    .setErrorMessage("属性分配失败：属性点不足或可撤销历史为空")
+                    .build())
+                .build());
+        }
+    }
+
+    /**
      * 权威落库：经验/金币/属性/属性点写回 characterinfo
      */
     public void persistStats(Player player) {
@@ -251,6 +366,9 @@ public class PlayerService {
         }
         player.setStatePoint(player.getStatePoint() - points);
 
+        // 记录分配历史（撤销用，最多 5 次）
+        player.pushStatAlloc(stat);
+
         // 重算面板（原版 ReformCharForm）
         player.setMaxHp(statCalculator.maxHp(player));
         player.setMaxMp(statCalculator.maxMp(player));
@@ -258,6 +376,38 @@ public class PlayerService {
 
         persistStats(player);
         log.info("Player {} allocated {} to {}, statePoint left {}", player.getName(), points, stat, player.getStatePoint());
+        return true;
+    }
+
+    /**
+     * 撤销最近一次属性分配（对齐原版面板第 6 个箭头：恢复上次加点）。
+     * 历史为空（面板会话外）返回 false。
+     */
+    public boolean undoStat(Player player) {
+        String stat = player.pollLastStatAlloc();
+        if (stat == null) {
+            return false;
+        }
+        switch (stat) {
+            case "strength" -> player.setStrength(Math.max(1, player.getStrength() - 1));
+            case "spirit" -> player.setSpirit(Math.max(1, player.getSpirit() - 1));
+            case "talent" -> player.setTalent(Math.max(1, player.getTalent() - 1));
+            case "agility" -> player.setAgility(Math.max(1, player.getAgility() - 1));
+            case "health" -> player.setHealth(Math.max(1, player.getHealth() - 1));
+            default -> {
+                log.warn("Player {} undo with invalid history stat: {}", player.getName(), stat);
+                return false;
+            }
+        }
+        player.setStatePoint(player.getStatePoint() + 1);
+
+        // 重算面板（原版 ReformCharForm）
+        player.setMaxHp(statCalculator.maxHp(player));
+        player.setMaxMp(statCalculator.maxMp(player));
+        player.setMaxSp(statCalculator.maxSp(player));
+
+        persistStats(player);
+        log.info("Player {} undo {}+1, statePoint back to {}", player.getName(), stat, player.getStatePoint());
         return true;
     }
 

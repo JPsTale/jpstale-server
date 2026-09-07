@@ -49,6 +49,30 @@ public class Player {
     /** 元素抗性 [8]：0生物 1大地 2火 3冰 4雷 5毒 6水 7风（来自装备实例） */
     private int[] resistances = new int[8];
 
+    /**
+     * 本次游戏会话内属性分配历史（最近 5 次，对齐原版 TempStatePoint[5]；属性分配撤销用）
+     */
+    private static final int MAX_ALLOC_HISTORY = 5;
+    private final java.util.ArrayDeque<String> statAllocHistory = new java.util.ArrayDeque<>();
+
+    /** 记录一次分配（超限移除最旧）；成功分配后调用 */
+    public void pushStatAlloc(String stat) {
+        if (statAllocHistory.size() >= MAX_ALLOC_HISTORY) {
+            statAllocHistory.removeFirst();
+        }
+        statAllocHistory.addLast(stat);
+    }
+
+    /** 弹出最近一次分配记录；空则返回 null */
+    public String pollLastStatAlloc() {
+        return statAllocHistory.pollLast();
+    }
+
+    /** 清空分配历史（下线/回选角时调用，对齐原版关面板清空语义） */
+    public void clearStatAllocHistory() {
+        statAllocHistory.clear();
+    }
+
     public Player(PlayerSession session, int slotIndex) {
         this.session = session;
         this.slotIndex = slotIndex;

@@ -661,6 +661,12 @@ public class AccountService {
             .setEnterGame(enterGame)
             .build());
 
+        // 护送推送玩家状态：HUD（真实 hp/mp/sp/等级/经验）+ 角色信息面板（完整属性）。
+        // 客户端据此渲染真实数据，不再用硬编码 100/100 占位。
+        if (cachedPlayer != null) {
+            playerService.sendPlayerStatus(session, cachedPlayer);
+        }
+
         log.info("Character selected: {} ({}) for account: {}, spawn at map {} ({}, {}, {})",
             character.getName(), characterId, accountName, mapId, sx, sy, sz);
     }

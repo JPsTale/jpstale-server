@@ -23,6 +23,7 @@ message ClientMessage {
     C2S_UseItem use_item = 202;
     C2S_PickupItem pickup_item = 203;
     C2S_DropItem drop_item = 204;
+    C2S_AllocateStat allocate_stat = 205;
     
     // 战斗 (300-399)
     C2S_Attack attack = 300;
@@ -59,6 +60,7 @@ message ServerMessage {
     S2C_PlayerDeath player_death = 204;
     S2C_PlayerRespawn player_respawn = 205;
     S2C_EnterGame enter_game = 206;
+    S2C_CharacterStatus character_status = 207;
     
     // 怪物 (300-399)
     S2C_MonsterAppear monster_appear = 300;
@@ -183,6 +185,13 @@ message C2S_DropItem {
   int32 quantity = 2;
 }
 
+// 属性分配（服务端权威）：points 为加点到指定属性的点数（当前恒 1）；
+// stat="undo" 撤销最近一次分配（最多回退 5 次，对齐原版 TempStatePoint[5] 会话历史）。
+message C2S_AllocateStat {
+  string stat = 1;   // strength / spirit / talent / agility / health / undo
+  int32 points = 2;
+}
+
 message S2C_PlayerAppear {
   int64 player_id = 1;
   string name = 2;
@@ -228,6 +237,10 @@ message S2C_PlayerState {
   int32 level = 8;
   int64 gold = 9;
   int64 exp = 10;
+  string player_name = 11;
+  int32 sp = 12;   // 耐力(体力)当前值
+  int32 max_sp = 13;
+  int64 next_exp = 14; // 升到下一级所需累计经验（HUD EXP 条）
 }
 
 message S2C_PlayerDeath {
@@ -240,6 +253,49 @@ message S2C_PlayerRespawn {
   Position position = 2;
   int32 hp = 3;
   int32 mp = 4;
+}
+
+// 角色信息面板完整数据（C 键角色面板 + HUD 联动）。
+// 进图 / 属性分配 / 战斗血量变化时服务端推送，客户端据此刷新面板与 HUD 条。
+message S2C_CharacterStatus {
+  int64 player_id = 1;
+  string name = 2;          // 角色名
+  int32 job = 3;            // 职业(1-10)
+  int32 level = 4;
+  int64 exp = 5;            // 当前累计经验
+  int64 next_exp = 6;       // 升到下一级所需累计经验
+  int64 gold = 7;
+  int32 strength = 8;
+  int32 spirit = 9;
+  int32 talent = 10;
+  int32 agility = 11;
+  int32 health = 12;
+  int32 state_point = 13;   // 未分配属性点
+  int32 total_stat_points = 14;
+  int32 hp = 15;
+  int32 max_hp = 16;
+  int32 mp = 17;
+  int32 max_mp = 18;
+  int32 sp = 19;            // 耐力(体力)
+  int32 max_sp = 20;
+  int32 attack_min = 21;    // 基础攻击下限
+  int32 attack_max = 22;    // 基础攻击上限
+  int32 attack_rating = 23; // 命中率
+  int32 defense = 24;       // 防御力
+  int32 absorption = 25;    // 吸收率
+  int32 move_speed = 26;    // 移动速度点数(1-9)
+  int32 walk_speed = 27;    // 走路速度(游戏单位/秒)
+  int32 run_speed = 28;     // 跑步速度(游戏单位/秒)
+  int32 attack_speed = 29;  // 攻击速度(装备累加)
+  int32 critical = 30;      // 暴击率(上限50)
+  int32 block = 31;         // 格挡率
+  int32 shooting_range = 32;// 射程
+  int32 max_weight = 33;    // 负重上限
+  int32 res_bionic = 34;    // 生物抗性
+  int32 res_poison = 35;    // 毒抗性
+  int32 res_fire = 36;      // 火抗性
+  int32 res_lightning = 37; // 雷抗性
+  int32 res_ice = 38;       // 冰抗性
 }
 
 // ==================== 怪物消息 (300-399) ====================
