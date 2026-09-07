@@ -61,9 +61,14 @@ public class AiEngine {
 
         PlayerEntity target = validateTarget(monster, context);
 
+        // 纯决策(无副作用,可表驱动单测):目标可锁→攻击/追击;无目标→出生锚 leash 内待机/超界归位
+        MonsterState next = decide(
+            target != null,
+            target != null && inAttackRange(monster, target),
+            homeDistOf(monster), leashOf(monster));
+
         if (target != null) {
-            // 目标可锁:在攻击距离内则攻击,否则追击
-            if (inAttackRange(monster, target)) {
+            if (next == MonsterState.ATTACK) {
                 if (monster.getState() != MonsterState.ATTACK) {
                     logState(monster, prevState, MonsterState.ATTACK, "lock target=" + targetName(target));
                     monster.setState(MonsterState.ATTACK);
@@ -81,19 +86,11 @@ public class AiEngine {
             return;
         }
 
-        // 无目标:出生锚 leash 内待机,超出则归位
-        double dx = monster.getSpawnX() - monster.getX();
-        double dz = monster.getSpawnZ() - monster.getZ();
-        double homeDist = Math.sqrt(dx * dx + dz * dz);
-        double leash = monster.getMoveRange() > 0
-            ? monster.getMoveRange()
-            : Math.max(monster.getViewsight() * 1.5f, 100.0f);
-
-        if (homeDist > leash) {
+        if (next == MonsterState.RETURN) {
             if (monster.getState() != MonsterState.RETURN) {
                 logState(monster, prevState, MonsterState.RETURN,
                     "home=" + (int) monster.getSpawnX() + "," + (int) monster.getSpawnZ()
-                        + " dist=" + (int) homeDist + " leash=" + (int) leash);
+                        + " dist=" + (int) homeDistOf(monster) + " leash=" + (int) leashOf(monster));
                 monster.setState(MonsterState.RETURN);
             }
         } else {
@@ -102,6 +99,40 @@ public class AiEngine {
                 monster.setState(MonsterState.IDLE);
             }
         }
+    }
+
+    /**
+     * 状态机决策函数(纯函数,无依赖/副作用)——表驱动单测的唯一断言面。
+     *
+     * 语义对齐 docs/monster-ai-entity-design.md §2.1:
+     *   - 有可锁目标:在攻击距内 → ATTACK,否则 → CHASE;
+     *   - 无目标:超出出生锚 leash → RETURN,否则 → IDLE。
+     *
+     * @param hasValidTarget 当前是否持有可锁目标(已经 validateTarget 校验)
+     * @param inAttackRange  目标是否在近战攻击距离内(含高度差)
+     * @param homeDist       距出生锚的 XZ 距离
+     * @param leash          归位半径(出生锚容忍度)
+     */
+    static MonsterState decide(boolean hasValidTarget, boolean inAttackRange, double homeDist, double leash) {
+        if (hasValidTarget) {
+            return inAttackRange ? MonsterState.ATTACK : MonsterState.CHASE;
+        }
+        return homeDist > leash ? MonsterState.RETURN : MonsterState.IDLE;
+    }
+
+    /** 距出生锚 XZ 距离 */
+    private static double homeDistOf(Monster monster) {
+        double dx = monster.getSpawnX() - monster.getX();
+        double dz = monster.getSpawnZ() - monster.getZ();
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    /** 归位半径:优先 moveRange,缺省 viewsight×1.5 且不下于 100 */
+    private static double leashOf(Monster monster) {
+        if (monster.getMoveRange() > 0) {
+            return monster.getMoveRange();
+        }
+        return Math.max(monster.getViewsight() * 1.5f, 100.0f);
     }
 
     // ======== 目标管理 ========
