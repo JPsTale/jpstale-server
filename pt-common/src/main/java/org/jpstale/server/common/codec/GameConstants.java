@@ -50,23 +50,31 @@ public final class GameConstants {
     /** 怪物奔跑每 tick 步进 = 0.50/20*256 = 6.4 */
     public static final double MONSTER_RUN_STEP = MONSTER_RUN_SPEED / TICK_RATE * POSITION_SCALE;
 
-    // ---------- 玩家移动速度（每 Move_Speed 点的 m/s，观感回调自旧固定值 210.5 world/s @ ms2） ----------
-    /** 玩家步行每 +1 Move_Speed 增量 0.1607 m/s（2 档≈旧固定行走 82.3 world/s） */
-    public static final double PLAYER_WALK_SPEED_PER_POINT = 0.1607;
-    /** 玩家奔跑每 +1 Move_Speed 增量 0.4102 m/s（2 档≈旧固定跑步 210.5 world/s） */
-    public static final double PLAYER_RUN_SPEED_PER_POINT = 0.4102;
+    // ---------- 玩家移动速度（档位体系，对标 wartale 1~51） ----------
+    /** 面板移动速度档位范围：最小值 1（wartale 1~51 > exm 1~25 > 原版 1~9） */
+    public static final int MOVE_SPEED_MIN = 1;
+    /** 面板移动速度档位范围：最大值 51 */
+    public static final int MOVE_SPEED_MAX = 51;
+    /** 档位→内部 MoveSpeed：MoveSpeed = 250 + 10×档位（原版 MoveSpeed=250+10*cnt） */
+    public static final int MOVE_SPEED_BASE = 250;
+    public static final int MOVE_SPEED_PER_LEVEL = 10;
+    /** 每帧内部步进系数：(MoveSpeed×coeff)>>8 = 内部步进@60fps，÷256 = world */
+    public static final int WALK_STEP_COEFF = 180;
+    public static final int RUN_STEP_COEFF = 460;
+    /** 客户端基准确率 60fps：每秒距离 = 每帧步长 × 60 */
+    public static final double CLIENT_FPS = 60.0;
 
-    // ---------- 玩家每 tick 每 Move_Speed 点步进 ----------
-    /** 玩家步行每 tick 每点步进 = 0.1607/20*256 = 2.06 */
-    public static final double PLAYER_WALK_STEP_PER_POINT = PLAYER_WALK_SPEED_PER_POINT / TICK_RATE * POSITION_SCALE;
-    /** 玩家奔跑每 tick 每点步进 = 0.4102/20*256 = 5.25 */
-    public static final double PLAYER_RUN_STEP_PER_POINT = PLAYER_RUN_SPEED_PER_POINT / TICK_RATE * POSITION_SCALE;
+    /** 玩家行走每秒距离（world/s）按档位，档位 1~51（服务端限速与客户端自机步长同源） */
+    public static double playerWalkSpeedWorldPerSec(int moveSpeed) {
+        int step = (MOVE_SPEED_BASE + MOVE_SPEED_PER_LEVEL * moveSpeed) * WALK_STEP_COEFF >> 8;
+        return step / 256.0 * CLIENT_FPS;
+    }
 
-    // ---------- 玩家基础速度（Move_Speed=1 时） ----------
-    /** 玩家 Move_Speed=1 时步行 m/s */
-    public static final double PLAYER_BASE_WALK_SPEED = 0.1607;
-    /** 玩家 Move_Speed=1 时奔跑 m/s */
-    public static final double PLAYER_BASE_RUN_SPEED = 0.4102;
+    /** 玩家奔跑每秒距离（world/s）按档位，档位 1~51 */
+    public static double playerRunSpeedWorldPerSec(int moveSpeed) {
+        int step = (MOVE_SPEED_BASE + MOVE_SPEED_PER_LEVEL * moveSpeed) * RUN_STEP_COEFF >> 8;
+        return step / 256.0 * CLIENT_FPS;
+    }
 
     // ---------- 燃烧/毒 ----------
     /** 燃烧 tick 间隔（毫秒） */

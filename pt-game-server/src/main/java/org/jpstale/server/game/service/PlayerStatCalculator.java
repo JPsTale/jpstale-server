@@ -106,7 +106,7 @@ public class PlayerStatCalculator {
         public int block;          // 格挡率
         public int shootingRange;  // 射程
         public int maxWeight;      // 负重上限
-        public int moveSpeed;      // 移动速度点数 1~9
+        public int moveSpeed;      // 移动速度档位 1~51（对标 wartale；> exm 25 > 原版 9）
         public int avoid;          // 回避率 = 100 - 命中率（自 vs 自）
         public double walkSpeed;   // 世界单位/秒
         public double runSpeed;    // 世界单位/秒
@@ -146,8 +146,8 @@ public class PlayerStatCalculator {
         s.shootingRange = shootingRangeOf(p);
         s.maxWeight = maxWeightOf(p);
         s.moveSpeed = moveSpeedStatOf(p);
-        s.walkSpeed = GameConstants.PLAYER_WALK_SPEED_PER_POINT * s.moveSpeed * GameConstants.POSITION_SCALE;
-        s.runSpeed = GameConstants.PLAYER_RUN_SPEED_PER_POINT * s.moveSpeed * GameConstants.POSITION_SCALE;
+        s.walkSpeed = GameConstants.playerWalkSpeedWorldPerSec(s.moveSpeed);
+        s.runSpeed = GameConstants.playerRunSpeedWorldPerSec(s.moveSpeed);
         s.regenHp = regenOf(p, t -> (t.getRegenerationHpMin() + t.getRegenerationHpMax()) / 2.0);
         s.regenMp = regenOf(p, t -> (t.getRegenerationMpMin() + t.getRegenerationMpMax()) / 2.0);
         s.regenStm = regenOf(p, t -> (t.getRegenerationStmMin() + t.getRegenerationStmMax()) / 2.0);
@@ -273,8 +273,8 @@ public class PlayerStatCalculator {
     }
 
     /**
-     * 移动速度点数（对齐 exm sinInvenTory.cpp:5478-5482）
-     * 公式：int((TAL+HEA+LV+60)/150.0 - weightRatio + bootsSpeed) + 1，范围 1~9
+     * 移动速度档位（对齐 exm sinInvenTory.cpp:5478-5482）
+     * 公式：int((TAL+HEA+LV+60)/150.0 - weightRatio + bootsSpeed) + 1，范围 1~51（对标 wartale）
      */
     private int moveSpeedStatOf(Player p) {
         int equipSpeed = 0;
@@ -287,7 +287,7 @@ public class PlayerStatCalculator {
         double weightRatio = 0.0; // 负重系统未实现
         int ms = (int) ((p.getTalent() + p.getHealth() + p.getLevel() + 60) / 150.0
                 - weightRatio + equipSpeed) + 1;
-        return Math.max(1, Math.min(9, ms));
+        return Math.max(GameConstants.MOVE_SPEED_MIN, Math.min(GameConstants.MOVE_SPEED_MAX, ms));
     }
 
     /** 再生值（装备累加 avg），精确 0.1 */
