@@ -50,23 +50,23 @@ public final class GameConstants {
     /** 怪物奔跑每 tick 步进 = 0.50/20*256 = 6.4 */
     public static final double MONSTER_RUN_STEP = MONSTER_RUN_SPEED / TICK_RATE * POSITION_SCALE;
 
-    // ---------- 玩家移动速度（每 Move_Speed 点的 m/s，exm 源码实测） ----------
-    /** 玩家步行每 +1 Move_Speed 增量 0.4375 m/s */
-    public static final double PLAYER_WALK_SPEED_PER_POINT = 0.4375;
-    /** 玩家奔跑每 +1 Move_Speed 增量 1.2109 m/s */
-    public static final double PLAYER_RUN_SPEED_PER_POINT = 1.2109;
+    // ---------- 玩家移动速度（每 Move_Speed 点的 m/s，观感回调自旧固定值 210.5 world/s @ ms2） ----------
+    /** 玩家步行每 +1 Move_Speed 增量 0.1607 m/s（2 档≈旧固定行走 82.3 world/s） */
+    public static final double PLAYER_WALK_SPEED_PER_POINT = 0.1607;
+    /** 玩家奔跑每 +1 Move_Speed 增量 0.4102 m/s（2 档≈旧固定跑步 210.5 world/s） */
+    public static final double PLAYER_RUN_SPEED_PER_POINT = 0.4102;
 
     // ---------- 玩家每 tick 每 Move_Speed 点步进 ----------
-    /** 玩家步行每 tick 每点步进 = 0.4375/20*256 = 5.6 */
+    /** 玩家步行每 tick 每点步进 = 0.1607/20*256 = 2.06 */
     public static final double PLAYER_WALK_STEP_PER_POINT = PLAYER_WALK_SPEED_PER_POINT / TICK_RATE * POSITION_SCALE;
-    /** 玩家奔跑每 tick 每点步进 = 1.2109/20*256 = 15.5 */
+    /** 玩家奔跑每 tick 每点步进 = 0.4102/20*256 = 5.25 */
     public static final double PLAYER_RUN_STEP_PER_POINT = PLAYER_RUN_SPEED_PER_POINT / TICK_RATE * POSITION_SCALE;
 
     // ---------- 玩家基础速度（Move_Speed=1 时） ----------
     /** 玩家 Move_Speed=1 时步行 m/s */
-    public static final double PLAYER_BASE_WALK_SPEED = 0.4375;
+    public static final double PLAYER_BASE_WALK_SPEED = 0.1607;
     /** 玩家 Move_Speed=1 时奔跑 m/s */
-    public static final double PLAYER_BASE_RUN_SPEED = 1.2109;
+    public static final double PLAYER_BASE_RUN_SPEED = 0.4102;
 
     // ---------- 燃烧/毒 ----------
     /** 燃烧 tick 间隔（毫秒） */
