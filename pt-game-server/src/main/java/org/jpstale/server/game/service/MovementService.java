@@ -17,6 +17,9 @@ import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * 移动服务。
  *
@@ -51,6 +54,16 @@ public class MovementService {
 
     @Autowired
     private PlayerStatCalculator playerStatCalculator;
+
+    /** 玩家跑步时长累计（结算窗口内按 RUN 上报的 tick 间距累加 ms），供 RegenerationService 折算耐力消耗。 */
+    private final Map<Long, Long> runLastMs = new ConcurrentHashMap<>();
+    private final Map<Long, Long> runMsAccum = new ConcurrentHashMap<>();
+
+    /** 取出并清零某玩家本结算窗口的累计跑步毫秒 */
+    public long consumeRunMs(long charId) {
+        Long v = runMsAccum.remove(charId);
+        return v == null ? 0 : v;
+    }
 
     /**
      * 更新怪物位置（每 tick 调用一次）
@@ -128,6 +141,15 @@ public class MovementService {
             if (mode < 0) continue;
             session.setPendingMoveMode(-1);
             applyClientMove(session, mode, now);
+            // 跑步耐力统计：RUN(mode=2) 连续上报的 tick 间距累加；停跑/换态即重置
+            Long cid = session.getCharacterId();
+            if (mode == 2 && cid != null) {
+                Long last = runLastMs.get(cid);
+                if (last != null) runMsAccum.merge(cid, now - last, Long::sum);
+                runLastMs.put(cid, now);
+            } else if (cid != null) {
+                runLastMs.remove(cid);
+            }
         }
     }
 

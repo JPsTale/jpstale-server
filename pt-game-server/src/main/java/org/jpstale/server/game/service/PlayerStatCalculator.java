@@ -148,8 +148,14 @@ public class PlayerStatCalculator {
         s.moveSpeed = moveSpeedStatOf(p);
         s.walkSpeed = GameConstants.playerWalkSpeedWorldPerSec(s.moveSpeed);
         s.runSpeed = GameConstants.playerRunSpeedWorldPerSec(s.moveSpeed);
-        s.regenHp = regenOf(p, t -> (t.getRegenerationHpMin() + t.getRegenerationHpMax()) / 2.0);
-        s.regenMp = regenOf(p, t -> (t.getRegenerationMpMin() + t.getRegenerationMpMax()) / 2.0);
+        // 每秒恢复（原版 sinSetRegen）：
+        //  HP = ((Lv + STR/2 + HEA)/180 + 装备再生 再生Life_Regen)/1.5
+        //  MP = (Lv + SPR*1.2 + HEA/2)/115 + 装备再生 Mana_Regen
+        //  STM = 装备再生 Stamina_Regen（天生 3.8+Lv/7 见 stmRegenTotal）
+        double hpEquip = regenOf(p, t -> (t.getRegenerationHpMin() + t.getRegenerationHpMax()) / 2.0);
+        double mpEquip = regenOf(p, t -> (t.getRegenerationMpMin() + t.getRegenerationMpMax()) / 2.0);
+        s.regenHp = ((p.getLevel() + p.getStrength() / 2.0 + p.getHealth()) / 180.0 + hpEquip) / 1.5;
+        s.regenMp = (p.getLevel() + p.getSpirit() * 1.2 + p.getHealth() / 2.0) / 115.0 + mpEquip;
         s.regenStm = regenOf(p, t -> (t.getRegenerationStmMin() + t.getRegenerationStmMax()) / 2.0);
         s.avoid = avoidOf(s.attackRating, s.defense);
         return s;
@@ -391,5 +397,16 @@ public class PlayerStatCalculator {
      */
     public double stmRegenTotal(Player p) {
         return regenStm(p) + STAMINA_REGEN_BASE + p.getLevel() * STAMINA_REGEN_PER_LEVEL;
+    }
+
+    /**
+     * 跑步每秒耐力消耗（JPT2018 sinUseStamina）：
+     * DeCreaSTM = (1000 + 当前负重) / (最大负重 + STR/2 + 500) + 0.4
+     * 当前负重（背包未实现）暂按 0。
+     */
+    public double staminaUsePerSec(Player p) {
+        int currentWeight = 0;
+        int maxWeight = maxWeightOf(p);
+        return (1000.0 + currentWeight) / (maxWeight + p.getStrength() / 2.0 + 500.0) + 0.4;
     }
 }

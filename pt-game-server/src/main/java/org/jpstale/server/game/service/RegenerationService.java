@@ -32,6 +32,9 @@ public class RegenerationService {
     @Autowired
     private PlayerStatCalculator statCalculator;
 
+    @Autowired
+    private MovementService movementService;
+
     /** 结算周期：1000ms */
     private static final long CYCLE_MS = 1000;
 
@@ -77,6 +80,13 @@ public class RegenerationService {
         acc[1] += mpRegen;
         acc[2] += stmRegen;
 
+        // 跑步耐力消耗（原版 sinUseStamina+sinSetRegen）：本结算窗口累计跑步毫秒
+        // 折算成耐力扣减，与原版逐帧 DeCreaSTM/(70/4) 分块落地语义一致。
+        long runMs = movementService.consumeRunMs(p.getId());
+        if (runMs > 0) {
+            acc[2] -= statCalculator.staminaUsePerSec(p) * runMs / 1000.0;
+        }
+
         boolean changed = false;
         int dh = (int) acc[0];
         if (dh > 0) {
@@ -94,11 +104,18 @@ public class RegenerationService {
                 changed = true;
             }
         }
+        // 体力：回复与消耗在同一个累加器内净额结算（可为负）
         int ds = (int) acc[2];
-        if (ds > 0) {
+        if (ds != 0) {
             acc[2] -= ds;
-            if (p.getSp() < p.getMaxSp()) {
+            if (ds > 0 && p.getSp() < p.getMaxSp()) {
                 p.setSp(Math.min(p.getMaxSp(), p.getSp() + ds));
+                changed = true;
+            } else if (ds < 0 && p.getSp() > 0) {
+                if (p.getSp() + ds <= 0) {
+                    log.debug("Player {} {} 耐力耗尽，强制走路", p.getName(), p.getId());
+                }
+                p.setSp(Math.max(0, p.getSp() + ds));
                 changed = true;
             }
         }
