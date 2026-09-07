@@ -477,7 +477,7 @@ public class PlayerService {
         p.setName(info.getName());
         p.setJob(info.getJobCode() != null ? info.getJobCode() : 0);
         p.setLevel(info.getLevel() != null ? info.getLevel() : 1);
-        p.setExp(info.getExperience() != null ? info.getExperience().intValue() : 0);
+        p.setExp(info.getExperience() != null ? info.getExperience() : 0L);
         p.setGold(info.getGold() != null ? info.getGold() : 0);
 
         // 属性（权威，DB 为准）：1级职业固定分配 + 玩家分配点；StatePoint 为未分配点

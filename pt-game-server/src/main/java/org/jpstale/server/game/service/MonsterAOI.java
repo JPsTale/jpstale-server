@@ -135,7 +135,7 @@ public class MonsterAOI {
     }
 
     /** 怪物死亡：通知观察者（击杀者带 exp/gold）并清出可见集（尸体不保留） */
-    public void onMonsterDeath(Monster m, long killerId, int exp, int gold) {
+    public void onMonsterDeath(Monster m, long killerId, long exp, int gold) {
         long mid = m.getId();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
             if (e.getValue().remove(mid)) {
@@ -148,7 +148,7 @@ public class MonsterAOI {
                     .setMonsterDeath(MessageProto.S2C_MonsterDeath.newBuilder()
                         .setMonsterId(mid)
                         .setKillerId(killerId)
-                        .setExp(pid == killerId ? exp : 0)
+                        .setExp((int) (pid == killerId ? exp : 0))
                         .setGold(pid == killerId ? gold : 0)
                         .build())
                     .build();

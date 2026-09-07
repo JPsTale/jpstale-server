@@ -147,7 +147,7 @@ public class CombatService {
     private void handleMonsterDeath(Monster monster, Player killer) {
         monster.onDeath();
 
-        int exp = monster.getExp();
+        long exp = monster.getExp();
         killer.setExp(killer.getExp() + exp);
 
         int gold = monster.getGold();

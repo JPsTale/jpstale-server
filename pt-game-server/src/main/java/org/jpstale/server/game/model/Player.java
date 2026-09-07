@@ -20,7 +20,7 @@ public class Player {
     private String name;
     private int job;            // 职业
     private int level;
-    private int exp;
+    private long exp;           // 累计经验（对齐 getExpForLevel 表，long 防溢出）
     private int gold;
 
     // 属性
