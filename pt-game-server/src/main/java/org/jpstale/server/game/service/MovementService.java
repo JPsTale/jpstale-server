@@ -6,6 +6,7 @@ import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.AiContext;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterState;
+import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
@@ -44,6 +45,12 @@ public class MovementService {
 
     @Autowired
     private CollisionSystem collisionSystem;
+
+    @Autowired
+    private PlayerService playerService;
+
+    @Autowired
+    private PlayerStatCalculator playerStatCalculator;
 
     /**
      * 更新怪物位置（每 tick 调用一次）
@@ -146,7 +153,13 @@ public class MovementService {
         long lastAccepted = session.getLastMoveAcceptedMs();
         if (lastAccepted > 0) {
             double dtMs = Math.max(0, nowMs - lastAccepted);
-            double maxDist = PLAYER_MAX_RUN_PER_MS * dtMs * SPEED_TOLERANCE + SNAP_SLACK;
+            // 限速基准 = 玩家属性跑步速度（世界/秒）；查不到玩家（异常场景）回退最高档
+            double limPerSec = PLAYER_MAX_RUN_PER_MS * 1000.0;
+            Player p = playerService.getPlayer(session);
+            if (p != null) {
+                limPerSec = playerStatCalculator.runSpeed(p);
+            }
+            double maxDist = limPerSec / 1000.0 * dtMs * SPEED_TOLERANCE + SNAP_SLACK;
             if (dist > maxDist) {
                 return; // 拒绝：不更新位置（等待其回到合法范围内）
             }

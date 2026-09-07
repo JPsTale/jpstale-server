@@ -87,6 +87,8 @@ public class PlayerService {
      * 重算面板（升级/分配属性后调用）：最大 HP/MP/SP，并收敛当前值
      */
     public void recalcPanel(Player p) {
+        // 失效派生属性缓存（升级/属性分配/装备变化后重建；stats 惰性一次全量计算）
+        statCalculator.invalidate(p);
         p.setMaxHp(statCalculator.maxHp(p));
         p.setMaxMp(statCalculator.maxMp(p));
         p.setMaxSp(statCalculator.maxSp(p));
@@ -238,6 +240,9 @@ public class PlayerService {
             .setGold(p.getGold())
             .setExp(p.getExp())
             .setNextExp(getExpForLevel(p.getLevel() + 1))
+            .setMoveSpeed(statCalculator.moveSpeedStat(p))
+            .setWalkSpeed((int) statCalculator.walkSpeed(p))
+            .setRunSpeed((int) statCalculator.runSpeed(p))
             .setPlayerName(p.getName() != null ? p.getName() : "");
     }
 
@@ -272,6 +277,7 @@ public class PlayerService {
             .setAttackSpeed(statCalculator.attackSpeed(p))
             .setCritical(statCalculator.criticalHit(p))
             .setBlock(statCalculator.blockChance(p))
+            .setAvoid(statCalculator.avoidChance(p))
             .setShootingRange(statCalculator.shootingRange(p))
             .setMaxWeight(statCalculator.maxWeight(p))
             .setResBionic(res[0]).setResPoison(res[5])
@@ -314,6 +320,7 @@ public class PlayerService {
             : allocateStat(p, req.getStat(), req.getPoints() > 0 ? req.getPoints() : 1);
 
         if (ok) {
+            recalcPanel(p);
             sendPlayerStatus(session, p);
         } else {
             session.send(MessageProto.ServerMessage.newBuilder()

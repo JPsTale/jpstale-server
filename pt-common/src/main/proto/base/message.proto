@@ -241,6 +241,9 @@ message S2C_PlayerState {
   int32 sp = 12;   // 耐力(体力)当前值
   int32 max_sp = 13;
   int64 next_exp = 14; // 升到下一级所需累计经验（HUD EXP 条）
+  int32 move_speed = 15; // 移动速度点数(1-9)
+  int32 walk_speed = 16; // 走路速度(游戏单位/秒)
+  int32 run_speed = 17;  // 跑步速度(游戏单位/秒)
 }
 
 message S2C_PlayerDeath {
@@ -296,6 +299,7 @@ message S2C_CharacterStatus {
   int32 res_fire = 36;      // 火抗性
   int32 res_lightning = 37; // 雷抗性
   int32 res_ice = 38;       // 冰抗性
+  int32 avoid = 39;         // 回避率(%): 100 - 命中率(原版 Accuracy 表，按自身攻防，"躲避"为命中率补集)
 }
 
 // ==================== 怪物消息 (300-399) ====================

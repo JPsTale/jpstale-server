@@ -7,7 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * 玩家面板计算器 — 严格对齐 ex-machina 原版公式
+ * 玩家面板计算器 — 严格对齐 ex-machina 原版公式。
+ * <p>
+ * 派生属性（面板/移动/回复）计算结果缓存到 {@link Player#getStatsCache()}：
+ * {@link #stats(Player)} 计算一次全量后供所有读数共享；升级 / 属性分配 / 装备变化时
+ * 调用 {@link #invalidate(Player)} 失效，避免移动上报（~25Hz）等高频路径重复遍历装备。
  * <p>
  * 依据（代码来源）：
  * <ul>
@@ -15,6 +19,8 @@ import org.springframework.stereotype.Component;
  *   <li>属性点总量 = 99 + (Level-1)*5，每级 +5 自由点存 StatePoint：ReformCharStatePoint</li>
  *   <li>职业公式系数（Life/Mana/Stamina/DamageFunction）：JobDataBase / saCharacterClassData</li>
  *   <li>属性→面板公式：sinInvenTory.cpp / sinSubMain.cpp</li>
+ *   <li>再生：*生命再生/*魔法再生/*耐力再生（每秒固定值）；耐力另含 3.8+LV/7 天生回复</li>
+ *   <li>回避：100 - sinGetPVPAccuracy（Accuracy_Table 区间取上界，自 vs 自等级修正为 0）</li>
  * </ul>
  */
 @Component
@@ -67,13 +73,6 @@ public class PlayerStatCalculator {
         return INITIAL_STATS[job];
     }
 
-    private int[] jobFunction(int job) {
-        if (job < 1 || job >= JOB_FUNCTION.length) {
-            return new int[]{1, 1, 1, 1, 2, 0};
-        }
-        return JOB_FUNCTION[job];
-    }
-
     /** 近战伤害公式的 Strength 系数 F：DamageMelee 1→130, 2→150, 3→190 */
     public int meleeDamageFactor(int job) {
         int dm = jobFunction(job)[3];
@@ -84,9 +83,81 @@ public class PlayerStatCalculator {
         };
     }
 
+    private int[] jobFunction(int job) {
+        if (job < 1 || job >= JOB_FUNCTION.length) {
+            return new int[]{1, 1, 1, 1, 2, 0};
+        }
+        return JOB_FUNCTION[job];
+    }
+
+    // ======== 派生属性缓存（一次全量计算，事件失效后重建） ========
+
+    /** 单次计算快照：一次遍历装备 + 公式，供所有读数共享 */
+    public static final class Stats {
+        public int maxHp;
+        public int maxMp;
+        public int maxSp;
+        public int attackRating;   // 命中率
+        public int defense;        // 防御力
+        public int absorption;     // 吸收率
+        public int[] baseAttack;   // {min, max}
+        public int attackSpeed;    // 攻击速度（装备累加）
+        public int critical;       // 暴击率（上限 50）
+        public int block;          // 格挡率
+        public int shootingRange;  // 射程
+        public int maxWeight;      // 负重上限
+        public int moveSpeed;      // 移动速度点数 1~9
+        public int avoid;          // 回避率 = 100 - 命中率（自 vs 自）
+        public double walkSpeed;   // 世界单位/秒
+        public double runSpeed;    // 世界单位/秒
+        public double regenHp;     // 每秒固定值（精确 0.1）
+        public double regenMp;
+        public double regenStm;
+    }
+
+    /** 读取（失败时惰性重算）。事件失效点：recalcPanel / 属性分配 / 装备装载 */
+    public Stats stats(Player p) {
+        Object cached = p.getStatsCache();
+        if (cached instanceof Stats s) {
+            return s;
+        }
+        Stats s = compute(p);
+        p.setStatsCache(s);
+        return s;
+    }
+
+    /** 失效派生属性缓存（升级/属性分配/装备变化后调用） */
+    public void invalidate(Player p) {
+        p.setStatsCache(null);
+    }
+
+    private Stats compute(Player p) {
+        Stats s = new Stats();
+        s.maxHp = maxHpOf(p);
+        s.maxMp = maxMpOf(p);
+        s.maxSp = maxSpOf(p);
+        s.attackRating = attackRatingOf(p);
+        s.defense = defenseOf(p);
+        s.absorption = absorptionOf(p);
+        s.baseAttack = baseAttackOf(p);
+        s.attackSpeed = attackSpeedOf(p);
+        s.critical = Math.min(50, criticalOf(p));
+        s.block = blockOf(p);
+        s.shootingRange = shootingRangeOf(p);
+        s.maxWeight = maxWeightOf(p);
+        s.moveSpeed = moveSpeedStatOf(p);
+        s.walkSpeed = GameConstants.PLAYER_WALK_SPEED_PER_POINT * s.moveSpeed * GameConstants.POSITION_SCALE;
+        s.runSpeed = GameConstants.PLAYER_RUN_SPEED_PER_POINT * s.moveSpeed * GameConstants.POSITION_SCALE;
+        s.regenHp = regenOf(p, t -> (t.getRegenerationHpMin() + t.getRegenerationHpMax()) / 2.0);
+        s.regenMp = regenOf(p, t -> (t.getRegenerationMpMin() + t.getRegenerationMpMax()) / 2.0);
+        s.regenStm = regenOf(p, t -> (t.getRegenerationStmMin() + t.getRegenerationStmMax()) / 2.0);
+        s.avoid = avoidOf(s.attackRating, s.defense);
+        return s;
+    }
+
     // ======== 面板计算（原版公式） ========
 
-    public int maxHp(Player p) {
+    private int maxHpOf(Player p) {
         int f = jobFunction(p.getJob())[0];
         double v;
         switch (f) {
@@ -99,7 +170,7 @@ public class PlayerStatCalculator {
         return (int) v;
     }
 
-    public int maxMp(Player p) {
+    private int maxMpOf(Player p) {
         int f = jobFunction(p.getJob())[1];
         double v;
         switch (f) {
@@ -110,38 +181,33 @@ public class PlayerStatCalculator {
         return (int) v;
     }
 
-    public int maxSp(Player p) {
+    private int maxSpOf(Player p) {
         return (int) (p.getHealth() * 1.4 + (p.getStrength() + p.getTalent()) / 2
             + p.getLevel() * 2.3 + 80 + p.getSpirit());
     }
 
     /** 命中率：DEX*3.1 + LV*1.9 + TAL*1.5 */
-    public int attackRating(Player p) {
+    private int attackRatingOf(Player p) {
         return (int) (p.getAgility() * 3.1 + p.getLevel() * 1.9 + p.getTalent() * 1.5);
     }
 
     /** 防御力：DEX/2 + TAL/4 + LV*1.4 */
-    public int defense(Player p) {
+    private int defenseOf(Player p) {
         return (int) (p.getAgility() / 2 + p.getTalent() / 4 + p.getLevel() * 1.4);
     }
 
     /** 吸收率：Def/100 + LV/10 + (STR+TAL)/40 + 1（上限由调用方限制） */
-    public int absorption(Player p) {
-        return defense(p) / 100 + p.getLevel() / 10 + (p.getStrength() + p.getTalent()) / 40 + 1;
+    private int absorptionOf(Player p) {
+        return defenseOf(p) / 100 + p.getLevel() / 10 + (p.getStrength() + p.getTalent()) / 40 + 1;
     }
 
     /** 负重上限：STR*2 + HEA*1.5 + LV*3 + 60 */
-    public int maxWeight(Player p) {
+    private int maxWeightOf(Player p) {
         return (int) (p.getStrength() * 2 + p.getHealth() * 1.5 + p.getLevel() * 3 + 60);
     }
 
-    /**
-     * 徒手/基础攻击力（DamageFunction 的近战系数）：{min, max}
-     * <p>
-     * DamageMelee==1: min=1+(STR+130)/130+(TAL+DEX)/40  max=2+(STR+130)/130+(TAL+DEX)/35
-     * 其他:            min=1+(STR+200)/200+(TAL+DEX)/50  max=2+(STR+200)/200+(TAL+DEX)/45
-     */
-    public int[] baseAttack(Player p) {
+    /** 徒手/基础攻击力（DamageFunction 的近战系数）：{min, max} */
+    private int[] baseAttackOf(Player p) {
         int dm = jobFunction(p.getJob())[3];
         int min, max;
         if (dm == 1) {
@@ -154,8 +220,6 @@ public class PlayerStatCalculator {
         // 原版最后 +1 修正
         return new int[]{min + 1, max + 1};
     }
-
-    // ======== 装备聚合的面板字段（原版 sinInvenTory：攻击速度/暴击/格挡/射程/移动速度） ========
 
     private java.util.List<ItemTemplate> equippedTemplates(Player p) {
         java.util.List<ItemTemplate> list = new java.util.ArrayList<>();
@@ -173,7 +237,7 @@ public class PlayerStatCalculator {
     }
 
     /** 攻击速度（装备累加） */
-    public int attackSpeed(Player p) {
+    private int attackSpeedOf(Player p) {
         int sum = 0;
         for (ItemTemplate t : equippedTemplates(p)) {
             sum += t.getAtkSpeed();
@@ -181,17 +245,17 @@ public class PlayerStatCalculator {
         return sum;
     }
 
-    /** 暴击率（装备累加，上限 50，对齐原版 sinChar->Critical_Hit） */
-    public int criticalHit(Player p) {
+    /** 暴击累计（不截断，compute 处统一 cap 50） */
+    private int criticalOf(Player p) {
         int sum = 0;
         for (ItemTemplate t : equippedTemplates(p)) {
             sum += t.getCritical();
         }
-        return Math.min(50, sum);
+        return sum;
     }
 
     /** 格挡率（装备累加，对齐原版 Chance_Block） */
-    public int blockChance(Player p) {
+    private int blockOf(Player p) {
         int sum = 0;
         for (ItemTemplate t : equippedTemplates(p)) {
             sum += (int) ((t.getBlockMin() + t.getBlockMax()) / 2);
@@ -200,7 +264,7 @@ public class PlayerStatCalculator {
     }
 
     /** 射程（装备累加，对齐原版 Shooting_Range） */
-    public int shootingRange(Player p) {
+    private int shootingRangeOf(Player p) {
         int sum = 0;
         for (ItemTemplate t : equippedTemplates(p)) {
             sum += t.getRange();
@@ -210,11 +274,9 @@ public class PlayerStatCalculator {
 
     /**
      * 移动速度点数（对齐 exm sinInvenTory.cpp:5478-5482）
-     * <p>
-     * 公式：int((TAL+HEA+LV+60)/150.0 - weightRatio + bootsSpeed) + 1
-     * 范围：1~9（关键：最后 +1）
+     * 公式：int((TAL+HEA+LV+60)/150.0 - weightRatio + bootsSpeed) + 1，范围 1~9
      */
-    public int moveSpeedStat(Player p) {
+    private int moveSpeedStatOf(Player p) {
         int equipSpeed = 0;
         for (ItemTemplate t : equippedTemplates(p)) {
             int s = (int) t.getRunSpeedMin();
@@ -228,21 +290,94 @@ public class PlayerStatCalculator {
         return Math.max(1, Math.min(9, ms));
     }
 
-    /**
-     * 走路速度（游戏单位/秒）
-     * 走 m/s = 0.4375 × Move_Speed，换算游戏单位/秒 ×256。
-     * Move_Speed=1 → 0.44 m/s = 112 单位/秒（5.6 单位/tick @20tick/s）。
-     */
-    public double walkSpeed(Player p) {
-        return GameConstants.PLAYER_WALK_SPEED_PER_POINT * moveSpeedStat(p) * GameConstants.POSITION_SCALE;
+    /** 再生值（装备累加 avg），精确 0.1 */
+    private double regenOf(Player p, java.util.function.ToDoubleFunction<ItemTemplate> sel) {
+        double sum = 0;
+        for (ItemTemplate t : equippedTemplates(p)) {
+            sum += Math.round(sel.applyAsDouble(t) * 10.0) / 10.0;
+        }
+        return sum;
     }
 
-    /**
-     * 跑步速度（游戏单位/秒）
-     * 跑 m/s = 1.2109 × Move_Speed，换算游戏单位/秒 ×256。
-     * Move_Speed=1 → 1.21 m/s = 310 单位/秒（15.5 单位/tick @20tick/s）。
-     */
-    public double runSpeed(Player p) {
-        return GameConstants.PLAYER_RUN_SPEED_PER_POINT * moveSpeedStat(p) * GameConstants.POSITION_SCALE;
+    // ======== 回避率（原版 Accuracy_Table / sinGetPVPAccuracy 补集） ========
+    // 原版没有独立"躲避"字段：命中率 = sinGetPVPAccuracy(攻方LV/命中, 防方LV/防御)，
+    // 区间取表上界，等级修正 = ((DesLevel-MyLevel)/100)*28，clamp [30,95]。
+    // 面板"回避" = 100 - 命中率（自 vs 自，等级修正为 0）。
+
+    private static final int[] ACC_AC = {
+        -380, -360, -340, -320, -300, -280, -260, -240, -220, -200,
+        -180, -160, -140, -120, -100, -80, -60, -40, -20, 0,
+        10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
+        110, 120, 150, 190, 240, 300, 370, 450, 540, 640,
+        750, 950, 1300, 1600, 2000, 2500
+    };
+    private static final int[] ACC_PCT = {
+        50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+        60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+        70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
+        80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
+        90, 91, 92, 93, 94, 95
+    };
+
+    /** 玩家命中率（原版 sinGetPVPAccuracy，等级修正 ×28，clamp 30~95） */
+    public int accuracyPvp(Player p, int desLevel, int desDefense) {
+        Stats s = stats(p);
+        double ac = (s.attackRating - desDefense) * 1.4;
+        int real = 50;
+        if (ac < -190) {
+            real = 50;
+        } else if (ac > 2100) {
+            real = 95;
+        } else {
+            for (int i = 0; i < ACC_AC.length - 1; i++) {
+                if (ac > ACC_AC[i] && ac <= ACC_AC[i + 1]) {
+                    real = ACC_PCT[i + 1];
+                    break;
+                }
+            }
+        }
+        int result = (int) (real - ((desLevel - p.getLevel()) / 100.0) * 28);
+        return Math.max(30, Math.min(95, result));
     }
+
+    private int avoidOf(int attackRating, int defense) {
+        double ac = (attackRating - defense) * 1.4;
+        int real;
+        if (ac < -190) {
+            real = 50;
+        } else if (ac > 2100) {
+            real = 95;
+        } else {
+            real = 50;
+            for (int i = 0; i < ACC_AC.length - 1; i++) {
+                if (ac > ACC_AC[i] && ac <= ACC_AC[i + 1]) {
+                    real = ACC_PCT[i + 1];
+                    break;
+                }
+            }
+        }
+        return 100 - real;
+    }
+
+    // ======== 对外读数（全部走缓存） ========
+
+    public int maxHp(Player p) { return stats(p).maxHp; }
+    public int maxMp(Player p) { return stats(p).maxMp; }
+    public int maxSp(Player p) { return stats(p).maxSp; }
+    public int attackRating(Player p) { return stats(p).attackRating; }
+    public int defense(Player p) { return stats(p).defense; }
+    public int absorption(Player p) { return stats(p).absorption; }
+    public int[] baseAttack(Player p) { return stats(p).baseAttack; }
+    public int attackSpeed(Player p) { return stats(p).attackSpeed; }
+    public int criticalHit(Player p) { return stats(p).critical; }
+    public int blockChance(Player p) { return stats(p).block; }
+    public int shootingRange(Player p) { return stats(p).shootingRange; }
+    public int maxWeight(Player p) { return stats(p).maxWeight; }
+    public int moveSpeedStat(Player p) { return stats(p).moveSpeed; }
+    public double walkSpeed(Player p) { return stats(p).walkSpeed; }
+    public double runSpeed(Player p) { return stats(p).runSpeed; }
+    public double regenHp(Player p) { return stats(p).regenHp; }
+    public double regenMp(Player p) { return stats(p).regenMp; }
+    public double regenStm(Player p) { return stats(p).regenStm; }
+    public int avoidChance(Player p) { return stats(p).avoid; }
 }

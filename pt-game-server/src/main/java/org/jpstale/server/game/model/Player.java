@@ -49,6 +49,9 @@ public class Player {
     /** 元素抗性 [8]：0生物 1大地 2火 3冰 4雷 5毒 6水 7风（来自装备实例） */
     private int[] resistances = new int[8];
 
+    /** 派生属性缓存（PlayerStatCalculator.stats 惰性填充；升级/属性分配/装备变化后 invalidate）。非持久化 */
+    private transient volatile Object statsCache;
+
     /**
      * 本次游戏会话内属性分配历史（最近 5 次，对齐原版 TempStatePoint[5]；属性分配撤销用）
      */
