@@ -269,6 +269,9 @@ public class AiEngine {
             monster.getName(), monster.getId(), targetName(target),
             result.getFinalDamage(), newHp + result.getFinalDamage(), newHp, interval);
 
+        // 推送玩家最新状态（HUD 血条 + 角色信息面板）：客户端据 S2C_PlayerState/S2C_CharacterStatus 刷新
+        playerService.sendPlayerStatus(player.getSession(), player);
+
         // 强制下一轮攻击广播重发(客户端每刀都能看到攻击动作)
         monster.setLastBroadcastAnim(-1);
 
