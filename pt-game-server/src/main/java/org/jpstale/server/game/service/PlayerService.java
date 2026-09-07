@@ -281,7 +281,10 @@ public class PlayerService {
             .setShootingRange(statCalculator.shootingRange(p))
             .setMaxWeight(statCalculator.maxWeight(p))
             .setResBionic(res[0]).setResPoison(res[5])
-            .setResFire(res[2]).setResLightning(res[4]).setResIce(res[3]);
+            .setResFire(res[2]).setResLightning(res[4]).setResIce(res[3])
+            .setHpRegen((float) statCalculator.regenHp(p))
+            .setMpRegen((float) statCalculator.regenMp(p))
+            .setStmRegen((float) statCalculator.stmRegenTotal(p));
     }
 
     /**
@@ -303,7 +306,8 @@ public class PlayerService {
     /**
      * 报文入口：属性分配（服务端权威）。
      * C2S_AllocateStat{stat, points}: stat 为 strength/spirit/talent/agility/health，
-     * 或撤销标记 "undo"（回退最近一次分配）。成功后回推 PlayerState+CharacterStatus。
+     * 或撤销标记 "undo"（回退最近一次分配）。points>0 分配、points<0 从指定属性撤回
+     * |points| 点（供面板快速 −1/−10/−100）。成功后回推 PlayerState+CharacterStatus。
      */
     @GamePacketHandler(MessageProto.ClientMessage.ALLOCATE_STAT_FIELD_NUMBER)
     public void handleAllocateStat(PlayerSession session, MessageProto.ClientMessage message) {
@@ -315,9 +319,11 @@ public class PlayerService {
             return;
         }
         MessageProto.C2S_AllocateStat req = message.getAllocateStat();
+        int pts = req.getPoints();
         boolean ok = "undo".equals(req.getStat())
             ? undoStat(p)
-            : allocateStat(p, req.getStat(), req.getPoints() > 0 ? req.getPoints() : 1);
+            : pts < 0 ? deductStat(p, req.getStat(), -pts)
+                      : allocateStat(p, req.getStat(), pts > 0 ? pts : 1);
 
         if (ok) {
             recalcPanel(p);
@@ -415,6 +421,48 @@ public class PlayerService {
 
         persistStats(player);
         log.info("Player {} undo {}+1, statePoint back to {}", player.getName(), stat, player.getStatePoint());
+        return true;
+    }
+
+    /**
+     * 从指定属性撤回 points 点（面板快速 −1/−10/−100）。下限保护：不扣到低于 1。
+     * 撤回点数全部回到 StatePoint，同样重算面板并落库。
+     */
+    public boolean deductStat(Player player, String stat, int points) {
+        if (points <= 0) {
+            return false;
+        }
+        int cur = switch (stat) {
+            case "strength" -> player.getStrength();
+            case "spirit" -> player.getSpirit();
+            case "talent" -> player.getTalent();
+            case "agility" -> player.getAgility();
+            case "health" -> player.getHealth();
+            default -> -1;
+        };
+        if (cur < 0) {
+            return false;
+        }
+        int delta = Math.min(points, cur - 1);
+        if (delta <= 0) {
+            return false;
+        }
+        switch (stat) {
+            case "strength" -> player.setStrength(cur - delta);
+            case "spirit" -> player.setSpirit(cur - delta);
+            case "talent" -> player.setTalent(cur - delta);
+            case "agility" -> player.setAgility(cur - delta);
+            case "health" -> player.setHealth(cur - delta);
+            default -> { return false; }
+        }
+        player.setStatePoint(player.getStatePoint() + delta);
+
+        player.setMaxHp(statCalculator.maxHp(player));
+        player.setMaxMp(statCalculator.maxMp(player));
+        player.setMaxSp(statCalculator.maxSp(player));
+
+        persistStats(player);
+        log.info("Player {} deducted {}-{}, statePoint back to {}", player.getName(), stat, delta, player.getStatePoint());
         return true;
     }
 

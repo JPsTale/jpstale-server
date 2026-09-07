@@ -380,4 +380,16 @@ public class PlayerStatCalculator {
     public double regenMp(Player p) { return stats(p).regenMp; }
     public double regenStm(Player p) { return stats(p).regenStm; }
     public int avoidChance(Player p) { return stats(p).avoid; }
+
+    /** 耐力天生回复常量（对齐原版 sinSetRegen InCreaSTM） */
+    public static final double STAMINA_REGEN_BASE = 3.8;
+    public static final double STAMINA_REGEN_PER_LEVEL = 1.0 / 7.0;
+
+    /**
+     * 每秒体力总恢复 = 装备再生 + 天生回复（3.8 + Level/7）。
+     * RegenerationService 结算与本方法共用同一口径，展示/结算不背离。
+     */
+    public double stmRegenTotal(Player p) {
+        return regenStm(p) + STAMINA_REGEN_BASE + p.getLevel() * STAMINA_REGEN_PER_LEVEL;
+    }
 }

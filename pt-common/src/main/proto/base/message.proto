@@ -300,6 +300,9 @@ message S2C_CharacterStatus {
   int32 res_lightning = 37; // 雷抗性
   int32 res_ice = 38;       // 冰抗性
   int32 avoid = 39;         // 回避率(%): 100 - 命中率(原版 Accuracy 表，按自身攻防，"躲避"为命中率补集)
+  float hp_regen = 40;      // 每秒生命恢复（0.1 精度，同 RegenerationService 结算口径）
+  float mp_regen = 41;      // 每秒魔法恢复
+  float stm_regen = 42;     // 每秒体力恢复（含天生 3.8 + Level/7）
 }
 
 // ==================== 怪物消息 (300-399) ====================

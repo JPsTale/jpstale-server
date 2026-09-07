@@ -34,9 +34,6 @@ public class RegenerationService {
 
     /** 结算周期：1000ms */
     private static final long CYCLE_MS = 1000;
-    /** 耐力天生回复：3.8 + Level/7（对齐原版） */
-    private static final double STAMINA_BASE = 3.8;
-    private static final double STAMINA_PER_LEVEL = 1.0 / 7.0;
 
     private long lastTick = 0;
     /** charId → {hpAcc, mpAcc, stmAcc} 小数累加器 */
@@ -73,7 +70,7 @@ public class RegenerationService {
     private boolean settleOne(Player p) {
         double hpRegen = statCalculator.regenHp(p);
         double mpRegen = statCalculator.regenMp(p);
-        double stmRegen = statCalculator.regenStm(p) + STAMINA_BASE + p.getLevel() * STAMINA_PER_LEVEL;
+        double stmRegen = statCalculator.stmRegenTotal(p);
 
         double[] acc = accumulators.computeIfAbsent(p.getId(), k -> new double[3]);
         acc[0] += hpRegen;
