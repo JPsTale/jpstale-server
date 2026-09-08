@@ -1,17 +1,13 @@
 package org.jpstale.server.game.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.dao.userdb.entity.CharacterExpDef;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
-import org.jpstale.dao.userdb.entity.Item;
 import org.jpstale.dao.userdb.mapper.CharacterExpDefMapper;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
-import org.jpstale.dao.userdb.mapper.ItemMapper;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.entity.EntityIdSource;
-import org.jpstale.server.game.model.ItemStack;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
@@ -33,22 +29,20 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class PlayerService {
 
-    public static final short LOCATION_EQUIP = 1;
-
     @Autowired
     private CharacterInfoMapper characterInfoMapper;
-
-    @Autowired
-    private ItemMapper itemMapper;
-
-    @Autowired
-    private ItemCache itemCache;
 
     @Autowired
     private PlayerStatCalculator statCalculator;
 
     @Autowired
     private CharacterExpDefMapper charExpDefMapper;
+
+    @Autowired
+    private org.jpstale.server.game.item.ItemStorageService itemStorage;
+
+    @Autowired
+    private org.jpstale.server.game.item.ItemRollService itemRoll;
 
     /** 等级 → 升到该级所需总经验（characterexpdef / ExpLevelTable） */
     private final Map<Integer, Long> expTable = new ConcurrentHashMap<>();
@@ -474,8 +468,11 @@ public class PlayerService {
         }
 
         Player p = new Player(session, 0);
+        p.setCharacterId(info.getId().longValue());
         p.setName(info.getName());
         p.setJob(info.getJobCode() != null ? info.getJobCode() : 0);
+        p.setHead(info.getHead() != null ? info.getHead() : 0);
+        p.setRank(info.getRank() != null ? info.getRank() : 0);
         p.setLevel(info.getLevel() != null ? info.getLevel() : 1);
         p.setExp(info.getExperience() != null ? info.getExperience() : 0L);
         p.setGold(info.getGold() != null ? info.getGold() : 0);
@@ -494,40 +491,50 @@ public class PlayerService {
         p.setMp(p.getMaxMp());
         p.setSp(p.getMaxSp());
 
-        // 装备（权威加载：userdb.item location=装备栏）
-        loadEquipment(p);
+        // 物品权威装载：背包/仓库/装备/备用武器 全部活行 → items + 重建画布位图 + 抗性
+        loadItems(p);
 
-        log.info("Player {} (lv{}) loaded: str={} spi={} tal={} agi={} hea={} stateP={} hp={}",
+        log.info("Player {} (lv{}) loaded: str={} spi={} tal={} agi={} hea={} stateP={} hp={} items={}",
             p.getName(), p.getLevel(), p.getStrength(), p.getSpirit(), p.getTalent(),
-            p.getAgility(), p.getHealth(), p.getStatePoint(), p.getMaxHp());
+            p.getAgility(), p.getHealth(), p.getStatePoint(), p.getMaxHp(), p.getItems().byUidCount());
         return p;
     }
 
-    private void loadEquipment(Player player) {
-        List<Item> equipItems = itemMapper.selectList(
-            new LambdaQueryWrapper<Item>()
-                .eq(Item::getCharacterId, Math.toIntExact(player.getId()))
-                .eq(Item::getLocation, LOCATION_EQUIP));
-        if (equipItems == null || equipItems.isEmpty()) {
+    /**
+     * 装载玩家全部活物品（delete_time IS NULL）：背包/仓库/装备/备用武器，
+     * 转换 ItemInstance（补模板）→ index 进 items → 重建位图 → 汇总元素抗性。
+     */
+    private void loadItems(Player player) {
+        int cid = Math.toIntExact(player.getId());
+        java.util.List<org.jpstale.dao.userdb.entity.Item> rows = itemStorage.loadActiveRows(cid);
+        if (rows == null || rows.isEmpty()) {
             return;
         }
+        org.jpstale.server.game.item.PlayerItems items = player.getItems();
         int[] res = new int[8];
-        for (Item item : equipItems) {
-            // 物品唯一 ID = gamedb.itemlist.id；旧数据无 itemlist_id 时回退 idcode
-            Integer itemId = item.getItemListId() != null ? item.getItemListId() : item.getItemCode();
-            if (itemId == null) continue;
-            ItemStack stack = new ItemStack(itemId, item.getCount() != null ? item.getCount() : 1);
-            player.getEquipment().equip(stack, itemCache);
-            // 元素抗性（装备实例，EElementID: 0生物 1大地 2火 3冰 4雷 5毒 6水 7风）
-            res[0] += item.getResBionic() != null ? item.getResBionic() : 0;
-            res[1] += item.getResEarth() != null ? item.getResEarth() : 0;
-            res[2] += item.getResFire() != null ? item.getResFire() : 0;
-            res[3] += item.getResIce() != null ? item.getResIce() : 0;
-            res[4] += item.getResLighting() != null ? item.getResLighting() : 0;
-            res[5] += item.getResPoison() != null ? item.getResPoison() : 0;
-            res[6] += item.getResWater() != null ? item.getResWater() : 0;
-            res[7] += item.getResWind() != null ? item.getResWind() : 0;
+        for (org.jpstale.dao.userdb.entity.Item row : rows) {
+            org.jpstale.server.game.item.ItemInstance it = itemStorage.fromRow(row);
+            Integer itemListId = row.getItemListId() != null ? row.getItemListId() : row.getItemCode();
+            if (itemListId != null) {
+                org.jpstale.dao.gamedb.entity.ItemList def = itemRoll.itemListById(itemListId);
+                it.setTemplate(def);
+            }
+            items.index(it);
+            // 元素抗性（EElementID: 0生物 1大地 2火 3冰 4雷 5毒 6水 7风）
+            if (it.getLocation() == org.jpstale.server.game.item.ItemLocations.EQUIP) {
+                res[0] += it.getResBionic();
+                res[1] += it.getResEarth();
+                res[2] += it.getResFire();
+                res[3] += it.getResIce();
+                res[4] += it.getResLighting();
+                res[5] += it.getResPoison();
+                res[6] += it.getResWater();
+                res[7] += it.getResWind();
+            }
         }
+        items.rebuildBitmaps();
         player.setResistances(res);
+        items.markClean();
+        log.info("Player {} items loaded: {} rows", player.getName(), rows.size());
     }
 }

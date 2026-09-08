@@ -1,8 +1,6 @@
 package org.jpstale.server.game.model;
 
 import lombok.Data;
-import org.jpstale.server.game.model.Equipment;
-import org.jpstale.server.game.model.Inventory;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.CommonProto;
 
@@ -22,6 +20,9 @@ public class Player {
     private int level;
     private long exp;           // 累计经验（对齐 getExpForLevel 表，long 防溢出）
     private int gold;
+    /** 头型（CharacterInfo.head，0-2）与转职阶级（rank，0-7）；外观计算用 */
+    private int head;
+    private int rank;
 
     // 属性
     private int strength;
@@ -39,9 +40,8 @@ public class Player {
     private int sp;
     private int maxSp;
 
-    // 物品
-    private Inventory inventory;
-    private Equipment equipment;
+    /** 物品持有状态（画布版权威容器：背包12×12/仓库9×9/装备13槽/备用武器） */
+    private org.jpstale.server.game.item.PlayerItems items;
 
     /** 完整外观（头/防具/时装/武器），进场时由 AccountService 计算一次缓存；AOI Appear 下发用 */
     private CommonProto.CharacterAppearance appearance;
@@ -51,6 +51,9 @@ public class Player {
 
     /** 派生属性缓存（PlayerStatCalculator.stats 惰性填充；升级/属性分配/装备变化后 invalidate）。非持久化 */
     private transient volatile Object statsCache;
+
+    /** 角色 DB id（= characterinfo.id）；不依赖 session，装载/测试可独立设置 */
+    private Long characterId;
 
     /**
      * 本次游戏会话内属性分配历史（最近 5 次，对齐原版 TempStatePoint[5]；属性分配撤销用）
@@ -79,11 +82,13 @@ public class Player {
     public Player(PlayerSession session, int slotIndex) {
         this.session = session;
         this.slotIndex = slotIndex;
-        this.inventory = new Inventory();
-        this.equipment = new Equipment();
+        this.items = new org.jpstale.server.game.item.PlayerItems();
     }
 
     public long getId() {
+        if (characterId != null) {
+            return characterId;
+        }
         return session.getCharacterId();
     }
 

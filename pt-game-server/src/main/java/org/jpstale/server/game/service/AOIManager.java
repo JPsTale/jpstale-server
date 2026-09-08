@@ -223,9 +223,44 @@ public class AOIManager {
             nameOf(entity), eid, (float) entity.getX(), (float) entity.getZ());
     }
 
+    /**
+     * 外观更新广播（穿脱装备/武器切换后调用）：
+     * 自机收自己一份；视野内其他玩家各收一份。
+     * @param entity 外观变化的玩家实体
+     * @param appearance 新外观（调用方已 recalc 并缓存到 Player）
+     */
+    public void broadcastAppearance(PlayerEntity entity, CommonProto.CharacterAppearance appearance) {
+        if (entity == null) {
+            return;
+        }
+        PlayerSession session = sessionOf(entity);
+        long pid = session != null ? session.getCharacterId() : entity.getId();
+        MessageProto.S2C_AppearanceUpdate msg = MessageProto.S2C_AppearanceUpdate.newBuilder()
+            .setPlayerId(pid)
+            .setAppearance(appearance)
+            .build();
+        // 自己
+        if (session != null) {
+            session.send(MessageProto.ServerMessage.newBuilder().setAppearanceUpdate(msg).build());
+        }
+        // 视野玩家
+        for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ())) {
+            if (nearby.getId() == entity.getId()) {
+                continue;
+            }
+            PlayerSession ns = sessionOf(nearby);
+            if (ns != null) {
+                ns.send(MessageProto.ServerMessage.newBuilder().setAppearanceUpdate(msg).build());
+            }
+        }
+        log.info("[AOI] {} (id={}) appearance updated: body={} weapon={}",
+            nameOf(entity), pid,
+            appearance.getBodyModelIdcode() != 0 ? appearance.getBodyModelIdcode() : (appearance.getBodyModel().isEmpty() ? "-" : appearance.getBodyModel()),
+            appearance.getWeaponDorp().isEmpty() ? "-" : appearance.getWeaponDorp());
+    }
+
     private void checkVisibility(PlayerEntity moved,
-                                 int oldGridX, int oldGridZ,
-                                 int newGridX, int newGridZ) {
+                                 int oldGridX, int oldGridZ,                                 int newGridX, int newGridZ) {
         Long eid = moved.getId();
         double mx = moved.getX();
         double mz = moved.getZ();

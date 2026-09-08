@@ -1,9 +1,10 @@
 package org.jpstale.server.game.service;
 
 import org.jpstale.server.common.codec.GameConstants;
-import org.jpstale.server.game.model.ItemTemplate;
+import org.jpstale.server.game.item.EquipSummary;
+import org.jpstale.server.game.item.ItemInstance;
+import org.jpstale.server.game.item.ItemLocations;
 import org.jpstale.server.game.model.Player;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -25,9 +26,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class PlayerStatCalculator {
-
-    @Autowired
-    private ItemCache itemCache;
 
     /** 每职业公式系数：jobcode 1-10 → {LifeFunction, ManaFunction, StaminaFunction, DamageMelee, DamageRange, DamageMagic} */
     private static final int[][] JOB_FUNCTION = {
@@ -98,7 +96,7 @@ public class PlayerStatCalculator {
         public int maxMp;
         public int maxSp;
         public int attackRating;   // 命中率
-        public int defense;        // 防御力
+        public int defense;        // 防御力（含装备掷点值）
         public int absorption;     // 吸收率
         public int[] baseAttack;   // {min, max}
         public int attackSpeed;    // 攻击速度（装备累加）
@@ -113,6 +111,10 @@ public class PlayerStatCalculator {
         public double regenHp;     // 每秒固定值（精确 0.1）
         public double regenMp;
         public double regenStm;
+        /** 装备聚合（掷点实例值），供战斗/负重/面板二次读数 */
+        public EquipSummary equip = new EquipSummary();
+        /** 负重上限（STR*2 + HEA*1.5 + LV*3 + 60） */
+        public int maxWeightBase;
     }
 
     /** 读取（失败时惰性重算）。事件失效点：recalcPanel / 属性分配 / 装备装载 */
@@ -133,30 +135,33 @@ public class PlayerStatCalculator {
 
     private Stats compute(Player p) {
         Stats s = new Stats();
-        s.maxHp = maxHpOf(p);
-        s.maxMp = maxMpOf(p);
-        s.maxSp = maxSpOf(p);
-        s.attackRating = attackRatingOf(p);
-        s.defense = defenseOf(p);
-        s.absorption = absorptionOf(p);
+        s.equip = EquipSummary.of(p);
+        EquipSummary e = s.equip;
+        s.maxHp = maxHpOf(p) + e.increaseLife;
+        s.maxMp = maxMpOf(p) + e.increaseMana;
+        s.maxSp = maxSpOf(p) + e.increaseStamina;
+        s.attackRating = attackRatingOf(p) + equipAttackRating(p, e);
+        s.defense = defenseOf(p) + e.defense;
+        s.absorption = absorptionOf(p) + (int) e.absorb;
         s.baseAttack = baseAttackOf(p);
-        s.attackSpeed = attackSpeedOf(p);
-        s.critical = Math.min(50, criticalOf(p));
-        s.block = blockOf(p);
-        s.shootingRange = shootingRangeOf(p);
-        s.maxWeight = maxWeightOf(p);
-        s.moveSpeed = moveSpeedStatOf(p);
+        s.attackSpeed = attackSpeedOf(p, e);
+        s.critical = Math.min(50, criticalOf(p, e));
+        s.block = blockOf(p, e);
+        s.shootingRange = shootingRangeOf(p, e);
+        s.maxWeightBase = maxWeightOf(p);
+        s.maxWeight = s.maxWeightBase;
+        s.moveSpeed = moveSpeedStatOf(p, e);
         s.walkSpeed = GameConstants.playerWalkSpeedWorldPerSec(s.moveSpeed);
         s.runSpeed = GameConstants.playerRunSpeedWorldPerSec(s.moveSpeed);
         // 每秒恢复（原版 sinSetRegen）：
         //  HP = ((Lv + STR/2 + HEA)/180 + 装备再生 再生Life_Regen)/1.5
         //  MP = (Lv + SPR*1.2 + HEA/2)/115 + 装备再生 Mana_Regen
         //  STM = 装备再生 Stamina_Regen（天生 3.8+Lv/7 见 stmRegenTotal）
-        double hpEquip = regenOf(p, t -> (t.getRegenerationHpMin() + t.getRegenerationHpMax()) / 2.0);
-        double mpEquip = regenOf(p, t -> (t.getRegenerationMpMin() + t.getRegenerationMpMax()) / 2.0);
+        double hpEquip = e.regenHp;
+        double mpEquip = e.regenMp;
         s.regenHp = ((p.getLevel() + p.getStrength() / 2.0 + p.getHealth()) / 180.0 + hpEquip) / 1.5;
         s.regenMp = (p.getLevel() + p.getSpirit() * 1.2 + p.getHealth() / 2.0) / 115.0 + mpEquip;
-        s.regenStm = regenOf(p, t -> (t.getRegenerationStmMin() + t.getRegenerationStmMax()) / 2.0);
+        s.regenStm = e.regenStm;
         s.avoid = avoidOf(s.attackRating, s.defense);
         return s;
     }
@@ -227,82 +232,51 @@ public class PlayerStatCalculator {
         return new int[]{min + 1, max + 1};
     }
 
-    private java.util.List<ItemTemplate> equippedTemplates(Player p) {
-        java.util.List<ItemTemplate> list = new java.util.ArrayList<>();
-        var equip = p.getEquipment();
-        if (equip == null) {
-            return list;
+    /** 装备命中加成：主手武器/部分装备 attack_rating 掷点值（面板用） */
+    private int equipAttackRating(Player p, EquipSummary e) {
+        int sum = 0;
+        org.jpstale.server.game.item.PlayerItems items = p.getItems();
+        if (items == null) {
+            return 0;
         }
-        for (var slot : equip.getSlots().values()) {
-            ItemTemplate t = itemCache.getTemplate(slot.getItemId());
-            if (t != null) {
-                list.add(t);
+        for (ItemInstance it : items.itemsIn(ItemLocations.EQUIP)) {
+            if (it.isDeleted()) {
+                continue;
             }
+            sum += it.getAttackRating();
         }
-        return list;
+        return sum;
     }
 
     /** 攻击速度（装备累加） */
-    private int attackSpeedOf(Player p) {
-        int sum = 0;
-        for (ItemTemplate t : equippedTemplates(p)) {
-            sum += t.getAtkSpeed();
-        }
-        return sum;
+    private int attackSpeedOf(Player p, EquipSummary e) {
+        return e.attackSpeed;
     }
 
     /** 暴击累计（不截断，compute 处统一 cap 50） */
-    private int criticalOf(Player p) {
-        int sum = 0;
-        for (ItemTemplate t : equippedTemplates(p)) {
-            sum += t.getCritical();
-        }
-        return sum;
+    private int criticalOf(Player p, EquipSummary e) {
+        return e.critical;
     }
 
     /** 格挡率（装备累加，对齐原版 Chance_Block） */
-    private int blockOf(Player p) {
-        int sum = 0;
-        for (ItemTemplate t : equippedTemplates(p)) {
-            sum += (int) ((t.getBlockMin() + t.getBlockMax()) / 2);
-        }
-        return sum;
+    private int blockOf(Player p, EquipSummary e) {
+        return (int) e.block;
     }
 
     /** 射程（装备累加，对齐原版 Shooting_Range） */
-    private int shootingRangeOf(Player p) {
-        int sum = 0;
-        for (ItemTemplate t : equippedTemplates(p)) {
-            sum += t.getRange();
-        }
-        return sum;
+    private int shootingRangeOf(Player p, EquipSummary e) {
+        return e.range;
     }
 
     /**
      * 移动速度档位（对齐 exm sinInvenTory.cpp:5478-5482）
      * 公式：int((TAL+HEA+LV+60)/150.0 - weightRatio + bootsSpeed) + 1，范围 1~51（对标 wartale）
      */
-    private int moveSpeedStatOf(Player p) {
-        int equipSpeed = 0;
-        for (ItemTemplate t : equippedTemplates(p)) {
-            int s = (int) t.getRunSpeedMin();
-            if (s > equipSpeed) {
-                equipSpeed = s;
-            }
-        }
-        double weightRatio = 0.0; // 负重系统未实现
+    private int moveSpeedStatOf(Player p, EquipSummary e) {
+        double weightRatio = 0.0; // 负重系统未实现（背包负重暂无结算）
         int ms = (int) ((p.getTalent() + p.getHealth() + p.getLevel() + 60) / 150.0
-                - weightRatio + equipSpeed) + 1;
+                - weightRatio + e.bootsSpeed) + 1;
         return Math.max(GameConstants.MOVE_SPEED_MIN, Math.min(GameConstants.MOVE_SPEED_MAX, ms));
-    }
-
-    /** 再生值（装备累加 avg），精确 0.1 */
-    private double regenOf(Player p, java.util.function.ToDoubleFunction<ItemTemplate> sel) {
-        double sum = 0;
-        for (ItemTemplate t : equippedTemplates(p)) {
-            sum += Math.round(sel.applyAsDouble(t) * 10.0) / 10.0;
-        }
-        return sum;
     }
 
     // ======== 回避率（原版 Accuracy_Table / sinGetPVPAccuracy 补集） ========

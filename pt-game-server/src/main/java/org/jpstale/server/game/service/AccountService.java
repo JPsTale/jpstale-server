@@ -65,6 +65,9 @@ public class AccountService {
     @Autowired
     private ItemListMapper itemListMapper;
 
+    @Autowired
+    private org.jpstale.server.game.item.ItemNetworkHandler itemNetworkHandler;
+
     private Random random = new Random();
 
     /**
@@ -424,7 +427,7 @@ public class AccountService {
         List<org.jpstale.dao.userdb.entity.Item> items = itemMapper.selectList(
             new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.userdb.entity.Item>()
                 .eq(org.jpstale.dao.userdb.entity.Item::getCharacterId, character.getId())
-                .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) 1));
+                .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) 2));
 
         for (org.jpstale.dao.userdb.entity.Item item : items) {
             org.jpstale.dao.gamedb.entity.ItemList def = findItemDef(item);
@@ -665,6 +668,8 @@ public class AccountService {
         // 客户端据此渲染真实数据，不再用硬编码 100/100 占位。
         if (cachedPlayer != null) {
             playerService.sendPlayerStatus(session, cachedPlayer);
+            // 物品全量快照：背包/仓库/装备/备用武器（客户端据此重建物品界面）
+            itemNetworkHandler.sendInventorySnapshot(session, cachedPlayer);
         }
 
         log.info("Character selected: {} ({}) for account: {}, spawn at map {} ({}, {}, {})",

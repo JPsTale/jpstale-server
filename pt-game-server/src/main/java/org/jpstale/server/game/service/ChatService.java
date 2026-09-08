@@ -20,6 +20,15 @@ public class ChatService {
     @Autowired
     private SessionManager sessionManager;
 
+    @Autowired
+    private PlayerService playerService;
+
+    @Autowired
+    private org.jpstale.server.game.item.ItemService itemService;
+
+    @Autowired
+    private org.jpstale.server.game.item.ItemNetworkHandler itemNetwork;
+
     /**
      * 报文入口：聊天
      */
@@ -33,6 +42,12 @@ public class ChatService {
 
         String chatMessage = chatRequest.getMessage();
         if (chatMessage == null || chatMessage.isEmpty() || chatMessage.length() > 200) {
+            return;
+        }
+
+        // 本地命令（/ 前缀，调试/测试用）
+        if (chatMessage.startsWith("/")) {
+            handleLocalCommand(session, chatMessage);
             return;
         }
 
@@ -70,6 +85,64 @@ public class ChatService {
         }
 
         log.debug("Chat from {}: {}", session.getCharacterName(), chatMessage);
+    }
+
+    /**
+     * 本地命令（调试）：/giveitem &lt;itemlistId&gt; — 掷点发放一件到背包。
+     */
+    private void handleLocalCommand(PlayerSession session, String cmd) {
+        String[] parts = cmd.trim().substring(1).split("\\s+");
+        String name = parts[0].toLowerCase();
+        try {
+            if (name.equals("giveitem") && parts.length >= 2) {
+                int itemListId = Integer.parseInt(parts[1]);
+                var player = playerService.getOrCreate(session);
+                var granted = itemService.grantToBag(player, itemListId, null);
+                String msg = granted != null
+                        ? "granted itemlist#" + itemListId + " uid=" + granted.getId()
+                        : "grant failed: template missing or bag full (itemlist#" + itemListId + ")";
+                session.send(MessageProto.ServerMessage.newBuilder()
+                        .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+                                .setMessage(msg)
+                                .setTimestamp(System.currentTimeMillis())
+                                .build())
+                        .build());
+                if (granted != null) {
+                    itemNetwork.pushUpdate(session, granted);
+                }
+                return;
+            }
+            if (name.equals("items")) {
+                var player = playerService.getOrCreate(session);
+                StringBuilder sb = new StringBuilder("items=").append(player.getItems().byUidCount()).append(" [");
+                for (var it : player.getItems().itemsIn(org.jpstale.server.game.item.ItemLocations.BAG)) {
+                    sb.append("#").append(it.getItemListId())
+                      .append("@").append(it.getSlot())
+                      .append(" x").append(it.getCount()).append("; ");
+                }
+                sb.append("]");
+                session.send(MessageProto.ServerMessage.newBuilder()
+                        .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+                                .setMessage(sb.toString())
+                                .setTimestamp(System.currentTimeMillis())
+                                .build())
+                        .build());
+                return;
+            }
+            session.send(MessageProto.ServerMessage.newBuilder()
+                    .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+                            .setMessage("unknown cmd: /" + name)
+                            .setTimestamp(System.currentTimeMillis())
+                            .build())
+                    .build());
+        } catch (NumberFormatException e) {
+            session.send(MessageProto.ServerMessage.newBuilder()
+                    .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+                            .setMessage("bad number in cmd: /" + cmd)
+                            .setTimestamp(System.currentTimeMillis())
+                            .build())
+                    .build());
+        }
     }
 
     private void broadcastToWorld(MessageProto.ServerMessage message) {

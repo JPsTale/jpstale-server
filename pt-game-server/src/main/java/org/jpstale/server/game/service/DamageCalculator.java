@@ -1,11 +1,6 @@
 package org.jpstale.server.game.service;
 
-import org.jpstale.server.game.service.ItemCache;
 import org.jpstale.server.game.model.DamageResult;
-import org.jpstale.server.game.model.ItemTemplate;
-import org.jpstale.server.game.model.ItemStack;
-import org.jpstale.server.game.model.Equipment;
-import org.jpstale.server.game.model.EquipmentSlotType;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.Player;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,9 +13,6 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 @Component
 public class DamageCalculator {
-
-    @Autowired
-    private ItemCache itemCache;
 
     @Autowired
     private PlayerStatCalculator statCalculator;
@@ -91,27 +83,22 @@ public class DamageCalculator {
      * 计算玩家基础攻击力（对齐原版 sinInvenTory.cpp）
      * <p>
      * 徒手：按 DamageMelee 系数用属性公式；有武器时按武器伤害 * 属性系数。
+     * 武器伤害用掷点实例值（EquipSummary.weaponDamageMin/Max），非模板区间。
      */
     private int calculatePlayerAttack(Player player) {
+        org.jpstale.server.game.item.EquipSummary equip = statCalculator.stats(player).equip;
         int[] base = statCalculator.baseAttack(player);
         int min = base[0];
         int max = base[1];
 
-        Equipment equip = player.getEquipment();
-        if (equip != null) {
-            var weapon = equip.getEquipped(EquipmentSlotType.WEAPON);
-            if (weapon != null) {
-                ItemTemplate template = itemCache.getTemplate(weapon.getItemId());
-                if (template != null) {
-                    int wMin = template.getAtkPow1Min();
-                    int wMax = template.getAtkPow1Max();
-                    int str = player.getStrength();
-                    int dmg = statCalculator.meleeDamageFactor(player.getJob());
-                    // 原版：1 + wMin*(STR+F)/F + (TAL+DEX)/40
-                    min = 1 + wMin * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
-                    max = 3 + wMax * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
-                }
-            }
+        if (equip.hasWeapon) {
+            int wMin = equip.weaponDamageMin;
+            int wMax = equip.weaponDamageMax;
+            int str = player.getStrength();
+            int dmg = statCalculator.meleeDamageFactor(player.getJob());
+            // 原版：1 + wMin*(STR+F)/F + (TAL+DEX)/40
+            min = 1 + wMin * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
+            max = 3 + wMax * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
         }
 
         return ThreadLocalRandom.current().nextInt(Math.max(1, min), Math.max(2, max + 1));
@@ -127,62 +114,23 @@ public class DamageCalculator {
     }
 
     /**
-     * 计算玩家吸收率（对齐原版：Def/100 + LV/10 + (STR+TAL)/40 + 1 + 装备）
+     * 计算玩家吸收率（statCalculator.absorption 已含装备掷点值；上限 80）
      */
     private int calculatePlayerAbsorption(Player player) {
-        int absorption = statCalculator.absorption(player);
-
-        // 装备附加吸收
-        Equipment equip = player.getEquipment();
-        if (equip != null) {
-            for (var slot : equip.getSlots().values()) {
-                ItemTemplate template = itemCache.getTemplate(slot.getItemId());
-                if (template != null) {
-                    absorption += (int) ((template.getAbsorbMin() + template.getAbsorbMax()) / 2);
-                }
-            }
-        }
-
-        return Math.min(80, absorption); // 上限 80%
+        return Math.min(80, statCalculator.absorption(player));
     }
 
     /**
-     * 计算玩家格挡率 — 对应原版 sinGetBlockRating（纯装备格挡）
+     * 计算玩家格挡率（statCalculator.blockChance 已含装备格挡掷点值；上限 50）
      */
     private int calculateBlockRate(Player player) {
-        int blockRate = 0;
-
-        // 从装备获取格挡率
-        Equipment equip = player.getEquipment();
-        if (equip != null) {
-            for (var slot : equip.getSlots().values()) {
-                ItemTemplate template = itemCache.getTemplate(slot.getItemId());
-                if (template != null) {
-                    blockRate += (int) ((template.getBlockMin() + template.getBlockMax()) / 2);
-                }
-            }
-        }
-
-        return Math.min(50, blockRate); // 上限 50%
+        return Math.min(50, statCalculator.blockChance(player));
     }
 
     /**
-     * 计算玩家防御力（对齐原版：DEX/2 + TAL/4 + LV*1.4 + 装备）
+     * 计算玩家防御力（statCalculator.defense 已含装备防御掷点值）
      */
     private int calculatePlayerDefense(Player player) {
-        int defense = statCalculator.defense(player);
-
-        // 从装备获取防御力
-        Equipment equip = player.getEquipment();
-        if (equip != null) {
-            for (var slot : equip.getSlots().values()) {
-                ItemTemplate template = itemCache.getTemplate(slot.getItemId());
-                if (template != null) {
-                    defense += (template.getDefenseMin() + template.getDefenseMax()) / 2;
-                }
-            }
-        }
-
-        return defense;
+        return statCalculator.defense(player);
     }
 }
