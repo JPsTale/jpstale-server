@@ -79,12 +79,18 @@ function getRotMatrix(obj, frame) {
 
   // 找 posNum
   let num = getTmFrameRot(obj, frame);
-  if (num < 0) num = 0;
+  // C++ TmAnimation: NumTmRot = GetTmFrameRot(frame)；若 <0（当前帧不在任何有效旋转段内，
+  // 例如某骨骼在部分动作段无独立旋转数据）则走 else 分支 smFMatrixFromMatrix(qmat, TmRotate)，
+  // 即回退到绑定姿态矩阵，而不是从全局 tmRot[0] 插值（后者对多段 smb 会取错段 → 角色横躺）。
+  if (num < 0) {
+    const m = obj.tmRotate.m;
+    return [m[0]/256, m[1]/256, m[2]/256, 0, m[4]/256, m[5]/256, m[6]/256, 0, m[8]/256, m[9]/256, m[10]/256, 0, 0, 0, 0, 1];
+  }
 
   // 在 tmRot[num..] 找 s<=frame<e
   let cnt = num;
   if (tmRot[cnt].frame > frame) {
-    return tmPrevRot[0].slice();
+    return tmPrevRot[cnt].slice();
   }
   let s, e;
   while (true) {
