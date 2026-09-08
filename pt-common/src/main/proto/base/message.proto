@@ -24,6 +24,10 @@ message ClientMessage {
     C2S_PickupItem pickup_item = 203;
     C2S_DropItem drop_item = 204;
     C2S_AllocateStat allocate_stat = 205;
+    C2S_InventoryMove inventory_move = 206;
+    C2S_EquipItem equip_item = 207;
+    C2S_UnequipItem unequip_item = 208;
+    C2S_SwitchWeapon switch_weapon = 209;
     
     // 战斗 (300-399)
     C2S_Attack attack = 300;
@@ -61,6 +65,7 @@ message ServerMessage {
     S2C_PlayerRespawn player_respawn = 205;
     S2C_EnterGame enter_game = 206;
     S2C_CharacterStatus character_status = 207;
+    S2C_AppearanceUpdate appearance_update = 208;
     
     // 怪物 (300-399)
     S2C_MonsterAppear monster_appear = 300;
@@ -79,12 +84,13 @@ message ServerMessage {
     S2C_BuffRemove buff_remove = 406;
     
     // 物品 (500-599)
-    S2C_ItemAdd item_add = 500;
-    S2C_ItemRemove item_remove = 501;
-    S2C_ItemUse item_use = 502;
-    S2C_GoldChange gold_change = 503;
-    S2C_GroundItemAppear ground_item_appear = 504;
-    S2C_GroundItemDisappear ground_item_disappear = 505;
+    S2C_InventorySnapshot inventory_snapshot = 500;
+    S2C_ItemUpdate item_update = 501;
+    S2C_ItemRemove item_remove = 502;
+    S2C_ItemUse item_use = 503;
+    S2C_GoldChange gold_change = 504;
+    S2C_GroundItemAppear ground_item_appear = 505;
+    S2C_GroundItemDisappear ground_item_disappear = 506;
     
     // 社交 (600-699)
     S2C_Chat chat = 600;
@@ -171,8 +177,9 @@ message C2S_PlayerAction {
   int64 target_id = 2;
 }
 
+// 使用物品（药水快捷/右键，uid 定位可堆叠物）
 message C2S_UseItem {
-  int32 item_id = 1;
+  int64 uid = 1;
   int32 quantity = 2;
 }
 
@@ -180,9 +187,32 @@ message C2S_PickupItem {
   int64 ground_item_id = 1;
 }
 
+// 丢弃物品（软删；count=丢弃堆叠数，装备恒 1）
 message C2S_DropItem {
-  int32 item_id = 1;
-  int32 quantity = 2;
+  int64 uid = 1;
+  int32 count = 2;
+}
+
+// 背包内移动/换格（含背包↔仓库）：toLocation/toSlot 为画布目标（location+slot）
+message C2S_InventoryMove {
+  int64 uid = 1;
+  int32 to_location = 2;
+  int32 to_slot = 3;
+}
+
+// 穿装备：背包物品 uid → 装备槽(1~13)
+message C2S_EquipItem {
+  int64 uid = 1;
+  int32 equip_slot = 2;
+}
+
+// 脱装备：装备槽(1~13) → 背包空位
+message C2S_UnequipItem {
+  int32 equip_slot = 1;
+}
+
+// W 键武器切换（主装备 slot1/2 ↔ 备用武器槽）
+message C2S_SwitchWeapon {
 }
 
 // 属性分配（服务端权威）：points 为加点到指定属性的点数（当前恒 1）；
@@ -305,6 +335,13 @@ message S2C_CharacterStatus {
   float stm_regen = 42;     // 每秒体力恢复（含天生 3.8 + Level/7）
 }
 
+// 外观更新：穿/脱装备、W 武器切换后服务端推送，客户端据此更新 3D 角色模型。
+// player_id=自己 → 更新自机；否则更新对应远端玩家。
+message S2C_AppearanceUpdate {
+  int64 player_id = 1;
+  CharacterAppearance appearance = 2;
+}
+
 // ==================== 怪物消息 (300-399) ====================
 
 message S2C_MonsterAppear {
@@ -403,17 +440,24 @@ message S2C_BuffRemove {
 
 // ==================== 物品消息 (500-599) ====================
 
-message S2C_ItemAdd {
+// 进图全量下发玩家全部物品（背包/仓库/装备/备用武器）。客户端据此重建界面。
+message S2C_InventorySnapshot {
+  repeated ItemProto items = 1;
+  int64 gold = 2;
+}
+
+// 单件物品新增或变更（发放/移动/穿脱/属性变化后推送；客户端按 uid upsert 到所在槽）
+message S2C_ItemUpdate {
   ItemProto item = 1;
 }
 
+// 物品移除（软删/丢弃）
 message S2C_ItemRemove {
-  int32 item_id = 1;
-  int32 quantity = 2;
+  int64 uid = 1;
 }
 
 message S2C_ItemUse {
-  int32 item_id = 1;
+  int64 uid = 1;
   int32 quantity = 2;
 }
 

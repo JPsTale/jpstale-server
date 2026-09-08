@@ -95,12 +95,44 @@ enum EquipmentSlotType {
   EQUIP_NECKLACE = 8;
 }
 
-// 物品
+// 物品实例（一物一行，对应 userdb.item）
+// location/slot 语义（画布版）：
+//   0=背包 12×12 slot=y*12+x(0~143)；1=仓库 9×9 slot=y*9+x(0~80)；
+//   2=装备槽(1~13)；6=备用武器槽(1/2)。
 message ItemProto {
-  int32 item_id = 1;
-  int32 quantity = 2;
-  bool stackable = 3;
-  int32 max_stack = 4;
+  int64 uid = 1;            // 物品实例唯一 id（userdb.item.id）
+  int32 itemlist_id = 2;    // 定义主键（gamedb.itemlist.id）
+  int32 item_code = 3;      // 原版物品码（客户端动画/图标查表）
+  int32 location = 4;
+  int32 slot = 5;
+  int32 count = 6;
+  // 掷点实例值（无随机属性的消耗/材料可为 0/不填）
+  int32 durability = 7;
+  int32 durability_max = 8;
+  int32 damage_min = 9;
+  int32 damage_max = 10;
+  int32 attack_rating = 11;
+  int32 defence = 12;
+  int32 block_rating = 13;  // 0.1 精度（如 5.0 → 50）
+  int32 absorb = 14;        // 0.1 精度
+  int32 speed = 15;         // 0.1 精度
+  int32 res_bionic = 16;
+  int32 res_fire = 17;
+  int32 res_ice = 18;
+  int32 res_lighting = 19;
+  int32 res_poison = 20;
+  int32 increase_life = 21;
+  int32 increase_mana = 22;
+  int32 increase_stamina = 23;
+  int32 req_level = 24;
+  int32 req_strength = 25;
+  int32 req_spirit = 26;
+  int32 req_talent = 27;
+  int32 req_agility = 28;
+  int32 req_health = 29;
+  int32 price = 30;
+  int32 job_code_mask = 31;
+  int32 aging_level = 32;   // 锻造等级（本轮存储，操作逻辑未实现）
 }
 
 // 地面物品
