@@ -233,8 +233,8 @@ public class ItemNetworkHandler {
         pushUpdate(session, granted);
     }
 
-    /** 拾取判定范围（世界单位 ≈1.1 米） */
-    private static final double PICKUP_RANGE = 1.1d;
+    /** 拾取判定范围（世界单位，原版 agFindItem 就近拾取：站近即可，不必精确点中模型） */
+    private static final double PICKUP_RANGE = 2.0d;
 
     private void sendErrorKey(PlayerSession session, String key) {
         session.send(MessageProto.ServerMessage.newBuilder()
