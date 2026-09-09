@@ -123,9 +123,11 @@ public class ItemService {
             }
         }
         if (occ.isEmpty()) {
-            // 空位：确认无占用后直接放
-            if (!cg.canPlace(x, y, gw, gh)) {
-                log.info("[BagMove] {} uid={} → slot{} : 目标仍被占", player.getName(), uid, toSlot);
+            // 空位（拿起语义：自身当前足迹视为空，允许上移/下移时部分重叠自己）
+            int sx = cg.xOf(it.getSlot());
+            int sy = cg.yOf(it.getSlot());
+            if (!cg.canPlaceExcept(x, y, gw, gh, sx, sy, gw, gh)) {
+                log.info("[BagMove] {} uid={} → slot{} : 目标仍被占(非自身)", player.getName(), uid, toSlot);
                 return r;
             }
             items.takeFromCanvas(ItemLocations.BAG, it.getSlot());

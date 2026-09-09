@@ -73,6 +73,25 @@ public final class CanvasGrid {
         }
     }
 
+    /** 去掉一矩形(ex,ey,ew,eh)后检查 (x,y,wg,hg) 是否为空（原版：拿起后源格视为空，
+     *  拖动上移/换位时与"自己当前足迹"重叠不判占用）。ex/ey 为排除矩形左上角格。 */
+    public boolean canPlaceExcept(int x, int y, int wg, int hg, int ex, int ey, int ew, int eh) {
+        if (x < 0 || y < 0 || x + wg > w || y + hg > h) {
+            return false;
+        }
+        for (int yy = y; yy < y + hg; yy++) {
+            for (int xx = x; xx < x + wg; xx++) {
+                if (occupied[yy * w + xx]) {
+                    boolean insideEx = xx >= ex && xx < ex + ew && yy >= ey && yy < ey + eh;
+                    if (!insideEx) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
     /** 移除：清除占用。 */
     public void remove(int x, int y, int wg, int hg) {
         for (int yy = y; yy < y + hg; yy++) {
