@@ -71,6 +71,9 @@ public class AccountService {
     @Autowired
     private org.jpstale.server.game.item.ItemNetworkHandler itemNetworkHandler;
 
+    @Autowired
+    private GameTokenService gameTokenService;
+
     private Random random = new Random();
 
     /**
@@ -718,6 +721,9 @@ public class AccountService {
         // 清除账号/角色绑定，状态回 CONNECTED
         sessionManager.unbind(session.getChannel());
 
+        // 大退：让登录 token 失效（删除 Redis 映射，同 token 无法再选角重进）
+        gameTokenService.revoke(session.getToken());
+
         // 通知客户端登出成功
         session.sendText("{\"type\":\"auth.logout\",\"data\":{\"success\":true}}");
 
@@ -756,6 +762,9 @@ public class AccountService {
 
         // 通知客户端回选角成功
         session.sendText("{\"type\":\"auth.backToCharacterSelectResult\",\"data\":{\"success\":true}}");
+
+        // 刷新角色列表（回选角大厅后客户端需重新展示）
+        sendCharacterList(session);
 
         log.info("Character back to character select: {}, account: {}", characterName, session.getAccountId());
     }

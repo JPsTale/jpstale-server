@@ -30,6 +30,9 @@ public class PlayerSession {
     private String characterName;
     private SessionState state = SessionState.CONNECTED;
 
+    /** 账号登录 token（token auth 时写入；大退 logout 时用于失效 Redis key）。大小退共用同一 session。 */
+    private String token;
+
     /** 断线后是否允许重连（顶号踢人时置 false） */
     private boolean allowReconnect = true;
 

@@ -37,4 +37,30 @@ public class GameTokenService {
             return null;
         }
     }
+
+    /**
+     * Revoke a sa-token (大退/退出登录)：删除 token→loginId 映射与对应 session，
+     * 使该 token 立即失效，同 token 无法再连接选角；账号需重新登录换取新 token。
+     */
+    public void revoke(String token) {
+        if (token == null || token.isBlank()) {
+            return;
+        }
+        try {
+            String tokenKey = "satoken:login:token:" + token;
+            Long logoutToken = null;
+            try {
+                logoutToken = Long.parseLong(redis.opsForValue().get(tokenKey));
+            } catch (Exception e) {
+                logoutToken = null;
+            }
+            redis.delete(tokenKey);
+            if (logoutToken != null) {
+                redis.delete("satoken:login:session:" + logoutToken);
+            }
+            log.info("Token revoked: {} (account={})", token, logoutToken);
+        } catch (Exception e) {
+            log.warn("Token revoke failed: {}", e.getMessage());
+        }
+    }
 }

@@ -87,6 +87,7 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
                 session = sessionManager.createSession(ctx.channel());
             }
             session.setAccountId(accountId);
+            session.setToken(token);
             session.setState(SessionState.SERVER_SELECTED);
             sessionManager.bindAccountId(ctx.channel(), accountId);
             log.info("Token auth OK: accountId={}, remote={}", accountId, ctx.channel().remoteAddress());
