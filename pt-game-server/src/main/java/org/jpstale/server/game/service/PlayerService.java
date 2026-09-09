@@ -44,6 +44,9 @@ public class PlayerService {
     @Autowired
     private org.jpstale.server.game.item.ItemRollService itemRoll;
 
+    @Autowired
+    private org.jpstale.server.game.network.SessionManager sessionManager;
+
     /** 等级 → 升到该级所需总经验（characterexpdef / ExpLevelTable） */
     private final Map<Integer, Long> expTable = new ConcurrentHashMap<>();
 
@@ -349,7 +352,29 @@ public class PlayerService {
         info.setAgility(player.getAgility());
         info.setHealth(player.getHealth());
         info.setStatePoint(player.getStatePoint());
+        // 一并落库当前位置/朝向（下次进场从下线坐标恢复，而非固定 startPoint）
+        PlayerEntity ent = player.getSession() != null ? player.getSession().getEntity() : null;
+        if (ent != null) {
+            info.setLastStage(ent.getMapId() > 0 ? ent.getMapId() : info.getLastStage());
+            info.setPosX(ent.getX());
+            info.setPosY(ent.getY());
+            info.setPosZ(ent.getZ());
+            info.setPosAngle(ent.getAngle());
+        }
         characterInfoMapper.updateById(info);
+    }
+
+    /** 周期存档所有在线玩家位置（GameServer.tick 节流调用，抗进程崩溃/重启丢坐标） */
+    public void persistAllOnlinePositions() {
+        for (PlayerSession s : sessionManager.getAllSessions()) {
+            if (s == null || !s.isPlaying() || s.getCharacterId() == null) {
+                continue;
+            }
+            Player p = players.get(s.getCharacterId());
+            if (p != null && s.getEntity() != null) {
+                persistStats(p);
+            }
+        }
     }
 
     /**

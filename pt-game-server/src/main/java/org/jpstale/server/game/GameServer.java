@@ -32,6 +32,11 @@ public class GameServer implements Server {
     @Autowired
     private GroundItemAOI groundItemAOI;
 
+    @Autowired
+    private org.jpstale.server.game.service.PlayerService playerService;
+
+    private long lastPosSaveAt = 0;
+
     @Override
     public void init() {
         log.info("GameServer init");
@@ -48,6 +53,11 @@ public class GameServer implements Server {
         groundItemAOI.syncSessions();
         // 每 1 秒结算一次 HP/MP/SP 自动回复
         regenerationService.tick(currentTimeMillis);
+        // 周期存档在线玩家坐标/朝向（15s），进程重启/崩溃后仍能回下线位置
+        if (currentTimeMillis - lastPosSaveAt >= 15000) {
+            lastPosSaveAt = currentTimeMillis;
+            playerService.persistAllOnlinePositions();
+        }
     }
 
     @Override

@@ -51,6 +51,14 @@ public class CharacterInfo {
     private Integer fsp;
     @TableField("laststage")
     private Integer lastStage;
+    @TableField("pos_x")
+    private Double posX;
+    @TableField("pos_y")
+    private Double posY;
+    @TableField("pos_z")
+    private Double posZ;
+    @TableField("pos_angle")
+    private Double posAngle;
     @TableField("isonline")
     private Integer isOnline;
     @TableField("seasonal")

@@ -600,25 +600,39 @@ public class AccountService {
         session.setCharacterName(character.getName());
         sessionManager.bindCharacterId(session.getChannel(), characterId, character.getName());
 
-        // 出生地图/位置（权威：fields.json startPoints 是玩家出生点，非刷怪点）
+        // 出生地图/位置（权威）：优先恢复玩家上次下线坐标/朝向（periodic 存档 + 下线存档写入）；
+        // 无存档（新号/老数据未存）才回退到 startPoint。
         int mapId = character.getLastStage() != null ? character.getLastStage() : 1;
         float sx = 0, sz = 0;
-        FieldInfo fm = FieldCatalog.get().get(mapId);
-        if (fm != null) {
-            java.util.List<int[]> pts = fm.getStartPoints();
-            if (pts != null && !pts.isEmpty()) {
-                int idx = random.nextInt(pts.size());
-                sx = pts.get(idx)[0];
-                sz = pts.get(idx)[1];
-            } else if (fm.getCenter() != null) {
-                log.warn("当前地图没有start point:{}", mapId);
-                sx = fm.getCenter()[0];
-                sz = fm.getCenter()[1];
-            } else {
-                log.warn("当前地图没有startPoint:{}", mapId);
+        double sy = 0;
+        double savedAngle = -Math.PI;
+        boolean hasSave = character.getPosX() != null && character.getPosZ() != null
+            && !(character.getPosX() == 0 && character.getPosZ() == 0);
+        if (hasSave) {
+            sx = character.getPosX().floatValue();
+            sz = character.getPosZ().floatValue();
+            sy = character.getPosY() != null ? character.getPosY() : mapRegionService.getHeight(mapId, sx, sz);
+            if (character.getPosAngle() != null) {
+                savedAngle = character.getPosAngle();
             }
+        } else {
+            FieldInfo fm = FieldCatalog.get().get(mapId);
+            if (fm != null) {
+                java.util.List<int[]> pts = fm.getStartPoints();
+                if (pts != null && !pts.isEmpty()) {
+                    int idx = random.nextInt(pts.size());
+                    sx = pts.get(idx)[0];
+                    sz = pts.get(idx)[1];
+                } else if (fm.getCenter() != null) {
+                    log.warn("当前地图没有start point:{}", mapId);
+                    sx = fm.getCenter()[0];
+                    sz = fm.getCenter()[1];
+                } else {
+                    log.warn("当前地图没有startPoint:{}", mapId);
+                }
+            }
+            sy = mapRegionService.getHeight(mapId, sx, sz);
         }
-        double sy = mapRegionService.getHeight(mapId, sx, sz);
 
         // 完成进场：状态进 PLAYING + 加载权威角色 + 建立 PlayerEntity(坐标/状态权威在实体)
         // 客户端在 selectCharacter 后只发 playerMove/ping，不会走 game.enterMap，
@@ -639,7 +653,7 @@ public class AccountService {
             playerEntity.setX(sx);
             playerEntity.setZ(sz);
             playerEntity.setY(sy);
-            playerEntity.setAngle(-Math.PI);
+            playerEntity.setAngle(savedAngle);
         }
 
         // 外观（头/防具/武器）先算好：缓存到在线 Player（onPlayerEnter 的 Appear 广播要用），
@@ -663,7 +677,7 @@ public class AccountService {
             .setPosition(CommonProto.Position.newBuilder()
                 .setX(sx).setY((float) sy).setZ(sz))
             .setRotation(CommonProto.Rotation.newBuilder()
-                .setX(0).setY((float) -Math.PI).setZ(0))
+                .setX(0).setY((float) savedAngle).setZ(0))
             .setAppearance(appearance);
 
         // 地图安全区表（gamedb.maplist.typemap='Cities'）：客户端本地换图时判定村庄/野外动画姿态
