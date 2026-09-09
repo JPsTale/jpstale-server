@@ -690,7 +690,9 @@ public class AccountService {
     }
 
     /**
-     * 报文入口：登出
+     * 报文入口：登出（大退）
+     * 客户端发来退出意图 → 存档 → token 失效 → 下发 auth.logout。
+     * 连接由客户端收到 ack 后自行断开（服务端权威已达成，无需服务端强关）。
      */
     @GamePacketHandler(MessageProto.ClientMessage.LOGOUT_FIELD_NUMBER)
     public void handleLogout(PlayerSession session, MessageProto.ClientMessage message) {
@@ -700,9 +702,6 @@ public class AccountService {
 
         String characterName = session.getCharacterName();
         Long accountId = session.getAccountId();
-
-        // TODO: 保存角色数据
-        // playerSaveService.saveOnLogout(session);
 
         // 移出 AOI（若在游戏中）
         if (session.isPlaying()) {
@@ -724,10 +723,49 @@ public class AccountService {
         // 大退：让登录 token 失效（删除 Redis 映射，同 token 无法再选角重进）
         gameTokenService.revoke(session.getToken());
 
-        // 通知客户端登出成功
+        // 通知客户端登出成功（客户端收到后清 token、断开、回登录）
         session.sendText("{\"type\":\"auth.logout\",\"data\":{\"success\":true}}");
 
         log.info("Character logged out: {}, account: {}", characterName, accountId);
+    }
+
+    /**
+     * 服务端主动踢出（维护关机、改密码、封号等场景的业务注入点）：
+     * 存档 → 清理绑定/AOI → token 失效 → 下发 auth.logout(reason) → 关闭连接。
+     * 客户端收到后被动清 token 回登录。
+     *
+     * @param reason 展示给玩家的踢出原因（可选）
+     */
+    public void kick(PlayerSession session, String reason) {
+        if (session == null) {
+            return;
+        }
+        String characterName = session.getCharacterName();
+        Long accountId = session.getAccountId();
+
+        if (session.isPlaying()) {
+            PlayerEntity e = session.getEntity();
+            if (e != null) {
+                aoiManager.onPlayerLeave(e);
+                aoiManager.removePlayer(e);
+            }
+        }
+        if (session.getCharacterId() != null) {
+            playerService.persistAndRemove(session.getCharacterId());
+        }
+        sessionManager.unbind(session.getChannel());
+        if (session.getToken() != null) {
+            gameTokenService.revoke(session.getToken());
+        }
+
+        String data = reason == null || reason.isBlank()
+            ? "{\"type\":\"auth.logout\",\"data\":{\"success\":false,\"reason\":\"\"}}"
+            : "{\"type\":\"auth.logout\",\"data\":{\"success\":false,\"reason\":\"" + reason + "\"}}";
+        // write 后再 close，保证消息送达
+        session.getChannel().writeAndFlush(new io.netty.handler.codec.http.websocketx.TextWebSocketFrame(data))
+            .addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+
+        log.info("Player kicked: {}, account: {}, reason: {}", characterName, accountId, reason);
     }
 
 /**

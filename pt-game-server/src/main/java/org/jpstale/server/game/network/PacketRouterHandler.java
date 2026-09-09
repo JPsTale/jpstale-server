@@ -2,6 +2,7 @@ package org.jpstale.server.game.network;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.ChannelHandler.Sharable;
@@ -67,21 +68,30 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
             String type = json.has("type") ? json.get("type").asText() : "";
             if (!"auth.token".equals(type)) {
                 log.warn("Unexpected first message type: {}", type);
-                ctx.close();
+                sendLogoutAndClose(ctx, "非法连接协议");
                 return;
             }
             String token = json.has("token") ? json.get("token").asText() : null;
             if (token == null || token.isBlank()) {
                 log.warn("Missing token in auth.token message");
-                ctx.close();
+                sendLogoutAndClose(ctx, "缺少登录凭证");
                 return;
             }
             Long accountId = gameTokenService.validate(token);
             if (accountId == null) {
                 log.warn("Invalid token: {}", token);
-                ctx.close();
+                // token 已失效（大退后 / 被顶号）：通知客户端登出，避免客户端本地状态漂移
+                sendLogoutAndClose(ctx, "登录已失效，请重新登录");
                 return;
             }
+
+            // 顶号踢人：同一账号已有在线 session（新连接 token 合法）→ 存档+失效 token+下发登出+关旧连接
+            PlayerSession old = sessionManager.getSessionByAccountId(accountId);
+            if (old != null && old.getChannel() != ctx.channel()) {
+                log.info("Account {} logged in from new connection, kicking old session", accountId);
+                accountService.kick(old, "你的账号在别处登录");
+            }
+
             PlayerSession session = sessionManager.getSession(ctx.channel());
             if (session == null) {
                 session = sessionManager.createSession(ctx.channel());
@@ -94,8 +104,25 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
             accountService.sendCharacterList(session);
         } catch (Exception e) {
             log.error("Token auth failed", e);
+            sendLogoutAndClose(ctx, "登录校验异常");
+        }
+    }
+
+    /** 下发登出通知再关闭连接（服务端权威登出：让客户端收到 auth.logout 后被动清 token 回登录） */
+    private void sendLogoutAndClose(ChannelHandlerContext ctx, String reason) {
+        try {
+            ctx.writeAndFlush(new TextWebSocketFrame(
+                "{\"type\":\"auth.logout\",\"data\":{\"success\":false,\"reason\":\"" + reason + "\"}}"))
+                .addListener(io.netty.channel.ChannelFutureListener.CLOSE);
+        } catch (Exception e) {
+            log.warn("Send logout notice failed (closing anyway): {}", e.getMessage());
             ctx.close();
         }
+    }
+
+    /** Channel 版本（顶号踢旧连接用） */
+    private void sendLogoutAndClose(Channel ch, String reason) {
+        sendLogoutAndClose(ch.pipeline().context(this), reason);
     }
 
     @Override
