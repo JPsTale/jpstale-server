@@ -214,7 +214,21 @@ public class ItemNetworkHandler {
         }
         ItemInstance granted = itemService.grantInstanceToBag(p, gi.item);
         if (granted == null) {
-            log.info("[Pickup] {} gid={} : bag full", session.getCharacterName(), gid);
+            // 拾取失败（背包满/负重不足）→ 对齐原版 sinThrowItemToFeild / ThrowPutItem2：
+            // 原位置消失，同实例重新丢到玩家身边某处（供整理后再次拾取）
+            log.info("[Pickup] {} gid={} : bag full → 重丢玩家身边", session.getCharacterName(), gid);
+            broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
+            groundItems.remove(ent.getMapId(), gid);
+            double ang = Math.random() * Math.PI * 2;
+            double dist = 0.8 + Math.random() * 1.7; // 世界单位，玩家身边
+            GroundItemManager.GroundItem redropped = groundItems.add(
+                gi.item, ent.getMapId(),
+                ent.getX() + Math.cos(ang) * dist,
+                ent.getY(),
+                ent.getZ() + Math.sin(ang) * dist,
+                gi.ownerId, 0);
+            log.info("[Pickup] {} 重丢 gid={}→newId={} 到身边 @({},{})",
+                session.getCharacterName(), gid, redropped.id, (float) redropped.x, (float) redropped.z);
             sendErrorKey(session, "chat.pickup.bagFull");
             return;
         }
@@ -222,15 +236,20 @@ public class ItemNetworkHandler {
         log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @bagSlot={}",
             session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
             granted.getTemplate() != null ? granted.getTemplate().getName() : "?", granted.getSlot());
+        broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
+        pushUpdate(session, granted);
+    }
+
+    /** 向地面物品所在位置周围玩家广播消失 */
+    private void broadcastDisappear(int mapId, double x, double z, long gid) {
         MessageProto.ServerMessage disappear = MessageProto.ServerMessage.newBuilder()
                 .setGroundItemDisappear(MessageProto.S2C_GroundItemDisappear.newBuilder().setGroundItemId(gid).build())
                 .build();
-        for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers(gi.x, gi.z, AOIManager.VIEW_RANGE)) {
+        for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers(x, z, AOIManager.VIEW_RANGE)) {
             if (pe.getSession() != null) {
                 pe.getSession().send(disappear);
             }
         }
-        pushUpdate(session, granted);
     }
 
     /** 拾取判定范围（世界单位，原版 agFindItem 就近拾取：站近即可，不必精确点中模型） */
