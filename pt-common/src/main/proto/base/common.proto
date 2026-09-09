@@ -146,6 +146,7 @@ message GroundItemProto {
   Position position = 4;
   int64 owner_id = 5;
   int64 expire_time = 6;
+  string name = 7;
 }
 
 // Buff效果

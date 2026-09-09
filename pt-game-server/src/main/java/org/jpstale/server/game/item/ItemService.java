@@ -33,11 +33,17 @@ public class ItemService {
      */
     @Transactional
     public ItemInstance grantToBag(Player player, int itemListId, Integer jobCodeMask) {
-        PlayerItems items = player.getItems();
         ItemInstance fresh = roll.rollById(itemListId, jobCodeMask);
-        if (fresh == null) {
-            return null;
-        }
+        return fresh == null ? null : grantInstanceToBag(player, fresh);
+    }
+
+    /**
+     * 把一件已掷点物品放入背包（保留其随机属性；丢弃/拾取/掉落通用）。
+     * 堆叠物优先并入已有堆；无空位返回 null（背包满，不落库）。
+     */
+    @Transactional
+    public ItemInstance grantInstanceToBag(Player player, ItemInstance fresh) {
+        PlayerItems items = player.getItems();
         fresh.setCharacterId(Math.toIntExact(player.getId()));
         fresh.setLocation(ItemLocations.BAG);
         fresh.setSlot(0);

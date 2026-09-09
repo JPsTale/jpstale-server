@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 聊天服务
@@ -49,6 +50,15 @@ public class ChatService {
 
     @Autowired
     private PartyService partyService;
+
+    @Autowired
+    private org.jpstale.server.game.item.ItemRollService itemRoll;
+
+    @Autowired
+    private org.jpstale.server.game.item.GroundItemManager groundItems;
+
+    @Autowired
+    private org.jpstale.server.game.service.AOIManager aoiManager;
 
     /**
      * 报文入口：聊天
@@ -133,8 +143,12 @@ public class ChatService {
             return;
         }
 
-        // /@xxx —— GM 命令（全局重新设计，GM 系统开发中）
+        // /@xxx —— GM 命令（全局重新设计）
         if (cmd.startsWith("/@")) {
+            if (name.equals("@get")) {
+                treatGet(session, parts);
+                return;
+            }
             systemMessageKey(session, "chat.cmd.unknownGm", Map.of("name", name));
             return;
         }
@@ -169,6 +183,59 @@ public class ChatService {
         } catch (NumberFormatException e) {
             systemMessageKey(session, "chat.cmd.invalidNumber", Map.of("cmd", cmd));
         }
+    }
+
+    /**
+     * /@get <名字|idCode|itemlistId> —— GM 刷物：掷点生成一件装备，随机铺在玩家周围地面。
+     * 投放到 GroundItemManager（可被附近玩家拾取），并向视野内玩家广播 S2C_GroundItemAppear。
+     */
+    private void treatGet(PlayerSession session, String[] parts) {
+        if (parts.length < 2) {
+            systemMessageKey(session, "chat.cmd.getUsage");
+            return;
+        }
+        org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+        if (ent == null || ent.getMapId() < 0) {
+            return; // 尚未进场，无刷物位置
+        }
+        org.jpstale.server.game.item.ItemInstance fresh = itemRoll.rollByIdOrCodeOrName(parts[1], null);
+        if (fresh == null || fresh.getTemplate() == null) {
+            systemMessageKey(session, "chat.cmd.itemNotFound", Map.of("token", parts[1]));
+            return;
+        }
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        double ang = rnd.nextDouble() * Math.PI * 2;
+        double dist = 0.75 + rnd.nextDouble() * 1.75; // 世界单位（entity 坐标域，≈0.75~2.5 米）
+        double nx = ent.getX() + Math.cos(ang) * dist;
+        double nz = ent.getZ() + Math.sin(ang) * dist;
+        double ny = ent.getY();
+
+        org.jpstale.server.game.item.GroundItemManager.GroundItem gi =
+                groundItems.add(fresh, ent.getMapId(), nx, ny, nz, session.getCharacterId(), 0);
+
+        String itemName = fresh.getTemplate().getName();
+        MessageProto.ServerMessage appear = MessageProto.ServerMessage.newBuilder()
+                .setGroundItemAppear(MessageProto.S2C_GroundItemAppear.newBuilder()
+                        .setItem(org.jpstale.server.proto.base.CommonProto.GroundItemProto.newBuilder()
+                                .setGroundItemId(gi.id)
+                                .setItemId(fresh.getItemCode() == null ? 0 : fresh.getItemCode())
+                                .setQuantity(fresh.getCount())
+                                .setPosition(org.jpstale.server.proto.base.CommonProto.Position.newBuilder()
+                                        .setX((float) nx).setY((float) ny).setZ((float) nz).build())
+                                .setOwnerId(gi.ownerId)
+                                .setExpireTime(gi.expireAt)
+                                .setName(itemName == null ? "" : itemName)
+                                .build())
+                        .build())
+                .build();
+        for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers((float) nx, (float) nz, AOIManager.VIEW_RANGE)) {
+            if (pe.getSession() != null) {
+                pe.getSession().send(appear);
+            }
+        }
+        systemMessage(session, "spawned ground item id=" + gi.id + "  name=" + itemName
+                + " code=" + fresh.getItemCode() + " job=" + fresh.getJobCodeMask()
+                + "  @(" + (long) nx + "," + (long) nz + ")");
     }
 
     /** 同地图广播（含发送者自己） */

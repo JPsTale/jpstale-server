@@ -5,6 +5,7 @@ import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.service.PlayerService;
+import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.stereotype.Component;
@@ -23,14 +24,17 @@ public class ItemNetworkHandler {
     private final PlayerService playerService;
     private final org.jpstale.server.game.service.AppearanceService appearanceService;
     private final org.jpstale.server.game.service.AOIManager aoiManager;
+    private final GroundItemManager groundItems;
 
     public ItemNetworkHandler(ItemService itemService, PlayerService playerService,
                               org.jpstale.server.game.service.AppearanceService appearanceService,
-                              org.jpstale.server.game.service.AOIManager aoiManager) {
+                              org.jpstale.server.game.service.AOIManager aoiManager,
+                              GroundItemManager groundItems) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
         this.aoiManager = aoiManager;
+        this.groundItems = groundItems;
     }
 
     // ------------------------------------------------------------------
@@ -185,6 +189,53 @@ public class ItemNetworkHandler {
             }
         }
         refreshPlayerStats(session, p);
+    }
+
+    /** 拾取地面物品（C2S_PickupItem）：服务端距离裁决 + 入背包 + 同图消失广播。 */
+    @GamePacketHandler(MessageProto.ClientMessage.PICKUP_ITEM_FIELD_NUMBER)
+    public void handlePickupItem(PlayerSession session, MessageProto.ClientMessage message) {
+        Player p = requirePlayer(session);
+        org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+        if (p == null || ent == null || ent.getMapId() < 0) {
+            return;
+        }
+        long gid = message.getPickupItem().getGroundItemId();
+        GroundItemManager.GroundItem gi = groundItems.byId(ent.getMapId(), gid);
+        if (gi == null) {
+            return; // 已消失/过期（幂等）
+        }
+        double dx = gi.x - ent.getX();
+        double dz = gi.z - ent.getZ();
+        if (dx * dx + dz * dz > PICKUP_RANGE * PICKUP_RANGE) {
+            return; // 距离裁决：太远不拾
+        }
+        ItemInstance granted = itemService.grantInstanceToBag(p, gi.item);
+        if (granted == null) {
+            sendErrorKey(session, "chat.pickup.bagFull");
+            return;
+        }
+        groundItems.remove(ent.getMapId(), gid);
+        MessageProto.ServerMessage disappear = MessageProto.ServerMessage.newBuilder()
+                .setGroundItemDisappear(MessageProto.S2C_GroundItemDisappear.newBuilder().setGroundItemId(gid).build())
+                .build();
+        for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers(gi.x, gi.z, AOIManager.VIEW_RANGE)) {
+            if (pe.getSession() != null) {
+                pe.getSession().send(disappear);
+            }
+        }
+        pushUpdate(session, granted);
+    }
+
+    /** 拾取判定范围（世界单位 ≈1.1 米） */
+    private static final double PICKUP_RANGE = 1.1d;
+
+    private void sendErrorKey(PlayerSession session, String key) {
+        session.send(MessageProto.ServerMessage.newBuilder()
+                .setError(MessageProto.S2C_Error.newBuilder()
+                        .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
+                        .setKey(key)
+                        .build())
+                .build());
     }
 
     /** 丢弃（软删） */

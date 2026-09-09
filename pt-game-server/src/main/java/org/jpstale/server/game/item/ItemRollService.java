@@ -84,6 +84,44 @@ public class ItemRollService {
         return roll(def, jobCodeMask);
     }
 
+    /**
+     * GM 刷物入口：按 token 解析模板——数字先按 itemlist.id、再按 idCode；
+     * 非数字先按 name 精确、再按 name 模糊（%token%，取最小 id）。
+     */
+    public ItemInstance rollByIdOrCodeOrName(String token, Integer jobCodeMask) {
+        if (token == null || token.isEmpty()) {
+            return null;
+        }
+        if (token.chars().allMatch(Character::isDigit)) {
+            try {
+                int n = Integer.parseInt(token);
+                ItemInstance byId = rollById(n, jobCodeMask);
+                if (byId != null) {
+                    return byId;
+                }
+                return rollByIdCode(n, jobCodeMask);
+            } catch (NumberFormatException ignore) {
+                // 落到 name 查询
+            }
+        }
+        ItemList def = itemListMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ItemList>()
+                        .eq(ItemList::getName, token)
+                        .orderByAsc(ItemList::getId)
+                        .last("limit 1"));
+        if (def == null) {
+            def = itemListMapper.selectOne(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ItemList>()
+                            .like(ItemList::getName, token)
+                            .orderByAsc(ItemList::getId)
+                            .last("limit 1"));
+        }
+        if (def != null) {
+            return roll(def, jobCodeMask);
+        }
+        return null;
+    }
+
     public ItemInstance roll(ItemList def, Integer jobCodeMask) {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         ItemInstance it = new ItemInstance();
