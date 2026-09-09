@@ -106,10 +106,11 @@ public class ItemService {
         int y = cg.yOf(toSlot);
         int gw = it.gridW();
         int gh = it.gridH();
-        if (!cg.canPlace(x, y, gw, gh)) {
-            return r; // 越界
+        if (x + gw > cg.width() || y + gh > cg.height()) {
+            log.info("[BagMove] {} uid={} → slot{} : 越界", player.getName(), uid, toSlot);
+            return r;
         }
-        // 与目标占格交叠的其它背包物品
+        // 与目标占格交叠的其它背包物品（先于 canPlace：占用即换手/合并，非直接失败）
         java.util.List<ItemInstance> occ = new java.util.ArrayList<>();
         for (ItemInstance o : items.itemsIn(ItemLocations.BAG)) {
             if (o.getId().equals(uid) || o.isDeleted()) {
@@ -122,7 +123,11 @@ public class ItemService {
             }
         }
         if (occ.isEmpty()) {
-            // 空位直接放
+            // 空位：确认无占用后直接放
+            if (!cg.canPlace(x, y, gw, gh)) {
+                log.info("[BagMove] {} uid={} → slot{} : 目标仍被占", player.getName(), uid, toSlot);
+                return r;
+            }
             items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
             it.setLocation(ItemLocations.BAG);
             it.setSlot(toSlot);
@@ -131,6 +136,7 @@ public class ItemService {
             storage.update(it);
             r.ok = true;
             r.placed = it;
+            log.info("[BagMove] {} uid={} → slot{} : 放置", player.getName(), uid, toSlot);
             return r;
         }
         // 合并（命中 1 件、同定义、可堆叠、总量不超）
@@ -148,14 +154,17 @@ public class ItemService {
                 r.ok = true;
                 r.merged = target;
                 r.removedUid = it.getId();
+                log.info("[BagMove] {} uid={} → slot{} : 合并到{} 总数{}", player.getName(), uid, toSlot, target.getId(), target.getCount());
                 return r;
             }
+            log.info("[BagMove] {} uid={} → slot{} : 合并超上限", player.getName(), uid, toSlot);
         }
         // 换手：命中恰 1 件 → 源放落目标，被撞件腾到空位
         if (occ.size() == 1) {
             ItemInstance displaced = occ.get(0);
             int freeSlot = cg.findFreeSlot(displaced.gridW(), displaced.gridH());
             if (freeSlot < 0) {
+                log.info("[BagMove] {} uid={} → slot{} : 换手无空位(displaced uid={})", player.getName(), uid, toSlot, displaced.getId());
                 return r; // 无空位：拒绝
             }
             items.takeFromCanvas(ItemLocations.BAG, displaced.getSlot());
@@ -173,8 +182,10 @@ public class ItemService {
             r.ok = true;
             r.placed = it;
             r.displaced = displaced;
+            log.info("[BagMove] {} uid={} → slot{} : 换手(displaced uid={}→slot{})", player.getName(), uid, toSlot, displaced.getId(), freeSlot);
             return r;
         }
+        log.info("[BagMove] {} uid={} → slot{} : ≥2冲突({})", player.getName(), uid, toSlot, occ.size());
         return r; // ≥2 件冲突：拒绝
     }
 
