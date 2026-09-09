@@ -112,6 +112,11 @@ public class MapManager {
         return maps.get(mapId);
     }
 
+    /** 全部地图（安全区表下发用） */
+    public java.util.Collection<org.jpstale.server.game.model.GameMap> allMaps() {
+        return maps.values();
+    }
+
     public boolean isValidPosition(int mapId, float x, float z) {
         return maps.get(mapId) != null;
     }

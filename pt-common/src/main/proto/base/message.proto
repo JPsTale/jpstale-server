@@ -141,6 +141,13 @@ message S2C_LoginResponse {
   string error_message = 4;
 }
 
+// 地图静态信息：随进入游戏下发，客户端本地换图时查安全区（动画区域位）
+message MapInfo {
+  int32 map_id = 1;
+  // true=安全区（村庄，禁战斗姿态/自动收武器动画）；false=战斗区域
+  bool is_safe = 2;
+}
+
 message S2C_CharacterList {
   repeated CharacterInfo characters = 1;
 }
@@ -254,6 +261,8 @@ message S2C_EnterGame {
   Position position = 3;               // 出生点（服务端权威，FieldMap.startPoint）
   CharacterAppearance appearance = 4;  // 完整外观，客户端据此渲染自机
   Rotation rotation = 5;               // 出生朝向（ay=引擎角度 0-4095，如 ANGLE_270=3072 面向 -X）
+  // 地图安全区表（gamedb.maplist.typemap='Cities' 即安全区）：客户端本地换图时判定村庄/野外动画姿态
+  repeated MapInfo maps = 6;
 }
 
 message S2C_PlayerState {

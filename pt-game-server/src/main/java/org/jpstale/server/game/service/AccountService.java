@@ -54,6 +54,9 @@ public class AccountService {
     private MapRegionService mapRegionService;
 
     @Autowired
+    private MapManager mapManager;
+
+    @Autowired
     private PlayerStatCalculator statCalculator;
 
     @Autowired
@@ -659,6 +662,13 @@ public class AccountService {
             .setRotation(CommonProto.Rotation.newBuilder()
                 .setX(0).setY((float) -Math.PI).setZ(0))
             .setAppearance(appearance);
+
+        // 地图安全区表（gamedb.maplist.typemap='Cities'）：客户端本地换图时判定村庄/野外动画姿态
+        for (org.jpstale.server.game.model.GameMap gm : mapManager.allMaps()) {
+            enterGame.addMaps(MessageProto.MapInfo.newBuilder()
+                .setMapId(gm.getId())
+                .setIsSafe(gm.isSafe()));
+        }
 
         session.send(MessageProto.ServerMessage.newBuilder()
             .setEnterGame(enterGame)

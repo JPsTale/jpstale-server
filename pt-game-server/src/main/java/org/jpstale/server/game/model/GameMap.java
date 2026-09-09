@@ -19,4 +19,9 @@ public class GameMap {
     private String stageFile;
     private List<SpawnPoint> spawnPoints = new ArrayList<>();
     private MonsterSpawnConfig monsterSpawnConfig;
+
+    /** 安全区（村庄）：gamedb.maplist.typemap='Cities'。客户端据此禁战斗姿态（收武器动画）。 */
+    public boolean isSafe() {
+        return "Cities".equalsIgnoreCase(typeMap);
+    }
 }
