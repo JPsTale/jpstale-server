@@ -78,6 +78,122 @@ public class ItemService {
      * @return true=成功
      */
     @Transactional
+    /**
+     * 背包画布落子（对齐原版拖放语义）：
+     *  - 空位：直接放置；
+     *  - 命中 1 件且同为可堆叠物品：合并数量（目标保留，源软删）；
+     *  - 命中恰 1 件（异种/不可叠）：换手 —— 源放落到目标格，被撞件移到背包空位
+     *    （客户端将其表现为"拿起被撞件"继续拖放，ChangeInvenItem 语义）；
+     *  - 命中 ≥2 件/无空位：拒绝。
+     */
+    public BagMoveResult moveToBagCanvas(Player player, long uid, int toSlot) {
+        BagMoveResult r = new BagMoveResult();
+        PlayerItems items = player.getItems();
+        ItemInstance it = items.byUid(uid);
+        if (it == null || it.isDeleted() || it.getLocation() != ItemLocations.BAG) {
+            return r;
+        }
+        if (it.getSlot() == toSlot) {
+            r.ok = true;
+            r.placed = it;
+            return r;
+        }
+        CanvasGrid cg = items.canvas(ItemLocations.BAG);
+        if (cg == null) {
+            return r;
+        }
+        int x = cg.xOf(toSlot);
+        int y = cg.yOf(toSlot);
+        int gw = it.gridW();
+        int gh = it.gridH();
+        if (!cg.canPlace(x, y, gw, gh)) {
+            return r; // 越界
+        }
+        // 与目标占格交叠的其它背包物品
+        java.util.List<ItemInstance> occ = new java.util.ArrayList<>();
+        for (ItemInstance o : items.itemsIn(ItemLocations.BAG)) {
+            if (o.getId().equals(uid) || o.isDeleted()) {
+                continue;
+            }
+            int ox = cg.xOf(o.getSlot());
+            int oy = cg.yOf(o.getSlot());
+            if (rectHit(ox, oy, o.gridW(), o.gridH(), x, y, gw, gh)) {
+                occ.add(o);
+            }
+        }
+        if (occ.isEmpty()) {
+            // 空位直接放
+            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            it.setLocation(ItemLocations.BAG);
+            it.setSlot(toSlot);
+            items.putToCanvas(ItemLocations.BAG, toSlot, it);
+            items.markDirty(ItemLocations.BAG, toSlot, it.getId());
+            storage.update(it);
+            r.ok = true;
+            r.placed = it;
+            return r;
+        }
+        // 合并（命中 1 件、同定义、可堆叠、总量不超）
+        if (occ.size() == 1 && occ.get(0).stackable() && it.stackable()
+                && java.util.Objects.equals(occ.get(0).getItemListId(), it.getItemListId())) {
+            ItemInstance target = occ.get(0);
+            int cap = 1000;
+            if (target.getCount() + it.getCount() <= cap) {
+                target.setCount(target.getCount() + it.getCount());
+                items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+                items.byUidRemove(it.getId());
+                items.markDirty(ItemLocations.BAG, target.getSlot(), target.getId());
+                storage.update(target);
+                storage.softDelete(it.getId());
+                r.ok = true;
+                r.merged = target;
+                r.removedUid = it.getId();
+                return r;
+            }
+        }
+        // 换手：命中恰 1 件 → 源放落目标，被撞件腾到空位
+        if (occ.size() == 1) {
+            ItemInstance displaced = occ.get(0);
+            int freeSlot = cg.findFreeSlot(displaced.gridW(), displaced.gridH());
+            if (freeSlot < 0) {
+                return r; // 无空位：拒绝
+            }
+            items.takeFromCanvas(ItemLocations.BAG, displaced.getSlot());
+            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            it.setLocation(ItemLocations.BAG);
+            it.setSlot(toSlot);
+            items.putToCanvas(ItemLocations.BAG, toSlot, it);
+            items.markDirty(ItemLocations.BAG, toSlot, it.getId());
+            displaced.setLocation(ItemLocations.BAG);
+            displaced.setSlot(freeSlot);
+            items.putToCanvas(ItemLocations.BAG, freeSlot, displaced);
+            items.markDirty(ItemLocations.BAG, freeSlot, displaced.getId());
+            storage.update(it);
+            storage.update(displaced);
+            r.ok = true;
+            r.placed = it;
+            r.displaced = displaced;
+            return r;
+        }
+        return r; // ≥2 件冲突：拒绝
+    }
+
+    private boolean rectHit(int ox, int oy, int ow, int oh, int x, int y, int w, int h) {
+        return ox < x + w && ox + ow > x && oy < y + h && oy + oh > y;
+    }
+
+    /** 背包画布落子结果（供 handler 推送 itemUpdate/ItemRemove） */
+    public static class BagMoveResult {
+        public boolean ok;
+        /** 落下的物品（移动到目标格） */
+        public ItemInstance placed;
+        /** 合并后保留的堆叠（药水合并）；removedUid 为被并入的源 */
+        public ItemInstance merged;
+        public Long removedUid;
+        /** 换手时被撞件的新位置（客户端将其当作"拿起"） */
+        public ItemInstance displaced;
+    }
+
     public boolean moveOnCanvas(Player player, long uid, int toLocation, int toSlot) {
         PlayerItems items = player.getItems();
         ItemInstance it = items.byUid(uid);

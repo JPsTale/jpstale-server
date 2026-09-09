@@ -140,6 +140,27 @@ public class ItemNetworkHandler {
             return;
         }
         MessageProto.C2S_InventoryMove req = message.getInventoryMove();
+        // 背包画布落子：空位放 / 药水合并 / 单件换手（对齐原版拖放）
+        if (req.getToLocation() == ItemLocations.BAG) {
+            ItemService.BagMoveResult res = itemService.moveToBagCanvas(p, req.getUid(), req.getToSlot());
+            if (!res.ok) {
+                sendError(session, "move failed");
+                return;
+            }
+            if (res.placed != null) {
+                pushUpdate(session, res.placed);
+            }
+            if (res.merged != null) {
+                pushUpdate(session, res.merged);
+            }
+            if (res.displaced != null) {
+                pushUpdate(session, res.displaced);
+            }
+            if (res.removedUid != null) {
+                pushRemove(session, res.removedUid);
+            }
+            return;
+        }
         boolean ok = itemService.moveOnCanvas(p, req.getUid(), req.getToLocation(), req.getToSlot());
         if (!ok) {
             sendError(session, "move failed");
