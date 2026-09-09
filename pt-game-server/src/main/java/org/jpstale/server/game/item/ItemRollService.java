@@ -164,6 +164,13 @@ public class ItemRollService {
         it.setDefence(rndIntOr(def.getDefenseMin(), def.getDefenseMax()));
         it.setBlockRating(rndFloat(def.getBlockMin(), def.getBlockMax()));
         it.setSpeed(rndFloat(def.getRunSpeedMin(), def.getRunSpeedMax()));
+        // 必杀 / 射程（武器信息框展示；DB 单值列）
+        if (def.getCritical() != null) {
+            it.setCritical(def.getCritical());
+        }
+        if (def.getRange() != null) {
+            it.setAttackRange(def.getRange());
+        }
 
         // 回复
         it.setManaRegen(rndFloat(def.getRegenerationMpMin(), def.getRegenerationMpMax()));

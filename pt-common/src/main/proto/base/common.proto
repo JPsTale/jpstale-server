@@ -136,6 +136,8 @@ message ItemProto {
   int32 price = 30;
   int32 job_code_mask = 31;
   int32 aging_level = 32;   // 锻造等级（本轮存储，操作逻辑未实现）
+  int32 critical = 33;      // 必杀
+  int32 range = 34;         // 射程（远程武器）
 }
 
 // 地面物品

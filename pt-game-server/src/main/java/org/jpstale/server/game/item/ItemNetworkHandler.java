@@ -113,7 +113,9 @@ public class ItemNetworkHandler {
                 .setReqHealth(it.getReqHealth())
                 .setPrice(it.getPrice())
                 .setJobCodeMask(it.getJobCodeMask())
-                .setAgingLevel(it.getAgingNum());
+                .setAgingLevel(it.getAgingNum())
+                .setCritical(it.getCritical())
+                .setRange(it.getAttackRange());
         return b.build();
     }
 

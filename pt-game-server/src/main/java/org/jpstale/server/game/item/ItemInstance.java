@@ -37,6 +37,8 @@ public class ItemInstance {
     private int attackRating;
     private double absorb;
     private int defence;
+    private int critical;
+    private int attackRange;
     private double blockRating;
     private double speed;
     private double manaRegen, lifeRegen, staminaRegen;
