@@ -202,19 +202,26 @@ public class ItemNetworkHandler {
         long gid = message.getPickupItem().getGroundItemId();
         GroundItemManager.GroundItem gi = groundItems.byId(ent.getMapId(), gid);
         if (gi == null) {
+            log.info("[Pickup] {} (mapId={}) gid={} : not found/expired", session.getCharacterName(), ent.getMapId(), gid);
             return; // 已消失/过期（幂等）
         }
         double dx = gi.x - ent.getX();
         double dz = gi.z - ent.getZ();
         if (dx * dx + dz * dz > PICKUP_RANGE * PICKUP_RANGE) {
+            log.info("[Pickup] {} gid={} : too far dist={} (range {})",
+                session.getCharacterName(), gid, Math.sqrt(dx * dx + dz * dz), PICKUP_RANGE);
             return; // 距离裁决：太远不拾
         }
         ItemInstance granted = itemService.grantInstanceToBag(p, gi.item);
         if (granted == null) {
+            log.info("[Pickup] {} gid={} : bag full", session.getCharacterName(), gid);
             sendErrorKey(session, "chat.pickup.bagFull");
             return;
         }
         groundItems.remove(ent.getMapId(), gid);
+        log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @bagSlot={}",
+            session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
+            granted.getTemplate() != null ? granted.getTemplate().getName() : "?", granted.getSlot());
         MessageProto.ServerMessage disappear = MessageProto.ServerMessage.newBuilder()
                 .setGroundItemDisappear(MessageProto.S2C_GroundItemDisappear.newBuilder().setGroundItemId(gid).build())
                 .build();

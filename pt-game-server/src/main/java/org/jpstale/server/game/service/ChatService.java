@@ -200,6 +200,7 @@ public class ChatService {
         }
         org.jpstale.server.game.item.ItemInstance fresh = itemRoll.rollByIdOrCodeOrName(parts[1], null);
         if (fresh == null || fresh.getTemplate() == null) {
+            log.info("[GM] /@get token={} by {} : item not found", parts[1], session.getCharacterName());
             systemMessageKey(session, "chat.cmd.itemNotFound", Map.of("token", parts[1]));
             return;
         }
@@ -214,6 +215,7 @@ public class ChatService {
                 groundItems.add(fresh, ent.getMapId(), nx, ny, nz, session.getCharacterId(), 0);
 
         String itemName = fresh.getTemplate().getName();
+        String dorp = fresh.getTemplate().getCodeImg1(); // 掉落模型码（dropitem/it{code}.smd）
         MessageProto.ServerMessage appear = MessageProto.ServerMessage.newBuilder()
                 .setGroundItemAppear(MessageProto.S2C_GroundItemAppear.newBuilder()
                         .setItem(org.jpstale.server.proto.base.CommonProto.GroundItemProto.newBuilder()
@@ -225,14 +227,20 @@ public class ChatService {
                                 .setOwnerId(gi.ownerId)
                                 .setExpireTime(gi.expireAt)
                                 .setName(itemName == null ? "" : itemName)
+                                .setDorpItem(dorp == null ? "" : dorp)
                                 .build())
                         .build())
                 .build();
+        int sent = 0;
         for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers((float) nx, (float) nz, AOIManager.VIEW_RANGE)) {
             if (pe.getSession() != null) {
                 pe.getSession().send(appear);
+                sent++;
             }
         }
+        log.info("[GM] {} /@get -> groundItem id={} itemListId={} code={} name={} owner={} @({},{},{}) broadcast={}",
+            session.getCharacterName(), gi.id, fresh.getItemListId(), fresh.getItemCode(), itemName,
+            session.getCharacterId(), (float) nx, (float) ny, (float) nz, sent);
         systemMessage(session, "spawned ground item id=" + gi.id + "  name=" + itemName
                 + " code=" + fresh.getItemCode() + " job=" + fresh.getJobCodeMask()
                 + "  @(" + (long) nx + "," + (long) nz + ")");

@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
  * 全地图全局表：mapId → (groundItemId → GroundItem)。
  * 地面物品由掷点实例组成（保留随机属性），拾取后直接把该实例入背包。
  */
+@Slf4j
 @Component
 public class GroundItemManager {
 
@@ -59,6 +61,9 @@ public class GroundItemManager {
         long ttl = ttlMs > 0 ? ttlMs : DEFAULT_TTL_MS;
         GroundItem gi = new GroundItem(id, item, mapId, x, y, z, ownerId, System.currentTimeMillis() + ttl);
         byMap.computeIfAbsent(mapId, k -> new ConcurrentHashMap<>()).put(id, gi);
+        log.info("[GroundItem] add id={} mapId={} itemListId={} code={} name={} @({},{},{}) owner={} ttl={}ms",
+            id, mapId, item.getItemListId(), item.getItemCode(), item.getTemplate() != null ? item.getTemplate().getName() : "?",
+            (float) x, (float) y, (float) z, ownerId, ttl);
         return gi;
     }
 
@@ -116,6 +121,11 @@ public class GroundItemManager {
     /** 移除地面物品（拾取/过期通知后调用）；返回被移除项 */
     public GroundItem remove(int mapId, long id) {
         Map<Long, GroundItem> m = byMap.get(mapId);
-        return m == null ? null : m.remove(id);
+        GroundItem gi = m == null ? null : m.remove(id);
+        if (gi != null) {
+            log.info("[GroundItem] remove id={} mapId={} name={} @({},{},{})",
+                id, mapId, gi.item.getTemplate() != null ? gi.item.getTemplate().getName() : "?", (float) gi.x, (float) gi.y, (float) gi.z);
+        }
+        return gi;
     }
 }
