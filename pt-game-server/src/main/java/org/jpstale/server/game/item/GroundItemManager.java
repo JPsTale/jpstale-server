@@ -68,6 +68,28 @@ public class GroundItemManager {
     }
 
     /**
+     * 某地图当前全部未过期地面物品（供 AOI 每 tick reconcile）。
+     * 顺带把过期项就地剔除（地面物 TTL 到期的清扫点之一）。
+     */
+    public java.util.List<GroundItem> listByMap(int mapId) {
+        Map<Long, GroundItem> m = byMap.get(mapId);
+        if (m == null) {
+            return java.util.List.of();
+        }
+        long now = System.currentTimeMillis();
+        java.util.List<GroundItem> out = new java.util.ArrayList<>(m.size());
+        for (java.util.Map.Entry<Long, GroundItem> e : m.entrySet()) {
+            GroundItem gi = e.getValue();
+            if (gi.isExpired(now)) {
+                m.remove(e.getKey());
+                continue;
+            }
+            out.add(gi);
+        }
+        return out;
+    }
+
+    /**
      * 在地面表中找距 (x,z) 最近且未过期的地面物品；两种语义：
      * - 无视具体 id（拾取：服务端距离裁决）
      * - range 内无物品返回 null。
