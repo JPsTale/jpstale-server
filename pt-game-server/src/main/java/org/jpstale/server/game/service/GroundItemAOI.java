@@ -3,6 +3,8 @@ package org.jpstale.server.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.item.GroundItemManager;
+import org.jpstale.server.game.item.ItemService;
+import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.proto.base.CommonProto;
@@ -11,8 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,6 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - 超出 DISCONNECT(1810) → Disappear
  *  - 过期/被拾取的兜底：物品不再存在时把残留可见项清出并通知
  *
+ * 拾取对齐原版 STG 语义：原版 = 点击物品→角色走到掉落物旁→服务端按坐标结算。
+ * 这里在玩家走进拾取半径（PICK_REACH）时按 tick 自动结算（等效原版"走到旁即拾"），
+ * 手动 C2S_PickupItem 仍在触达范围即时生效（双通道，带每玩家冷却防连拾）。
+ *
  * 线程模型：由 GameServer.tick（主循环 20Hz）调用，与怪物 AOI 同线程。
  */
 @Slf4j
@@ -33,6 +39,10 @@ public class GroundItemAOI {
 
     private static final float CONNECT = AOIManager.VIEW_RANGE;
     private static final float DISCONNECT = AOIManager.VIEW_RANGE_DISCONNECT;
+    /** 拾取触达半径（世界单位，原版玩家走到掉落物旁即结算） */
+    private static final double PICK_REACH = 2.0d;
+    /** 自动拾取每玩家最小间隔（防止堆叠金币一帧全吸/误触连续拾取） */
+    private static final long PICK_COOLDOWN_MS = 700;
 
     @Autowired
     private SessionManager sessionManager;
@@ -40,8 +50,13 @@ public class GroundItemAOI {
     @Autowired
     private GroundItemManager groundItems;
 
+    @Autowired
+    private ItemService itemService;
+
     /** 观察者 characterId → 当前可见的地面物品 id 集合（持久化，双阈值升降级） */
     private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
+    /** 观察者 characterId → 上次自动拾取时间戳（冷却） */
+    private final ConcurrentHashMap<Long, Long> lastPickByPlayer = new ConcurrentHashMap<>();
 
     /** 每 tick 由 GameServer.tick() 驱动：同步所有 playing 会话的地面物品可见集 */
     public void syncSessions() {
@@ -56,10 +71,61 @@ public class GroundItemAOI {
                 continue;
             }
             active.add(pid);
-            reconcile(e, groundItems.listByMap(e.getMapId()));
+            List<GroundItemManager.GroundItem> items = groundItems.listByMap(e.getMapId());
+            reconcile(e, items);
+            tryAutoPick(e, session, items, System.currentTimeMillis());
         }
-        // 清理已离线/未 playing 会话的残留可见集
+        // 清理已离线/未 playing 会话的残留可见集与冷却
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));
+        lastPickByPlayer.keySet().removeIf(pid -> !active.contains(pid));
+    }
+
+    /** 走进拾取半径即自动结算入包（对齐原版：走到掉落物旁即拾取） */
+    private void tryAutoPick(PlayerEntity player, PlayerSession session, List<GroundItemManager.GroundItem> items, long now) {
+        Player p = player.getPlayer();
+        if (p == null) {
+            return;
+        }
+        Long pid = session.getCharacterId();
+        if (pid == null) {
+            return;
+        }
+        Long last = lastPickByPlayer.get(pid);
+        if (last != null && now - last < PICK_COOLDOWN_MS) {
+            return;
+        }
+        double sx = player.getX();
+        double sz = player.getZ();
+        double reachSq = PICK_REACH * PICK_REACH;
+        GroundItemManager.GroundItem best = null;
+        double bestD2 = reachSq;
+        for (GroundItemManager.GroundItem gi : items) {
+            double dx = sx - gi.x;
+            double dz = sz - gi.z;
+            double d2 = dx * dx + dz * dz;
+            if (d2 <= bestD2) {
+                bestD2 = d2;
+                best = gi;
+            }
+        }
+        if (best == null) {
+            return;
+        }
+        lastPickByPlayer.put(pid, now);
+        // 掷点实例直接入背包（保留地面属性）；背包满则返回 null（原地保留，等玩家整理）
+        var granted = itemService.grantInstanceToBag(p, best.item);
+        if (granted == null) {
+            log.info("[GroundItemAOI] {} pick gid={} name={}: bag full, 保留地面",
+                session.getCharacterName(), best.id,
+                best.item.getTemplate() != null ? best.item.getTemplate().getName() : "?");
+            return;
+        }
+        groundItems.remove(best.mapId, best.id);
+        session.send(buildDisappear(best.id));
+        log.info("[GroundItemAOI] {} 自动拾取 gid={} itemListId={} name={} @({},{},{})",
+            session.getCharacterName(), best.id, granted.getItemListId(),
+            granted.getTemplate() != null ? granted.getTemplate().getName() : "?",
+            (float) best.x, (float) best.y, (float) best.z);
     }
 
     private void reconcile(PlayerEntity player, List<GroundItemManager.GroundItem> items) {
