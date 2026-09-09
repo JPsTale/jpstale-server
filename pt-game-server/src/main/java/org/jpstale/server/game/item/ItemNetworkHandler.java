@@ -212,6 +212,12 @@ public class ItemNetworkHandler {
                 session.getCharacterName(), gid, Math.sqrt(dx * dx + dz * dz), PICKUP_RANGE);
             return; // 距离裁决：太远不拾
         }
+        // 高度差裁决（对齐原版 ay ≤ 64·fONE）：不能隔层(屋顶/桥上)拾取
+        if (Math.abs(gi.y - ent.getY()) > PICKUP_HEIGHT_DIFF) {
+            log.info("[Pickup] {} gid={} : too high diff={} (limit {})",
+                session.getCharacterName(), gid, Math.abs(gi.y - ent.getY()), PICKUP_HEIGHT_DIFF);
+            return;
+        }
         ItemInstance granted = itemService.grantInstanceToBag(p, gi.item);
         if (granted == null) {
             // 拾取失败（背包满/负重不足）→ 对齐原版 sinThrowItemToFeild / ThrowPutItem2：
@@ -252,8 +258,14 @@ public class ItemNetworkHandler {
         }
     }
 
-    /** 拾取判定范围（世界单位，原版 agFindItem 就近拾取：站近即可，不必精确点中模型） */
-    private static final double PICKUP_RANGE = 2.0d;
+    /** 拾取判定范围（世界单位）。对照原版 C++：拾取动作在
+     *  PlayAttackFromPosi(..., Dist=8000, ...) 且 GetDistanceDbl(>>8) 平方比较
+     *  → 水平距离 ≤ 8000>>8 = 31.25 ≈ 32；高度差上限 64·fONE(≈64 world，贴地掉落忽略)。
+     *  即原版水平拾取范围约 32 world（含客户端权威与服务器实体上报滞差余量）。 */
+    private static final double PICKUP_RANGE = 32.0d;
+
+    /** 拾取高度差上限（世界单位，原版 ay ≤ 64·fONE）：防隔层拾取（屋顶/桥上） */
+    private static final double PICKUP_HEIGHT_DIFF = 64.0d;
 
     private void sendErrorKey(PlayerSession session, String key) {
         session.send(MessageProto.ServerMessage.newBuilder()
