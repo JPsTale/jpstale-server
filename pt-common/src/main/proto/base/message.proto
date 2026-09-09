@@ -573,11 +573,20 @@ message S2C_Pong {
 message S2C_Error {
   ErrorCode error_code = 1;
   string error_message = 2;
+  // minecraft 式翻译：key 为翻译键，params 为命名模板参数；
+  // key 不在语言表时客户端 fallback 显示 key 本身
+  string key = 3;
+  map<string, string> params = 4;
 }
 
 message S2C_SystemMessage {
+  // 兼容纯文本：无 key 时客户端直接显示 message
   string message = 1;
   int64 timestamp = 2;
+  // minecraft 式翻译：key 为翻译键，params 为命名模板参数；
+  // key 不在语言表时客户端 fallback 显示 key 本身
+  string key = 3;
+  map<string, string> params = 4;
 }
 
 message S2C_Disconnect {

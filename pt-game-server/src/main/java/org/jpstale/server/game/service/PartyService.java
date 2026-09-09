@@ -5,6 +5,7 @@ import org.jpstale.server.game.model.Party;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -39,12 +40,12 @@ public class PartyService {
 
         PlayerSession target = sessionManager.getSessionByCharacterName(targetName);
         if (target == null) {
-            sendError(inviterId, "目标玩家不在线");
+            sendError(inviterId, "chat.party.targetOffline", Map.of("name", targetName));
             return;
         }
 
         if (inviterId == target.getCharacterId()) {
-            sendError(inviterId, "不能邀请自己");
+            sendError(inviterId, "chat.party.cannotInviteSelf");
             return;
         }
 
@@ -53,7 +54,7 @@ public class PartyService {
         if (inviterPartyId != null) {
             Party party = parties.get(inviterPartyId);
             if (party != null && party.isFull()) {
-                sendError(inviterId, "队伍已满");
+                sendError(inviterId, "chat.party.full");
                 return;
             }
         }
@@ -80,7 +81,7 @@ public class PartyService {
 
         // 检查是否已在队伍中
         if (playerPartyMap.containsKey(playerId)) {
-            sendError(playerId, "你已在队伍中");
+            sendError(playerId, "chat.party.alreadyInParty");
             return;
         }
 
@@ -95,11 +96,11 @@ public class PartyService {
             // 加入现有队伍
             party = parties.get(partyId);
             if (party == null) {
-                sendError(playerId, "队伍不存在");
+                sendError(playerId, "chat.party.notFound");
                 return;
             }
             if (party.isFull()) {
-                sendError(playerId, "队伍已满");
+                sendError(playerId, "chat.party.full");
                 return;
             }
             party.addMember(playerId);
@@ -133,6 +134,32 @@ public class PartyService {
         log.info("Party left: player {} left party {}", playerId, partyId);
     }
 
+    /**
+     * 组队聊天：广播给本队所有成员（含发送者自己）。
+     * 未组队时给发送者回系统提示。
+     */
+    public void broadcastChat(long playerId, MessageProto.ServerMessage message) {
+        Long partyId = playerPartyMap.get(playerId);
+        if (partyId == null) {
+            MessageProto.ServerMessage err = MessageProto.ServerMessage.newBuilder()
+                .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+                    .setKey("chat.party.noParty")
+                    .setTimestamp(System.currentTimeMillis())
+                    .build())
+                .build();
+            messageSender.sendToPlayer(playerId, err);
+            return;
+        }
+        Party party = parties.get(partyId);
+        if (party == null) {
+            playerPartyMap.remove(playerId);
+            return;
+        }
+        for (Long memberId : party.getMemberIds()) {
+            messageSender.sendToPlayer(memberId, message);
+        }
+    }
+
     private void broadcastPartyUpdate(Party party) {
         MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
             .setPartyUpdate(MessageProto.S2C_PartyUpdate.newBuilder()
@@ -147,12 +174,18 @@ public class PartyService {
         }
     }
 
-    private void sendError(long playerId, String error) {
+    private void sendError(long playerId, String key, Map<String, String> params) {
         MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
             .setError(MessageProto.S2C_Error.newBuilder()
-                .setErrorMessage(error)
+                .setErrorCode(CommonProto.ErrorCode.PARTY_ERROR)
+                .setKey(key)
+                .putAllParams(params)
                 .build())
             .build();
         messageSender.sendToPlayer(playerId, msg);
+    }
+
+    private void sendError(long playerId, String key) {
+        sendError(playerId, key, Map.of());
     }
 }

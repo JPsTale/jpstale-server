@@ -325,8 +325,8 @@ public class PlayerService {
         } else {
             session.send(MessageProto.ServerMessage.newBuilder()
                 .setError(MessageProto.S2C_Error.newBuilder()
-                    .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
-                    .setErrorMessage("属性分配失败：属性点不足或可撤销历史为空")
+                    .setErrorCode(CommonProto.ErrorCode.ATTR_ERROR)
+                    .setKey("game.attrAssignFailed")
                     .build())
                 .build());
         }

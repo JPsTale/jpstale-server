@@ -45,6 +45,9 @@ public class AiEngine {
     @Autowired
     private CombatService combatService;
 
+    @Autowired
+    private BattleLogService battleLogService;
+
     private final Map<Long, AiContext> monsterContexts = new ConcurrentHashMap<>();
 
     public void init() {
@@ -268,6 +271,9 @@ public class AiEngine {
         log.info("[MonsterAI] {}#{} ATK {} dmg={} ({}->{}), interval={}ms",
             monster.getName(), monster.getId(), targetName(target),
             result.getFinalDamage(), newHp + result.getFinalDamage(), newHp, interval);
+
+        // 战斗日志：玩家受击（进聊天窗"系统"tab）
+        battleLogService.playerHurt(player.getSession(), monster.getName(), result.getFinalDamage());
 
         // 推送玩家最新状态（HUD 血条 + 角色信息面板）：客户端据 S2C_PlayerState/S2C_CharacterStatus 刷新
         playerService.sendPlayerStatus(player.getSession(), player);

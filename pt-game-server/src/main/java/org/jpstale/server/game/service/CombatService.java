@@ -48,6 +48,9 @@ public class CombatService {
     @Autowired
     private MonsterAOI monsterAOI;
 
+    @Autowired
+    private BattleLogService battleLogService;
+
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
     private static final long ATTACK_COOLDOWN_MS = 1000;
 
@@ -156,6 +159,9 @@ public class CombatService {
         log.info("Monster {} killed by {}, exp={}, gold={}",
             monster.getName(), killer.getName(), exp, gold);
 
+        // 战斗日志：击杀 + 经验/金币（进聊天窗"系统"tab）
+        battleLogService.monsterKilled(killer.getSession(), monster.getName(), exp, gold);
+
         // 升级检测：经验反算等级（对齐原版 GetLevelFromExp），每级 +5 自由属性点
         int newLevel = playerService.getLevelFromExp(killer.getExp());
         if (newLevel > killer.getLevel()) {
@@ -165,6 +171,7 @@ public class CombatService {
             playerService.recalcPanel(killer);
             log.info("{} leveled up {} -> {} (+{} stat points, total {})",
                 killer.getName(), newLevel - gained / 5, newLevel, gained, killer.getStatePoint());
+            battleLogService.levelUp(killer.getSession(), newLevel, gained);
             // 通知客户端升级（JSON，刷新面板）
             killer.getSession().sendText("{\"type\":\"game.levelUp\",\"data\":{\"level\":"
                 + newLevel + ",\"statePoint\":" + killer.getStatePoint() + "}}");

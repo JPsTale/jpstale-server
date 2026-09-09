@@ -83,10 +83,11 @@ public class EventService {
 
         log.info("Event started: {} on map {}", event.getType().getName(), event.getMapId());
 
-        // 通知所有玩家
+        // 通知所有玩家（minecraft 式翻译 key + 参数）
         MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
             .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
-                .setMessage("活动 [" + event.getType().getName() + "] 已开始！")
+                .setKey("game.eventStarted")
+                .putParams("name", event.getType().getName())
                 .setTimestamp(System.currentTimeMillis())
                 .build())
             .build();
@@ -106,10 +107,11 @@ public class EventService {
         log.info("Event finished: {} kills={}/{}", event.getType().getName(),
             event.getKillCount(), event.getKillTarget());
 
-        // 通知所有玩家
+        // 通知所有玩家（minecraft 式翻译 key + 参数）
         MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
             .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
-                .setMessage("活动 [" + event.getType().getName() + "] 已结束！")
+                .setKey("game.eventEnded")
+                .putParams("name", event.getType().getName())
                 .setTimestamp(System.currentTimeMillis())
                 .build())
             .build();

@@ -34,6 +34,8 @@ enum ErrorCode {
   INVINCIBLE_HACK = 12;
   INVALID_NAME = 13;
   NAME_EXISTS = 14;
+  PARTY_ERROR = 15;
+  ATTR_ERROR = 16;
 }
 
 // 物品类型
@@ -71,6 +73,7 @@ enum ChatChannel {
   CHAT_GUILD = 3;
   CHAT_PRIVATE = 4;
   CHAT_SYSTEM = 5;
+  CHAT_TRADE = 6;
 }
 
 // 技能类型
