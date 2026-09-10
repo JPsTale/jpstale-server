@@ -67,7 +67,12 @@ public class ItemService {
             return null; // 背包满
         }
         fresh.setSlot(slot);
-        storage.insert(fresh);
+        if (fresh.getId() != null) {
+            // 已有 DB 行（丢地软删后拾回）：恢复原行，避免重复
+            storage.restore(fresh);
+        } else {
+            storage.insert(fresh);
+        }
         items.index(fresh);
         return fresh;
     }
@@ -297,6 +302,8 @@ public class ItemService {
         }
         items.byUidRemove(uid);
         storage.softDelete(uid);
+        // 保留 id：拾回时按"恢复软删行"处理（有 id 恢复原行、无 id 才 INSERT）
+        it.setDeleted(false);
         log.info("[DropGround] {} 取出 uid={} name={} 用于丢地", player.getName(), uid,
             it.getTemplate() != null ? it.getTemplate().getName() : "?");
         return it;

@@ -187,4 +187,13 @@ public class ItemStorageService {
         r.setDeleteTime(LocalDateTime.now());
         itemMapper.updateById(r);
     }
+
+    /** 恢复软删行（地面物被拾回）：清 delete_time 并回写全部字段（位置/归属等）。 */
+    @Transactional
+    public void restore(ItemInstance it) {
+        Item r = toRow(it);
+        itemMapper.update(r, new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<Item>()
+                .eq("id", it.getId())
+                .set("delete_time", null));
+    }
 }
