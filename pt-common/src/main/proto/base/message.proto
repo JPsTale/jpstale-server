@@ -93,6 +93,7 @@ message ServerMessage {
     S2C_GoldChange gold_change = 504;
     S2C_GroundItemAppear ground_item_appear = 505;
     S2C_GroundItemDisappear ground_item_disappear = 506;
+    S2C_ItemRemovedUids item_removed_uids = 507;
     
     // 社交 (600-699)
     S2C_Chat chat = 600;
@@ -209,13 +210,18 @@ message C2S_InventoryMove {
   int32 to_slot = 3;
 }
 
-// 背包布局上报（客户端网格权威）：一次手势后受影响物品的最终格子（绝对位置）
-message BagMoveEntry {
+// 背包布局上报（客户端网格权威，全量快照 + 单调递增序号）：
+// 一次手势/整理后客户端上报全部受影响/全部物品的最终格子（绝对位置）。
+// seq = 客户端全局单调递增序号：服务端记录 lastSeq，丢弃 seq<=lastSeq 的乱序/重放包。
+// SnapshotEntry 仅含 (uid,location,slot)，不带 count（count 全走服务端事件点）。
+message SnapshotEntry {
   int64 uid = 1;
-  int32 slot = 2;
+  int32 location = 2;   // 目标容器（十进制分段：0 装备 / 1 副装备 / 10 背包页 / 30 仓库页）
+  int32 slot = 3;       // 目标槽位（一维化：背包页 0~143 / 仓库 0~80 / 装备与副装备 1~13）
 }
 message C2S_BagLayout {
-  repeated BagMoveEntry entries = 1;
+  int32 seq = 1;                        // 客户端单调递增序号（乱序防护）
+  repeated SnapshotEntry entries = 2;   // 全量快照条目
 }
 
 // 药水堆叠合并：src 并入 dst（同 itemlist & 可堆叠；服务端校验后计数并入、src 软删）
@@ -500,6 +506,11 @@ message S2C_GroundItemAppear {
 
 message S2C_GroundItemDisappear {
   int64 ground_item_id = 1;
+}
+
+// 批量软删通知（作弊/矛盾处置）：客户端移除这些 uid 的渲染（不回滚、不推旧快照）
+message S2C_ItemRemovedUids {
+  repeated int64 uids = 1;
 }
 
 // ==================== 社交消息 (600-699) ====================

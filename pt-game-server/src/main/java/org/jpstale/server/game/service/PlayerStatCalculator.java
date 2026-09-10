@@ -384,14 +384,15 @@ public class PlayerStatCalculator {
 
     /**
      * 当前负重（对齐原版 cINVENTORY::CheckWeight）：
-     * 遍历 背包+装备+备用武器；药水按瓶数(count)计，其它累加模板 weight（weight<0 忽略）。
+     * 遍历 背包+当前装备套；药水按瓶数(count)计，其它累加模板 weight（weight<0 忽略）。
+     * <p>
+     * 用户拍板：副装备栏（备用套，未激活）不计负重，W 切换激活后才计入（让玩家更爽）。
      */
     public int currentWeight(Player p) {
         int w = 0;
         java.util.List<ItemInstance> all = new java.util.ArrayList<>();
-        all.addAll(p.getItems().itemsIn(ItemLocations.BAG));
+        all.addAll(p.getItems().itemsIn(ItemLocations.BAG_PAGE));
         all.addAll(p.getItems().itemsIn(ItemLocations.EQUIP));
-        all.addAll(p.getItems().itemsIn(ItemLocations.BACKUP_WEAPON));
         for (ItemInstance it : all) {
             if (it == null || it.isDeleted()) {
                 continue;
@@ -407,5 +408,44 @@ public class PlayerStatCalculator {
             }
         }
         return w;
+    }
+
+    /**
+     * 拾取/入包超重预检：把 fresh 计入后是否超过负重上限。
+     * 对齐原版 Weight[0] > Weight[1] 语义。药水按瓶数计入。
+     */
+    public boolean isOverWeight(Player p, ItemInstance fresh) {
+        int w = 0;
+        java.util.List<ItemInstance> all = new java.util.ArrayList<>();
+        all.addAll(p.getItems().itemsIn(ItemLocations.BAG_PAGE));
+        all.addAll(p.getItems().itemsIn(ItemLocations.EQUIP));
+        for (ItemInstance it : all) {
+            if (it == null || it.isDeleted()) {
+                continue;
+            }
+            Integer ci = it.getTemplate() != null ? it.getTemplate().getClassItem() : null;
+            if (ci != null && ci == 8192) {
+                w += it.getCount();
+                continue;
+            }
+            Integer wt = it.getTemplate() != null ? it.getTemplate().getWeight() : null;
+            if (wt != null && wt >= 0) {
+                w += wt;
+            }
+        }
+        if (fresh == null) {
+            return false;
+        }
+        Integer ci = fresh.getTemplate() != null ? fresh.getTemplate().getClassItem() : null;
+        if (ci != null && ci == 8192) {
+            w += fresh.getCount();
+        } else {
+            Integer wt = fresh.getTemplate() != null ? fresh.getTemplate().getWeight() : null;
+            if (wt != null && wt >= 0) {
+                w += wt;
+            }
+        }
+        int max = maxWeightOf(p);
+        return w > max;
     }
 }

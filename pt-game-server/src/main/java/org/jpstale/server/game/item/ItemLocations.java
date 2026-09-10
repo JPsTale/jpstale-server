@@ -1,33 +1,46 @@
 package org.jpstale.server.game.item;
 
 /**
- * PT 物品容器/槽位常量（画布版，设计文档 plans/item-inventory-system-design.md v3.2）
+ * PT 物品容器/槽位常量（十进制分段编码，design-背包装备系统 v0.2）
  * <p>
- * location 语义（userdb.item.location）：
- *   0=背包大画布  1=仓库画布  2=装备栏  6=备用武器槽
- *   3/4/5=预留（邮件/拍卖/交易锁定，本轮不启用）
+ * location 语义（userdb.item.location，十进制分段）：
+ *   0=装备栏   1=副装备栏   10~19=背包页   20=任务栏   30~39=仓库页   40=商店（拍卖行）
+ *   v1 只启用：0 装备栏 / 1 副装备栏 / 10 背包页1 / 30 仓库页1
  */
 public final class ItemLocations {
 
-    /** 背包大画布：12×12=144 格（原版两页 12×6 垂直拼接，无分面无 E 键） */
-    public static final int BAG = 0;
+    // ---- location 十进制段 ----
+
+    /** 装备栏：13 个有名槽（非画布），slot 1~13 命名槽 */
+    public static final int EQUIP = 0;
+
+    /** 副装备栏（第二套武器）：slot 与装备栏一致（1=主手、2=副手）。
+     *  不计负重，W 切换激活后才计入（用户拍板：让玩家更爽）。 */
+    public static final int BACKUP_EQUIP = 1;
+
+    /** 背包页基准：10~19（十进制个位=页号）。v1 只启用第 1 页。 */
+    public static final int BAG_PAGE_BASE = 10;
+    /** 背包页1（v1 启用）：12×12=144，slot 0~143 */
+    public static final int BAG_PAGE = BAG_PAGE_BASE;
     public static final int BAG_W = 12;
     public static final int BAG_H = 12;
     public static final int BAG_SLOTS = BAG_W * BAG_H;
 
-    /** 仓库画布：9×9=81 格（源码实测 cWAREHOUSE::SetWareHouseItemAreaCheck 22*9） */
-    public static final int WAREHOUSE = 1;
+    /** 任务物品栏：v1 预留不启用 */
+    public static final int QUEST = 20;
+
+    /** 仓库页基准：30~39（十进制个位=页号）。v1 只启用第 1 页。 */
+    public static final int WAREHOUSE_PAGE_BASE = 30;
+    /** 仓库页1（v1 启用）：9×9=81，slot 0~80 */
+    public static final int WAREHOUSE = WAREHOUSE_PAGE_BASE;
     public static final int WH_W = 9;
     public static final int WH_H = 9;
     public static final int WH_SLOTS = WH_W * WH_H;
 
-    /** 装备栏：13 个有名槽（非画布） */
-    public static final int EQUIP = 2;
+    /** 个人商店（拍卖行）：v1 预留不启用 */
+    public static final int STORE = 40;
 
-    /** 备用武器槽（W 切换）：仅槽 1/2 有意义，UI 不可见 */
-    public static final int BACKUP_WEAPON = 6;
-
-    // ---- 装备槽位号（PT 权威 1~13，见 gameplay §5.0）----
+    // ---- 装备槽位号（PT 权威 1~13，见 gameplay §5.0；装备栏与副装备栏共用）----
     public static final int SLOT_MAIN_HAND = 1;    // 右手主武器（含双手武器）
     public static final int SLOT_OFF_HAND = 2;     // 左手（盾/法球/双手副手）
     public static final int SLOT_ARMOR = 3;        // 铠甲/法袍
@@ -45,10 +58,10 @@ public final class ItemLocations {
     private ItemLocations() {
     }
 
-    /** 该 location 的画布宽；非画布容器返回 0（装备栏/备用武器等按槽号）。 */
+    /** 该 location 的画布宽；非画布容器返回 0（装备栏/副装备栏按槽号）。 */
     public static int widthOf(int location) {
         return switch (location) {
-            case BAG -> BAG_W;
+            case BAG_PAGE -> BAG_W;
             case WAREHOUSE -> WH_W;
             default -> 0;
         };
@@ -57,14 +70,30 @@ public final class ItemLocations {
     /** 该 location 的画布总格数；非画布返回 0。 */
     public static int slotsOf(int location) {
         return switch (location) {
-            case BAG -> BAG_SLOTS;
+            case BAG_PAGE -> BAG_SLOTS;
             case WAREHOUSE -> WH_SLOTS;
             default -> 0;
         };
     }
 
-    /** 判断 location 是否为画布容器（背包/仓库）。 */
+    /** 判断 location 是否为画布容器（背包页 / 仓库页）。 */
     public static boolean isCanvas(int location) {
-        return location == BAG || location == WAREHOUSE;
+        return location == BAG_PAGE || location == WAREHOUSE;
     }
+
+    /** 判断是否为背包页（10~19 段）。 */
+    public static boolean isBagPage(int location) {
+        return location >= BAG_PAGE_BASE && location < BAG_PAGE_BASE + 10;
+    }
+
+    /** 判断是否为仓库页（30~39 段）。 */
+    public static boolean isWarehousePage(int location) {
+        return location >= WAREHOUSE_PAGE_BASE && location < WAREHOUSE_PAGE_BASE + 10;
+    }
+
+    /** 向前兼容别名：背包第 1 页（原 BAG 语义）。 */
+    public static final int BAG = BAG_PAGE;
+
+    /** 向前兼容别名：备用武器槽（原 BACKUP_WEAPON 语义）。 */
+    public static final int BACKUP_WEAPON = BACKUP_EQUIP;
 }

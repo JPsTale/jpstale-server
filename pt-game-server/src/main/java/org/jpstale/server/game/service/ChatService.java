@@ -213,6 +213,11 @@ public class ChatService {
 
         org.jpstale.server.game.item.GroundItemManager.GroundItem gi =
                 groundItems.add(fresh, ent.getMapId(), nx, ny, nz, session.getCharacterId(), 0);
+        if (gi == null) {
+            log.info("[GM] /@get token={} : 地图满({}) 掉落被丢弃", parts[1], 1024);
+            systemMessageKey(session, "chat.cmd.dropOverLimit");
+            return;
+        }
 
         String itemName = fresh.getTemplate().getName();
         String dorp = fresh.getTemplate().getCodeImg1(); // 掉落模型码（dropitem/it{code}.smd）

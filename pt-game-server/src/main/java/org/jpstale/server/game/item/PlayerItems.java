@@ -26,6 +26,17 @@ public class PlayerItems {
     /** dirty 记录：location → slot → 变更标记（供持久化 diff） */
     private final Map<Integer, Map<Integer, Long>> dirty = new HashMap<>();
 
+    /** 布局上报序号（C2S_BagLayout.seq）：记录最新已接受序号，丢弃 seq<=lastSeq 的乱序/重放包 */
+    private volatile int lastSeq = 0;
+
+    public int lastSeq() {
+        return lastSeq;
+    }
+
+    public void setLastSeq(int seq) {
+        this.lastSeq = seq;
+    }
+
     public PlayerItems() {
         canvases.put(ItemLocations.BAG, new CanvasGrid(ItemLocations.BAG_W, ItemLocations.BAG_H));
         canvases.put(ItemLocations.WAREHOUSE, new CanvasGrid(ItemLocations.WH_W, ItemLocations.WH_H));

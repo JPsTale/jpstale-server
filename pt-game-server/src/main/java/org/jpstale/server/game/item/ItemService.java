@@ -18,10 +18,13 @@ public class ItemService {
 
     private final ItemRollService roll;
     private final ItemStorageService storage;
+    private final org.jpstale.server.game.service.PlayerStatCalculator statCalculator;
 
-    public ItemService(ItemRollService roll, ItemStorageService storage) {
+    public ItemService(ItemRollService roll, ItemStorageService storage,
+                       org.jpstale.server.game.service.PlayerStatCalculator statCalculator) {
         this.roll = roll;
         this.storage = storage;
+        this.statCalculator = statCalculator;
     }
 
     /**
@@ -34,22 +37,30 @@ public class ItemService {
     @Transactional
     public ItemInstance grantToBag(Player player, int itemListId, Integer jobCodeMask) {
         ItemInstance fresh = roll.rollById(itemListId, jobCodeMask);
-        return fresh == null ? null : grantInstanceToBag(player, fresh);
+        if (fresh == null) {
+            return null;
+        }
+        GrantResult r = grantInstanceToBag(player, fresh);
+        return r.instance; // GM/奖励路径：失败返回 null 即可（不给理由）
     }
 
     /**
      * 把一件已掷点物品放入背包（保留其随机属性；丢弃/拾取/掉落通用）。
-     * 堆叠物优先并入已有堆；无空位返回 null（背包满，不落库）。
+     * 堆叠物优先并入已有堆；无空位返回原因（背包满/超重）。
      */
     @Transactional
-    public ItemInstance grantInstanceToBag(Player player, ItemInstance fresh) {
+    public GrantResult grantInstanceToBag(Player player, ItemInstance fresh) {
         PlayerItems items = player.getItems();
         fresh.setCharacterId(Math.toIntExact(player.getId()));
-        fresh.setLocation(ItemLocations.BAG);
+        fresh.setLocation(ItemLocations.BAG_PAGE);
         fresh.setSlot(0);
+        // 负重预检（对齐原版 CheckWeight → Weight[0] > Weight[1] 语义）
+        if (statCalculator.isOverWeight(player, fresh)) {
+            return GrantResult.OVER_WEIGHT;
+        }
         // 堆叠物先尝试并入已有
         if (fresh.stackable()) {
-            for (ItemInstance existing : items.itemsIn(ItemLocations.BAG)) {
+            for (ItemInstance existing : items.itemsIn(ItemLocations.BAG_PAGE)) {
                 if (existing.getItemListId().equals(fresh.getItemListId())
                         && !existing.isDeleted()
                         && existing.getCount() > 0) {
@@ -57,14 +68,14 @@ public class ItemService {
                     if (add > 0) {
                         existing.setCount(existing.getCount() + add);
                         storage.update(existing);
-                        return existing;
+                        return GrantResult.ok(existing);
                     }
                 }
             }
         }
-        int slot = items.canvas(ItemLocations.BAG).findFreeSlot(fresh.gridW(), fresh.gridH());
+        int slot = items.canvas(ItemLocations.BAG_PAGE).findFreeSlot(fresh.gridW(), fresh.gridH());
         if (slot < 0) {
-            return null; // 背包满
+            return GrantResult.BAG_FULL; // 背包满
         }
         fresh.setSlot(slot);
         if (fresh.getId() != null) {
@@ -74,7 +85,22 @@ public class ItemService {
             storage.insert(fresh);
         }
         items.index(fresh);
-        return fresh;
+        return GrantResult.ok(fresh);
+    }
+
+    /** grantInstanceToBag 结果（成功实例 or 失败原因） */
+    public enum GrantReason { OK, BAG_FULL, OVER_WEIGHT }
+
+    public static final class GrantResult {
+        public final GrantReason reason;
+        public final ItemInstance instance;
+        private GrantResult(GrantReason reason, ItemInstance instance) {
+            this.reason = reason;
+            this.instance = instance;
+        }
+        public static GrantResult ok(ItemInstance it) { return new GrantResult(GrantReason.OK, it); }
+        public static final GrantResult BAG_FULL = new GrantResult(GrantReason.BAG_FULL, null);
+        public static final GrantResult OVER_WEIGHT = new GrantResult(GrantReason.OVER_WEIGHT, null);
     }
 
     /**
@@ -232,20 +258,33 @@ public class ItemService {
     }
 
     /**
-     * 客户端布局上报（客户端网格权威，服务端只做合法性 + 顺序安全落库）：
-     * 校验每件：属于本角色背包 / slot 界内且 footprint 不越界 / 无重复目标格；
-     * 全部合法才执行：先腾出涉及物品 → 逐件落到目标格 → 写库。
-     * 不做重叠裁决、不推快照（客户端已本地生效）。
+     * 客户端布局上报（客户端网格权威，全量快照 + 单调递增 seq）：
+     * <p>
+     * - seq：客户端单调递增序号；服务端记录 lastSeq，丢弃 seq<=lastSeq 的乱序/重放包。
+     * - 校验每件：属于本角色 / location 合法且 slot 界内且 footprint 不越界 / 无重复目标格 /
+     *   装备↔背包 特殊规则（装备落背包目标格必须为空，不做换位）。
+     * - 全部合法才执行：先腾出涉及物品 → 逐件落到目标格（跨容器）→ 写库。
+     * - 不做重叠裁决、不回推旧快照（作弊按 §7 软删 + RemovedUids）。
+     *
+     * @return 成功 true；乱序（seq<=lastSeq）也返回 false（该包整体丢弃，不改格子）
      */
-    public boolean applyBagLayout(Player player, java.util.List<? extends BagLayoutEntry> entries) {
+    @Transactional
+    public boolean applyBagLayout(Player player, int seq,
+                                  java.util.List<? extends BagLayoutEntry> entries) {
         PlayerItems items = player.getItems();
-        CanvasGrid cg = items.canvas(ItemLocations.BAG);
-        if (cg == null) {
+        if (seq <= items.lastSeq()) {
+            log.warn("[BagLayout] {} 丢弃乱序/重放 seq={} (lastSeq={})",
+                player.getName(), seq, items.lastSeq());
             return false;
         }
+        if (entries == null || entries.isEmpty()) {
+            items.setLastSeq(seq); // 空快照仍推进 seq（客户端清空动作）
+            return true;
+        }
         java.util.List<ItemInstance> involved = new java.util.ArrayList<>(entries.size());
-        java.util.Set<Integer> targetSlots = new java.util.HashSet<>();
-        java.util.Map<Integer, Integer> uidToSlot = new java.util.HashMap<>();
+        java.util.Set<String> targetKeys = new java.util.HashSet<>();
+        java.util.Map<Long, Integer> uidToSlot = new java.util.HashMap<>();
+        java.util.Map<Long, Integer> uidToLocation = new java.util.HashMap<>();
         java.util.List<ItemInstance> fromEquip = new java.util.ArrayList<>();
         for (BagLayoutEntry e : entries) {
             if (e == null || e.uid() == null) {
@@ -257,69 +296,88 @@ public class ItemService {
                     player.getName(), e.uid());
                 return false;
             }
-            boolean srcBag = it.getLocation() == ItemLocations.BAG;
+            int toLocation = e.location();
+            int slot = e.slot();
+            boolean srcBag = ItemLocations.isBagPage(it.getLocation());
+            boolean srcWarehouse = ItemLocations.isWarehousePage(it.getLocation());
             boolean srcEquip = it.getLocation() == ItemLocations.EQUIP
-                || it.getLocation() == ItemLocations.BACKUP_WEAPON;
-            if (!srcBag && !srcEquip) {
+                || it.getLocation() == ItemLocations.BACKUP_EQUIP;
+            if (!srcBag && !srcWarehouse && !srcEquip) {
                 log.warn("[BagLayout] {} 拒绝: uid={} 源位置 location={} 非法",
                     player.getName(), e.uid(), it.getLocation());
+                return false; // 任务栏/商店等未启用容器
+            }
+            // 目标容器校验：BagLayout 只接受画布落子（背包页/仓库页）。
+            // 装备/副装备槽走 EquipItem/UnequipItem/SwitchWeapon（带 slotAllows/属性重算），
+            // 不在布局上报路径内（防任意装备槽后门）。
+            boolean dstBag = ItemLocations.isBagPage(toLocation);
+            boolean dstWarehouse = ItemLocations.isWarehousePage(toLocation);
+            if (!dstBag && !dstWarehouse) {
+                log.warn("[BagLayout] {} 拒绝: uid={} 目标 location={} 非画布（装备槽不经布局上报）",
+                    player.getName(), e.uid(), toLocation);
                 return false;
             }
-            int slot = e.slot();
-            int x = cg.xOf(slot);
-            int y = cg.yOf(slot);
-            if (x + it.gridW() > cg.width() || y + it.gridH() > cg.height()) {
-                log.warn("[BagLayout] {} 拒绝: uid={} slot={} 越界 w={} h={}",
-                    player.getName(), e.uid(), slot, it.gridW(), it.gridH());
-                return false; // 越界
+            // 装备只能落非背包格（防写坏）；背包/仓库互不越界
+            CanvasGrid cg = items.canvas(toLocation);
+            if (cg != null) {
+                int x = cg.xOf(slot);
+                int y = cg.yOf(slot);
+                if (x + it.gridW() > cg.width() || y + it.gridH() > cg.height()) {
+                    log.warn("[BagLayout] {} 拒绝: uid={} slot={} 越界 loc={} w={} h={}",
+                        player.getName(), e.uid(), slot, toLocation, it.gridW(), it.gridH());
+                    return false;
+                }
+            } else {
+                // 非画布（装备栏/副装备栏）：槽号压 1~13 段
+                if (slot < 1 || slot > 13) {
+                    log.warn("[BagLayout] {} 拒绝: uid={} 装备槽 slot={} 越界",
+                        player.getName(), e.uid(), slot);
+                    return false;
+                }
             }
-            if (!targetSlots.add(slot)) {
-                log.warn("[BagLayout] {} 拒绝: uid={} 重复目标格 slot={}",
-                    player.getName(), e.uid(), slot);
+            String key = toLocation + ":" + slot;
+            if (!targetKeys.add(key)) {
+                log.warn("[BagLayout] {} 拒绝: uid={} 重复目标格 ({})",
+                    player.getName(), e.uid(), key);
                 return false; // 重复目标格
             }
-            // 装备→背包：目标格必须为空（不做换位/合并）
-            if (srcEquip && !cg.canPlace(x, y, it.gridW(), it.gridH())) {
-                log.warn("[BagLayout] {} 拒绝: uid={} 装备→背包 target slot={}(x={},y={}) 被占 w={} h={} 名称={}",
-                    player.getName(), e.uid(), slot, x, y, it.gridW(), it.gridH(),
-                    it.getTemplate() != null ? it.getTemplate().getName() : "?");
-                log.warn("[BagLayout] {} 位图快照(装备放下前): \n{}", player.getName(), cg.dumpOccupied());
-                java.util.List<ItemInstance> bagItems = items.itemsIn(ItemLocations.BAG);
-                for (ItemInstance ob : bagItems) {
-                    if (ob == null || ob.getId().equals(it.getId())) {
-                        continue;
-                    }
-                    int ox = cg.xOf(ob.getSlot());
-                    int oy = cg.yOf(ob.getSlot());
-                    if (ox < x + it.gridW() && ox + ob.gridW() > x
-                        && oy < y + it.gridH() && oy + ob.gridH() > y) {
-                        log.warn("[BagLayout] {} 占用冲突物: uid={} name={} slot={}(w={},h={})",
-                            player.getName(), ob.getId(),
-                            ob.getTemplate() != null ? ob.getTemplate().getName() : "?",
-                            ob.getSlot(), ob.gridW(), ob.gridH());
-                    }
+            // 从装备套/备用套 → 背包 目标格必须为空（不做换位/合并）。
+            // 严格原版：装备只能卸到背包，不能直入仓库（需先卸包再转）。
+            if ((srcEquip) && dstBag) {
+                if (cg == null || !cg.canPlace(cg.xOf(slot), cg.yOf(slot), it.gridW(), it.gridH())) {
+                    log.warn("[BagLayout] {} 拒绝: uid={} 装备→画布 target slot={}(loc={}) 被占/越界 w={} h={}",
+                        player.getName(), e.uid(), slot, toLocation, it.gridW(), it.gridH());
+                    return false;
                 }
+            }
+            if (srcEquip && dstWarehouse) {
+                log.warn("[BagLayout] {} 拒绝: uid={} 装备/副装备不能直入仓库",
+                    player.getName(), e.uid());
                 return false;
             }
             involved.add(it);
             if (srcEquip) {
                 fromEquip.add(it);
             }
-            uidToSlot.put(it.getId().intValue(), slot);
+            uidToSlot.put(it.getId(), slot);
+            uidToLocation.put(it.getId(), toLocation);
         }
-        // 执行：先全部腾出，再落子（顺序安全，不产生临时重叠）
+        // 执行：先全部腾出（含旧容器格），再按目标落子（顺序安全，不产生临时重叠）
         for (ItemInstance it : involved) {
             items.byUidRemove(it.getId());
         }
         for (ItemInstance it : involved) {
-            int slot = uidToSlot.get(it.getId().intValue());
-            it.setLocation(ItemLocations.BAG);
+            int slot = uidToSlot.get(it.getId());
+            int toLocation = uidToLocation.get(it.getId());
+            it.setLocation(toLocation);
             it.setSlot(slot);
-            items.putToCanvas(ItemLocations.BAG, slot, it);
-            items.markDirty(ItemLocations.BAG, slot, it.getId());
+            if (ItemLocations.isCanvas(toLocation)) {
+                items.putToCanvas(toLocation, slot, it);
+            } else {
+                items.byUidPut(it);
+            }
             storage.update(it);
         }
-        // 客户端权威下允许换手期间短暂重叠（手持件仍记旧槽）：重建位图避免残留空洞
         items.rebuildBitmaps();
         for (ItemInstance it : involved) {
             log.info("[BagLayout] {} 落子: uid={} name={} → location={} slot={} (w={},h={})",
@@ -327,13 +385,15 @@ public class ItemService {
                 it.getTemplate() != null ? it.getTemplate().getName() : "?",
                 it.getLocation(), it.getSlot(), it.gridW(), it.gridH());
         }
-        log.info("[BagLayout] {} 提交 {} 件 → slots={}", player.getName(), involved.size(), uidToSlot.values());
+        items.setLastSeq(seq);
+        log.info("[BagLayout] {} 提交 {} 件 seq={}", player.getName(), involved.size(), seq);
         return true;
     }
 
-    /** 布局上报条目适配 */
+    /** 布局上报条目适配（C2S_BagLayout 的 SnapshotEntry） */
     public interface BagLayoutEntry {
         Long uid();
+        int location();
         int slot();
     }
 

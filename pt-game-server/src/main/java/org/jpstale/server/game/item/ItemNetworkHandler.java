@@ -153,46 +153,44 @@ public class ItemNetworkHandler {
         }
     }
 
-    /** 背包布局上报（客户端网格权威）：全部合法才落库；失败回推这些 uid 的权威当前位（不重建） */
+    /** 背包布局上报（客户端网格权威，全量快照 + seq）：seq<=lastSeq 乱序丢弃；失败不回推旧快照 */
     @GamePacketHandler(MessageProto.ClientMessage.BAG_LAYOUT_FIELD_NUMBER)
     public void handleBagLayout(PlayerSession session, MessageProto.ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        var list = message.getBagLayout().getEntriesList();
-        if (list.isEmpty()) {
-            return;
+        MessageProto.C2S_BagLayout req = message.getBagLayout();
+        int seq = req.getSeq();
+        var list = req.getEntriesList();
+        if (list.isEmpty() && seq <= p.getItems().lastSeq()) {
+            return; // 空且乱序：直接丢弃
         }
         java.util.List<ItemService.BagLayoutEntry> entries = new java.util.ArrayList<>(list.size());
         boolean touchesEquip = false;
         for (var e : list) {
             final long uid = e.getUid();
+            final int toLocation = e.getLocation();
             final int slot = e.getSlot();
             ItemInstance src = p.getItems().byUid(uid);
             if (src != null && (src.getLocation() == ItemLocations.EQUIP
-                    || src.getLocation() == ItemLocations.BACKUP_WEAPON)) {
+                    || src.getLocation() == ItemLocations.BACKUP_EQUIP)) {
                 touchesEquip = true;
             }
             entries.add(new ItemService.BagLayoutEntry() {
                 @Override public Long uid() { return uid; }
+                @Override public int location() { return toLocation; }
                 @Override public int slot() { return slot; }
             });
         }
-        boolean ok = itemService.applyBagLayout(p, entries);
-        if (ok) {
-            if (touchesEquip) {
-                // 卸下装备到指定背包格：属性/外观/HUD 刷新（同 unequip）
-                refreshPlayerStats(session, p);
+        boolean ok = itemService.applyBagLayout(p, seq, entries);
+        if (!ok) {
+            // 乱序（seq<=lastSeq）已由 applyBagLayout 内部记录；其余失败事件记日志
+            if (seq > p.getItems().lastSeq()) {
+                log.warn("[BagLayout] {} seq={} 校验失败（不裁决、不改格）", session.getCharacterName(), seq);
             }
-            return;
-        }
-        log.info("[BagLayout] {} 校验失败 → 回推权威格子", session.getCharacterName());
-        for (ItemService.BagLayoutEntry e : entries) {
-            ItemInstance it = p.getItems().byUid(e.uid());
-            if (it != null) {
-                pushUpdate(session, it);
-            }
+        } else if (touchesEquip) {
+            refreshPlayerStats(session, p);
         }
     }
 
@@ -288,26 +286,20 @@ public class ItemNetworkHandler {
                 session.getCharacterName(), gid, Math.abs(gi.y - ent.getY()), PICKUP_HEIGHT_DIFF);
             return;
         }
-        ItemInstance granted = itemService.grantInstanceToBag(p, gi.item);
-        if (granted == null) {
-            // 拾取失败（背包满/负重不足）→ 对齐原版 sinThrowItemToFeild / ThrowPutItem2：
-            // 原位置消失，同实例重新丢到玩家身边某处（供整理后再次拾取）
-            log.info("[Pickup] {} gid={} : bag full → 重丢玩家身边", session.getCharacterName(), gid);
-            broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
-            groundItems.remove(ent.getMapId(), gid);
-            double ang = Math.random() * Math.PI * 2;
-            double dist = 0.8 + Math.random() * 1.7; // 世界单位，玩家身边
-            GroundItemManager.GroundItem redropped = groundItems.add(
-                gi.item, ent.getMapId(),
-                ent.getX() + Math.cos(ang) * dist,
-                ent.getY(),
-                ent.getZ() + Math.sin(ang) * dist,
-                gi.ownerId, 0);
-            log.info("[Pickup] {} 重丢 gid={}→newId={} 到身边 @({},{})",
-                session.getCharacterName(), gid, redropped.id, (float) redropped.x, (float) redropped.z);
-            sendErrorKey(session, "chat.pickup.bagFull");
+        ItemService.GrantResult result = itemService.grantInstanceToBag(p, gi.item);
+        if (result.reason == ItemService.GrantReason.BAG_FULL) {
+            // 背包满：物品保持原地，仅提示（对齐原版 INVENTORY_FULL 语义，不重丢）
+            log.info("[Pickup] {} gid={} : bag full → 保持原地", session.getCharacterName(), gid);
+            sendSystemMessageKey(session, "chat.pickup.bagFull");
             return;
         }
+        if (result.reason == ItemService.GrantReason.OVER_WEIGHT) {
+            // 超重：物品保持原地，仅提示（对齐原版 Weight[0]>Weight[1] 语义）
+            log.info("[Pickup] {} gid={} : over weight → 保持原地", session.getCharacterName(), gid);
+            sendSystemMessageKey(session, "chat.pickup.overWeight");
+            return;
+        }
+        ItemInstance granted = result.instance;
         groundItems.remove(ent.getMapId(), gid);
         log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @bagSlot={}",
             session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
@@ -374,6 +366,14 @@ public class ItemNetworkHandler {
             ent.getY(),
             ent.getZ() + Math.sin(ang) * dist,
             session.getCharacterId(), 0);
+        if (gi == null) {
+            // 地图已满且无可挤兑（全 Level=1）：原版 return FALSE 亦丢弃 → 背包物品已被取出，无法原地放回，直接告知
+            log.warn("[DropGround] {} uid={} 地图满({}) 掉落被丢弃", session.getCharacterName(), req.getUid(), GroundItemManager.STG_ITEM_MAX);
+            pushRemove(session, req.getUid());
+            refreshPlayerStats(session, p);
+            sendSystemMessageKey(session, "chat.cmd.dropOverLimit");
+            return;
+        }
         pushRemove(session, req.getUid());
         refreshPlayerStats(session, p);
         log.info("[DropGround] {} uid={} → groundItem id={} @({},{})",
@@ -426,6 +426,18 @@ public class ItemNetworkHandler {
         session.send(MessageProto.ServerMessage.newBuilder()
                 .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
                         .setMessage(msg)
+                        .setTimestamp(System.currentTimeMillis())
+                        .build())
+                .build());
+    }
+
+    private void sendSystemMessageKey(PlayerSession session, String key) {
+        if (session == null) {
+            return;
+        }
+        session.send(MessageProto.ServerMessage.newBuilder()
+                .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+                        .setKey(key)
                         .setTimestamp(System.currentTimeMillis())
                         .build())
                 .build());
