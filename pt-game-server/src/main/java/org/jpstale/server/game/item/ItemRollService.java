@@ -234,6 +234,14 @@ public class ItemRollService {
         it.setSpecSpeed(rndFloat(def.getAddSpecRunSpeedMin(), def.getAddSpecRunSpeedMax()));
         it.setSpecPerManaRegen(rndFloat(def.getAddSpecMpRegenMin(), def.getAddSpecMpRegenMax()));
         it.setSpecLevAttackRating(rndIntOr(def.getAddSpecAtkRatingMin(), def.getAddSpecAtkRatingMax()));
+        it.setSpecLevDamageMax(rndIntOr(def.getAddSpecAtkPowerMin(), def.getAddSpecAtkPowerMax()));
+        // 模板单值特效（非随机）
+        it.setSpecAttackSpeed(nz(def.getAddSpecAtkSpeed()));
+        it.setSpecCritical(nz(def.getAddSpecCritical()));
+        it.setSpecShootingRange(nz(def.getAddSpecRange()));
+        it.setSpecBlockRating(def.getAddSpecBlock() == null ? 0 : def.getAddSpecBlock());
+        it.setSpecPerLifeRegen(def.getAddSpecHpRegen() == null ? 0 : def.getAddSpecHpRegen());
+        it.setSpecPerStaminaRegen(def.getAddSpecStmRegen() == null ? 0 : def.getAddSpecStmRegen());
     }
 
     /** 该模板声明了哪些可选职业（add_spec_class1..12 非 0 → 对应位）。 */

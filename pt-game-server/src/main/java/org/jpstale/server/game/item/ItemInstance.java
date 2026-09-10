@@ -53,8 +53,20 @@ public class ItemInstance {
     private double specAbsorb;
     private int specDefence;
     private double specSpeed;
-    private double specPerManaRegen;
+    private double specBlockRating;
+    private int specAttackSpeed;
+    private int specCritical;
+    private int specShootingRange;
+    private double specMagicMastery;
+    private int specResBionic, specResEarth, specResFire, specResIce, specResLighting, specResPoison, specResWater, specResWind;
+    private int specLevMana;
+    private int specLevLife;
     private int specLevAttackRating;
+    private int specLevDamageMax;
+    private int specLevResBionic, specLevResEarth, specLevResFire, specLevResIce, specLevResLighting, specLevResPoison, specLevResWater, specLevResWind;
+    private double specPerManaRegen;
+    private double specPerLifeRegen;
+    private double specPerStaminaRegen;
 
     // ---- 锻造/合成状态（本轮仅存储，无操作逻辑）----
     private int agingNum;
@@ -103,6 +115,11 @@ public class ItemInstance {
     /** 物品名（模板）。 */
     public String name() {
         return template == null ? "?" : template.getName();
+    }
+
+    /** 攻击速度（模板，非实例列）。 */
+    public int attackSpeed() {
+        return template == null || template.getAtkSpeed() == null ? 0 : template.getAtkSpeed();
     }
 
     /** 判断该槽位是否允许放本物品（装备槽位校验，后续由 EquipService 细化）。 */

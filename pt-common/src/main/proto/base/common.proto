@@ -138,6 +138,50 @@ message ItemProto {
   int32 aging_level = 32;   // 锻造等级（本轮存储，操作逻辑未实现）
   int32 critical = 33;      // 必杀
   int32 range = 34;         // 射程（远程武器）
+  int32 attack_speed = 35;  // 攻击速度（近战/法杖）
+  // 8 系抗性补齐（16~20 为其中 5 系）
+  int32 res_earth = 36;     // 自然
+  int32 res_water = 37;
+  int32 res_wind = 38;
+  // 药水恢复区间（原版 P_Rec_* / MP/HP/STM Recovery）
+  int32 mana_regen = 39;    // - 语义按原版：恢复灵力区间 Min
+  int32 life_regen = 40;
+  int32 stamina_regen = 41;
+  // ---- 职业特效（sITEM_SPECIAL / userdb.item.spec_*，0.1 精度同前缀规则）----
+  int32 spec_absorb = 42;           // 0.1 精度
+  int32 spec_defence = 43;
+  int32 spec_speed = 44;            // 0.1 精度
+  int32 spec_block_rating = 45;     // 0.1 精度
+  int32 spec_attack_speed = 46;
+  int32 spec_critical = 47;
+  int32 spec_shooting_range = 48;
+  int32 spec_magic_mastery = 49;    // 0.1 精度
+  int32 spec_res_bionic = 50;
+  int32 spec_res_earth = 51;
+  int32 spec_res_fire = 52;
+  int32 spec_res_ice = 53;
+  int32 spec_res_lighting = 54;
+  int32 spec_res_poison = 55;
+  int32 spec_res_water = 56;
+  int32 spec_res_wind = 57;
+  // 每级加成（Lv/N）
+  int32 spec_lev_mana = 58;
+  int32 spec_lev_life = 59;
+  int32 spec_lev_attack_rating = 60;
+  int32 spec_lev_damage_max = 61;
+  // 每级属性攻击（Lv/N）
+  int32 spec_lev_res_bionic = 62;
+  int32 spec_lev_res_earth = 63;
+  int32 spec_lev_res_fire = 64;
+  int32 spec_lev_res_ice = 65;
+  int32 spec_lev_res_lighting = 66;
+  int32 spec_lev_res_poison = 67;
+  int32 spec_lev_res_water = 68;
+  int32 spec_lev_res_wind = 69;
+  // 每级再生（百分比）
+  int32 spec_per_mana_regen = 70;    // 0.01 精度
+  int32 spec_per_life_regen = 71;
+  int32 spec_per_stamina_regen = 72;
 }
 
 // 地面物品
