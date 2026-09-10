@@ -28,6 +28,8 @@ message ClientMessage {
     C2S_EquipItem equip_item = 207;
     C2S_UnequipItem unequip_item = 208;
     C2S_SwitchWeapon switch_weapon = 209;
+    C2S_BagLayout bag_layout = 210;
+    C2S_StackMerge stack_merge = 211;
     
     // 战斗 (300-399)
     C2S_Attack attack = 300;
@@ -205,6 +207,21 @@ message C2S_InventoryMove {
   int64 uid = 1;
   int32 to_location = 2;
   int32 to_slot = 3;
+}
+
+// 背包布局上报（客户端网格权威）：一次手势后受影响物品的最终格子（绝对位置）
+message BagMoveEntry {
+  int64 uid = 1;
+  int32 slot = 2;
+}
+message C2S_BagLayout {
+  repeated BagMoveEntry entries = 1;
+}
+
+// 药水堆叠合并：src 并入 dst（同 itemlist & 可堆叠；服务端校验后计数并入、src 软删）
+message C2S_StackMerge {
+  int64 src_uid = 1;
+  int64 dst_uid = 2;
 }
 
 // 穿装备：背包物品 uid → 装备槽(1~13)

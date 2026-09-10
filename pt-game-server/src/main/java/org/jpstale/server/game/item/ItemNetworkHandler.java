@@ -142,27 +142,6 @@ public class ItemNetworkHandler {
             return;
         }
         MessageProto.C2S_InventoryMove req = message.getInventoryMove();
-        // 背包画布落子：空位放 / 药水合并 / 单件换手（对齐原版拖放）
-        if (req.getToLocation() == ItemLocations.BAG) {
-            ItemService.BagMoveResult res = itemService.moveToBagCanvas(p, req.getUid(), req.getToSlot());
-            if (!res.ok) {
-                sendError(session, "move failed");
-                return;
-            }
-            if (res.placed != null) {
-                pushUpdate(session, res.placed);
-            }
-            if (res.merged != null) {
-                pushUpdate(session, res.merged);
-            }
-            if (res.displaced != null) {
-                pushUpdate(session, res.displaced);
-            }
-            if (res.removedUid != null) {
-                pushRemove(session, res.removedUid);
-            }
-            return;
-        }
         boolean ok = itemService.moveOnCanvas(p, req.getUid(), req.getToLocation(), req.getToSlot());
         if (!ok) {
             sendError(session, "move failed");
@@ -172,6 +151,64 @@ public class ItemNetworkHandler {
         if (it != null) {
             pushUpdate(session, it);
         }
+    }
+
+    /** 背包布局上报（客户端网格权威）：全部合法才落库；失败回推这些 uid 的权威当前位（不重建） */
+    @GamePacketHandler(MessageProto.ClientMessage.BAG_LAYOUT_FIELD_NUMBER)
+    public void handleBagLayout(PlayerSession session, MessageProto.ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        var list = message.getBagLayout().getEntriesList();
+        if (list.isEmpty()) {
+            return;
+        }
+        java.util.List<ItemService.BagLayoutEntry> entries = new java.util.ArrayList<>(list.size());
+        for (var e : list) {
+            final long uid = e.getUid();
+            final int slot = e.getSlot();
+            entries.add(new ItemService.BagLayoutEntry() {
+                @Override public Long uid() { return uid; }
+                @Override public int slot() { return slot; }
+            });
+        }
+        boolean ok = itemService.applyBagLayout(p, entries);
+        if (ok) {
+            return;
+        }
+        log.info("[BagLayout] {} 校验失败 → 回推权威格子", session.getCharacterName());
+        for (ItemService.BagLayoutEntry e : entries) {
+            ItemInstance it = p.getItems().byUid(e.uid());
+            if (it != null) {
+                pushUpdate(session, it);
+            }
+        }
+    }
+
+    /** 药水堆叠合并 */
+    @GamePacketHandler(MessageProto.ClientMessage.STACK_MERGE_FIELD_NUMBER)
+    public void handleStackMerge(PlayerSession session, MessageProto.ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        MessageProto.C2S_StackMerge req = message.getStackMerge();
+        ItemInstance dst = itemService.mergeStack(p, req.getSrcUid(), req.getDstUid());
+        if (dst == null) {
+            // 拒绝：回推双方当前权威态
+            ItemInstance s = p.getItems().byUid(req.getSrcUid());
+            ItemInstance d = p.getItems().byUid(req.getDstUid());
+            if (s != null) {
+                pushUpdate(session, s);
+            }
+            if (d != null) {
+                pushUpdate(session, d);
+            }
+            return;
+        }
+        pushUpdate(session, dst);
+        pushRemove(session, req.getSrcUid());
     }
 
     /** 穿装备：背包 → 装备槽 */

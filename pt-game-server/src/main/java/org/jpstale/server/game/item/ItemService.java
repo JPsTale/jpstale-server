@@ -161,30 +161,61 @@ public class ItemService {
             }
             log.info("[BagMove] {} uid={} → slot{} : 合并超上限", player.getName(), uid, toSlot);
         }
-        // 换手：命中恰 1 件 → 源放落目标，被撞件腾到空位
+        // 换手：命中恰 1 件 → 源放落目标，被撞件拿起（客户端呈现）；腾位保证不重叠：
+        // 1) 先清出双方（原版拿起语义：源与目标此刻都视为空）
         if (occ.size() == 1) {
             ItemInstance displaced = occ.get(0);
-            int freeSlot = cg.findFreeSlot(displaced.gridW(), displaced.gridH());
-            if (freeSlot < 0) {
-                log.info("[BagMove] {} uid={} → slot{} : 换手无空位(displaced uid={})", player.getName(), uid, toSlot, displaced.getId());
-                return r; // 无空位：拒绝
+            int oldItSlot = it.getSlot();
+            int oldDisSlot = displaced.getSlot();
+            items.takeFromCanvas(ItemLocations.BAG, oldDisSlot);
+            items.takeFromCanvas(ItemLocations.BAG, oldItSlot);
+            boolean sameShape = displaced.gridW() == gw && displaced.gridH() == gh;
+            if (sameShape) {
+                // 同尺寸：直接互换锚点（不占额外空位，天然无重叠）
+                it.setLocation(ItemLocations.BAG);
+                it.setSlot(oldDisSlot);
+                displaced.setLocation(ItemLocations.BAG);
+                displaced.setSlot(oldItSlot);
+                items.putToCanvas(ItemLocations.BAG, it.getSlot(), it);
+                items.putToCanvas(ItemLocations.BAG, displaced.getSlot(), displaced);
+                items.markDirty(ItemLocations.BAG, it.getSlot(), it.getId());
+                items.markDirty(ItemLocations.BAG, displaced.getSlot(), displaced.getId());
+                storage.update(it);
+                storage.update(displaced);
+                r.ok = true;
+                r.placed = it;
+                r.displaced = displaced;
+                log.info("[BagMove] {} uid={} → slot{} : 换手(同尺寸互换, displaced uid={}→slot{})",
+                    player.getName(), uid, toSlot, displaced.getId(), displaced.getSlot());
+                return r;
             }
-            items.takeFromCanvas(ItemLocations.BAG, displaced.getSlot());
-            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            // 异尺寸：先把源放入目标格，再为被撞件找空位（位图已含源，绝不与源重叠）
             it.setLocation(ItemLocations.BAG);
             it.setSlot(toSlot);
             items.putToCanvas(ItemLocations.BAG, toSlot, it);
-            items.markDirty(ItemLocations.BAG, toSlot, it.getId());
+            int freeSlot = cg.findFreeSlot(displaced.gridW(), displaced.gridH());
+            if (freeSlot < 0) {
+                // 无空位 → 回滚：源放回原格、被撞件放回原格
+                items.takeFromCanvas(ItemLocations.BAG, toSlot);
+                items.putToCanvas(ItemLocations.BAG, oldDisSlot, displaced);
+                items.putToCanvas(ItemLocations.BAG, oldItSlot, it);
+                storage.update(it);
+                storage.update(displaced);
+                log.info("[BagMove] {} uid={} → slot{} : 异尺寸换手无空位 → 回滚", player.getName(), uid, toSlot);
+                return r;
+            }
             displaced.setLocation(ItemLocations.BAG);
             displaced.setSlot(freeSlot);
             items.putToCanvas(ItemLocations.BAG, freeSlot, displaced);
+            items.markDirty(ItemLocations.BAG, toSlot, it.getId());
             items.markDirty(ItemLocations.BAG, freeSlot, displaced.getId());
             storage.update(it);
             storage.update(displaced);
             r.ok = true;
             r.placed = it;
             r.displaced = displaced;
-            log.info("[BagMove] {} uid={} → slot{} : 换手(displaced uid={}→slot{})", player.getName(), uid, toSlot, displaced.getId(), freeSlot);
+            log.info("[BagMove] {} uid={} → slot{} : 换手(异尺寸, displaced uid={}→slot{})",
+                player.getName(), uid, toSlot, displaced.getId(), freeSlot);
             return r;
         }
         log.info("[BagMove] {} uid={} → slot{} : ≥2冲突({})", player.getName(), uid, toSlot, occ.size());
@@ -193,6 +224,92 @@ public class ItemService {
 
     private boolean rectHit(int ox, int oy, int ow, int oh, int x, int y, int w, int h) {
         return ox < x + w && ox + ow > x && oy < y + h && oy + oh > y;
+    }
+
+    /**
+     * 客户端布局上报（客户端网格权威，服务端只做合法性 + 顺序安全落库）：
+     * 校验每件：属于本角色背包 / slot 界内且 footprint 不越界 / 无重复目标格；
+     * 全部合法才执行：先腾出涉及物品 → 逐件落到目标格 → 写库。
+     * 不做重叠裁决、不推快照（客户端已本地生效）。
+     */
+    public boolean applyBagLayout(Player player, java.util.List<? extends BagLayoutEntry> entries) {
+        PlayerItems items = player.getItems();
+        CanvasGrid cg = items.canvas(ItemLocations.BAG);
+        if (cg == null) {
+            return false;
+        }
+        java.util.List<ItemInstance> involved = new java.util.ArrayList<>(entries.size());
+        java.util.Set<Integer> targetSlots = new java.util.HashSet<>();
+        java.util.Map<Integer, Integer> uidToSlot = new java.util.HashMap<>();
+        for (BagLayoutEntry e : entries) {
+            if (e == null || e.uid() == null) {
+                return false;
+            }
+            ItemInstance it = items.byUid(e.uid());
+            if (it == null || it.getLocation() != ItemLocations.BAG || it.isDeleted()) {
+                return false;
+            }
+            int slot = e.slot();
+            int x = cg.xOf(slot);
+            int y = cg.yOf(slot);
+            if (x + it.gridW() > cg.width() || y + it.gridH() > cg.height()) {
+                return false; // 越界
+            }
+            if (!targetSlots.add(slot)) {
+                return false; // 重复目标格
+            }
+            involved.add(it);
+            uidToSlot.put(it.getId().intValue(), slot);
+        }
+        // 执行：先全部腾出，再落子（顺序安全，不产生临时重叠）
+        for (ItemInstance it : involved) {
+            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+        }
+        for (ItemInstance it : involved) {
+            int slot = uidToSlot.get(it.getId().intValue());
+            it.setLocation(ItemLocations.BAG);
+            it.setSlot(slot);
+            items.putToCanvas(ItemLocations.BAG, slot, it);
+            items.markDirty(ItemLocations.BAG, slot, it.getId());
+            storage.update(it);
+        }
+        // 客户端权威下允许换手期间短暂重叠（手持件仍记旧槽）：重建位图避免残留空洞
+        items.rebuildBitmaps();
+        log.info("[BagLayout] {} 提交 {} 件 → slots={}", player.getName(), involved.size(), uidToSlot.values());
+        return true;
+    }
+
+    /** 布局上报条目适配 */
+    public interface BagLayoutEntry {
+        Long uid();
+        int slot();
+    }
+
+    /**
+     * 药水堆叠合并：src 并入 dst（同 itemlist、均可堆叠、容量允许）。
+     */
+    public ItemInstance mergeStack(Player player, long srcUid, long dstUid) {
+        PlayerItems items = player.getItems();
+        ItemInstance src = items.byUid(srcUid);
+        ItemInstance dst = items.byUid(dstUid);
+        if (src == null || dst == null || src.getId().equals(dst.getId())
+                || src.getLocation() != ItemLocations.BAG || dst.getLocation() != ItemLocations.BAG
+                || !src.stackable() || !dst.stackable()
+                || !java.util.Objects.equals(src.getItemListId(), dst.getItemListId())) {
+            return null;
+        }
+        int cap = 1000;
+        if (dst.getCount() + src.getCount() > cap) {
+            return null;
+        }
+        dst.setCount(dst.getCount() + src.getCount());
+        items.takeFromCanvas(ItemLocations.BAG, src.getSlot());
+        items.byUidRemove(src.getId());
+        items.markDirty(ItemLocations.BAG, dst.getSlot(), dst.getId());
+        storage.update(dst);
+        storage.softDelete(src.getId());
+        log.info("[StackMerge] {} srcUid={} → dstUid={} total={}", player.getName(), srcUid, dstUid, dst.getCount());
+        return dst;
     }
 
     /** 背包画布落子结果（供 handler 推送 itemUpdate/ItemRemove） */
