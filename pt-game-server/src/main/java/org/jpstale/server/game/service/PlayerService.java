@@ -277,6 +277,7 @@ public class PlayerService {
             .setAvoid(statCalculator.avoidChance(p))
             .setShootingRange(statCalculator.shootingRange(p))
             .setMaxWeight(statCalculator.maxWeight(p))
+            .setCurrentWeight(statCalculator.currentWeight(p))
             .setResBionic(res[0]).setResPoison(res[5])
             .setResFire(res[2]).setResLightning(res[4]).setResIce(res[3])
             .setHpRegen((float) statCalculator.regenHp(p))

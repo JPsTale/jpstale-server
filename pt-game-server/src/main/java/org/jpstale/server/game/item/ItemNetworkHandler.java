@@ -314,6 +314,7 @@ public class ItemNetworkHandler {
             granted.getTemplate() != null ? granted.getTemplate().getName() : "?", granted.getSlot());
         broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
         pushUpdate(session, granted);
+        refreshPlayerStats(session, p); // 负重变了，HUD/状态需要更新
     }
 
     /** 向地面物品所在位置周围玩家广播消失 */

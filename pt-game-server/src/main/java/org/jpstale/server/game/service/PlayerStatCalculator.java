@@ -376,11 +376,36 @@ public class PlayerStatCalculator {
     /**
      * 跑步每秒耐力消耗（JPT2018 sinUseStamina）：
      * DeCreaSTM = (1000 + 当前负重) / (最大负重 + STR/2 + 500) + 0.4
-     * 当前负重（背包未实现）暂按 0。
      */
     public double staminaUsePerSec(Player p) {
-        int currentWeight = 0;
         int maxWeight = maxWeightOf(p);
-        return (1000.0 + currentWeight) / (maxWeight + p.getStrength() / 2.0 + 500.0) + 0.4;
+        return (1000.0 + currentWeight(p)) / (maxWeight + p.getStrength() / 2.0 + 500.0) + 0.4;
+    }
+
+    /**
+     * 当前负重（对齐原版 cINVENTORY::CheckWeight）：
+     * 遍历 背包+装备+备用武器；药水按瓶数(count)计，其它累加模板 weight（weight<0 忽略）。
+     */
+    public int currentWeight(Player p) {
+        int w = 0;
+        java.util.List<ItemInstance> all = new java.util.ArrayList<>();
+        all.addAll(p.getItems().itemsIn(ItemLocations.BAG));
+        all.addAll(p.getItems().itemsIn(ItemLocations.EQUIP));
+        all.addAll(p.getItems().itemsIn(ItemLocations.BACKUP_WEAPON));
+        for (ItemInstance it : all) {
+            if (it == null || it.isDeleted()) {
+                continue;
+            }
+            Integer ci = it.getTemplate() != null ? it.getTemplate().getClassItem() : null;
+            if (ci != null && ci == 8192) { // 药水：每瓶 1 单位
+                w += it.getCount();
+                continue;
+            }
+            Integer wt = it.getTemplate() != null ? it.getTemplate().getWeight() : null;
+            if (wt != null && wt >= 0) {
+                w += wt;
+            }
+        }
+        return w;
     }
 }

@@ -359,6 +359,7 @@ message S2C_CharacterStatus {
   float hp_regen = 40;      // 每秒生命恢复（0.1 精度，同 RegenerationService 结算口径）
   float mp_regen = 41;      // 每秒魔法恢复
   float stm_regen = 42;     // 每秒体力恢复（含天生 3.8 + Level/7）
+  int32 current_weight = 43; // 当前负重（背包+装备+备用武器；药水按瓶数），与 max_weight 同口径
 }
 
 // 外观更新：穿/脱装备、W 武器切换后服务端推送，客户端据此更新 3D 角色模型。
