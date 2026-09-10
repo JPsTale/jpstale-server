@@ -286,6 +286,23 @@ public class ItemService {
     }
 
     /**
+     * 把物品从玩家身上取出用于"丢到地面"：从所在容器移除并软删 DB 行；
+     * 返回脱离的实例（调用方负责在玩家附近生成地面物并广播）。
+     */
+    public ItemInstance removeToGround(Player player, long uid) {
+        PlayerItems items = player.getItems();
+        ItemInstance it = items.byUid(uid);
+        if (it == null || it.isDeleted()) {
+            return null;
+        }
+        items.byUidRemove(uid);
+        storage.softDelete(uid);
+        log.info("[DropGround] {} 取出 uid={} name={} 用于丢地", player.getName(), uid,
+            it.getTemplate() != null ? it.getTemplate().getName() : "?");
+        return it;
+    }
+
+    /**
      * 药水堆叠合并：src 并入 dst（同 itemlist、均可堆叠、容量允许）。
      */
     public ItemInstance mergeStack(Player player, long srcUid, long dstUid) {

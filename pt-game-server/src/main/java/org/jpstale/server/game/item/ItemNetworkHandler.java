@@ -344,12 +344,29 @@ public class ItemNetworkHandler {
             return;
         }
         MessageProto.C2S_DropItem req = message.getDropItem();
-        boolean ok = itemService.discard(p, req.getUid());
-        if (!ok) {
+        org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+        if (ent == null || ent.getMapId() < 0) {
             sendError(session, "drop failed");
             return;
         }
+        // 丢到地面（对齐原版 ThrowItem）：从背包/装备取出 → 玩家附近生成地面物
+        ItemInstance dropped = itemService.removeToGround(p, req.getUid());
+        if (dropped == null) {
+            sendError(session, "drop failed");
+            return;
+        }
+        double ang = Math.random() * Math.PI * 2;
+        double dist = 0.8 + Math.random() * 1.4;
+        GroundItemManager.GroundItem gi = groundItems.add(
+            dropped, ent.getMapId(),
+            ent.getX() + Math.cos(ang) * dist,
+            ent.getY(),
+            ent.getZ() + Math.sin(ang) * dist,
+            session.getCharacterId(), 0);
         pushRemove(session, req.getUid());
+        refreshPlayerStats(session, p);
+        log.info("[DropGround] {} uid={} → groundItem id={} @({},{})",
+            session.getCharacterName(), req.getUid(), gi.id, (float) gi.x, (float) gi.z);
     }
 
     /** W 武器切换 */
