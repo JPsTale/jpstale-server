@@ -82,8 +82,8 @@ public class GroundItemManager {
         if (item == null || item.getTemplate() == null || item.getTemplate().getClassItem() == null) {
             return 1;
         }
-        // 药水 classItem=8192；金币无 classItem（我们金币走 player.gold, 不走地面物）
-        return item.getTemplate().getClassItem() == 8192 ? 0 : 1;
+        // 药水（classItem=8192）；金币无 classItem（我们金币走 player.gold, 不走地面物）
+        return ItemClass.isPotion(item.getTemplate().getClassItem()) ? 0 : 1;
     }
 
     /** 默认 TTL：Level0(金币/药水) 90s，Level1(材料/装备) 3min */

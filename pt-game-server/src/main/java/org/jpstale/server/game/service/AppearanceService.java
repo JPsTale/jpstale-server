@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.dao.gamedb.entity.ItemList;
+import org.jpstale.server.game.item.ItemClass;
 import org.jpstale.server.game.item.ItemInstance;
 import org.jpstale.server.game.item.ItemLocations;
 import org.jpstale.server.game.item.PlayerItems;
@@ -12,8 +13,8 @@ import org.springframework.stereotype.Service;
 /**
  * 角色外观计算（装备→3D 模型挂载）。
  * <p>
- * 从玩家已装备掷点实例（location=2 装备栏 + location=6 备用武器）推导：
- * 武器（classItem 4/6）→ weaponDorp/weaponIdcode/weaponPos；防具（8）→ bodyModel/bodyModelIdcode。
+ * 从玩家已装备掷点实例（location=EQUIP 装备栏 + location=BACKUP_EQUIP 副装备栏）推导：
+ * 武器（{@link ItemClass#isWeapon}）→ weaponDorp/weaponIdcode/weaponPos；躯干甲（{@link ItemClass#isTorsoArmor}）→ bodyModel/bodyModelIdcode。
  * 计算结果写回 {@link Player#getAppearance()}，供 AOI Appear / 外观更新广播使用。
  */
 @Slf4j
@@ -49,11 +50,11 @@ public class AppearanceService {
                     }
                     Integer c = def.getClassItem();
                     // 主手(槽1)武器才决定外观；双手(6)/单手(4)
-                    if ((c != null && (c == 4 || c == 6)) && it.getSlot() == ItemLocations.SLOT_MAIN_HAND) {
+                    if (c != null && ItemClass.isWeapon(c) && it.getSlot() == ItemLocations.SLOT_MAIN_HAND) {
                         weaponDorp = def.getCodeImg1();
                         weaponIdcode = def.getIdCode();
                         weaponPos = def.getModelPosition();
-                    } else if (c != null && c == 8) {
+                    } else if (c != null && ItemClass.isTorsoArmor(c)) {
                         // 防具（铠甲/法袍）
                         bodyModel = def.getCodeImg1();
                         bodyIdcode = def.getIdCode();

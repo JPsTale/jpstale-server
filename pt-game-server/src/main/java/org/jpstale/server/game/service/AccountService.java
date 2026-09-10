@@ -414,7 +414,7 @@ public class AccountService {
     /**
      * 构建角色外观（服务端算好最终外貌值，前端不查表）。
      * <p>
-     * 联表：userdb.item(location=1 装备栏) → gamedb.itemlist(codeImg1=模型 dorpItem, modelPosition=武器挂点, classItem=物品大类)。
+     * 联表：userdb.item(location=EQUIP=0 装备栏) → gamedb.itemlist(codeImg1=模型 dorpItem, modelPosition=武器挂点, classItem=物品大类)。
      * 分类用 classItem：4/6=武器（单手/双手），8=防具（身体）。
      * <p>
      * ponytail: 每个角色两条查询（N+1），角色选择列表每账号上限 MAX_CHARACTERS 个，量级极小；将来若做世界同步批量出现再改批量 IN 查询。
@@ -433,7 +433,7 @@ public class AccountService {
         List<org.jpstale.dao.userdb.entity.Item> items = itemMapper.selectList(
             new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.userdb.entity.Item>()
                 .eq(org.jpstale.dao.userdb.entity.Item::getCharacterId, character.getId())
-                .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) 2));
+                .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) org.jpstale.server.game.item.ItemLocations.EQUIP));
 
         for (org.jpstale.dao.userdb.entity.Item item : items) {
             org.jpstale.dao.gamedb.entity.ItemList def = findItemDef(item);
@@ -441,12 +441,12 @@ public class AccountService {
                 continue;
             }
             Integer classItem = def.getClassItem();
-            if (classItem != null && (classItem == 4 || classItem == 6)) {
-                // 武器（4=单手, 6=双手）
+            if (classItem != null && org.jpstale.server.game.item.ItemClass.isWeapon(classItem)) {
+                // 武器（单手/双手）
                 weaponDorp = def.getCodeImg1();
                 weaponIdcode = def.getIdCode() != null ? def.getIdCode() : 0;
                 weaponPos = def.getModelPosition() != null ? def.getModelPosition() : 0;
-            } else if (classItem != null && classItem == 8) {
+            } else if (classItem != null && org.jpstale.server.game.item.ItemClass.isTorsoArmor(classItem)) {
                 // 身体（防具）：同时下发 dorpItem（时装查表用）与 idcode（普通防具算 armorNum 用）
                 bodyModel = def.getCodeImg1();
                 bodyModelIdcode = def.getIdCode() != null ? def.getIdCode() : 0;

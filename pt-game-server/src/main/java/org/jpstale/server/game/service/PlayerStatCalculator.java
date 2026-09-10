@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import org.jpstale.server.common.codec.GameConstants;
 import org.jpstale.server.game.item.EquipSummary;
+import org.jpstale.server.game.item.ItemClass;
 import org.jpstale.server.game.item.ItemInstance;
 import org.jpstale.server.game.item.ItemLocations;
 import org.jpstale.server.game.model.Player;
@@ -398,7 +399,7 @@ public class PlayerStatCalculator {
                 continue;
             }
             Integer ci = it.getTemplate() != null ? it.getTemplate().getClassItem() : null;
-            if (ci != null && ci == 8192) { // 药水：每瓶 1 单位
+            if (ci != null && ItemClass.isPotion(ci)) { // 药水：每瓶 1 单位
                 w += it.getCount();
                 continue;
             }
@@ -424,7 +425,7 @@ public class PlayerStatCalculator {
                 continue;
             }
             Integer ci = it.getTemplate() != null ? it.getTemplate().getClassItem() : null;
-            if (ci != null && ci == 8192) {
+            if (ci != null && ItemClass.isPotion(ci)) {
                 w += it.getCount();
                 continue;
             }
@@ -437,7 +438,7 @@ public class PlayerStatCalculator {
             return false;
         }
         Integer ci = fresh.getTemplate() != null ? fresh.getTemplate().getClassItem() : null;
-        if (ci != null && ci == 8192) {
+        if (ci != null && ItemClass.isPotion(ci)) {
             w += fresh.getCount();
         } else {
             Integer wt = fresh.getTemplate() != null ? fresh.getTemplate().getWeight() : null;

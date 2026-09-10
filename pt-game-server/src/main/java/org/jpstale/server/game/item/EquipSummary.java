@@ -59,11 +59,11 @@ public final class EquipSummary {
             // 副手盾/法球：不参与攻击/攻速，格挡在此
             if (def != null) {
                 int c = def.getClassItem() == null ? 0 : def.getClassItem();
-                if (c == 8 || c == 16 || c == 32) {
+                if (ItemClass.isBodyGear(c)) {
                     // 防具系（甲/靴/手）：防御 + 可能格挡/移速
                     s.defense += it.getDefence();
                     s.block += it.getBlockRating();
-                    if (c == 16) {
+                    if (c == ItemClass.BOOTS) {
                         int bs = def.getRunSpeedMin() == null ? 0 : (int) (double) def.getRunSpeedMin();
                         s.bootsSpeed = Math.max(s.bootsSpeed, bs);
                     }
