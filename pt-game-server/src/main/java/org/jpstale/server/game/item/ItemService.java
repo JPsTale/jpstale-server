@@ -246,12 +246,19 @@ public class ItemService {
         java.util.List<ItemInstance> involved = new java.util.ArrayList<>(entries.size());
         java.util.Set<Integer> targetSlots = new java.util.HashSet<>();
         java.util.Map<Integer, Integer> uidToSlot = new java.util.HashMap<>();
+        java.util.List<ItemInstance> fromEquip = new java.util.ArrayList<>();
         for (BagLayoutEntry e : entries) {
             if (e == null || e.uid() == null) {
                 return false;
             }
             ItemInstance it = items.byUid(e.uid());
-            if (it == null || it.getLocation() != ItemLocations.BAG || it.isDeleted()) {
+            if (it == null || it.isDeleted()) {
+                return false;
+            }
+            boolean srcBag = it.getLocation() == ItemLocations.BAG;
+            boolean srcEquip = it.getLocation() == ItemLocations.EQUIP
+                || it.getLocation() == ItemLocations.BACKUP_WEAPON;
+            if (!srcBag && !srcEquip) {
                 return false;
             }
             int slot = e.slot();
@@ -263,12 +270,19 @@ public class ItemService {
             if (!targetSlots.add(slot)) {
                 return false; // 重复目标格
             }
+            // 装备→背包：目标格必须为空（不做换位/合并）
+            if (srcEquip && !cg.canPlace(x, y, it.gridW(), it.gridH())) {
+                return false;
+            }
             involved.add(it);
+            if (srcEquip) {
+                fromEquip.add(it);
+            }
             uidToSlot.put(it.getId().intValue(), slot);
         }
         // 执行：先全部腾出，再落子（顺序安全，不产生临时重叠）
         for (ItemInstance it : involved) {
-            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            items.byUidRemove(it.getId());
         }
         for (ItemInstance it : involved) {
             int slot = uidToSlot.get(it.getId().intValue());

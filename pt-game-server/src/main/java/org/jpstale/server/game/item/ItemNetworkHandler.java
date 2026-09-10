@@ -165,9 +165,15 @@ public class ItemNetworkHandler {
             return;
         }
         java.util.List<ItemService.BagLayoutEntry> entries = new java.util.ArrayList<>(list.size());
+        boolean touchesEquip = false;
         for (var e : list) {
             final long uid = e.getUid();
             final int slot = e.getSlot();
+            ItemInstance src = p.getItems().byUid(uid);
+            if (src != null && (src.getLocation() == ItemLocations.EQUIP
+                    || src.getLocation() == ItemLocations.BACKUP_WEAPON)) {
+                touchesEquip = true;
+            }
             entries.add(new ItemService.BagLayoutEntry() {
                 @Override public Long uid() { return uid; }
                 @Override public int slot() { return slot; }
@@ -175,6 +181,10 @@ public class ItemNetworkHandler {
         }
         boolean ok = itemService.applyBagLayout(p, entries);
         if (ok) {
+            if (touchesEquip) {
+                // 卸下装备到指定背包格：属性/外观/HUD 刷新（同 unequip）
+                refreshPlayerStats(session, p);
+            }
             return;
         }
         log.info("[BagLayout] {} 校验失败 → 回推权威格子", session.getCharacterName());
