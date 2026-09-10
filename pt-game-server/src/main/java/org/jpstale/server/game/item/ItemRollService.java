@@ -280,16 +280,20 @@ public class ItemRollService {
     private static final ReqMod[] REQ_MOD = new ReqMod[2048];
 
     static {
-        put(1, new ReqMod(new int[]{20,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));
-        put(2, new ReqMod(new int[]{15,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));
-        put(3, new ReqMod(new int[]{-25,-15}, new int[]{-20,-10}, new int[]{0,0}, new int[]{20,30}, new int[]{0,0}));
-        put(4, new ReqMod(new int[]{20,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));
-        put(5, new ReqMod(new int[]{-20,-15}, new int[]{-20,-10}, new int[]{0,0}, new int[]{20,30}, new int[]{0,0}));
-        put(6, new ReqMod(new int[]{15,25}, new int[]{-15,-10}, new int[]{5,10}, new int[]{-20,-15}, new int[]{0,0}));
-        put(7, new ReqMod(new int[]{-30,-25}, new int[]{25,30}, new int[]{-15,-10}, new int[]{-20,-15}, new int[]{0,0}));
-        put(8, new ReqMod(new int[]{-30,-25}, new int[]{25,30}, new int[]{-15,-10}, new int[]{-20,-15}, new int[]{0,0}));
-        put(9, new ReqMod(new int[]{20,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));
-        put(10, new ReqMod(new int[]{-30,-25}, new int[]{25,30}, new int[]{-15,-10}, new int[]{-20,-15}, new int[]{0,0}));
+        // EPT GetItemRequirementAdjustmentForClass 顺序：
+        // Fighter,Mechanician,Archer,Pikeman,Atalanta,Knight,Magician,Priestess,Assassin,Shaman
+        // 索引 = 基础职业位 bit = 1<<(ECharacterClass-1)
+        put(1,    new ReqMod(new int[]{20,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));   // 1 Fighter 武士
+        put(2,    new ReqMod(new int[]{15,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));   // 2 Mechanician 机械兵
+        put(4,    new ReqMod(new int[]{-25,-15}, new int[]{-20,-10}, new int[]{0,0}, new int[]{20,30}, new int[]{0,0}));   // 3 Archer 弓箭手
+        put(8,    new ReqMod(new int[]{20,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));   // 4 Pikeman 枪兵
+        put(16,   new ReqMod(new int[]{-20,-15}, new int[]{-20,-10}, new int[]{0,0}, new int[]{20,30}, new int[]{0,0}));   // 5 Atalanta 魔枪兵
+        put(32,   new ReqMod(new int[]{15,25}, new int[]{-15,-10}, new int[]{5,10}, new int[]{-20,-15}, new int[]{0,0}));  // 6 Knight 游侠
+        put(64,   new ReqMod(new int[]{-30,-25}, new int[]{25,30}, new int[]{-15,-10}, new int[]{-20,-15}, new int[]{0,0}));// 7 Magician 魔法师
+        put(128,  new ReqMod(new int[]{-30,-25}, new int[]{25,30}, new int[]{-15,-10}, new int[]{-20,-15}, new int[]{0,0}));// 8 Priestess 祭司
+        put(256,  new ReqMod(new int[]{20,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));   // 9 Assassin 刺客
+        put(512,  new ReqMod(new int[]{-30,-25}, new int[]{25,30}, new int[]{-15,-10}, new int[]{-20,-15}, new int[]{0,0}));// 10 Shaman 萨满
+        put(1024, new ReqMod(new int[]{20,25}, new int[]{-20,-10}, new int[]{0,0}, new int[]{-20,-15}, new int[]{0,0}));   // 11 MartialArtist 格斗家
     }
 
     private static void put(int bit, ReqMod m) {
@@ -360,41 +364,20 @@ public class ItemRollService {
         return v == null ? 0 : v;
     }
 
-    /** 职业掩码 → 职业名（含二转），供日志/显示。 */
+    /** 职业掩码 → 基础职业名（bit = 1<<(ECharacterClass-1)），供日志/显示。 */
     public static List<String> jobNamesOf(long mask) {
         Map<Long, String> jobs = new LinkedHashMap<>();
-        jobs.put(0x00000001L, "Mechanician");
-        jobs.put(0x00000002L, "Fighter");
-        jobs.put(0x00000004L, "Pikeman");
-        jobs.put(0x00000008L, "Archer");
-        jobs.put(0x00000010L, "Mechanic Master");
-        jobs.put(0x00000020L, "Warrior");
-        jobs.put(0x00000040L, "Combatant");
-        jobs.put(0x00000080L, "Hunter Master");
-        jobs.put(0x00000100L, "Metal Leader");
-        jobs.put(0x00000200L, "Champion");
-        jobs.put(0x00000400L, "Lancer");
-        jobs.put(0x00000800L, "Dion's Disciple");
-        jobs.put(0x00001000L, "Metallion");
-        jobs.put(0x00002000L, "Immortal Warrior");
-        jobs.put(0x00004000L, "Lancelot");
-        jobs.put(0x00008000L, "Sagittarion");
-        jobs.put(0x00010000L, "Knight");
-        jobs.put(0x00020000L, "Atalanta");
-        jobs.put(0x00040000L, "Priest");
-        jobs.put(0x00080000L, "Magician");
-        jobs.put(0x00100000L, "Paladin");
-        jobs.put(0x00200000L, "Valkyrie");
-        jobs.put(0x00400000L, "Saintess");
-        jobs.put(0x00800000L, "Wizard");
-        jobs.put(0x01000000L, "Holy Knight");
-        jobs.put(0x02000000L, "Brunhild");
-        jobs.put(0x04000000L, "Bishop");
-        jobs.put(0x08000000L, "Royal Wizard");
-        jobs.put(0x10000000L, "Saint Knight");
-        jobs.put(0x20000000L, "Valhalla");
-        jobs.put(0x40000000L, "Celestial");
-        jobs.put(0x80000000L, "Arch Mage");
+        jobs.put(0x00000001L, "Fighter");       // 1
+        jobs.put(0x00000002L, "Mechanician");   // 2
+        jobs.put(0x00000004L, "Archer");        // 3
+        jobs.put(0x00000008L, "Pikeman");       // 4
+        jobs.put(0x00000010L, "Atalanta");      // 5
+        jobs.put(0x00000020L, "Knight");        // 6
+        jobs.put(0x00000040L, "Magician");      // 7
+        jobs.put(0x00000080L, "Priestess");     // 8
+        jobs.put(0x00000100L, "Assassin");      // 9
+        jobs.put(0x00000200L, "Shaman");        // 10
+        jobs.put(0x00000400L, "MartialArtist"); // 11
         List<String> names = new ArrayList<>();
         for (Map.Entry<Long, String> e : jobs.entrySet()) {
             if ((mask & e.getKey()) != 0) {

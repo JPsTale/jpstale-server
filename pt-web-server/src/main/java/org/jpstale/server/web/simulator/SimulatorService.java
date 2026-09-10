@@ -280,38 +280,17 @@ public class SimulatorService {
             return names;
         }
         Map<Long, String> jobs = new LinkedHashMap<>();
-        jobs.put(0x00000001L, "Mechanician");
-        jobs.put(0x00000002L, "Fighter");
-        jobs.put(0x00000004L, "Pikeman");
-        jobs.put(0x00000008L, "Archer");
-        jobs.put(0x00000010L, "Mechanic Master");
-        jobs.put(0x00000020L, "Warrior");
-        jobs.put(0x00000040L, "Combatant");
-        jobs.put(0x00000080L, "Hunter Master");
-        jobs.put(0x00000100L, "Metal Leader");
-        jobs.put(0x00000200L, "Champion");
-        jobs.put(0x00000400L, "Lancer");
-        jobs.put(0x00000800L, "Dion's Disciple");
-        jobs.put(0x00001000L, "Metallion");
-        jobs.put(0x00002000L, "Immortal Warrior");
-        jobs.put(0x00004000L, "Lancelot");
-        jobs.put(0x00008000L, "Sagittarion");
-        jobs.put(0x00010000L, "Knight");
-        jobs.put(0x00020000L, "Atalanta");
-        jobs.put(0x00040000L, "Priest");
-        jobs.put(0x00080000L, "Magician");
-        jobs.put(0x00100000L, "Paladin");
-        jobs.put(0x00200000L, "Valkyrie");
-        jobs.put(0x00400000L, "Saintess");
-        jobs.put(0x00800000L, "Wizard");
-        jobs.put(0x01000000L, "Holy Knight");
-        jobs.put(0x02000000L, "Brunhild");
-        jobs.put(0x04000000L, "Bishop");
-        jobs.put(0x08000000L, "Royal Wizard");
-        jobs.put(0x10000000L, "Saint Knight");
-        jobs.put(0x20000000L, "Valhalla");
-        jobs.put(0x40000000L, "Celestial");
-        jobs.put(0x80000000L, "Arch Mage");
+        jobs.put(0x00000001L, "Fighter");       // 1
+        jobs.put(0x00000002L, "Mechanician");   // 2
+        jobs.put(0x00000004L, "Archer");        // 3
+        jobs.put(0x00000008L, "Pikeman");       // 4
+        jobs.put(0x00000010L, "Atalanta");      // 5
+        jobs.put(0x00000020L, "Knight");        // 6
+        jobs.put(0x00000040L, "Magician");      // 7
+        jobs.put(0x00000080L, "Priestess");     // 8
+        jobs.put(0x00000100L, "Assassin");      // 9
+        jobs.put(0x00000200L, "Shaman");        // 10
+        jobs.put(0x00000400L, "MartialArtist"); // 11
         for (Map.Entry<Long, String> e : jobs.entrySet()) {
             if ((mask & e.getKey()) != 0) {
                 names.add(e.getValue());
