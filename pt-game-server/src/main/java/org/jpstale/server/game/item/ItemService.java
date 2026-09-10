@@ -253,25 +253,52 @@ public class ItemService {
             }
             ItemInstance it = items.byUid(e.uid());
             if (it == null || it.isDeleted()) {
+                log.warn("[BagLayout] {} 拒绝: uid={} 不存在或已软删",
+                    player.getName(), e.uid());
                 return false;
             }
             boolean srcBag = it.getLocation() == ItemLocations.BAG;
             boolean srcEquip = it.getLocation() == ItemLocations.EQUIP
                 || it.getLocation() == ItemLocations.BACKUP_WEAPON;
             if (!srcBag && !srcEquip) {
+                log.warn("[BagLayout] {} 拒绝: uid={} 源位置 location={} 非法",
+                    player.getName(), e.uid(), it.getLocation());
                 return false;
             }
             int slot = e.slot();
             int x = cg.xOf(slot);
             int y = cg.yOf(slot);
             if (x + it.gridW() > cg.width() || y + it.gridH() > cg.height()) {
+                log.warn("[BagLayout] {} 拒绝: uid={} slot={} 越界 w={} h={}",
+                    player.getName(), e.uid(), slot, it.gridW(), it.gridH());
                 return false; // 越界
             }
             if (!targetSlots.add(slot)) {
+                log.warn("[BagLayout] {} 拒绝: uid={} 重复目标格 slot={}",
+                    player.getName(), e.uid(), slot);
                 return false; // 重复目标格
             }
             // 装备→背包：目标格必须为空（不做换位/合并）
             if (srcEquip && !cg.canPlace(x, y, it.gridW(), it.gridH())) {
+                log.warn("[BagLayout] {} 拒绝: uid={} 装备→背包 target slot={}(x={},y={}) 被占 w={} h={} 名称={}",
+                    player.getName(), e.uid(), slot, x, y, it.gridW(), it.gridH(),
+                    it.getTemplate() != null ? it.getTemplate().getName() : "?");
+                log.warn("[BagLayout] {} 位图快照(装备放下前): \n{}", player.getName(), cg.dumpOccupied());
+                java.util.List<ItemInstance> bagItems = items.itemsIn(ItemLocations.BAG);
+                for (ItemInstance ob : bagItems) {
+                    if (ob == null || ob.getId().equals(it.getId())) {
+                        continue;
+                    }
+                    int ox = cg.xOf(ob.getSlot());
+                    int oy = cg.yOf(ob.getSlot());
+                    if (ox < x + it.gridW() && ox + ob.gridW() > x
+                        && oy < y + it.gridH() && oy + ob.gridH() > y) {
+                        log.warn("[BagLayout] {} 占用冲突物: uid={} name={} slot={}(w={},h={})",
+                            player.getName(), ob.getId(),
+                            ob.getTemplate() != null ? ob.getTemplate().getName() : "?",
+                            ob.getSlot(), ob.gridW(), ob.gridH());
+                    }
+                }
                 return false;
             }
             involved.add(it);
@@ -294,6 +321,12 @@ public class ItemService {
         }
         // 客户端权威下允许换手期间短暂重叠（手持件仍记旧槽）：重建位图避免残留空洞
         items.rebuildBitmaps();
+        for (ItemInstance it : involved) {
+            log.info("[BagLayout] {} 落子: uid={} name={} → location={} slot={} (w={},h={})",
+                player.getName(), it.getId(),
+                it.getTemplate() != null ? it.getTemplate().getName() : "?",
+                it.getLocation(), it.getSlot(), it.gridW(), it.gridH());
+        }
         log.info("[BagLayout] {} 提交 {} 件 → slots={}", player.getName(), involved.size(), uidToSlot.values());
         return true;
     }

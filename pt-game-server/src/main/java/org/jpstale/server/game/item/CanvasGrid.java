@@ -5,18 +5,27 @@ package org.jpstale.server.game.item;
  * <p>
  * 支持物品按 w×h 占多格：只记录左上角锚点，占位由锚点+尺寸推导。
  * 服务端用它做寻位/碰撞/空位校验（客户端另有同规则位图做拖拽手感）。
+ * <p>
+ * 位图仅用于占用判定，不存储任何业务/数据库语义字段；调试快照用的物主标记
+ * 是内部递增序号，纯展示用途，与物品 id 无关。
  */
 public final class CanvasGrid {
 
     private final int w;
     private final int h;
-    /** 每格是否被占用（含作为他人物品"身体"的格） */
-    private final boolean[] occupied;
+    /**
+     * 每格占用标记（0=空）。占多格的同一物品，其所有格子共享同一个序号：
+     * 由一次 place() 对整块区域赋值同一 seq 形成。序号仅用于调试快照的可读性。
+     */
+    private final int[] owner;
+    private int seq;
+
+    private static final String SYMBOLS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
     public CanvasGrid(int w, int h) {
         this.w = w;
         this.h = h;
-        this.occupied = new boolean[w * h];
+        this.owner = new int[w * h];
     }
 
     public int width() {
@@ -56,7 +65,7 @@ public final class CanvasGrid {
         }
         for (int yy = y; yy < y + hg; yy++) {
             for (int xx = x; xx < x + wg; xx++) {
-                if (occupied[yy * w + xx]) {
+                if (owner[yy * w + xx] != 0) {
                     return false;
                 }
             }
@@ -64,11 +73,12 @@ public final class CanvasGrid {
         return true;
     }
 
-    /** 放置：标记占用。调用方需先 canPlace。 */
+    /** 放置：标记占用。调用方需先 canPlace。同一物品的各格共享同一序号。 */
     public void place(int x, int y, int wg, int hg) {
+        int id = ++seq;
         for (int yy = y; yy < y + hg; yy++) {
             for (int xx = x; xx < x + wg; xx++) {
-                occupied[yy * w + xx] = true;
+                owner[yy * w + xx] = id;
             }
         }
     }
@@ -81,7 +91,7 @@ public final class CanvasGrid {
         }
         for (int yy = y; yy < y + hg; yy++) {
             for (int xx = x; xx < x + wg; xx++) {
-                if (occupied[yy * w + xx]) {
+                if (owner[yy * w + xx] != 0) {
                     boolean insideEx = xx >= ex && xx < ex + ew && yy >= ey && yy < ey + eh;
                     if (!insideEx) {
                         return false;
@@ -97,7 +107,7 @@ public final class CanvasGrid {
         for (int yy = y; yy < y + hg; yy++) {
             for (int xx = x; xx < x + wg; xx++) {
                 if (xx >= 0 && yy >= 0 && xx < w && yy < h) {
-                    occupied[yy * w + xx] = false;
+                    owner[yy * w + xx] = 0;
                 }
             }
         }
@@ -105,7 +115,37 @@ public final class CanvasGrid {
 
     /** 全清（重建位图前用）。 */
     public void clear() {
-        java.util.Arrays.fill(occupied, false);
+        java.util.Arrays.fill(owner, 0);
+    }
+
+    /**
+     * 排障：打印整张位图快照。同一物品的所有格子用同一符号；符号按物主序号
+     * 映射到 0-9A-Za-z（顺序分配），物品种类超过符号表上限时统一用 '#'。
+     * 行首为 y 坐标 + '|'，行尾 '|'。
+     */
+    public String dumpOccupied() {
+        java.util.Map<Integer, Character> symbolByOwner = new java.util.HashMap<>();
+        StringBuilder sb = new StringBuilder();
+        for (int yy = 0; yy < h; yy++) {
+            sb.append(String.format("%2d|", yy));
+            for (int xx = 0; xx < w; xx++) {
+                int o = owner[yy * w + xx];
+                if (o == 0) {
+                    sb.append('.');
+                    continue;
+                }
+                Character c = symbolByOwner.get(o);
+                if (c == null) {
+                    c = symbolByOwner.size() < SYMBOLS.length()
+                        ? SYMBOLS.charAt(symbolByOwner.size())
+                        : '#';
+                    symbolByOwner.put(o, c);
+                }
+                sb.append(c);
+            }
+            sb.append('|');
+        }
+        return sb.toString();
     }
 
     /**
