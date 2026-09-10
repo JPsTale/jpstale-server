@@ -4,6 +4,7 @@ import org.jpstale.server.core.Server;
 import org.jpstale.server.game.service.GroundItemAOI;
 import org.jpstale.server.game.service.MonsterSpawnService;
 import org.jpstale.server.game.service.MovementService;
+import org.jpstale.server.game.service.NpcAOI;
 import org.jpstale.server.game.service.RegenerationService;
 import org.jpstale.server.game.service.WorldService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ public class GameServer implements Server {
     private GroundItemAOI groundItemAOI;
 
     @Autowired
+    private NpcAOI npcAOI;
+
+    @Autowired
     private org.jpstale.server.game.service.PlayerService playerService;
 
     private long lastPosSaveAt = 0;
@@ -51,6 +55,8 @@ public class GameServer implements Server {
         worldService.tick();
         // 地面物品 AOI：进场补发 / 走远消失 / 走近出现（与怪物 AOI 同 tick 同口径）
         groundItemAOI.syncSessions();
+        // NPC AOI：玩家进图/换图时下发该图所有 NPC
+        npcAOI.syncSessions();
         // 每 1 秒结算一次 HP/MP/SP 自动回复
         regenerationService.tick(currentTimeMillis);
         // 周期存档在线玩家坐标/朝向（15s），进程重启/崩溃后仍能回下线位置

@@ -75,6 +75,10 @@ message ServerMessage {
     S2C_MonsterMove monster_move = 302;
     S2C_MonsterState monster_state = 303;
     S2C_MonsterDeath monster_death = 304;
+
+    // NPC (350-359)
+    S2C_NpcAppear npc_appear = 350;
+    S2C_NpcDisappear npc_disappear = 351;
     
     // 战斗 (400-499)
     S2C_AttackResult attack_result = 400;
@@ -398,6 +402,18 @@ message S2C_MonsterMove {
   Position position = 2;
   float angle = 3;      // 面朝方向（弧度，0=Z+）
   int32 anim_state = 4; // 动画 token：0x0040 STAND / 0x0050 WALK / 0x0060 RUN / 0x0100 ATTACK
+}
+
+message S2C_NpcAppear {
+  int64 npc_id = 1;       // npclist.id
+  string name_key = 2;    // 本地化 key（npclist.name 的 slug，如 miscellaneous_store_lynn）
+  string model_file = 3;  // 模型路径（npclist.gamefile，如 char\npc\TN-005\TN-005.ini）
+  Position position = 4;  // world 坐标（服务端已 /256）
+  float angle = 5;        // 面朝方向（弧度，0=Z+）
+}
+
+message S2C_NpcDisappear {
+  int64 npc_id = 1;
 }
 
 message S2C_MonsterState {
