@@ -7,7 +7,7 @@ import lombok.Setter;
  * NPC 实体（静态站桩）。
  *
  * 由 gamedb.mapnpc（分布）+ gamedb.npclist（定义）加载而来；纯展示，无移动/AI/交互。
- * 坐标 world double：x=raw/256, y=raw/256, z=-raw/256；angle 弧度（0~4095 → 0~2π）。
+ * 坐标域与服务端实体一致（raw 整数）：x=x, y=y, z=-z；angle 弧度（0~4095 → 0~2π）。
  */
 @Getter
 @Setter

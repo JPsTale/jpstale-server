@@ -20,14 +20,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * NPC 加载服务（静态站桩）。
  *
  * 启动时从 gamedb.mapnpc + gamedb.npclist 加载全量 NPC 到内存，按地图（stage）索引。
- * 坐标 world double：x=raw/256, y=raw/256, z=-raw/256；angle=raw/4096*2π。
+ * 坐标域与服务端实体一致（raw 整数，不 /256）：x=x, y=y, z=-z；angle=raw/4096*2π（弧度）。
  * NPC 纯展示，不进 tick 移动/AI。
  */
 @Slf4j
 @Component
 public class NpcSpawnService {
 
-    private static final double RAW = 256.0;
     private static final double ANGLE_CIRCLE = 4096.0;
 
     @Autowired
@@ -61,9 +60,9 @@ public class NpcSpawnService {
             npc.setNpcId(def.getId());
             npc.setNameKey(def.getName());
             npc.setModelFile(normalizeModelPath(def.getGameFile()));
-            npc.setX((mn.getX() == null ? 0 : mn.getX()) / RAW);
-            npc.setY((mn.getY() == null ? 0 : mn.getY()) / RAW);
-            npc.setZ(-(mn.getZ() == null ? 0 : mn.getZ()) / RAW);
+            npc.setX(mn.getX() == null ? 0 : mn.getX());
+            npc.setY(mn.getY() == null ? 0 : mn.getY());
+            npc.setZ(-(mn.getZ() == null ? 0 : mn.getZ()));
             npc.setAngle(((mn.getAngle() == null ? 0 : mn.getAngle()) / ANGLE_CIRCLE) * Math.PI * 2);
             npc.setMapId(mn.getStage() == null ? -1 : mn.getStage());
 
