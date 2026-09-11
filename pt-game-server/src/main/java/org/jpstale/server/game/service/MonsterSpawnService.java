@@ -302,8 +302,7 @@ public class MonsterSpawnService {
         monster.setExp(parseExp(template.getExp()));
         // 掉落：dropid == monsterlist.id；金币改由 dropitem 的 Gold 行决定（见 CombatService）
         monster.setTemplateId(template.getId());
-        monster.setDropQuantity(template.getDropQuantity() != null && template.getDropQuantity() > 0
-                ? template.getDropQuantity() : 1);
+        monster.setDropQuantity(template.getDropQuantity() == null ? 1 : template.getDropQuantity());
         monster.setDropIsPublic(template.getDropIsPublic() != null && template.getDropIsPublic() != 0);
         monster.setMapId(mapId);
         monster.setState(MonsterState.IDLE);

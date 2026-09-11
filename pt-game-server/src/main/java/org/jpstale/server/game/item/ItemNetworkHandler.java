@@ -311,6 +311,11 @@ public class ItemNetworkHandler {
             log.info("[Pickup] {} (mapId={}) gid={} : not found/expired", session.getCharacterName(), ent.getMapId(), gid);
             return; // 已消失/过期（幂等）
         }
+        Long cid = session.getCharacterId();
+        if (gi.ownerId != 0 && (cid == null || gi.ownerId != cid)) {
+            log.info("[Pickup] {} gid={} : not owner", session.getCharacterName(), gid);
+            return;
+        }
         double dx = gi.x - ent.getX();
         double dz = gi.z - ent.getZ();
         if (dx * dx + dz * dz > PICKUP_RANGE * PICKUP_RANGE) {

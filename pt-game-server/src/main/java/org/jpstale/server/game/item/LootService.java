@@ -84,15 +84,19 @@ public class LootService {
 
     @PostConstruct
     public void reload() {
-        Map<String, Integer> codeToIdCode = new HashMap<>();
-        for (ItemList it : itemListMapper.selectList(null)) {
-            if (it.getCodeImg1() != null && !it.getCodeImg1().isBlank() && it.getIdCode() != null) {
-                codeToIdCode.put(it.getCodeImg1().trim().toLowerCase(), it.getIdCode());
+        try {
+            Map<String, Integer> codeToIdCode = new HashMap<>();
+            for (ItemList it : itemListMapper.selectList(null)) {
+                if (it.getCodeImg1() != null && !it.getCodeImg1().isBlank() && it.getIdCode() != null) {
+                    codeToIdCode.put(it.getCodeImg1().trim().toLowerCase(), it.getIdCode());
+                }
             }
+            Map<Integer, DropTable> built = buildTables(dropItemMapper.selectAllByDropIdGt0(), codeToIdCode);
+            tables = built;
+            log.info("[Loot] 掉落表已加载: {} 个 dropid", built.size());
+        } catch (Exception e) {
+            log.error("[Loot] 掉落表加载失败，保留旧表（当前 {} 个 dropid）", tables.size(), e);
         }
-        Map<Integer, DropTable> built = buildTables(dropItemMapper.selectAllByDropIdGt0(), codeToIdCode);
-        tables = built;
-        log.info("[Loot] 掉落表已加载: {} 个 dropid", built.size());
     }
 
     /** 纯函数：按 dropid 分组构建加权表（可单测）。 */

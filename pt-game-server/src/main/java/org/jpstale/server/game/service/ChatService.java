@@ -223,7 +223,7 @@ public class ChatService {
         double ny = mapRegionService.getHeight(ent.getMapId(), nx, nz); // 落点地形高度，避免沉入地下
 
         org.jpstale.server.game.item.GroundItemManager.GroundItem gi =
-                groundItems.add(fresh, ent.getMapId(), nx, ny, nz, session.getCharacterId(), 0);
+                groundItems.add(fresh, ent.getMapId(), nx, ny, nz, 0, 0);
         if (gi == null) {
             log.info("[GM] /@get token={} : 地图满({}) 掉落被丢弃", parts[1], 1024);
             systemMessageKey(session, "chat.cmd.dropOverLimit");
