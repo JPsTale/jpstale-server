@@ -266,6 +266,8 @@ message S2C_PlayerAppear {
   int32 max_hp = 7;
   CharacterAppearance appearance = 8;  // 完整外观（头/防具/时装/武器），客户端据此渲染远端
   float angle = 9;                     // 当前朝向（弧度，0=+Z），远端出现即正确显示朝向
+  string clan_name = 10;               // 公会名（clandb.ul.clanname），无公会为空串（头顶名牌）
+  string clan_mark = 11;               // 公会图标（clandb.clanlist.iconid 转字符串），无公会为空串
 }
 
 message S2C_PlayerDisappear {

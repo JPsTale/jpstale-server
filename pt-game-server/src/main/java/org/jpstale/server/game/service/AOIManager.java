@@ -1,6 +1,7 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.dao.clandb.mapper.UlMapper;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
@@ -48,6 +49,12 @@ public class AOIManager {
     // 观察者实体id → 当前可见的其他玩家实体id集合(持久化,双阈值)
     private final ConcurrentHashMap<Long, Set<Long>> visiblePlayers = new ConcurrentHashMap<>();
 
+    @Autowired
+    private UlMapper ulMapper;
+
+    /** 公会缓存：charId → [公会名, 图标id]（懒加载一次，玩家离场清缓存） */
+    private final ConcurrentHashMap<Long, String[]> clanCache = new ConcurrentHashMap<>();
+
     private static PlayerSession sessionOf(PlayerEntity e) {
         return e != null ? e.getSession() : null;
     }
@@ -81,7 +88,39 @@ public class AOIManager {
                 b.setAppearance(p.getAppearance());
             }
         }
+        String[] clan = clanOf(e);
+        if (clan != null) {
+            b.setClanName(clan[0]);
+            b.setClanMark(clan[1]);
+        }
         return b.build();
+    }
+
+    /**
+     * 取玩家公会信息（懒加载 + 缓存，查不到返回 null）。
+     * 失败静默降级为空串（名牌仅不显示公会行，不阻塞 appear）。
+     */
+    private String[] clanOf(PlayerEntity e) {
+        long charId = e.getCharId();
+        String[] cached = clanCache.get(charId);
+        if (cached != null) return cached;
+        String chName = sessionOf(e) != null ? sessionOf(e).getCharacterName() : null;
+        if (chName == null || chName.isEmpty()) return null;
+        try {
+            Map<String, Object> row = ulMapper.selectClanByChName(chName);
+            String[] clan;
+            if (row == null || row.get("clan_name") == null) {
+                clan = new String[]{"", ""};
+            } else {
+                Number icon = row.get("icon_id") instanceof Number n ? n : null;
+                clan = new String[]{String.valueOf(row.get("clan_name")), icon != null ? String.valueOf(icon.intValue()) : ""};
+            }
+            clanCache.put(charId, clan);
+            return clan;
+        } catch (Exception ex) {
+            log.warn("[AOI] 查询公会失败 chName={}: {}", chName, ex.getMessage());
+            return new String[]{"", ""};
+        }
     }
 
     /**
@@ -112,6 +151,7 @@ public class AOIManager {
             removeFromMap(yMap, grids[1], entity);
         }
         visiblePlayers.remove(eid);
+        clanCache.remove(entity.getCharId());
         for (Set<Long> set : visiblePlayers.values()) {
             set.remove(eid);
         }
