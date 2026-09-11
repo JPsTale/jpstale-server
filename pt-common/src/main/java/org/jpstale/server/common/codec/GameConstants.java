@@ -8,6 +8,9 @@ public final class GameConstants {
 
     private GameConstants() {}
 
+    // 经验倍率
+    public static final double EXP_MODIFIER = 100.0;
+
     // ---------- 技能 ----------
     /** 技能数组最大条数 */
     public static final int MAX_SKILL_ARRAY_DATA = 150;

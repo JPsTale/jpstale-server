@@ -3,19 +3,19 @@ package org.jpstale.server.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Monster;
-import org.jpstale.server.game.service.MonsterSpawnService;
 import org.jpstale.server.game.model.DamageResult;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.jpstale.server.common.codec.GameConstants.EXP_MODIFIER;
 
 /**
  * 战斗服务 — 管理战斗流程
@@ -296,7 +296,9 @@ public class CombatService {
     private void handleMonsterDeath(Monster monster, Player killer) {
         monster.onDeath();
 
-        long exp = monster.getExp();
+        // 注意，经验倍率应该是一个动态参数，由服务器管理员来设置基准倍率。如果有什么活动，可能会临时提高全服玩家的经验获取速度。
+        // 玩家也可以使用经验道具来提升自己的经验倍率，组队也可能有额外的倍率提升。目前暂时以固定倍率计算，提高测试账号的升级速度。
+        long exp = (long) (monster.getExp() * EXP_MODIFIER);
         killer.setExp(killer.getExp() + exp);
 
         int gold = monster.getGold();
@@ -336,7 +338,7 @@ public class CombatService {
      * as=0..6→1000ms  7→950  8→900  9→850  10→800  11→750  12+→700ms
      */
     static int attackIntervalMs(int attackSpeed) {
-        int clamped = Math.max(0, Math.min(attackSpeed - 6, 6));
+        int clamped = Math.clamp(attackSpeed - 6, 0, 6);
         int frames = 60 - 3 * clamped;               // 42..60
         return Math.round(frames * 1000f / 60f);       // 700..1000 ms
     }
