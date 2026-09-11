@@ -74,7 +74,9 @@ ThirdEye 限时道具 +1；SixthSense 25% +1；ServerWideDropBuff 15% +1；组�
 ### 4. 掉落数量加成
 
 - 本轮：基础 `dropQuantity` + 全局事件额外掉落 `extraDrops`（可配 0/1/2/3）。
-- 留 TODO：ThirdEye / SixthSense / DropBuff / 组队 Hunt 加成，待 premium 业务系统实现后接入 `LootService.extraDrops(...)`。
+- premium 加成接口：`PremiumService.getTimeLeft(playerId, ItemTimerType)`（本轮为 **stub，返回 0**）；`LootService.extraDrops(player)` 调用它实现 ThirdEye +1 / SixthSense 25% +1 / DropBuff 15% +1 的判定（数据为空时不触发）。
+- **完整 premium 系统**（物品使用 handler、表读写/缓存、登录同步、每秒递减/落库、proto + 客户端 UI、各 timer 效果）**另立独立 spec**，本轮不实现。
+- premium 落库时机约束（供另立 spec 遵循，对齐 EU）：在线**每秒只递减内存** `timeLeft`，**不实时写库**；仅在**激活 / 到期 / 登出掉线**时落库；客户端每 10s 收一次同步（`PKTHDR_PremiumDataSync`）。
 
 ## 非目标
 
