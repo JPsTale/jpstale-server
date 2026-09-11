@@ -7,7 +7,9 @@ import org.jpstale.server.game.model.DamageResult;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.model.Player;
+import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -47,6 +49,9 @@ public class AiEngine {
 
     @Autowired
     private BattleLogService battleLogService;
+
+    @Autowired
+    private GameMessageSender messageSender;
 
     private final Map<Long, AiContext> monsterContexts = new ConcurrentHashMap<>();
 
@@ -274,6 +279,17 @@ public class AiEngine {
 
         // 战斗日志：玩家受击（进聊天窗"系统"tab）
         battleLogService.playerHurt(player.getSession(), monster.getName(), result.getFinalDamage());
+
+        // 飘字：怪→玩家伤害广播给附近玩家（S2C_Damage 带权威 currentHp，客户端自机/远端头顶飘红字）
+        messageSender.broadcastToArea(target.getMapId(),
+            (float) target.getX(), (float) target.getZ(), 50,
+            MessageProto.ServerMessage.newBuilder()
+                .setDamage(MessageProto.S2C_Damage.newBuilder()
+                    .setTargetId(player.getId())
+                    .setDamage(result.getFinalDamage())
+                    .setCurrentHp(newHp)
+                    .build())
+                .build());
 
         // 推送玩家最新状态（HUD 血条 + 角色信息面板）：客户端据 S2C_PlayerState/S2C_CharacterStatus 刷新
         playerService.sendPlayerStatus(player.getSession(), player);

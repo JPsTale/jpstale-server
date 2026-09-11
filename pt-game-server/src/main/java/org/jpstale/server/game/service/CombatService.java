@@ -106,10 +106,19 @@ public class CombatService {
 
         DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
 
+        // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
+        // 不再单独 sendToPlayer：broadcastToArea 已覆盖攻击者本人，重复发送会导致客户端重复扣血/飘字。
+        MessageProto.S2C_AttackResult.Builder ar = MessageProto.S2C_AttackResult.newBuilder()
+            .setAttackerId(player.getId())
+            .setTargetId(monsterId)
+            .setDamage(result.getFinalDamage())
+            .setIsCritical(result.isCritical());
         if (result.isMissed()) {
             log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
+            broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
             return;
         }
+        ar.setMissed(false);
 
         monster.setHp(monster.getHp() - result.getFinalDamage());
 
@@ -123,25 +132,24 @@ public class CombatService {
             aiEngine.setTargetPlayer(monster, attackerEntity, attackerEntity.getX(), attackerEntity.getZ());
         }
 
-        // 发送攻击结果给攻击者
-        MessageProto.ServerMessage attackMsg = MessageProto.ServerMessage.newBuilder()
-            .setAttackResult(MessageProto.S2C_AttackResult.newBuilder()
-                .setAttackerId(player.getId())
-                .setTargetId(monsterId)
-                .setDamage(result.getFinalDamage())
-                .setIsCritical(result.isCritical())
-                .build())
-            .build();
-        messageSender.sendToPlayer(player.getId(), attackMsg);
-
-        // 广播给附近玩家（范围取实体坐标）
-        messageSender.broadcastToArea(attackerEntity.getMapId(),
-            (float) attackerEntity.getX(), (float) attackerEntity.getZ(), 50, attackMsg);
+        // 广播攻击结果给附近玩家（范围取实体坐标）
+        broadcastAttackResult(attackerEntity, ar.build());
 
         // 检查怪物是否死亡
         if (monster.getHp() <= 0) {
             handleMonsterDeath(monster, player);
         }
+    }
+
+    private void broadcastAttackResult(PlayerEntity center, MessageProto.S2C_AttackResult ar) {
+        MessageProto.ServerMessage attackMsg = MessageProto.ServerMessage.newBuilder()
+            .setAttackResult(ar)
+            .build();
+        if (center == null) {
+            return;
+        }
+        messageSender.broadcastToArea(center.getMapId(),
+            (float) center.getX(), (float) center.getZ(), 50, attackMsg);
     }
 
     /**

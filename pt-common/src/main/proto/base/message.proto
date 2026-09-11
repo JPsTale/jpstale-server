@@ -448,6 +448,7 @@ message S2C_AttackResult {
   int64 target_id = 2;
   int32 damage = 3;
   bool is_critical = 4;
+  bool missed = 5;  // 未命中(MISS 飘字)；missed 时 damage=0
 }
 
 message S2C_SkillAttack {
