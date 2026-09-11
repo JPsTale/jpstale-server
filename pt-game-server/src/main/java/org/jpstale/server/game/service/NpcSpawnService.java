@@ -63,7 +63,12 @@ public class NpcSpawnService {
             npc.setX(mn.getX() == null ? 0 : mn.getX());
             npc.setY(mn.getY() == null ? 0 : mn.getY());
             npc.setZ(-(mn.getZ() == null ? 0 : mn.getZ()));
-            npc.setAngle(((mn.getAngle() == null ? 0 : mn.getAngle()) / ANGLE_CIRCLE) * Math.PI * 2);
+            // 角度：z 取反（DX 左手系 → GL 右手系）后 yaw 需镜像补偿。
+            // 原版客户端渲染：angle.y = (-angle.y + ANGLE_180) & ANGCLIP，等价 GL 弧度 = π - DX 弧度。
+            double angleDx = (mn.getAngle() == null ? 0 : mn.getAngle()) / ANGLE_CIRCLE * Math.PI * 2;
+            double angleGl = Math.PI - angleDx;
+            angleGl = (angleGl % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+            npc.setAngle(angleGl);
             npc.setMapId(mn.getStage() == null ? -1 : mn.getStage());
 
             npcsByMap.computeIfAbsent(npc.getMapId(), k -> new ArrayList<>()).add(npc);
