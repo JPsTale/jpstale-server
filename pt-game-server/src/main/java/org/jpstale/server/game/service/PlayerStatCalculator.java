@@ -349,6 +349,27 @@ public class PlayerStatCalculator {
     public int defense(Player p) { return stats(p).defense; }
     public int absorption(Player p) { return stats(p).absorption; }
     public int[] baseAttack(Player p) { return stats(p).baseAttack; }
+
+    /**
+     * 攻击力区间（面板显示 + 伤害掷点共用）：含主手武器伤害。
+     * 徒手用 baseAttack；有武器：min=1 + wMin*(STR+F)/F + (TAL+AGI)/40，max=3 + wMax*(STR+F)/F + (TAL+AGI)/40
+     * （对齐原版 sinInvenTory.cpp；F=meleeDamageFactor）。
+     */
+    public int[] attackPower(Player p) {
+        EquipSummary e = stats(p).equip;
+        int[] base = baseAttack(p);
+        int min = base[0];
+        int max = base[1];
+        if (e.hasWeapon) {
+            int str = p.getStrength();
+            int dmg = meleeDamageFactor(p.getJob());
+            int talAgi = p.getTalent() + p.getAgility();
+            min = 1 + e.weaponDamageMin * (str + dmg) / dmg + talAgi / 40;
+            max = 3 + e.weaponDamageMax * (str + dmg) / dmg + talAgi / 40;
+        }
+        return new int[]{min, max};
+    }
+
     public int attackSpeed(Player p) { return stats(p).attackSpeed; }
     public int criticalHit(Player p) { return stats(p).critical; }
     public int blockChance(Player p) { return stats(p).block; }

@@ -86,21 +86,10 @@ public class DamageCalculator {
      * 武器伤害用掷点实例值（EquipSummary.weaponDamageMin/Max），非模板区间。
      */
     private int calculatePlayerAttack(Player player) {
-        org.jpstale.server.game.item.EquipSummary equip = statCalculator.stats(player).equip;
-        int[] base = statCalculator.baseAttack(player);
-        int min = base[0];
-        int max = base[1];
-
-        if (equip.hasWeapon) {
-            int wMin = equip.weaponDamageMin;
-            int wMax = equip.weaponDamageMax;
-            int str = player.getStrength();
-            int dmg = statCalculator.meleeDamageFactor(player.getJob());
-            // 原版：1 + wMin*(STR+F)/F + (TAL+DEX)/40
-            min = 1 + wMin * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
-            max = 3 + wMax * (str + dmg) / dmg + (player.getTalent() + player.getAgility()) / 40;
-        }
-
+        // 与面板同源：含武器伤害的攻击力区间（statCalculator.attackPower）
+        int[] ap = statCalculator.attackPower(player);
+        int min = ap[0];
+        int max = ap[1];
         return ThreadLocalRandom.current().nextInt(Math.max(1, min), Math.max(2, max + 1));
     }
 

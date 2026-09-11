@@ -55,7 +55,16 @@ public class CombatService {
     private PlayerStatCalculator statCalculator;
 
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
-    private static final double ATTACK_RANGE = 48.0;
+    private static final double MELEE_ATTACK_RANGE = 48.0;
+
+    /**
+     * 玩家攻击距离：远程武器（射程>0，如弓）用其射程（对齐原版 Shooting_Range）；
+     * 近战/徒手用固定近战距离。射程小于近战时取近战（防小射程武器反而更短）。
+     */
+    private double attackRange(Player player) {
+        int sr = statCalculator.shootingRange(player);
+        return sr > MELEE_ATTACK_RANGE ? sr : MELEE_ATTACK_RANGE;
+    }
 
     /**
      * 报文入口：玩家普通攻击
@@ -107,11 +116,12 @@ public class CombatService {
             return;
         }
 
-        // 距离校验（≤ ATTACK_RANGE 才结算，超距忽略；对应客户端停止追击距离）
+        // 距离校验（≤ 攻击距离才结算，超距忽略；远程武器用其射程）
         double dx = attackerEntity.getX() - monster.getX();
         double dz = attackerEntity.getZ() - monster.getZ();
         double distSq = dx * dx + dz * dz;
-        if (distSq > ATTACK_RANGE * ATTACK_RANGE) {
+        double range = attackRange(player);
+        if (distSq > range * range) {
             return;
         }
 

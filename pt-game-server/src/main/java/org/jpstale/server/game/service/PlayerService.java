@@ -166,7 +166,7 @@ public class PlayerService {
      * 角色信息面板（对齐 exm sinCharStatus 完整字段）
      */
     public java.util.Map<String, Object> characterPanel(Player p) {
-        int[] base = statCalculator.baseAttack(p);
+        int[] base = statCalculator.attackPower(p);
         // 下一级所需经验（升到 level+1 的阈值），1 级显示 1000 而非 0
         long nowExp = getExpForLevel(p.getLevel() + 1);
         java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
@@ -247,7 +247,7 @@ public class PlayerService {
      * 构建 S2C_CharacterStatus（角色信息面板完整数据），字段与 characterPanel 一致。
      */
     public MessageProto.S2C_CharacterStatus.Builder buildCharacterStatus(Player p) {
-        int[] base = statCalculator.baseAttack(p);
+        int[] base = statCalculator.attackPower(p);
         int[] res = p.getResistances() != null ? p.getResistances() : new int[8];
         return MessageProto.S2C_CharacterStatus.newBuilder()
             .setPlayerId(p.getId())
