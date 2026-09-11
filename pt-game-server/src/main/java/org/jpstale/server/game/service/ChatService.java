@@ -60,6 +60,12 @@ public class ChatService {
     @Autowired
     private org.jpstale.server.game.service.AOIManager aoiManager;
 
+    @Autowired
+    private org.jpstale.server.game.service.MapRegionService mapRegionService;
+
+    @Autowired
+    private org.jpstale.server.game.item.LootService lootService;
+
     /**
      * 报文入口：聊天
      */
@@ -149,6 +155,11 @@ public class ChatService {
                 treatGet(session, parts);
                 return;
             }
+            if (name.equals("@reloadloot")) {
+                lootService.reload();
+                systemMessage(session, "loot table reloaded");
+                return;
+            }
             systemMessageKey(session, "chat.cmd.unknownGm", Map.of("name", name));
             return;
         }
@@ -206,10 +217,10 @@ public class ChatService {
         }
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         double ang = rnd.nextDouble() * Math.PI * 2;
-        double dist = 0.75 + rnd.nextDouble() * 1.75; // 世界单位（entity 坐标域，≈0.75~2.5 米）
+        double dist = 0.5 + rnd.nextDouble() * 29.5; // 世界单位，散布 0.5~30
         double nx = ent.getX() + Math.cos(ang) * dist;
         double nz = ent.getZ() + Math.sin(ang) * dist;
-        double ny = ent.getY();
+        double ny = mapRegionService.getHeight(ent.getMapId(), nx, nz); // 落点地形高度，避免沉入地下
 
         org.jpstale.server.game.item.GroundItemManager.GroundItem gi =
                 groundItems.add(fresh, ent.getMapId(), nx, ny, nz, session.getCharacterId(), 0);
