@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static org.jpstale.server.common.codec.GameConstants.EXP_MODIFIER;
 
@@ -53,6 +54,15 @@ public class CombatService {
 
     @Autowired
     private PlayerStatCalculator statCalculator;
+
+    @Autowired
+    private org.jpstale.server.game.item.LootService lootService;
+
+    @Autowired
+    private org.jpstale.server.game.item.ItemRollService itemRollService;
+
+    @Autowired
+    private org.jpstale.server.game.item.GroundItemManager groundItems;
 
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
     private static final double MELEE_ATTACK_RANGE = 48.0;
@@ -301,8 +311,34 @@ public class CombatService {
         long exp = (long) (monster.getExp() * EXP_MODIFIER);
         killer.setExp(killer.getExp() + exp);
 
-        int gold = monster.getGold();
-        killer.setGold(killer.getGold() + gold);
+        // 掉落（对齐 EU OnSetDrop + HandleKill）：dropQuantity + premium/事件加成，逐次掷点
+        int numDrops = Math.max(0, monster.getDropQuantity()) + lootService.extraDrops(killer);
+        int gold = 0;
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        for (int i = 0; i < numDrops; i++) {
+            org.jpstale.server.game.item.LootService.DropResult dr = lootService.roll(monster.getTemplateId());
+            if (dr == null || dr.type == org.jpstale.server.game.item.LootService.DropType.AIR) {
+                continue;
+            }
+            if (dr.type == org.jpstale.server.game.item.LootService.DropType.GOLD) {
+                gold += dr.gold;
+                continue;
+            }
+            org.jpstale.server.game.item.ItemInstance item = itemRollService.rollByIdCode(dr.itemCode, null);
+            if (item == null) {
+                continue;
+            }
+            double ang = rnd.nextDouble() * Math.PI * 2;
+            double dist = 0.3 + rnd.nextDouble() * 1.2;
+            double gx = monster.getX() + Math.cos(ang) * dist;
+            double gz = monster.getZ() + Math.sin(ang) * dist;
+            double gy = mapRegionService.getHeight(monster.getMapId(), gx, gz);
+            long ownerId = monster.isDropIsPublic() ? 0L : killer.getId();
+            groundItems.add(item, monster.getMapId(), gx, gy, gz, ownerId, 0);
+        }
+        if (gold > 0) {
+            killer.setGold(killer.getGold() + gold);
+        }
 
         log.info("Monster {} killed by {}, exp={}, gold={}",
             monster.getName(), killer.getName(), exp, gold);
