@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * NPC 加载服务（静态站桩）。
  *
  * 启动时从 gamedb.mapnpc + gamedb.npclist 加载全量 NPC 到内存，按地图（stage）索引。
- * 坐标域与服务端实体一致（raw 整数，不 /256）：x=x, y=y, z=-z；angle=raw/4096*2π（弧度）。
+ * 坐标域与服务端实体一致（raw 整数，不 /256）：x=x, y=y, z=z（DB 已按数据层翻转 -z）；angle=raw/4096*2π（弧度）。
  * NPC 纯展示，不进 tick 移动/AI。
  */
 @Slf4j
@@ -62,8 +62,8 @@ public class NpcSpawnService {
             npc.setModelFile(normalizeModelPath(def.getGameFile()));
             npc.setX(mn.getX() == null ? 0 : mn.getX());
             npc.setY(mn.getY() == null ? 0 : mn.getY());
-            npc.setZ(-(mn.getZ() == null ? 0 : mn.getZ()));
-            // 角度：z 取反（DX 左手系 → GL 右手系）后 yaw 需镜像补偿。
+            npc.setZ(mn.getZ() == null ? 0 : mn.getZ());
+            // 角度：DB 原始 DX 角 → GL 弧度需 yaw 镜像补偿。
             // 原版客户端渲染：angle.y = (-angle.y + ANGLE_180) & ANGCLIP，等价 GL 弧度 = π - DX 弧度。
             double angleDx = (mn.getAngle() == null ? 0 : mn.getAngle()) / ANGLE_CIRCLE * Math.PI * 2;
             double angleGl = Math.PI - angleDx;
