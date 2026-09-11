@@ -50,7 +50,7 @@ ThirdEye 限时道具 +1；SixthSense 25% +1；ServerWideDropBuff 15% +1；组�
 
 ### 2. /@get 贴地 + 随机
 
-- `ChatService.treatGet`：`ny = mapRegionService.getHeight(mapId, nx, nz)`（不再用 `ent.getY()`）；`dist = 0.5 + rnd*2.5`。
+- `ChatService.treatGet`：`ny = mapRegionService.getHeight(mapId, nx, nz)`（不再用 `ent.getY()`）；`dist = 0.5 + rnd*29.5`（约 0.5~30 世界单位，散布更广）。
 - 客户端 `spawnGroundItem`：`pivot.rotation.y = Math.random() * 2π`（不再由位置派生）。
 
 ### 3. 服务端怪物掉落
