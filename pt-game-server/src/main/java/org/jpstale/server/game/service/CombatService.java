@@ -67,10 +67,10 @@ public class CombatService {
     }
 
     /**
-     * 报文入口：玩家普通攻击
+     * 报文入口：玩家起手（挥拳开始）——只做冷却/距离校验并广播，伤害在命中帧结算
      */
-    @GamePacketHandler(MessageProto.ClientMessage.ATTACK_FIELD_NUMBER)
-    public void handleAttack(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(MessageProto.ClientMessage.ATTACK_START_FIELD_NUMBER)
+    public void handleAttackStart(PlayerSession session, MessageProto.ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }
@@ -78,8 +78,23 @@ public class CombatService {
         if (player == null) {
             return;
         }
-        MessageProto.C2S_Attack attack = message.getAttack();
-        playerAttackMonster(player, attack.getTargetId(), 0);
+        playerAttackStart(player, message.getAttackStart().getTargetId());
+    }
+
+    /**
+     * 报文入口：命中帧（每段一次）——距离校验 + 结算该段伤害
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.ATTACK_HIT_FIELD_NUMBER)
+    public void handleAttackHit(PlayerSession session, MessageProto.ClientMessage message) {
+        if (session == null || !session.isPlaying()) {
+            return;
+        }
+        Player player = playerService.getOrCreate(session);
+        if (player == null) {
+            return;
+        }
+        MessageProto.C2S_AttackHit hit = message.getAttackHit();
+        playerAttackHit(player, hit.getTargetId(), hit.getHitIndex());
     }
 
     /**
@@ -96,6 +111,107 @@ public class CombatService {
         }
         MessageProto.C2S_UseSkill skill = message.getUseSkill();
         playerAttackMonster(player, skill.getTargetId(), skill.getSkillId());
+    }
+
+    /**
+     * 起手（挥拳开始）：冷却 + 距离校验 → 广播 S2C_AttackStart（旁观者据此立刻挥拳 + 定挥拳时长）。
+     * 不结算伤害；伤害由后续命中帧 C2S_AttackHit 触发。
+     */
+    public void playerAttackStart(Player player, long monsterId) {
+        if (!checkAttackCooldown(player)) {
+            return;
+        }
+        PlayerSession session = player.getSession();
+        PlayerEntity attackerEntity = session != null ? session.getEntity() : null;
+        if (attackerEntity == null) {
+            return;
+        }
+        Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
+        if (monster == null || !monster.isAlive()) {
+            return;
+        }
+        if (!inRange(player, attackerEntity, monster)) {
+            return;
+        }
+        MessageProto.S2C_AttackStart start = MessageProto.S2C_AttackStart.newBuilder()
+            .setAttackerId(player.getId())
+            .setTargetId(monsterId)
+            .setAttackSpeed(statCalculator.attackSpeed(player))
+            .build();
+        broadcastAttackStart(attackerEntity, start);
+    }
+
+    /**
+     * 命中帧（每段一次）：距离校验（不查冷却，冷却在起手）→ 按玩家攻击力结算一段伤害 → 广播。
+     * hit_index 仅为段序号（0..3），不映射手（原版无此概念）。
+     */
+    public void playerAttackHit(Player player, long monsterId, int hitIndex) {
+        PlayerSession session = player.getSession();
+        PlayerEntity attackerEntity = session != null ? session.getEntity() : null;
+        if (attackerEntity == null) {
+            return;
+        }
+        Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
+        if (monster == null || !monster.isAlive()) {
+            return;
+        }
+        if (!inRange(player, attackerEntity, monster)) {
+            return;
+        }
+
+        DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
+
+        // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
+        // broadcastToArea 已覆盖攻击者本人，无需再单独 sendToPlayer（否则重复扣血/飘字）。
+        MessageProto.S2C_AttackResult.Builder ar = MessageProto.S2C_AttackResult.newBuilder()
+            .setAttackerId(player.getId())
+            .setTargetId(monsterId)
+            .setDamage(result.getFinalDamage())
+            .setIsCritical(result.isCritical())
+            .setHitIndex(hitIndex);
+        if (result.isMissed()) {
+            log.info("COMBAT {} hit#{} {}#{} -> MISS", player.getName(), hitIndex, monster.getName(), monsterId);
+            broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
+            return;
+        }
+        ar.setMissed(false);
+
+        monster.setHp(monster.getHp() - result.getFinalDamage());
+
+        log.info("COMBAT {} hit#{} {}#{} -> {} dmg (raw={} crit={}), hp {}/{}",
+            player.getName(), hitIndex, monster.getName(), monsterId,
+            result.getFinalDamage(), result.getRawDamage(), result.isCritical(),
+            monster.getHp(), monster.getMaxHp());
+
+        // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）。坐标取实体
+        if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {
+            aiEngine.setTargetPlayer(monster, attackerEntity, attackerEntity.getX(), attackerEntity.getZ());
+        }
+
+        broadcastAttackResult(attackerEntity, ar.build());
+
+        if (monster.getHp() <= 0) {
+            handleMonsterDeath(monster, player);
+        }
+    }
+
+    /** 距离校验：≤ 攻击距离（远程武器用射程） */
+    private boolean inRange(Player player, PlayerEntity attacker, Monster monster) {
+        double dx = attacker.getX() - monster.getX();
+        double dz = attacker.getZ() - monster.getZ();
+        double range = attackRange(player);
+        return dx * dx + dz * dz <= range * range;
+    }
+
+    private void broadcastAttackStart(PlayerEntity center, MessageProto.S2C_AttackStart start) {
+        if (center == null) {
+            return;
+        }
+        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
+            .setAttackStart(start)
+            .build();
+        messageSender.broadcastToArea(center.getMapId(),
+            (float) center.getX(), (float) center.getZ(), 50, msg);
     }
 
     /**
@@ -125,8 +241,6 @@ public class CombatService {
             return;
         }
 
-        int attackSpeed = statCalculator.attackSpeed(player);
-
         DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
 
         // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
@@ -136,7 +250,7 @@ public class CombatService {
             .setTargetId(monsterId)
             .setDamage(result.getFinalDamage())
             .setIsCritical(result.isCritical())
-            .setAttackSpeed(attackSpeed);
+            .setHitIndex(0);
         if (result.isMissed()) {
             log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
             broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
