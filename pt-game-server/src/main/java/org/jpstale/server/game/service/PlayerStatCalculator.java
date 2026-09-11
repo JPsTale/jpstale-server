@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  *   <li>属性点总量 = 99 + (Level-1)*5，每级 +5 自由点存 StatePoint：ReformCharStatePoint</li>
  *   <li>职业公式系数（Life/Mana/Stamina/DamageFunction）：JobDataBase / saCharacterClassData</li>
  *   <li>属性→面板公式：sinInvenTory.cpp / sinSubMain.cpp</li>
- *   <li>再生：*生命再生/*魔法再生/*耐力再生（每秒固定值）；耐力另含 3.8+LV/7 天生回复</li>
+ *   <li>再生：*生命再生/*魔法再生/*耐力再生（每秒固定值）；耐力另含 LV/7 天生回复</li>
  *   <li>回避：100 - sinGetPVPAccuracy（Accuracy_Table 区间取上界，自 vs 自等级修正为 0）</li>
  * </ul>
  */
@@ -157,7 +157,7 @@ public class PlayerStatCalculator {
         // 每秒恢复（原版 sinSetRegen）：
         //  HP = ((Lv + STR/2 + HEA)/180 + 装备再生 再生Life_Regen)/1.5
         //  MP = (Lv + SPR*1.2 + HEA/2)/115 + 装备再生 Mana_Regen
-        //  STM = 装备再生 Stamina_Regen（天生 3.8+Lv/7 见 stmRegenTotal）
+        //  STM = 装备再生 Stamina_Regen（天生 Lv/7 见 stmRegenTotal）
         double hpEquip = e.regenHp;
         double mpEquip = e.regenMp;
         s.regenHp = ((p.getLevel() + p.getStrength() / 2.0 + p.getHealth()) / 180.0 + hpEquip) / 1.5;
@@ -171,30 +171,28 @@ public class PlayerStatCalculator {
 
     private int maxHpOf(Player p) {
         int f = jobFunction(p.getJob())[0];
-        double v;
-        switch (f) {
-            case 1: v = p.getLevel() * 2.1 + (p.getHealth() * 2.4 + p.getStrength() * 0.8) - 10; break;
-            case 2: v = p.getLevel() * 2.1 + (p.getHealth() * 2.2 + p.getStrength() * 0.6) - 5; break;
-            case 3: v = p.getLevel() * 1.8 + (p.getHealth() * 2.1 + p.getStrength() * 0.3); break;
-            case 4: v = p.getLevel() * 1.5 + p.getHealth() * 2.1; break;
-            default: v = p.getLevel() * 1.5 + p.getHealth() * 1.9; break;
-        }
+        double v = switch (f) {
+            case 1 -> p.getLevel() * 2.1 + (p.getHealth() * 2.4 + p.getStrength() * 0.8) - 10;
+            case 2 -> p.getLevel() * 2.1 + (p.getHealth() * 2.2 + p.getStrength() * 0.6) - 5;
+            case 3 -> p.getLevel() * 1.8 + (p.getHealth() * 2.1 + p.getStrength() * 0.3);
+            case 4 -> p.getLevel() * 1.5 + p.getHealth() * 2.1;
+            default -> p.getLevel() * 1.5 + p.getHealth() * 1.9;
+        };
         return (int) v;
     }
 
     private int maxMpOf(Player p) {
         int f = jobFunction(p.getJob())[1];
-        double v;
-        switch (f) {
-            case 1: v = p.getLevel() * 1.5 + p.getSpirit() * 3.8; break;
-            case 2: v = p.getLevel() * 0.9 + p.getSpirit() * 2.7; break;
-            default: v = p.getLevel() * 0.6 + p.getSpirit() * 2.2; break;
-        }
+        double v = switch (f) {
+            case 1 -> p.getLevel() * 1.5 + p.getSpirit() * 3.8;
+            case 2 -> p.getLevel() * 0.9 + p.getSpirit() * 2.7;
+            default -> p.getLevel() * 0.6 + p.getSpirit() * 2.2;
+        };
         return (int) v;
     }
 
     private int maxSpOf(Player p) {
-        return (int) (p.getHealth() * 1.4 + (p.getStrength() + p.getTalent()) / 2
+        return (int) (p.getHealth() * 1.4 + (double) (p.getStrength() + p.getTalent()) / 2
             + p.getLevel() * 2.3 + 80 + p.getSpirit());
     }
 
@@ -205,7 +203,7 @@ public class PlayerStatCalculator {
 
     /** 防御力：DEX/2 + TAL/4 + LV*1.4 */
     private int defenseOf(Player p) {
-        return (int) (p.getAgility() / 2 + p.getTalent() / 4 + p.getLevel() * 1.4);
+        return (int) ((double) p.getAgility() / 2 + (double) p.getTalent() / 4 + p.getLevel() * 1.4);
     }
 
     /** 吸收率：Def/100 + LV/10 + (STR+TAL)/40 + 1（上限由调用方限制） */
@@ -277,7 +275,7 @@ public class PlayerStatCalculator {
         double weightRatio = 0.0; // 负重系统未实现（背包负重暂无结算）
         int ms = (int) ((p.getTalent() + p.getHealth() + p.getLevel() + 60) / 150.0
                 - weightRatio + e.bootsSpeed) + 1;
-        return Math.max(GameConstants.MOVE_SPEED_MIN, Math.min(GameConstants.MOVE_SPEED_MAX, ms));
+        return Math.clamp(ms, GameConstants.MOVE_SPEED_MIN, GameConstants.MOVE_SPEED_MAX);
     }
 
     // ======== 回避率（原版 Accuracy_Table / sinGetPVPAccuracy 补集） ========
@@ -318,7 +316,7 @@ public class PlayerStatCalculator {
             }
         }
         int result = (int) (real - ((desLevel - p.getLevel()) / 100.0) * 28);
-        return Math.max(30, Math.min(95, result));
+        return Math.clamp(result, 30, 95);
     }
 
     private int avoidOf(int attackRating, int defense) {
@@ -384,15 +382,14 @@ public class PlayerStatCalculator {
     public int avoidChance(Player p) { return stats(p).avoid; }
 
     /** 耐力天生回复常量（对齐原版 sinSetRegen InCreaSTM） */
-    public static final double STAMINA_REGEN_BASE = 3.8;
     public static final double STAMINA_REGEN_PER_LEVEL = 1.0 / 7.0;
 
     /**
-     * 每秒体力总恢复 = 装备再生 + 天生回复（3.8 + Level/7）。
+     * 每秒体力总恢复 = 装备再生 + 天生回复（Level/7）。
      * RegenerationService 结算与本方法共用同一口径，展示/结算不背离。
      */
     public double stmRegenTotal(Player p) {
-        return regenStm(p) + STAMINA_REGEN_BASE + p.getLevel() * STAMINA_REGEN_PER_LEVEL;
+        return regenStm(p) + p.getLevel() * STAMINA_REGEN_PER_LEVEL;
     }
 
     /**
