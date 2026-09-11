@@ -83,6 +83,13 @@ public class GroundItemAOI {
 
         for (GroundItemManager.GroundItem gi : items) {
             long id = gi.id;
+            // 非公共掉落（ownerId != 0）仅 owner 可见（对齐 EU SendItemStageUser）
+            if (gi.ownerId != 0 && gi.ownerId != pid) {
+                if (visible.remove(id)) {
+                    session.send(buildDisappear(id));
+                }
+                continue;
+            }
             double dx = sx - gi.x;
             double dz = sz - gi.z;
             double distSq = dx * dx + dz * dz;
