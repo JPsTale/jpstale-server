@@ -51,8 +51,11 @@ public class CombatService {
     @Autowired
     private BattleLogService battleLogService;
 
+    @Autowired
+    private PlayerStatCalculator statCalculator;
+
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
-    private static final long ATTACK_COOLDOWN_MS = 1000;
+    private static final double ATTACK_RANGE = 48.0;
 
     /**
      * 报文入口：玩家普通攻击
@@ -87,10 +90,10 @@ public class CombatService {
     }
 
     /**
-     * 玩家攻击怪物
+     * 玩家攻击怪物（距离校验 + 攻速驱动冷却）
      */
     public void playerAttackMonster(Player player, long monsterId, int skillId) {
-        if (!checkAttackCooldown(player.getId())) {
+        if (!checkAttackCooldown(player)) {
             return;
         }
 
@@ -104,6 +107,16 @@ public class CombatService {
             return;
         }
 
+        // 距离校验（≤ ATTACK_RANGE 才结算，超距忽略；对应客户端停止追击距离）
+        double dx = attackerEntity.getX() - monster.getX();
+        double dz = attackerEntity.getZ() - monster.getZ();
+        double distSq = dx * dx + dz * dz;
+        if (distSq > ATTACK_RANGE * ATTACK_RANGE) {
+            return;
+        }
+
+        int attackSpeed = statCalculator.attackSpeed(player);
+
         DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
 
         // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
@@ -112,7 +125,8 @@ public class CombatService {
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
             .setDamage(result.getFinalDamage())
-            .setIsCritical(result.isCritical());
+            .setIsCritical(result.isCritical())
+            .setAttackSpeed(attackSpeed);
         if (result.isMissed()) {
             log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
             broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
@@ -192,13 +206,25 @@ public class CombatService {
         monsterAOI.onMonsterDeath(monster, killer.getId(), exp, gold);
     }
 
-    private boolean checkAttackCooldown(long playerId) {
+    /**
+     * 攻击间隔公式（玩家，全站统一）：
+     * frames = 60 − 3·clamp(as−6, 0, 6)   @60fps
+     * as=0..6→1000ms  7→950  8→900  9→850  10→800  11→750  12+→700ms
+     */
+    static int attackIntervalMs(int attackSpeed) {
+        int clamped = Math.max(0, Math.min(attackSpeed - 6, 6));
+        int frames = 60 - 3 * clamped;               // 42..60
+        return Math.round(frames * 1000f / 60f);       // 700..1000 ms
+    }
+
+    private boolean checkAttackCooldown(Player player) {
+        int interval = attackIntervalMs(statCalculator.attackSpeed(player));
         long now = System.currentTimeMillis();
-        Long lastAttack = attackCooldowns.get(playerId);
-        if (lastAttack != null && now - lastAttack < ATTACK_COOLDOWN_MS) {
+        Long lastAttack = attackCooldowns.get(player.getId());
+        if (lastAttack != null && now - lastAttack < interval) {
             return false;
         }
-        attackCooldowns.put(playerId, now);
+        attackCooldowns.put(player.getId(), now);
         return true;
     }
 
