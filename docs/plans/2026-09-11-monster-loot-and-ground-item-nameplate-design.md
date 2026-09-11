@@ -58,8 +58,12 @@ ThirdEye 限时道具 +1；SixthSense 25% +1；ServerWideDropBuff 15% +1；组�
 - `Monster` 增加字段 `dropId`、`dropIsPublic`、`dropQuantity`（或在 `createMonster` 直接写入 templateId 复用）。
 - `MonsterSpawnService.createMonster`：补 `setTemplateId(template.getId())`；写入 `dropIsPublic` / `dropQuantity`；**移除** `setGold(lvl*rnd)`。
 - 新增 `LootService`：
-  - 启动时 `DropItemMapper.selectAllByDropIdGt0()` → `Map<Integer, DropTable>`（`totalChance` + `defs`），带缓存。
+  - 启动时（`@PostConstruct`）调用 `reload()`：`DropItemMapper.selectAllByDropIdGt0()` → `Map<Integer, DropTable>`（`totalChance` + `defs`）。
+  - `reload()`：**公共、线程安全**，重建后以 `AtomicReference` 原子替换掉落表，读路径无锁；供热更新触发。
   - `roll(dropId)` 复刻 EU `GetRandomDropDefinition`：返回 `Air | Gold(min,max) | ItemCode`。
+- 掉落表重载入口（本轮必须留出，支持改库热更新）：
+  - GM 命令 `/@reloadloot`：`ChatService.treatCommand` 增加分支 → `lootService.reload()`，回显加载的 dropid 数量。
+  - `LootService.reload()` 即服务端公共接口，web-server / 运维 REST 后续可直接调用（REST 端点本轮不接）。
 - `CombatService.handleMonsterDeath`：
   - `numDrops = max(0, dropQuantity) + lootService.extraDrops()`。
   - 循环 `numDrops` 次 `roll(dropId)`：Gold 累加；ItemCode → `itemRoll.rollByIdCode(code, null)` → 怪物死亡点附近随机偏移落 `GroundItemManager`，`y = mapRegionService.getHeight(...)`，`ownerId = dropIsPublic ? 0 : killerId`。
@@ -99,6 +103,7 @@ ThirdEye 限时道具 +1；SixthSense 25% +1；ServerWideDropBuff 15% +1；组�
 
 - 服务端单测：`LootServiceTest`——构造 dropid 表，验证加权掷点落在正确行、Air/Gold/Items 分支、总数边界。
 - 手工：击杀 Hopy/Zombie 观察掉落；`/@get` 物品贴地且位置分散；A 键切换名牌；hover 白字名牌。
+- 热更新：改库后执行 `/@reloadloot`，新掉落数据即时生效（旧掉落表被原子替换）。
 - 非公共掉落：击杀者可见、旁人不可见。
 
 ## 风险
