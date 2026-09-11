@@ -101,5 +101,4 @@
     <logger name="io.lettuce.core" level="INFO"/>
     <logger name="com.zaxxer.hikari" level="INFO"/>
     <logger name="org.springframework" level="INFO"/>
-    <logger name="org.flywaydb" level="INFO"/>
 </configuration>

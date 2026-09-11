@@ -48,11 +48,6 @@
                 <artifactId>netty-all</artifactId>
                 <version>${netty.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.flywaydb</groupId>
-                <artifactId>flyway-database-postgresql</artifactId>
-                <version>10.14.0</version>
-            </dependency>
 
             <!-- logger (2.x / 1.4.x for JDK 21 + Spring Boot 3) -->
             <dependency>

@@ -1,2 +1,0 @@
--- GameDB migrations: copy or symlink from PristonTale-EU-main/docs/postgresql-scripts/02-GameDB.sql
--- This file is a placeholder so Flyway does not fail on empty schema.
