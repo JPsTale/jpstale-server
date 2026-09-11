@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.regex.Pattern;
@@ -67,6 +68,9 @@ public class AccountService {
 
     @Autowired
     private ItemListMapper itemListMapper;
+
+    @Autowired
+    private AppearanceService appearanceService;
 
     @Autowired
     private org.jpstale.server.game.item.ItemNetworkHandler itemNetworkHandler;
@@ -424,53 +428,21 @@ public class AccountService {
         int head = character.getHead() != null ? character.getHead() : 0;
         int rank = character.getRank() != null ? character.getRank() : 0;
 
-        String bodyModel = null;
-        int bodyModelIdcode = 0;
-        String weaponDorp = null;
-        int weaponIdcode = 0;
-        int weaponPos = 0;
-
         List<org.jpstale.dao.userdb.entity.Item> items = itemMapper.selectList(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<org.jpstale.dao.userdb.entity.Item>()
+            new LambdaQueryWrapper<org.jpstale.dao.userdb.entity.Item>()
                 .eq(org.jpstale.dao.userdb.entity.Item::getCharacterId, character.getId())
                 .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) org.jpstale.server.game.item.ItemLocations.EQUIP));
 
+        // 装备条目（槽位 + 定义）→ 与在线换装共用同一套外观推导（AppearanceService.derive）
+        List<AppearanceService.EquipEntry> equips = new ArrayList<>();
         for (org.jpstale.dao.userdb.entity.Item item : items) {
             org.jpstale.dao.gamedb.entity.ItemList def = findItemDef(item);
             if (def == null) {
                 continue;
             }
-            Integer classItem = def.getClassItem();
-            if (classItem != null && org.jpstale.server.game.item.ItemClass.isWeapon(classItem)) {
-                // 武器（单手/双手）
-                weaponDorp = def.getCodeImg1();
-                weaponIdcode = def.getIdCode() != null ? def.getIdCode() : 0;
-                weaponPos = def.getModelPosition() != null ? def.getModelPosition() : 0;
-            } else if (classItem != null && org.jpstale.server.game.item.ItemClass.isTorsoArmor(classItem)) {
-                // 身体（防具）：同时下发 dorpItem（时装查表用）与 idcode（普通防具算 armorNum 用）
-                bodyModel = def.getCodeImg1();
-                bodyModelIdcode = def.getIdCode() != null ? def.getIdCode() : 0;
-            }
+            equips.add(new AppearanceService.EquipEntry(item.getSlot() != null ? item.getSlot() : 0, def));
         }
-
-        CommonProto.CharacterAppearance.Builder b = CommonProto.CharacterAppearance.newBuilder()
-            .setClassId(classId)
-            .setHead(head)
-            .setRank(rank);
-        if (bodyModel != null) {
-            b.setBodyModel(bodyModel);
-        }
-        if (bodyModelIdcode != 0) {
-            b.setBodyModelIdcode(bodyModelIdcode);
-        }
-        if (weaponDorp != null) {
-            b.setWeaponDorp(weaponDorp);
-        }
-        if (weaponIdcode != 0) {
-            b.setWeaponIdcode(weaponIdcode);
-        }
-        b.setWeaponPos(weaponPos);
-        return b.build();
+        return appearanceService.derive(classId, head, rank, equips);
     }
 
     /**

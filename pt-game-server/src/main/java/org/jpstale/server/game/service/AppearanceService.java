@@ -10,25 +10,36 @@ import org.jpstale.server.game.model.Player;
 import org.jpstale.server.proto.base.CommonProto;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 角色外观计算（装备→3D 模型挂载）。
  * <p>
- * 从玩家已装备掷点实例（location=EQUIP 装备栏 + location=BACKUP_EQUIP 副装备栏）推导：
- * 武器（{@link ItemClass#isWeapon}）→ weaponDorp/weaponIdcode/weaponPos；躯干甲（{@link ItemClass#isTorsoArmor}）→ bodyModel/bodyModelIdcode。
- * 计算结果写回 {@link Player#getAppearance()}，供 AOI Appear / 外观更新广播使用。
+ * 唯一权威推导 {@link #derive(int, int, int, List)}：输入装备条目（槽位 + itemlist 定义），
+ * 登录/选角（读 userdb.item）与在线换装（读内存 {@link PlayerItems}）共用，避免两套逻辑漂移。
+ * <ul>
+ *   <li>主手(slot 1)武器（单手/双手）→ weaponDorp/weaponIdcode/weaponPos</li>
+ *   <li>副手(slot 2)盾/匕首 → offHandDorp/offHandIdcode/offHandKind/offHandPos=2</li>
+ *   <li>躯干甲（classItem=ARMOR）→ bodyModel/bodyModelIdcode</li>
+ * </ul>
  */
 @Slf4j
 @Service
 public class AppearanceService {
 
+    /** 装备条目：装备槽号 + 物品定义（登录读 DB / 在线读内存共用）。 */
+    public record EquipEntry(int slot, ItemList def) {
+    }
+
     /**
-     * 在线重算外观（装备变化后调用）：从 Player.items 计算并缓存到 Player.appearance。
+     * 从装备条目推导外观（唯一权威实现）。
      */
-    public CommonProto.CharacterAppearance recalc(Player p) {
+    public CommonProto.CharacterAppearance derive(int classId, int head, int rank, List<EquipEntry> equips) {
         CommonProto.CharacterAppearance.Builder b = CommonProto.CharacterAppearance.newBuilder()
-            .setClassId(p.getJob())
-            .setHead(p.getHead())
-            .setRank(p.getRank());
+                .setClassId(classId)
+                .setHead(head)
+                .setRank(rank);
 
         String weaponDorp = null;
         Integer weaponIdcode = 0;
@@ -40,25 +51,22 @@ public class AppearanceService {
         String bodyModel = null;
         Integer bodyIdcode = 0;
 
-        PlayerItems items = p.getItems();
-        if (items != null) {
-            // 当前装备套固定在 EQUIP(location=0)：W 交换后当前套总在 EQUIP。主手+副手+身体都从这里读。
-            for (ItemInstance it : items.itemsIn(ItemLocations.EQUIP)) {
-                if (it.isDeleted()) {
+        if (equips != null) {
+            for (EquipEntry e : equips) {
+                if (e == null || e.def() == null) {
                     continue;
                 }
-                ItemList def = it.getTemplate();
-                if (def == null) {
-                    continue;
-                }
+                ItemList def = e.def();
+                int slot = e.slot();
                 Integer c = def.getClassItem();
-                if (c != null && ItemClass.isWeapon(c) && it.getSlot() == ItemLocations.SLOT_MAIN_HAND) {
+
+                if (slot == ItemLocations.SLOT_MAIN_HAND && c != null && ItemClass.isWeapon(c)) {
                     // 主手(槽1)武器决定主手外观；双手(6)/单手(4)
                     weaponDorp = def.getCodeImg1();
                     weaponIdcode = def.getIdCode();
                     weaponPos = def.getModelPosition();
-                } else if (it.getSlot() == ItemLocations.SLOT_OFF_HAND) {
-                    // 副手(槽2)：盾(Shields)/匕首(Dagger)；念珠/法球(Orbs) 不挂
+                } else if (slot == ItemLocations.SLOT_OFF_HAND) {
+                    // 副手(槽2)：盾(Shields)/匕首(Dagger)；念珠/法球等不挂
                     int kind = offHandKind(def);
                     if (kind != 0) {
                         offDorp = def.getCodeImg1();
@@ -96,7 +104,29 @@ public class AppearanceService {
         b.setOffHandKind(offKind);
         b.setOffHandPos(offPos);
 
-        CommonProto.CharacterAppearance app = b.build();
+        return b.build();
+    }
+
+    /**
+     * 在线重算外观（装备变化后调用）：从 Player.items 计算并缓存到 Player.appearance。
+     */
+    public CommonProto.CharacterAppearance recalc(Player p) {
+        List<EquipEntry> equips = new ArrayList<>();
+        PlayerItems items = p.getItems();
+        if (items != null) {
+            // 当前装备套固定在 EQUIP(location=0)：W 交换后当前套总在 EQUIP。主手+副手+身体都从这里读。
+            for (ItemInstance it : items.itemsIn(ItemLocations.EQUIP)) {
+                if (it.isDeleted()) {
+                    continue;
+                }
+                ItemList def = it.getTemplate();
+                if (def == null) {
+                    continue;
+                }
+                equips.add(new EquipEntry(it.getSlot(), def));
+            }
+        }
+        CommonProto.CharacterAppearance app = derive(p.getJob(), p.getHead(), p.getRank(), equips);
         p.setAppearance(app);
         return app;
     }
