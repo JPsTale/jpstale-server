@@ -511,14 +511,15 @@ public class PlayerService {
         p.setHealth(info.getHealth() != null ? info.getHealth() : 10);
         p.setStatePoint(info.getStatePoint() != null ? info.getStatePoint() : 0);
 
-        // 面板（原版公式，服务端权威）：HP/MP/SP 由职业系数 + 属性实时计算
+        // 物品权威装载：背包/仓库/装备/备用武器 全部活行 → items + 重建画布位图 + 抗性
+        loadItems(p);
+
+        // 面板（原版公式，服务端权威）：HP/MP/SP 由职业系数 + 属性 + 装备实时计算
+        // 必须在 loadItems 之后：否则装备加成（移速/攻速/攻击力等）未计入，首屏属性错误
         recalcPanel(p);
         p.setHp(p.getMaxHp());
         p.setMp(p.getMaxMp());
         p.setSp(p.getMaxSp());
-
-        // 物品权威装载：背包/仓库/装备/备用武器 全部活行 → items + 重建画布位图 + 抗性
-        loadItems(p);
 
         log.info("Player {} (lv{}) loaded: str={} spi={} tal={} agi={} hea={} stateP={} hp={} items={}",
             p.getName(), p.getLevel(), p.getStrength(), p.getSpirit(), p.getTalent(),

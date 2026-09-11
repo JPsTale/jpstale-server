@@ -343,6 +343,10 @@ public class ItemRollService {
         return rndIntOr(min, max);
     }
 
+    /**
+     * 掷点浮点属性。装备属性精度为 0.1（客户端显示 /10 一位小数），
+     * 故按 0.1 步进掷点，而非 0.01（曾产生 1.17 这类两位小数，超出装备精度）。
+     */
     static double rndFloat(Double min, Double max) {
         if (min == null && max == null) {
             return 0.0;
@@ -353,12 +357,12 @@ public class ItemRollService {
         if (max == null || max == 0.0) {
             return min;
         }
-        int sb = (int) ((max - min) * 100.0);
+        int sb = (int) Math.round((max - min) * 10.0);
         if (sb <= 0) {
-            return max;
+            return Math.round(max * 10.0) / 10.0;
         }
         int rnd = ThreadLocalRandom.current().nextInt(sb + 1);
-        return Math.round((min + rnd / 100.0) * 100.0) / 100.0;
+        return Math.round((min + rnd / 10.0) * 10.0) / 10.0;
     }
 
     private static int nz(Integer v) {
