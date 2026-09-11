@@ -300,9 +300,11 @@ public class MonsterSpawnService {
         monster.setAttackSpeed(attackIntervalMs(template.getAttackSpeed() != null ? template.getAttackSpeed() : 6));
         // 击杀经验：monsterlist.exp（单值数字字符串）
         monster.setExp(parseExp(template.getExp()));
-        // 金币：按等级简单推导（后续接 dropitem 精确掉落）
-        int lvl = template.getLevel() != null ? template.getLevel() : 1;
-        monster.setGold(lvl * ThreadLocalRandom.current().nextInt(5, 15));
+        // 掉落：dropid == monsterlist.id；金币改由 dropitem 的 Gold 行决定（见 CombatService）
+        monster.setTemplateId(template.getId());
+        monster.setDropQuantity(template.getDropQuantity() != null && template.getDropQuantity() > 0
+                ? template.getDropQuantity() : 1);
+        monster.setDropIsPublic(template.getDropIsPublic() != null && template.getDropIsPublic() != 0);
         monster.setMapId(mapId);
         monster.setState(MonsterState.IDLE);
         monster.setLastTransTime(System.currentTimeMillis());

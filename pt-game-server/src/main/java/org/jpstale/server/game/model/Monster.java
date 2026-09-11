@@ -52,6 +52,10 @@ public class Monster extends BaseEntity {
     // 客户端渲染：资产相对路径（如 char/monster/monimp/monimp-a.inx）
     private String modelFile;
 
+    // 掉落（对齐 monsterlist.dropquantity / dropispublic）
+    private int dropQuantity = 1;      // 掉落掷点次数
+    private boolean dropIsPublic;      // true=公共可见，false=仅击杀者可见
+
     // 广播节流（AOI 写入）：动画 token / 位置只在变化时下发给观察者
     private int lastBroadcastAnim = -1;
     private double lastBroadcastX = Double.NaN;
