@@ -25,8 +25,8 @@ public class ItemListOld {
     private Integer idCode;
     @TableField("name")
     private String name;
-    @TableField("nullcode")
-    private String nullcode;
+    @TableField("category")
+    private String category;
     @TableField("codeimg1")
     private String codeImg1;
     @TableField("codeimg2")

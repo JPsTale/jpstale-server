@@ -33,35 +33,43 @@ public class AppearanceService {
         String weaponDorp = null;
         Integer weaponIdcode = 0;
         Integer weaponPos = 0;
+        String offDorp = null;
+        int offIdcode = 0;
+        int offKind = 0;
+        int offPos = 0;
         String bodyModel = null;
         Integer bodyIdcode = 0;
 
         PlayerItems items = p.getItems();
         if (items != null) {
-            // 装备栏优先；若主手未装备再查备用武器（W 切到的那套穿在身上）
-            for (int loc : new int[]{ItemLocations.EQUIP, ItemLocations.BACKUP_WEAPON}) {
-                for (ItemInstance it : items.itemsIn(loc)) {
-                    if (it.isDeleted()) {
-                        continue;
-                    }
-                    ItemList def = it.getTemplate();
-                    if (def == null) {
-                        continue;
-                    }
-                    Integer c = def.getClassItem();
-                    // 主手(槽1)武器才决定外观；双手(6)/单手(4)
-                    if (c != null && ItemClass.isWeapon(c) && it.getSlot() == ItemLocations.SLOT_MAIN_HAND) {
-                        weaponDorp = def.getCodeImg1();
-                        weaponIdcode = def.getIdCode();
-                        weaponPos = def.getModelPosition();
-                    } else if (c != null && ItemClass.isTorsoArmor(c)) {
-                        // 防具（铠甲/法袍）
-                        bodyModel = def.getCodeImg1();
-                        bodyIdcode = def.getIdCode();
-                    }
+            // 当前装备套固定在 EQUIP(location=0)：W 交换后当前套总在 EQUIP。主手+副手+身体都从这里读。
+            for (ItemInstance it : items.itemsIn(ItemLocations.EQUIP)) {
+                if (it.isDeleted()) {
+                    continue;
                 }
-                if (weaponDorp != null) {
-                    break; // 装备栏已找到武器即可
+                ItemList def = it.getTemplate();
+                if (def == null) {
+                    continue;
+                }
+                Integer c = def.getClassItem();
+                if (c != null && ItemClass.isWeapon(c) && it.getSlot() == ItemLocations.SLOT_MAIN_HAND) {
+                    // 主手(槽1)武器决定主手外观；双手(6)/单手(4)
+                    weaponDorp = def.getCodeImg1();
+                    weaponIdcode = def.getIdCode();
+                    weaponPos = def.getModelPosition();
+                } else if (it.getSlot() == ItemLocations.SLOT_OFF_HAND) {
+                    // 副手(槽2)：盾(Shields)/匕首(Dagger)；念珠/法球(Orbs) 不挂
+                    int kind = offHandKind(def);
+                    if (kind != 0) {
+                        offDorp = def.getCodeImg1();
+                        offIdcode = def.getIdCode();
+                        offKind = kind;
+                        offPos = 2;
+                    }
+                } else if (c != null && ItemClass.isTorsoArmor(c)) {
+                    // 防具（铠甲/法袍）
+                    bodyModel = def.getCodeImg1();
+                    bodyIdcode = def.getIdCode();
                 }
             }
         }
@@ -79,9 +87,35 @@ public class AppearanceService {
             b.setWeaponIdcode(weaponIdcode);
         }
         b.setWeaponPos(weaponPos != null ? weaponPos : 0);
+        if (offDorp != null) {
+            b.setOffHandDorp(offDorp);
+        }
+        if (offIdcode != 0) {
+            b.setOffHandIdcode(offIdcode);
+        }
+        b.setOffHandKind(offKind);
+        b.setOffHandPos(offPos);
 
         CommonProto.CharacterAppearance app = b.build();
         p.setAppearance(app);
         return app;
+    }
+
+    /**
+     * 副手类型：0=无(不挂载) 1=盾 2=匕首。
+     * 用模板 category 判定（Shields/Dagger；Orbs/Force Orbs 等不挂载）——比 codeimg1 前缀可靠。
+     */
+    private int offHandKind(ItemList def) {
+        String nc = def.getCategory();
+        if (nc == null) {
+            return 0;
+        }
+        if (nc.equalsIgnoreCase("Shields")) {
+            return 1;
+        }
+        if (nc.equalsIgnoreCase("Dagger")) {
+            return 2;
+        }
+        return 0;
     }
 }

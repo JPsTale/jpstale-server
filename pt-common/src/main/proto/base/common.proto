@@ -231,6 +231,10 @@ message CharacterAppearance {
   int32 weapon_idcode = 7; // 武器 idcode（如 0x010A0000），动画匹配按武器类型
   int32 weapon_pos  = 8;  // 武器挂点 modelPosition（2左/4右/0无）
   int32 size_level  = 9;  // 体型缩放（默认 1）
+  string off_hand_dorp = 10; // 副手 dorpItem（盾 ds*/匕首 WD*/ws*；念珠 om* 不挂载故为空）
+  int32 off_hand_idcode = 11; // 副手 idcode
+  int32 off_hand_kind = 12;  // 副手类型：0=无 1=盾 2=匕首/武器
+  int32 off_hand_pos  = 13;  // 副手挂点（2=左）
 }
 
 // 玩家出现：外观 + 身份 + 位置 + 朝向 + 状态（对应 PT smTRNAS_PLAYERINFO）
