@@ -71,24 +71,29 @@ public class MonsterAOI {
         Set<Long> visible = visibleByPlayer.computeIfAbsent(pid, k -> ConcurrentHashMap.newKeySet());
         double connectSq = (double) CONNECT * CONNECT;
         double disconnectSq = (double) DISCONNECT * DISCONNECT;
+        PlayerSession session = player.getSession();
 
         for (Monster m : monsters) {
             long mid = m.getId();
-            if (!m.isAlive()) {
-                // 死亡怪不在可见集（死亡瞬间由 onMonsterDeath 清出并通知），兜底清理
-                visible.remove(mid);
-                continue;
-            }
             double dx = sx - m.getX();
             double dz = sz - m.getZ();
             double distSq = dx * dx + dz * dz;
-            if (distSq > disconnectSq) {
-                if (visible.remove(mid)) {
-                    sendDisappear(player.getSession(), mid);
-                }
-            } else if (distSq <= connectSq) {
-                if (visible.add(mid)) {
-                    sendAppear(player.getSession(), m);
+            // 与 onMonsterDeath 互斥（同锁）：否则「死亡清出可见集」与「reconcile 重新 Appear」竞态
+            // 会让客户端在死亡后又收到 Appear（孤儿怪，之后永不再收到 Disappear）。
+            synchronized (visible) {
+                if (!m.isAlive()) {
+                    // 死亡怪不在可见集；若仍在（竞态/漏发）补发 Disappear 清理客户端，而非静默移除
+                    if (visible.remove(mid)) {
+                        sendDisappear(session, mid);
+                    }
+                } else if (distSq > disconnectSq) {
+                    if (visible.remove(mid)) {
+                        sendDisappear(session, mid);
+                    }
+                } else if (distSq <= connectSq) {
+                    if (visible.add(mid)) {
+                        sendAppear(session, m);
+                    }
                 }
             }
         }
@@ -138,7 +143,12 @@ public class MonsterAOI {
     public void onMonsterDeath(Monster m, long killerId, long exp, int gold) {
         long mid = m.getId();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
-            if (e.getValue().remove(mid)) {
+            Set<Long> set = e.getValue();
+            // 与 reconcile 互斥（同锁）：保证该玩家的死亡 Disappear 不会被并发的 Appear 反超
+            synchronized (set) {
+                if (!set.remove(mid)) {
+                    continue;
+                }
                 PlayerSession s = sessionManager.getSessionByCharacterId(e.getKey());
                 if (s == null) {
                     continue;
@@ -162,10 +172,13 @@ public class MonsterAOI {
     public void onMonsterRemoved(Monster m) {
         long mid = m.getId();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
-            if (e.getValue().remove(mid)) {
-                PlayerSession s = sessionManager.getSessionByCharacterId(e.getKey());
-                if (s != null) {
-                    s.send(buildDisappear(mid));
+            Set<Long> set = e.getValue();
+            synchronized (set) {
+                if (set.remove(mid)) {
+                    PlayerSession s = sessionManager.getSessionByCharacterId(e.getKey());
+                    if (s != null) {
+                        s.send(buildDisappear(mid));
+                    }
                 }
             }
         }
