@@ -55,8 +55,8 @@ public final class EquipSummary {
                 s.hasWeapon = true;
                 s.weaponDamageMin = it.getDamageMin();
                 s.weaponDamageMax = it.getDamageMax();
-                s.attackSpeed += def != null && def.getAtkSpeed() != null ? def.getAtkSpeed() : 0;
-                s.range = def != null && def.getRange() != null ? def.getRange() : 0;
+                s.attackSpeed += it.getAttackSpeed();
+                s.range = it.getShootingRange();
             }
             if (def != null) {
                 int c = def.getClassItem() == null ? 0 : def.getClassItem();
@@ -69,16 +69,16 @@ public final class EquipSummary {
                         s.bootsSpeed += it.getSpeed();
                     }
                     s.absorb += it.getAbsorb();
-                    s.critical += def.getCritical() == null ? 0 : def.getCritical();
+                    s.critical += it.getCritical();
                 } else {
-                    // 其余装备（含盾 class2/饰品/宝石等）：吸收/格挡/暴击取自实例或模板
+                    // 其余装备（含盾 class2/饰品/宝石等）：吸收/格挡/暴击取自实例
                     s.absorb += it.getAbsorb();
                     s.block += it.getBlockRating();
-                    s.critical += def.getCritical() == null ? 0 : def.getCritical();
+                    s.critical += it.getCritical();
                     if (!mainHand) {
                         // 主手武器的攻速/射程已在上方计入 → 避免重复累加（曾致攻速翻倍）
-                        s.attackSpeed += def.getAtkSpeed() == null ? 0 : def.getAtkSpeed();
-                        s.range = Math.max(s.range, def.getRange() == null ? 0 : def.getRange());
+                        s.attackSpeed += it.getAttackSpeed();
+                        s.range = Math.max(s.range, it.getShootingRange());
                     }
                 }
                 // 职业特效移速：仅当装备职业掩码包含本职业时生效（对齐客户端 ItemInfo 特效显示）

@@ -1,9 +1,9 @@
 -- ============================================================
 -- userdb.item — 角色物品实例表（全字段水平展开）
 -- 依据 exm CreateDefItem 掷点字段 + 状态字段设计
--- 基础字段（ItemName/Weight/Sight/Attack_Speed/Critical_Hit/
---   Shooting_Range/fMagic_Mastery/Potion_Space 等）来自定义模板
+-- 基础字段（ItemName/Weight/Sight/fMagic_Mastery/Potion_Space 等）来自定义模板
 --   sDEF_ITEMINFO.Item（memcpy 复制），不存实例表，从 gamedb.itemlist 取。
+-- 例外：Critical_Hit / Shooting_Range / Attack_Speed 存实例表（武器信息框需读档保留）。
 -- 参考文档：/data/PristonTale/plans/item-instance-storage-reference.md
 -- ============================================================
 
@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS userdb.item (
     defence       integer NOT NULL DEFAULT 0,
     block_rating  real    NOT NULL DEFAULT 0,      -- fBlock_Rating
     speed         real    NOT NULL DEFAULT 0,      -- fSpeed
+    critical      integer NOT NULL DEFAULT 0,      -- Critical_Hit（武器信息框）
+    shooting_range integer NOT NULL DEFAULT 0,     -- Shooting_Range（远程武器射程）
+    attack_speed  integer NOT NULL DEFAULT 0,      -- Attack_Speed（武器信息框）
 
     -- 回复/上限
     mana_regen    real NOT NULL DEFAULT 0,         -- fMana_Regen

@@ -164,13 +164,14 @@ public class ItemRollService {
         it.setDefence(rndIntOr(def.getDefenseMin(), def.getDefenseMax()));
         it.setBlockRating(rndFloat(def.getBlockMin(), def.getBlockMax()));
         it.setSpeed(rndFloat(def.getRunSpeedMin(), def.getRunSpeedMax()));
-        // 必杀 / 射程（武器信息框展示；DB 单值列）
+        // 必杀 / 射程 / 攻速（武器信息框展示；DB 单值列，随实例持久化）
         if (def.getCritical() != null) {
             it.setCritical(def.getCritical());
         }
         if (def.getRange() != null) {
-            it.setAttackRange(def.getRange());
+            it.setShootingRange(def.getRange());
         }
+        it.setAttackSpeed(nz(def.getAtkSpeed()));
 
         // 回复
         it.setManaRegen(rndFloat(def.getRegenerationMpMin(), def.getRegenerationMpMax()));

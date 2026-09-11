@@ -85,6 +85,12 @@ public class Item {
     private Short damageMax;
     @TableField("attack_rating")
     private Integer attackRating;
+    @TableField("critical")
+    private Integer critical;
+    @TableField("shooting_range")
+    private Integer shootingRange;
+    @TableField("attack_speed")
+    private Integer attackSpeed;
     @TableField("absorb")
     private Double absorb;
     @TableField("defence")

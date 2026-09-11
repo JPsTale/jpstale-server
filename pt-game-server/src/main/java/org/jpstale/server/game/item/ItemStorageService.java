@@ -51,6 +51,9 @@ public class ItemStorageService {
         r.setDamageMin((short) it.getDamageMin());
         r.setDamageMax((short) it.getDamageMax());
         r.setAttackRating(it.getAttackRating());
+        r.setCritical(it.getCritical());
+        r.setShootingRange(it.getShootingRange());
+        r.setAttackSpeed(it.getAttackSpeed());
         r.setAbsorb(it.getAbsorb());
         r.setDefence(it.getDefence());
         r.setBlockRating(it.getBlockRating());
@@ -133,6 +136,9 @@ public class ItemStorageService {
         it.setDamageMin(r.getDamageMin() == null ? 0 : r.getDamageMin());
         it.setDamageMax(r.getDamageMax() == null ? 0 : r.getDamageMax());
         it.setAttackRating(nz(r.getAttackRating()));
+        it.setCritical(nz(r.getCritical()));
+        it.setShootingRange(nz(r.getShootingRange()));
+        it.setAttackSpeed(nz(r.getAttackSpeed()));
         it.setAbsorb(r.getAbsorb() == null ? 0 : r.getAbsorb());
         it.setDefence(nz(r.getDefence()));
         it.setBlockRating(r.getBlockRating() == null ? 0 : r.getBlockRating());

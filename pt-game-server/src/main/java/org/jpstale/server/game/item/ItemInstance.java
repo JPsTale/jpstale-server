@@ -38,7 +38,8 @@ public class ItemInstance {
     private double absorb;
     private int defence;
     private int critical;
-    private int attackRange;
+    private int shootingRange;
+    private int attackSpeed;
     private double blockRating;
     private double speed;
     private double manaRegen, lifeRegen, staminaRegen;
@@ -115,11 +116,6 @@ public class ItemInstance {
     /** 物品名（模板）。 */
     public String name() {
         return template == null ? "?" : template.getName();
-    }
-
-    /** 攻击速度（模板，非实例列）。 */
-    public int attackSpeed() {
-        return template == null || template.getAtkSpeed() == null ? 0 : template.getAtkSpeed();
     }
 
     /** 判断该槽位是否允许放本物品（装备槽位校验，后续由 EquipService 细化）。 */
