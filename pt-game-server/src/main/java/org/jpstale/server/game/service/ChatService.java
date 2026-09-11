@@ -1,6 +1,8 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.dao.userdb.entity.UserInfo;
+import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
@@ -65,6 +67,9 @@ public class ChatService {
 
     @Autowired
     private org.jpstale.server.game.item.LootService lootService;
+
+    @Autowired
+    private UserInfoMapper userInfoMapper;
 
     /**
      * 报文入口：聊天
@@ -151,6 +156,10 @@ public class ChatService {
 
         // /@xxx —— GM 命令（全局重新设计）
         if (cmd.startsWith("/@")) {
+            if (!isGm(session)) {
+                systemMessage(session, "no permission");
+                return;
+            }
             if (name.equals("@get")) {
                 treatGet(session, parts);
                 return;
@@ -194,6 +203,19 @@ public class ChatService {
         } catch (NumberFormatException e) {
             systemMessageKey(session, "chat.cmd.invalidNumber", Map.of("cmd", cmd));
         }
+    }
+
+    /** GM 身份：userdb.userinfo.gamemasterlevel>0 或 gamemastertype!=0。 */
+    private boolean isGm(PlayerSession session) {
+        if (session == null || session.getAccountId() == null) {
+            return false;
+        }
+        UserInfo u = userInfoMapper.selectById(session.getAccountId().intValue());
+        if (u == null) {
+            return false;
+        }
+        return (u.getGameMasterLevel() != null && u.getGameMasterLevel() > 0)
+                || (u.getGameMasterType() != null && u.getGameMasterType() != 0);
     }
 
     /**
