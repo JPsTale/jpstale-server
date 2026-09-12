@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  *   <li>属性点总量 = 99 + (Level-1)*5，每级 +5 自由点存 StatePoint：ReformCharStatePoint</li>
  *   <li>职业公式系数（Life/Mana/Stamina/DamageFunction）：JobDataBase / saCharacterClassData</li>
  *   <li>属性→面板公式：sinInvenTory.cpp / sinSubMain.cpp</li>
- *   <li>再生：*生命再生/*魔法再生/*耐力再生（每秒固定值）；耐力另含 LV/7 天生回复</li>
+ *   <li>再生：*生命再生/*魔法再生/*耐力再生（每秒固定值）
  *   <li>回避：100 - sinGetPVPAccuracy（Accuracy_Table 区间取上界，自 vs 自等级修正为 0）</li>
  * </ul>
  */
@@ -157,7 +157,7 @@ public class PlayerStatCalculator {
         // 每秒恢复（原版 sinSetRegen）：
         //  HP = ((Lv + STR/2 + HEA)/180 + 装备再生 再生Life_Regen)/1.5
         //  MP = (Lv + SPR*1.2 + HEA/2)/115 + 装备再生 Mana_Regen
-        //  STM = 装备再生 Stamina_Regen（天生 Lv/7 见 stmRegenTotal）
+        //  STM = 装备再生 Stamina_Regen
         double hpEquip = e.regenHp;
         double mpEquip = e.regenMp;
         s.regenHp = ((p.getLevel() + p.getStrength() / 2.0 + p.getHealth()) / 180.0 + hpEquip) / 1.5;
@@ -380,17 +380,6 @@ public class PlayerStatCalculator {
     public double regenMp(Player p) { return stats(p).regenMp; }
     public double regenStm(Player p) { return stats(p).regenStm; }
     public int avoidChance(Player p) { return stats(p).avoid; }
-
-    /** 耐力天生回复常量（对齐原版 sinSetRegen InCreaSTM） */
-    public static final double STAMINA_REGEN_PER_LEVEL = 1.0 / 7.0;
-
-    /**
-     * 每秒体力总恢复 = 装备再生 + 天生回复（Level/7）。
-     * RegenerationService 结算与本方法共用同一口径，展示/结算不背离。
-     */
-    public double stmRegenTotal(Player p) {
-        return regenStm(p) + p.getLevel() * STAMINA_REGEN_PER_LEVEL;
-    }
 
     /**
      * 跑步每秒耐力消耗（JPT2018 sinUseStamina）：

@@ -282,7 +282,7 @@ public class PlayerService {
             .setResFire(res[2]).setResLightning(res[4]).setResIce(res[3])
             .setHpRegen((float) statCalculator.regenHp(p))
             .setMpRegen((float) statCalculator.regenMp(p))
-            .setStmRegen((float) statCalculator.stmRegenTotal(p));
+            .setStmRegen((float) statCalculator.regenStm(p));
     }
 
     /**

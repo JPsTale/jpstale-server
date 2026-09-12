@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 生命/魔法/耐力自动回复（原版 Life_Regen / Mana_Regen / Stamina_Regen 语义）。
  * <p>
  * 每 1 秒结算一次：回复量 = 装备再生属性固定值（精确 0.1，如戒指每秒 +7.3 HP），
- * 耐力另含原版天生回复 3.8 + Level/7（sinSetRegen InCreaSTM）。小数部分用累加器累积，
  * 满 1 点才落地，星遗石 0.1/s 这样的低值也能平稳生效。体力全日制回复（原版 Recovery_Stamina）。
  * <p>
  * 由 GameServer.tick 驱动（固定 tick 循环单线程），玩家死亡时不回复，满值不推送。
@@ -73,7 +72,7 @@ public class RegenerationService {
     private boolean settleOne(Player p) {
         double hpRegen = statCalculator.regenHp(p);
         double mpRegen = statCalculator.regenMp(p);
-        double stmRegen = statCalculator.stmRegenTotal(p);
+        double stmRegen = statCalculator.regenStm(p);
 
         double[] acc = accumulators.computeIfAbsent(p.getId(), k -> new double[3]);
         acc[0] += hpRegen;
