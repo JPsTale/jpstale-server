@@ -166,6 +166,12 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
                 // 断线重连兜底：READER_IDLE 未触发（如客户端直接断网）时，生成 token 供 5 分钟内重连
                 reconnectionManager.generateReconnectToken(session);
             }
+            // ⚠ 先让会话**不再"在游戏中"**：怪物 AI 的 AiContext 持有 PlayerEntity，
+            //   而 AiEngine.validateTarget 只按 `entity.isPlaying()` 判断目标是否有效。
+            //   断线不清状态 → 幽灵实体被判为**永久有效**目标：怪物隔着半张地图打"上一次会话"
+            //   留下的旧实体，旧实体持续掉血→死亡→复活(半血)，而客户端按 playerId 归因到本人，
+            //   于是同一角色出现两条 HP 序列、血条狂闪、偶尔跳血（用户 2026-09-12 实测）。
+            session.setState(SessionState.CONNECTED);
             // 广播 Disappear 给视野内玩家（登出/断线离开世界）
             PlayerEntity e = session.getEntity();
             if (e != null) {

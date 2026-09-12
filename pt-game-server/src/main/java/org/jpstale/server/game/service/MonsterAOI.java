@@ -32,6 +32,11 @@ public class MonsterAOI {
     private static final float CONNECT = AOIManager.VIEW_RANGE;
     private static final float DISCONNECT = AOIManager.VIEW_RANGE_DISCONNECT;
 
+    /** 角度差归一化到 (-π, π]：跨 ±π 的转身不该被当成"转了 6 弧度" */
+    private static double wrapAngle(double d) {
+        return Math.atan2(Math.sin(d), Math.cos(d));
+    }
+
     @Autowired
     private SessionManager sessionManager;
 
@@ -99,7 +104,7 @@ public class MonsterAOI {
         }
     }
 
-    /** 怪物位移后广播（由 MonsterSpawnService 主循环每步调用）：仅位置/动画变化时下发 */
+    /** 怪物位移后广播（由 MonsterSpawnService 主循环每步调用）：位置/朝向/动画任一变化才下发 */
     public void broadcastMove(Monster m) {
         if (!m.isAlive()) {
             return;
@@ -110,11 +115,16 @@ public class MonsterAOI {
         boolean posChanged = Double.isNaN(m.getLastBroadcastX())
             || Math.abs(mx - m.getLastBroadcastX()) > 0.01
             || Math.abs(mz - m.getLastBroadcastZ()) > 0.01;
-        if (!posChanged && anim == m.getLastBroadcastAnim()) {
+        // 朝向也要参与"变化"判定：站桩攻击的怪只转身不移动（AiEngine.faceTarget），
+        // 只看位置/动画会把这次转身节流掉 → 客户端永不转向，怪背对玩家挥击（用户实测发现）
+        boolean angleChanged = Double.isNaN(m.getLastBroadcastAngle())
+            || Math.abs(wrapAngle(m.getAngle() - m.getLastBroadcastAngle())) > 0.02;
+        if (!posChanged && !angleChanged && anim == m.getLastBroadcastAnim()) {
             return;
         }
         m.setLastBroadcastX(mx);
         m.setLastBroadcastZ(mz);
+        m.setLastBroadcastAngle(m.getAngle());
         m.setLastBroadcastAnim(anim);
 
         MessageProto.ServerMessage moveMsg = MessageProto.ServerMessage.newBuilder()

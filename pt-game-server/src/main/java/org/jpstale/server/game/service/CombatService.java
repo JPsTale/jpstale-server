@@ -115,8 +115,10 @@ public class CombatService {
             return;
         }
         MessageProto.C2S_AttackStart req = message.getAttackStart();
-        playerAttackStart(player, req.getTargetId(), req.getClientSeq(), req.getSegments());
+        playerAttackStart(player, req.getTargetId(), req.getClientSeq(), req.getSegments(),
+            req.getAnimIndex(), req.getAnimClip());
     }
+
 
     /**
      * 报文入口：命中帧（每段一次）——距离校验 + 结算该段伤害
@@ -153,9 +155,16 @@ public class CombatService {
     /**
      * 起手（挥拳开始）：冷却 + 距离校验 → 广播 S2C_AttackStart（旁观者据此立刻挥拳 + 定挥拳时长）。
      * 不结算伤害；伤害由后续命中帧 C2S_AttackHit 触发。
+     *
+     * @param animIndex/animClip 攻击者**自己播的那一条**挥击动画（原样透传）。
+     *   攻击动作的变体与长度随武器的单双手/类型而不同，旁观者必须播同一条才不会"一刀两种动作"。
      */
-    public void playerAttackStart(Player player, long monsterId, int clientSeq, int declaredSegments) {
+    public void playerAttackStart(Player player, long monsterId, int clientSeq, int declaredSegments,
+                                  int animIndex, String animClip) {
         if (!checkAttackCooldown(player)) {
+            log.info("COMBAT {} 起手 seq={} 被冷却拒绝（距上次 {}ms < 判定阈值 {}ms）→ 这次挥拳没有计划",
+                player.getName(), clientSeq, msSinceLastAttack(player), attackGateMs(player));
+            discardStalePlan(player, clientSeq);
             return;
         }
         PlayerSession session = player.getSession();
@@ -165,10 +174,17 @@ public class CombatService {
         }
         Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
         if (monster == null || !monster.isAlive()) {
+            log.info("COMBAT {} 起手 seq={} 目标 {} 不存在或已死 → 这次挥拳没有计划",
+                player.getName(), clientSeq, monsterId);
+            discardStalePlan(player, clientSeq);
             return;
         }
+        // ⚠ 距离**不在这里拦截**：自机位置是客户端预测值、怪物位置是插值，边界附近两边必然不一致。
+        //   若此处拒绝，这次挥拳就会落到命中帧的「无计划 → 重掷」兜底上，客户端按计划播的音与
+        //   账本自相矛盾 —— 正是 B 方案要消除的东西。距离的唯一裁决点是命中帧 playerAttackHit。
         if (!inRange(player, attackerEntity, monster)) {
-            return;
+            log.info("COMBAT {} 起手 seq={} 距离超限（计划照发，伤害由命中帧裁决）",
+                player.getName(), clientSeq);
         }
         // ── B 方案：**在这里就把各段结果裁定好**（而不是等命中帧），随 S2C_AttackPlan 下发。
         // 客户端因此可以在事件帧直接播正确的音（miss/暴击），无需等一次往返。
@@ -193,14 +209,32 @@ public class CombatService {
                     .setIsCritical(seg.critical()).setDamage(seg.damage()));
             }
             session.send(MessageProto.ServerMessage.newBuilder().setAttackPlan(plan).build());
+            // 同一份计划也发给旁观者：他们要在自己的事件帧播**这一段的正确结果音**
+            // （miss 挥空 / 暴击追加）。否则只能等命中帧的 S2C_AttackResult，音效晚一个往返 ——
+            // 而自机早已是"事件帧直接播正确音"，两边表现不一致。
+            broadcastAttackPlan(attackerEntity, plan.build());
         }
 
         MessageProto.S2C_AttackStart start = MessageProto.S2C_AttackStart.newBuilder()
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
             .setAttackSpeed(statCalculator.attackSpeed(player))
+            .setAnimIndex(animIndex)
+            .setAnimClip(animClip == null ? "" : animClip)
             .build();
         broadcastAttackStart(attackerEntity, start);
+    }
+
+    /**
+     * 起手被拒时作废旧计划：客户端已经挥出这一拳（seq 比旧计划新），旧计划再留着，
+     * 这一拳的命中帧就会被旧计划的**幂等去重**当成重复段吞掉 —— 挥了刀却没有伤害。
+     * 只作废「比旧计划更新」的起手；seq 不大于旧计划的（重复/迟到报文）不动，避免误伤在飞的计划。
+     */
+    private void discardStalePlan(Player player, int clientSeq) {
+        AttackPlan cur = attackPlans.get(player.getId());
+        if (cur != null && clientSeq > cur.clientSeq) {
+            attackPlans.remove(player.getId());
+        }
     }
 
     /**
@@ -215,9 +249,21 @@ public class CombatService {
         }
         Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
         if (monster == null || !monster.isAlive()) {
+            // 目标已消失（被别人打死/离图）→ 这一刀落空。**不许静默**：客户端在事件帧已按计划播过
+            // 一声命中音，必须回一条 missed 让它把那一刀的音收掉、改播挥空音（不然玩家只听到打击声、
+            // 怪物头上却连伤害数字和 MISS 都没有）。
+            log.info("COMBAT {} hit#{} 目标 {} 已不存在或已死 → 这一刀落空（回 MISS 修正客户端音效）",
+                player.getName(), hitIndex, monsterId);
+            battleLogService.playerWhiffed(player.getSession());
+            reportWhiff(attackerEntity, player.getId(), monsterId, hitIndex);
             return;
         }
         if (!inRange(player, attackerEntity, monster)) {
+            // 起手时距离就超限（计划照发了），命中帧仍然够不着 → 同样按落空处理
+            log.info("COMBAT {} hit#{} 目标 {}#{} 已超出攻击距离 → 这一刀落空（回 MISS 修正客户端音效）",
+                player.getName(), hitIndex, monster.getName(), monsterId);
+            battleLogService.playerWhiffed(player.getSession());
+            reportWhiff(attackerEntity, player.getId(), monsterId, hitIndex);
             return;
         }
 
@@ -229,18 +275,19 @@ public class CombatService {
         int damage;
         if (plan != null) {
             if (hitIndex < 0 || hitIndex >= plan.segments.size()) {
-                log.warn("COMBAT {} hit#{} 超出计划段数 {} → 忽略（不结算）",
-                    player.getName(), hitIndex, plan.segments.size());
+                log.warn("COMBAT {} hit#{} seq={} 超出计划段数 {} → 忽略（不结算）",
+                    player.getName(), hitIndex, plan.clientSeq, plan.segments.size());
                 return;
             }
             if (plan.targetId != monsterId) {
                 // 计划里的伤害是按**计划目标的防御**掷的 → 换目标消费会让伤害与目标不匹配
-                log.warn("COMBAT {} hit#{} 目标 {} 与计划目标 {} 不一致 → 忽略",
-                    player.getName(), hitIndex, monsterId, plan.targetId);
+                log.warn("COMBAT {} hit#{} seq={} 目标 {} 与计划目标 {} 不一致 → 忽略",
+                    player.getName(), hitIndex, plan.clientSeq, monsterId, plan.targetId);
                 return;
             }
             if (!plan.applied.add(hitIndex)) {
-                log.warn("COMBAT {} hit#{} 重复上报 → 忽略（幂等）", player.getName(), hitIndex);
+                log.warn("COMBAT {} hit#{} seq={} 重复上报 → 忽略（幂等）",
+                    player.getName(), hitIndex, plan.clientSeq);
                 return;
             }
             PlannedSegment seg = plan.segments.get(hitIndex);
@@ -248,7 +295,8 @@ public class CombatService {
             critical = seg.critical();
             damage = seg.damage();
         } else {
-            // 无计划（旧客户端 / 计划丢失 / 起手被拒）→ 退回即时裁定。**可见地降级，不静默**。
+            // 无计划（旧客户端 / 计划丢失 / 起手本身就没通过）→ 退回即时裁定。**可见地降级，不静默**。
+            // 排查起点：往上找同玩家的「起手 … → 这次挥拳没有计划」行，那里写了拒绝原因。
             log.warn("COMBAT {} hit#{} 无攻击计划 → 退回即时裁定（B 方案未覆盖该链路）",
                 player.getName(), hitIndex);
             DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
@@ -266,7 +314,9 @@ public class CombatService {
             .setIsCritical(critical)
             .setHitIndex(hitIndex);
         if (missed) {
-            log.info("COMBAT {} hit#{} {}#{} -> MISS", player.getName(), hitIndex, monster.getName(), monsterId);
+            log.info("COMBAT {} hit#{} seq={} {}#{} -> MISS", player.getName(), hitIndex,
+                plan != null ? plan.clientSeq : -1, monster.getName(), monsterId);
+            battleLogService.playerMissed(player.getSession(), monster.getName());
             broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
             return;
         }
@@ -274,9 +324,10 @@ public class CombatService {
 
         monster.setHp(monster.getHp() - damage);
 
-        log.info("COMBAT {} hit#{} {}#{} -> {} dmg (crit={}), hp {}/{}",
-            player.getName(), hitIndex, monster.getName(), monsterId,
-            damage, critical, monster.getHp(), monster.getMaxHp());
+        log.info("COMBAT {} hit#{} seq={} {}#{} -> {} dmg (crit={}), hp {}/{}",
+            player.getName(), hitIndex, plan != null ? plan.clientSeq : -1,
+            monster.getName(), monsterId, damage, critical, monster.getHp(), monster.getMaxHp());
+        battleLogService.playerDealtDamage(player.getSession(), monster.getName(), damage, critical);
 
         // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）。坐标取实体
         if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {
@@ -290,9 +341,26 @@ public class CombatService {
         }
     }
 
+    /**
+     * 命中帧判定为「没打中」（够不着 / 目标已消失）→ 给攻击者回一条 missed 结算。
+     * 客户端据此把计划里那一刀播的命中音淡出、改播挥空音，并飘出 MISS —— 语义对齐原版
+     * `AttackCritcal < 0`。**绝不静默丢弃**：静默会让客户端留着一声命中音，而怪物头上
+     * 既没有伤害数字也没有 MISS（玩家看到的自相矛盾反馈）。
+     */
+    private void reportWhiff(PlayerEntity attackerEntity, long attackerId, long monsterId, int hitIndex) {
+        MessageProto.S2C_AttackResult ar = MessageProto.S2C_AttackResult.newBuilder()
+            .setAttackerId(attackerId)
+            .setTargetId(monsterId)
+            .setDamage(0)
+            .setMissed(true)
+            .setIsCritical(false)
+            .setHitIndex(hitIndex)
+            .build();
+        broadcastAttackResult(attackerEntity, ar);
+    }
+
     /** 距离校验：≤ 攻击距离（远程武器用射程） */
-    private boolean inRange(Player player, PlayerEntity attacker, Monster monster) {
-        double dx = attacker.getX() - monster.getX();
+    private boolean inRange(Player player, PlayerEntity attacker, Monster monster) {        double dx = attacker.getX() - monster.getX();
         double dz = attacker.getZ() - monster.getZ();
         double range = attackRange(player);
         return dx * dx + dz * dz <= range * range;
@@ -304,6 +372,21 @@ public class CombatService {
         }
         MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
             .setAttackStart(start)
+            .build();
+        messageSender.broadcastToArea(center.getMapId(),
+            (float) center.getX(), (float) center.getZ(), 50, msg);
+    }
+
+    /**
+     * 把攻击计划也广播给旁观者（同一份，含各段 miss/暴击）。
+     * 攻击者本人已在前面单独收到过；重复收到无害（客户端按 clientSeq 校验自己那份）。
+     */
+    private void broadcastAttackPlan(PlayerEntity center, MessageProto.S2C_AttackPlan plan) {
+        if (center == null) {
+            return;
+        }
+        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
+            .setAttackPlan(plan)
             .build();
         messageSender.broadcastToArea(center.getMapId(),
             (float) center.getX(), (float) center.getZ(), 50, msg);
@@ -348,6 +431,7 @@ public class CombatService {
             .setHitIndex(0);
         if (result.isMissed()) {
             log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
+            battleLogService.playerMissed(player.getSession(), monster.getName());
             broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
             return;
         }
@@ -359,6 +443,8 @@ public class CombatService {
             player.getName(), monster.getName(), monsterId,
             result.getFinalDamage(), result.getRawDamage(), result.isCritical(),
             monster.getHp(), monster.getMaxHp());
+        battleLogService.playerDealtDamage(player.getSession(), monster.getName(),
+            result.getFinalDamage(), result.isCritical());
 
         // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）。坐标取实体
         if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {
@@ -449,6 +535,11 @@ public class CombatService {
         // 权威落库：经验/金币/等级/属性点写回 characterinfo
         playerService.persistStats(killer);
 
+        // 经验/金币/等级变了必须**推给击杀者**：原先这里只写内存+落库，客户端没有任何通知 →
+        // HUD 经验条与角色面板"打怪也不变动"（用户 2026-09-12 报）。一次 sendPlayerStatus 同时下发
+        // S2C_PlayerState(HUD) + S2C_CharacterStatus(面板)。
+        playerService.sendPlayerStatus(killer.getSession(), killer);
+
         // 通知视野内观察者：击杀者带 exp/gold；其余只收死亡事件。尸体不保留（AOI 清出）。
         monsterAOI.onMonsterDeath(monster, killer.getId(), exp, gold);
     }
@@ -465,14 +556,31 @@ public class CombatService {
     }
 
     private boolean checkAttackCooldown(Player player) {
-        int interval = attackIntervalMs(statCalculator.attackSpeed(player));
+        int tolerated = attackGateMs(player);
         long now = System.currentTimeMillis();
         Long lastAttack = attackCooldowns.get(player.getId());
-        if (lastAttack != null && now - lastAttack < interval) {
+        if (lastAttack != null && now - lastAttack < tolerated) {
             return false;
         }
         attackCooldowns.put(player.getId(), now);
         return true;
+    }
+
+    /**
+     * 起手冷却的**判定阈值** = 攻击间隔 × 90%。
+     * 10% 冗余的理由：服务端是在**处理时刻**用墙钟计时，会带上 netty 事件循环的调度抖动（实测 ±80ms）；
+     * 客户端起手闸门已是「间隔 + 67ms」，抖动与之同量级时会误拒本来合规的起手（实测约 1/30 次）。
+     * 代价：客户端最多可超速约 11%。见 docs/design-player-combat.md §12.5（用户 2026-09-12 决定）。
+     */
+    private int attackGateMs(Player player) {
+        int interval = attackIntervalMs(statCalculator.attackSpeed(player));
+        return interval - interval / 10;
+    }
+
+    /** 距上次成功起手的毫秒数（无记录返回 -1）。冷却拒绝时写进日志，便于判断差了多少。 */
+    private long msSinceLastAttack(Player player) {
+        Long last = attackCooldowns.get(player.getId());
+        return last == null ? -1 : System.currentTimeMillis() - last;
     }
 
     private Monster findMonsterById(long monsterId, int mapId) {
@@ -496,6 +604,15 @@ public class CombatService {
         int z = start != null ? start[1] : 0;
         int half = Math.max(1, player.getMaxHp() / 2);
 
+        // y 必须按**目标地图**的地形算：出生点数据只有 {x,z}，不设 y 就会带着上一张图的高度复活，
+        // 客户端随即自由落体（日志 0x70 FALLDOWN）并把坏 y 写回存档 → 下次登录继续沉（用户 2026-09-12 报）。
+        double terrainY = mapRegionService.getHeight(mapId, x, z);
+        if (terrainY <= 0) {
+            // getHeight=0 表示该点无可站立地面（出生点数据与地形不匹配）——可见地降级，不静默塞 0
+            log.warn("COMBAT {} 复活点 map {} ({},{}) 无可站立地面（getHeight=0）→ 保留原 y {}, 请核对出生点数据",
+                player.getName(), mapId, x, z, entity != null ? entity.getY() : 0);
+        }
+
         player.setHp(half);
 
         // 坐标/地图权威在 PlayerEntity;跨图才做 AOI 摘除/重挂(无缝坐标下相邻仍可见,由 AOI 判断)
@@ -503,6 +620,9 @@ public class CombatService {
             boolean switchedMap = entity.getMapId() != mapId;
             entity.setX(x);
             entity.setZ(z);
+            if (terrainY > 0) {
+                entity.setY(terrainY);
+            }
             if (switchedMap) {
                 entity.setMapId(mapId);
                 aoiManager.onPlayerLeave(entity);
@@ -511,7 +631,8 @@ public class CombatService {
                 aoiManager.onPlayerEnter(entity);
             }
         }
-        log.info("Player {} died, respawn to map {} ({},{}) hp {}", player.getName(), mapId, x, z, half);
+        log.info("Player {} died, respawn to map {} ({},{}) y={} hp {}",
+            player.getName(), mapId, x, z, terrainY > 0 ? String.valueOf((int) terrainY) : "keep", half);
         // 通知前端：重新进入出生地图（半血）
         session.sendText("{\"type\":\"game.playerRespawn\",\"data\":{\"mapId\":"
             + mapId + ",\"x\":" + x + ",\"z\":" + z + ",\"hp\":" + half + "}}");

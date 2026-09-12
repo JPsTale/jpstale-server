@@ -225,6 +225,10 @@ public class MovementService {
                 .setAngle((float) entity.getAngle())
                 .setAnimState(animState)
                 .setTimestamp(System.currentTimeMillis())
+                // 该玩家正播的那一条动画（含变体）：**原样透传**，旁观者据此直接播同一条。
+                // 只透传、不解释 —— 服务端不持有任何动画数据（见 docs/chars/语义化动画系统.md）。
+                .setAnimIndex(session.getPendingMoveAnimIndex())
+                .setAnimClip(session.getPendingMoveAnimClip() == null ? "" : session.getPendingMoveAnimClip())
                 .build())
             .build();
 

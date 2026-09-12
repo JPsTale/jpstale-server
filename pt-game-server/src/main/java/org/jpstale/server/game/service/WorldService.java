@@ -81,6 +81,9 @@ public class WorldService {
         session.setPendingMoveAngle(move.getAngle());
         session.setPendingMoveMode(move.getMode());
         session.setPendingMoveAnimState(move.getAnimState());
+        // 该玩家"正播的哪一条动画"：原样透传，旁观者直接播同一条（服务端不解释其含义）
+        session.setPendingMoveAnimIndex(move.getAnimIndex());
+        session.setPendingMoveAnimClip(move.getAnimClip());
     }
 
 /**

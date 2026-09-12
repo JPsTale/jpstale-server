@@ -21,6 +21,14 @@ public class DamageCalculator {
      * 计算玩家对怪物的伤害
      */
     public DamageResult calculatePlayerToMonster(Player player, Monster monster, int skillDamage) {
+        // 0. 命中判定（原版 Accuracy_Table：攻方命中+等级 对 防方等级+防御）
+        //    必须在暴击/伤害之前：未命中就不掷暴击、不出伤害，否则会出现「MISS 却带暴击」的自相矛盾。
+        //    B 方案下这一掷发生在**起手**，结果随 S2C_AttackPlan 下发，客户端在事件帧就能直接播挥空音。
+        int hitPercent = statCalculator.accuracyPvp(player, monster.getLevel(), monster.getDefense());
+        if (ThreadLocalRandom.current().nextInt(100) >= hitPercent) {
+            return DamageResult.miss();
+        }
+
         DamageResult result = new DamageResult();
 
         // 1. 基础伤害 = 玩家攻击力 + 技能伤害
@@ -55,6 +63,15 @@ public class DamageCalculator {
      * 计算怪物对玩家的伤害
      */
     public DamageResult calculateMonsterToPlayer(Monster monster, Player player) {
+        // 0. 命中判定（原版 `sinGetMonsterAccuracy`：怪.attackRating 对 玩家.等级/防御，系数 ×2、等级修正 ×50）
+        //    必须在伤害/格挡之前：未命中就不该有伤害，也不该触发受击硬直与受击音（客户端按 damage 判断）。
+        int hitPercent = statCalculator.monsterAccuracyPvp(
+            monster.getLevel(), monster.getAttackRating(),
+            player.getLevel(), calculatePlayerDefense(player));
+        if (ThreadLocalRandom.current().nextInt(100) >= hitPercent) {
+            return DamageResult.miss();
+        }
+
         DamageResult result = new DamageResult();
 
         // 1. 基础伤害 = 怪物攻击力

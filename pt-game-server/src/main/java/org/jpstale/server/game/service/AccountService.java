@@ -39,6 +39,13 @@ import java.util.regex.Pattern;
 @Service
 public class AccountService {
 
+    /**
+     * 进图时"存档 y 与地形高度差"的容忍上限（world 单位）。
+     * 超过它说明存档 y 不是这张图这一点的（换图/客户端算错/复活后自由落体写回的坏值）→ 以地形为准。
+     * 角色高约 100 world，128 足以放行斜坡与台阶的正常差异。
+     */
+    private static final double SPAWN_Y_TOLERANCE = 128.0;
+
     @Autowired
     private UserInfoMapper userInfoMapper;
 
@@ -65,6 +72,9 @@ public class AccountService {
 
     @Autowired
     private ItemMapper itemMapper;
+
+    @Autowired
+    private org.jpstale.server.game.item.ItemStorageService itemStorageService;
 
     @Autowired
     private ItemListMapper itemListMapper;
@@ -428,10 +438,11 @@ public class AccountService {
         int head = character.getHead() != null ? character.getHead() : 0;
         int rank = character.getRank() != null ? character.getRank() : 0;
 
-        List<org.jpstale.dao.userdb.entity.Item> items = itemMapper.selectList(
-            new LambdaQueryWrapper<org.jpstale.dao.userdb.entity.Item>()
-                .eq(org.jpstale.dao.userdb.entity.Item::getCharacterId, character.getId())
-                .eq(org.jpstale.dao.userdb.entity.Item::getLocation, (short) org.jpstale.server.game.item.ItemLocations.EQUIP));
+        // 只读**活**装备行：换下的装备不删行、只写 delete_time，漏掉这个条件会把旧武器/旧甲
+        // 一起读进来，derive 按"最后一条胜出"取到已经换掉的那件（用户 2026-09-12 报的 test_fs_40：
+        // 选角列表与实际装备不符，按 W / 动背包触发了在线 recalc 才刷新）。
+        List<org.jpstale.dao.userdb.entity.Item> items = itemStorageService.loadActiveRows(
+            character.getId().intValue(), org.jpstale.server.game.item.ItemLocations.EQUIP);
 
         // 装备条目（槽位 + 定义）→ 与在线换装共用同一套外观推导（AppearanceService.derive）
         List<AppearanceService.EquipEntry> equips = new ArrayList<>();
@@ -583,7 +594,24 @@ public class AccountService {
         if (hasSave) {
             sx = character.getPosX().floatValue();
             sz = character.getPosZ().floatValue();
-            sy = character.getPosY() != null ? character.getPosY() : mapRegionService.getHeight(mapId, sx, sz);
+            // 存档 y 未必可信：它是**客户端上报**的值，一旦客户端在别的地图/空中把 y 算错
+            // （最典型：复活后自由落体，见 CombatService.respawnPlayer 注释），坏 y 会被写回存档并自我循环。
+            // 所以只在与本图地形**基本吻合**时沿用存档 y（斜坡/台阶的细微差异保留），差得离谱就以地形为准。
+            double terrainY = mapRegionService.getHeight(mapId, sx, sz);
+            Double savedY = character.getPosY();
+            if (savedY == null) {
+                sy = terrainY;
+            } else if (terrainY <= 0) {
+                sy = savedY;   // 该点查不到地面：只能信存档（并留痕）
+                log.warn("spawn y: {} 在 map {} ({},{}) 查不到地面，沿用存档 y={}",
+                    character.getName(), mapId, (int) sx, (int) sz, savedY);
+            } else if (Math.abs(savedY - terrainY) > SPAWN_Y_TOLERANCE) {
+                sy = terrainY;
+                log.info("spawn y 已按地形纠正: {} map {} ({},{}) 存档 y={} → 地形 y={}",
+                    character.getName(), mapId, (int) sx, (int) sz, savedY, (int) terrainY);
+            } else {
+                sy = savedY;
+            }
             if (character.getPosAngle() != null) {
                 savedAngle = character.getPosAngle();
             }

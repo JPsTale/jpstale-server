@@ -219,6 +219,21 @@ public class ItemStorageService {
                         .isNull(Item::getDeleteTime));
     }
 
+    /**
+     * 装载某玩家**指定容器**的活物品（delete_time IS NULL）。
+     * <p>
+     * ⚠ 软删除条件必须只有这一处实现：`userdb.item` 的**换下的装备不删行、只写 delete_time**
+     * （W 换武器/换甲都会留下旧行），漏掉这个条件就会把已经换掉的装备也读进来 ——
+     * 选角列表的外观曾因此按"最后一条胜出"取到旧弓/旧甲（用户 2026-09-12 报的 test_fs_40）。
+     */
+    public List<Item> loadActiveRows(int characterId, int location) {
+        return itemMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Item>()
+                        .eq(Item::getCharacterId, characterId)
+                        .eq(Item::getLocation, (short) location)
+                        .isNull(Item::getDeleteTime));
+    }
+
     /** 插入新实例（掷点/拾取/发放）；写回自增 id。 */
     @Transactional
     public void insert(ItemInstance it) {

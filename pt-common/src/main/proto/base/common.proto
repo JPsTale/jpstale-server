@@ -74,6 +74,9 @@ enum ChatChannel {
   CHAT_PRIVATE = 4;
   CHAT_SYSTEM = 5;
   CHAT_TRADE = 6;
+  // 战斗日志（受击/击杀/经验）：**从系统频道分出来**，战斗刷屏不再吃掉系统消息的注意力。
+  // 走 S2C_SystemMessage.channel 投递；未显式设置该字段的一律按系统消息处理。
+  CHAT_BATTLE = 7;
 }
 
 // 技能类型

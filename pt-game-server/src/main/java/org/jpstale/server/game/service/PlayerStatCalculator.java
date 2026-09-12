@@ -157,12 +157,13 @@ public class PlayerStatCalculator {
         // 每秒恢复（原版 sinSetRegen）：
         //  HP = ((Lv + STR/2 + HEA)/180 + 装备再生 再生Life_Regen)/1.5
         //  MP = (Lv + SPR*1.2 + HEA/2)/115 + 装备再生 Mana_Regen
-        //  STM = 装备再生 Stamina_Regen
+        //  STM = (Lv + HEA)/100 + 装备再生 Stamina_Regen
         double hpEquip = e.regenHp;
         double mpEquip = e.regenMp;
+        double stmEquip = e.regenStm;
         s.regenHp = ((p.getLevel() + p.getStrength() / 2.0 + p.getHealth()) / 180.0 + hpEquip) / 1.5;
         s.regenMp = (p.getLevel() + p.getSpirit() * 1.2 + p.getHealth() / 2.0) / 115.0 + mpEquip;
-        s.regenStm = e.regenStm;
+        s.regenStm = (p.getLevel() + p.getHealth()) / 100.0 + stmEquip;
         s.avoid = avoidOf(s.attackRating, s.defense);
         return s;
     }
@@ -316,6 +317,39 @@ public class PlayerStatCalculator {
             }
         }
         int result = (int) (real - ((desLevel - p.getLevel()) / 100.0) * 28);
+        return Math.clamp(result, 30, 95);
+    }
+
+    /**
+     * 怪物命中率 —— 原版 `sinGetMonsterAccuracy(MonsterLV, MonsterAttack_Rating)` 逐行照抄
+     * （ex-machina `src/game/Legacy/Game/Interface/sinSubMain.cpp:1025`）：
+     * <pre>
+     *   AC_R = (怪.attackRating − 玩家.Defence) * 2        ← 系数 2（玩家互打/打怪是 1.4）
+     *   查同一张 Accuracy_Table
+     *   Result = RealAC − ((玩家等级 − 怪等级) / 100) * 50  ← 等级修正 ×50（玩家侧是 ×28）
+     *   clamp 30..95
+     * </pre>
+     * ⚠ 与另两个函数的唯一差别：原版这个函数**没有** `AC_R < -190 → 50` / `> 2100 → 95` 两处提前返回，
+     * 表外会读到上一次调用遗留的 RealAC（未初始化静态量，属原版缺陷）。这里按同族函数的约定补上
+     * 两端收敛（低于表首 → 50、高于表尾 → 95），避免把它照抄成未定义行为。
+     */
+    public int monsterAccuracyPvp(int monsterLevel, int monsterAttackRating, int playerLevel, int playerDefense) {
+        double ac = (monsterAttackRating - playerDefense) * 2.0;
+        int real;
+        if (ac <= ACC_AC[0]) {
+            real = 50;
+        } else if (ac >= ACC_AC[ACC_AC.length - 1]) {
+            real = 95;
+        } else {
+            real = 50;
+            for (int i = 0; i < ACC_AC.length - 1; i++) {
+                if (ac > ACC_AC[i] && ac <= ACC_AC[i + 1]) {
+                    real = ACC_PCT[i + 1];
+                    break;
+                }
+            }
+        }
+        int result = (int) (real - ((playerLevel - monsterLevel) / 100.0) * 50);
         return Math.clamp(result, 30, 95);
     }
 

@@ -284,6 +284,7 @@ public class MonsterSpawnService {
         monster.setMaxHp(template.getHp() != null ? template.getHp() : 1);
         monster.setAttack(template.getAtkPowMin() != null ? template.getAtkPowMin() : 1);
         monster.setDefense(template.getDefense() != null ? template.getDefense() : 0);
+        monster.setAttackRating(template.getAttackRating() != null ? template.getAttackRating() : 0);
         monster.setSpeed(template.getMoveSpeed() != null ? template.getMoveSpeed() : 1);
         monster.setAttackRange(template.getAttackRange() != null ? template.getAttackRange() : 90);
         monster.setAbsorption(template.getAbsorb() != null ? template.getAbsorb() : 0);

@@ -188,6 +188,11 @@ message C2S_PlayerMove {
   int64 timestamp = 4;    // 客户端本地时间(ms)
   int32 anim_state = 5;   // 动画状态覆盖（0=按 mode 推导 STAND/WALK/RUN；掉落时上报
                           // FALLDOWN=0x70/FALLSTAND=0x71/FALLDAMAGE=0x72，服务端原样广播）
+  // 「动画状态」只说明**播哪一类**（站/走/跑…），同一类下还有多个变体。变体原先由各客户端各自
+  // 随机选 → 同一个角色在别人屏幕上播的是另一条。故**上报自己正播的那一条**，服务端原样透传，
+  // 旁观者直接播同一条（不再各自匹配）。0/空 = 未提供 → 旁观者回退本地匹配并上报降级。
+  int32 anim_index = 6;   // 动画条目索引（.inx 条目号）—— 跨端播放的依据
+  string anim_clip = 7;   // 同一条的语义 ID（如 stand_unarmed.m4.10）—— 校验两端数据是否同代
 }
 
 message C2S_PlayerAction {
@@ -284,6 +289,8 @@ message S2C_PlayerMove {
   float angle = 3;         // 朝向弧度（0=+Z 北）
   int32 anim_state = 4;    // 动画状态值（客户端 STATE 枚举值: 0x0040 STAND / 0x0050 WALK / 0x0060 RUN）
   int64 timestamp = 5;
+  int32 anim_index = 6;    // 该玩家客户端上报的**动画条目索引**（原样透传）→ 旁观者直接播同一条
+  string anim_clip = 7;    // 同一条的语义 ID（校验两端动画数据是否同代）
 }
 
 // 进入游戏：选角色成功后服务端主动下发（对齐原版 RECORDDATA 进图语义）。
@@ -316,6 +323,9 @@ message S2C_PlayerState {
   int32 move_speed = 15; // 移动速度点数(1-9)
   int32 walk_speed = 16; // 走路速度(游戏单位/秒)
   int32 run_speed = 17;  // 跑步速度(游戏单位/秒)
+  // 当前等级起点的**累计**经验（= expForLevel(level)）。经验是累计值，
+  // 所以「本级已获得 / 本级升级所需」= (exp - level_exp) / (next_exp - level_exp)。
+  int64 level_exp = 18;
 }
 
 message S2C_PlayerDeath {
@@ -376,6 +386,9 @@ message S2C_CharacterStatus {
   float mp_regen = 41;      // 每秒魔法恢复
   float stm_regen = 42;     // 每秒体力恢复（含天生 3.8 + Level/7）
   int32 current_weight = 43; // 当前负重（背包+装备+备用武器；药水按瓶数），与 max_weight 同口径
+  // 当前等级起点的累计经验（同 S2C_PlayerState.level_exp）：角色面板显示
+  // 「本级已获得 / 本级升级所需」用，避免只显示一个「剩余所需」看不出进度。
+  int64 level_exp = 44;
 }
 
 // 外观更新：穿/脱装备、W 武器切换后服务端推送，客户端据此更新 3D 角色模型。
@@ -450,6 +463,10 @@ message C2S_AttackStart {
   // 「合法段数上限」——C2S_AttackHit 的 hit_index 超出即忽略（部分补齐 §8 的段数校验）。
   // ⚠ 该值目前由客户端声明（服务端只做 1..4 截断），完整校验需服务端持有动画表（后续）。
   int32 segments = 3;
+  // 本次挥击的动画条目（同 C2S_PlayerMove.anim_index/anim_clip）：
+  // 攻击动作的**变体与长度**因武器的单双手/类型而异，旁观者必须播同一条才不会"一刀两种动作"。
+  int32 anim_index = 4;
+  string anim_clip = 5;
 }
 
 // 命中帧（每段一次）：hit_index = 段序号（0..3，对应 motion.eventFrame 第几个非零帧）
@@ -497,6 +514,8 @@ message S2C_AttackStart {
   int64 attacker_id = 1;
   int64 target_id = 2;
   sint32 attack_speed = 3;
+  int32 anim_index = 4;     // 攻击者上报的挥击动画条目（原样透传）→ 旁观者直接播同一条
+  string anim_clip = 5;     // 同一条的语义 ID（校验两端动画数据是否同代）
 }
 
 message S2C_SkillAttack {
@@ -517,6 +536,9 @@ message S2C_Damage {
   int64 target_id = 1;
   int32 damage = 2;
   int32 current_hp = 3;
+  // 怪打玩家的命中判定未通过（原版 sinGetMonsterAccuracy）：damage=0、血量不变，
+  // 客户端在受害者头顶飘 MISS（与自机挥空同款），不播受击硬直/受击音。
+  bool missed = 4;
 }
 
 message S2C_Heal {
@@ -683,6 +705,9 @@ message S2C_SystemMessage {
   // key 不在语言表时客户端 fallback 显示 key 本身
   string key = 3;
   map<string, string> params = 4;
+  // 投递到哪个聊天 tab。**未设置（默认 0）一律按系统消息处理**（客户端只认 CHAT_BATTLE），
+  // 所以老的发送方不用改；战斗日志（BattleLogService）显式设 CHAT_BATTLE 走"战斗"tab。
+  ChatChannel channel = 5;
 }
 
 message S2C_Disconnect {

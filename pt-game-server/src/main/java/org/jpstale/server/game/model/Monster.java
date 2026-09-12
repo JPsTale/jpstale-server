@@ -23,6 +23,8 @@ public class Monster extends BaseEntity {
     private int maxMp;
     private int attack;
     private int defense;
+    /** 命中值（模板 attackrating）：怪打玩家的命中判定用（原版 sinGetMonsterAccuracy） */
+    private int attackRating;
     private float speed;
     private float attackRange;
     private float attackSpeed; // 攻击间隔（毫秒）
@@ -56,10 +58,11 @@ public class Monster extends BaseEntity {
     private int dropQuantity = 1;      // 掉落掷点次数
     private boolean dropIsPublic;      // true=公共可见，false=仅击杀者可见
 
-    // 广播节流（AOI 写入）：动画 token / 位置只在变化时下发给观察者
+    // 广播节流（AOI 写入）：动画 token / 位置 / 朝向只在变化时下发给观察者
     private int lastBroadcastAnim = -1;
     private double lastBroadcastX = Double.NaN;
     private double lastBroadcastZ = Double.NaN;
+    private double lastBroadcastAngle = Double.NaN;
 
     /** D10 邻近回收：最近一次"有玩家临近(DISCONNECT 内)"的时间(ms) */
     private long lastNearPlayerMs = System.currentTimeMillis();

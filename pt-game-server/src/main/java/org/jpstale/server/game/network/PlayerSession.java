@@ -50,6 +50,15 @@ public class PlayerSession {
     private volatile double pendingMoveAngle;
     /** 动画覆盖：0=按 mode 推导；非 0（如掉落 0x70/0x71/0x72）时 S2C 广播用它 */
     private volatile int pendingMoveAnimState;
+    /**
+     * 该玩家**自己正播的那一条动画**：.inx 条目索引 + 语义 ID（如 stand_unarmed.m4.10）。
+     *
+     * 服务端只做**透传**，不理解其含义 —— 「动画状态」只说明播哪一类（站/走/跑），
+     * 同一类下还有多个变体，而变体原先由各客户端各自随机选 → 同一个角色在别人屏幕上
+     * 播的是另一条。由该玩家上报、经 S2C_PlayerMove 原样广播后，旁观者直接播同一条。
+     */
+    private volatile int pendingMoveAnimIndex;
+    private volatile String pendingMoveAnimClip = "";
     /** 上一条已接受位置的时间戳(ms)；0=尚未接受（首条不限速） */
     private long lastMoveAcceptedMs;
 

@@ -81,6 +81,7 @@ public class AiEngine {
                     logState(monster, prevState, MonsterState.ATTACK, "lock target=" + targetName(target));
                     monster.setState(MonsterState.ATTACK);
                 }
+                faceTarget(monster, target);
                 tryAttack(monster, target);
             } else {
                 if (monster.getState() != MonsterState.CHASE) {
@@ -246,6 +247,29 @@ public class AiEngine {
 
     // ======== 攻击 ========
 
+    /**
+     * 站桩攻击时面朝目标。
+     *
+     * 原先**只有** `MovementService.moveToward`（追击移动）会写 `monster.angle`，所以一旦进入攻击距离
+     * 停下不动，朝向就停在上一次移动的方向 —— 从侧面/背面靠近或被人从背后打时，
+     * 怪会**背对玩家挥击**（用户 2026-09-12 实测发现）。
+     * 转向写成 monster.angle 后由 MonsterAOI.broadcastMove 下发（那里也已把朝向纳入"变化"判定）。
+     */
+    private void faceTarget(Monster monster, PlayerEntity target) {
+        double dx = target.getX() - monster.getX();
+        double dz = target.getZ() - monster.getZ();
+        if (dx * dx + dz * dz < 0.0001) {
+            return;
+        }
+        double angle = Math.atan2(dx, dz);   // 与 moveToward 同一约定：0 = +Z
+        double diff = angle - monster.getAngle();
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));   // 归一化到 (-π, π]，避免跨 ±π 误判
+        if (Math.abs(diff) < 0.02) {
+            return;   // 已朝向目标，不必每 tick 都写
+        }
+        monster.setAngle(angle);
+    }
+
     private boolean inAttackRange(Monster monster, PlayerEntity target) {
         double range = monster.getAttackRange() > 0 ? monster.getAttackRange() : 2.0;
         if (distXZ(monster, target) > range) {
@@ -270,6 +294,27 @@ public class AiEngine {
             return;
         }
         DamageResult result = damageCalculator.calculateMonsterToPlayer(monster, player);
+
+        // 未命中（原版 sinGetMonsterAccuracy）：不扣血、不写战斗日志、不触发受击硬直，
+        // 只广播一条 missed 让受害者头顶飘 MISS —— 低等级怪打高等级玩家常常打空，正是靠这条体现。
+        if (result.isMissed()) {
+            log.info("[MonsterAI] {}#{} ATK {} -> MISS, interval={}ms",
+                monster.getName(), monster.getId(), targetName(target), interval);
+            battleLogService.monsterMissed(player.getSession(), monster.getName());
+            messageSender.broadcastToArea(target.getMapId(),
+                (float) target.getX(), (float) target.getZ(), 50,
+                MessageProto.ServerMessage.newBuilder()
+                    .setDamage(MessageProto.S2C_Damage.newBuilder()
+                        .setTargetId(player.getId())
+                        .setDamage(0)
+                        .setCurrentHp(player.getHp())
+                        .setMissed(true)
+                        .build())
+                    .build());
+            monster.setLastBroadcastAnim(-1);   // 下一刀仍广播攻击动作，玩家看得到挥空
+            return;
+        }
+
         int newHp = Math.max(0, player.getHp() - result.getFinalDamage());
         player.setHp(newHp);
 

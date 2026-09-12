@@ -237,6 +237,8 @@ public class PlayerService {
             .setGold(p.getGold())
             .setExp(p.getExp())
             .setNextExp(getExpForLevel(p.getLevel() + 1))
+            // 经验是**累计值**，本级进度必须减掉本级起点：客户端显示「本级已获得 / 本级升级所需」
+            .setLevelExp(getExpForLevel(p.getLevel()))
             .setMoveSpeed(statCalculator.moveSpeedStat(p))
             .setWalkSpeed((int) statCalculator.walkSpeed(p))
             .setRunSpeed((int) statCalculator.runSpeed(p))
@@ -256,6 +258,8 @@ public class PlayerService {
             .setLevel(p.getLevel())
             .setExp(p.getExp())
             .setNextExp(getExpForLevel(p.getLevel() + 1))
+            // 经验是累计值：本级进度 = exp - levelExp（见 S2C_PlayerState.level_exp 注释）
+            .setLevelExp(getExpForLevel(p.getLevel()))
             .setGold(p.getGold())
             .setStrength(p.getStrength()).setSpirit(p.getSpirit())
             .setTalent(p.getTalent()).setAgility(p.getAgility()).setHealth(p.getHealth())
