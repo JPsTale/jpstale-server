@@ -12,7 +12,11 @@ import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -67,6 +71,28 @@ public class CombatService {
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
     private static final double MELEE_ATTACK_RANGE = 48.0;
 
+    /** 每次攻击最多 4 段（原版 `EventFrame[0..3]`） */
+    private static final int MAX_ATTACK_SEGMENTS = 4;
+
+    /** 单段裁定结果（服务端掷出，随 S2C_AttackPlan 下发，命中帧按段消费） */
+    private record PlannedSegment(boolean missed, boolean critical, int damage) {}
+
+    /** 一次攻击的计划：段结果 + 已结算段（幂等）+ 客户端序号（防错配） */
+    private static final class AttackPlan {
+        final int clientSeq;
+        final long targetId;                      // 计划针对的目标 —— 命中帧的目标必须与它一致
+        final List<PlannedSegment> segments;
+        final Set<Integer> applied = new HashSet<>();
+        AttackPlan(int clientSeq, long targetId, List<PlannedSegment> segments) {
+            this.clientSeq = clientSeq;
+            this.targetId = targetId;
+            this.segments = segments;
+        }
+    }
+
+    /** playerId → 当前攻击计划。起手时写入（覆盖旧的），命中帧按段消费。 */
+    private final Map<Long, AttackPlan> attackPlans = new ConcurrentHashMap<>();
+
     /**
      * 玩家攻击距离：远程武器（射程>0，如弓）用其射程（对齐原版 Shooting_Range）；
      * 近战/徒手用固定近战距离。射程小于近战时取近战（防小射程武器反而更短）。
@@ -88,7 +114,8 @@ public class CombatService {
         if (player == null) {
             return;
         }
-        playerAttackStart(player, message.getAttackStart().getTargetId());
+        MessageProto.C2S_AttackStart req = message.getAttackStart();
+        playerAttackStart(player, req.getTargetId(), req.getClientSeq(), req.getSegments());
     }
 
     /**
@@ -127,7 +154,7 @@ public class CombatService {
      * 起手（挥拳开始）：冷却 + 距离校验 → 广播 S2C_AttackStart（旁观者据此立刻挥拳 + 定挥拳时长）。
      * 不结算伤害；伤害由后续命中帧 C2S_AttackHit 触发。
      */
-    public void playerAttackStart(Player player, long monsterId) {
+    public void playerAttackStart(Player player, long monsterId, int clientSeq, int declaredSegments) {
         if (!checkAttackCooldown(player)) {
             return;
         }
@@ -143,6 +170,31 @@ public class CombatService {
         if (!inRange(player, attackerEntity, monster)) {
             return;
         }
+        // ── B 方案：**在这里就把各段结果裁定好**（而不是等命中帧），随 S2C_AttackPlan 下发。
+        // 客户端因此可以在事件帧直接播正确的音（miss/暴击），无需等一次往返。
+        // 段数由客户端声明（它知道自己的动画有几个非零 eventFrame），此处只做 1..4 截断；
+        // 计划长度同时成为「合法段数上限」——命中帧超出即忽略（部分补齐 §8 的段数校验）。
+        int segCount = Math.max(1, Math.min(MAX_ATTACK_SEGMENTS, declaredSegments));
+        List<PlannedSegment> segs = new ArrayList<>(segCount);
+        for (int i = 0; i < segCount; i++) {
+            DamageResult roll = damageCalculator.calculatePlayerToMonster(player, monster, 0);
+            segs.add(new PlannedSegment(roll.isMissed(), roll.isCritical(), roll.getFinalDamage()));
+        }
+        attackPlans.put(player.getId(), new AttackPlan(clientSeq, monsterId, segs));
+        if (session != null) {
+            MessageProto.S2C_AttackPlan.Builder plan = MessageProto.S2C_AttackPlan.newBuilder()
+                .setClientSeq(clientSeq)
+                .setAttackerId(player.getId())
+                .setTargetId(monsterId);
+            for (int i = 0; i < segs.size(); i++) {
+                PlannedSegment seg = segs.get(i);
+                plan.addSegments(MessageProto.AttackSegment.newBuilder()
+                    .setIndex(i).setMissed(seg.missed())
+                    .setIsCritical(seg.critical()).setDamage(seg.damage()));
+            }
+            session.send(MessageProto.ServerMessage.newBuilder().setAttackPlan(plan).build());
+        }
+
         MessageProto.S2C_AttackStart start = MessageProto.S2C_AttackStart.newBuilder()
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
@@ -169,29 +221,62 @@ public class CombatService {
             return;
         }
 
-        DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
+        // ── B 方案：结果**取自起手时已裁定的计划**，不再在这里掷 ——
+        // 客户端已按计划播了音，若此处重掷就会出现「听到暴击、账本说没有」的自相矛盾。
+        AttackPlan plan = attackPlans.get(player.getId());
+        boolean missed;
+        boolean critical;
+        int damage;
+        if (plan != null) {
+            if (hitIndex < 0 || hitIndex >= plan.segments.size()) {
+                log.warn("COMBAT {} hit#{} 超出计划段数 {} → 忽略（不结算）",
+                    player.getName(), hitIndex, plan.segments.size());
+                return;
+            }
+            if (plan.targetId != monsterId) {
+                // 计划里的伤害是按**计划目标的防御**掷的 → 换目标消费会让伤害与目标不匹配
+                log.warn("COMBAT {} hit#{} 目标 {} 与计划目标 {} 不一致 → 忽略",
+                    player.getName(), hitIndex, monsterId, plan.targetId);
+                return;
+            }
+            if (!plan.applied.add(hitIndex)) {
+                log.warn("COMBAT {} hit#{} 重复上报 → 忽略（幂等）", player.getName(), hitIndex);
+                return;
+            }
+            PlannedSegment seg = plan.segments.get(hitIndex);
+            missed = seg.missed();
+            critical = seg.critical();
+            damage = seg.damage();
+        } else {
+            // 无计划（旧客户端 / 计划丢失 / 起手被拒）→ 退回即时裁定。**可见地降级，不静默**。
+            log.warn("COMBAT {} hit#{} 无攻击计划 → 退回即时裁定（B 方案未覆盖该链路）",
+                player.getName(), hitIndex);
+            DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
+            missed = result.isMissed();
+            critical = result.isCritical();
+            damage = result.getFinalDamage();
+        }
 
         // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
         // broadcastToArea 已覆盖攻击者本人，无需再单独 sendToPlayer（否则重复扣血/飘字）。
         MessageProto.S2C_AttackResult.Builder ar = MessageProto.S2C_AttackResult.newBuilder()
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
-            .setDamage(result.getFinalDamage())
-            .setIsCritical(result.isCritical())
+            .setDamage(damage)
+            .setIsCritical(critical)
             .setHitIndex(hitIndex);
-        if (result.isMissed()) {
+        if (missed) {
             log.info("COMBAT {} hit#{} {}#{} -> MISS", player.getName(), hitIndex, monster.getName(), monsterId);
             broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
             return;
         }
         ar.setMissed(false);
 
-        monster.setHp(monster.getHp() - result.getFinalDamage());
+        monster.setHp(monster.getHp() - damage);
 
-        log.info("COMBAT {} hit#{} {}#{} -> {} dmg (raw={} crit={}), hp {}/{}",
+        log.info("COMBAT {} hit#{} {}#{} -> {} dmg (crit={}), hp {}/{}",
             player.getName(), hitIndex, monster.getName(), monsterId,
-            result.getFinalDamage(), result.getRawDamage(), result.isCritical(),
-            monster.getHp(), monster.getMaxHp());
+            damage, critical, monster.getHp(), monster.getMaxHp());
 
         // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）。坐标取实体
         if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {

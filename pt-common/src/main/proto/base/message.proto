@@ -91,6 +91,7 @@ message ServerMessage {
     S2C_BuffApply buff_apply = 405;
     S2C_BuffRemove buff_remove = 406;
     S2C_AttackStart attack_start = 407;  // 起手广播（旁观者立刻挥拳）
+    S2C_AttackPlan attack_plan = 408;     // 攻击计划：起手即裁定各段结果（B 方案）
     
     // 物品 (500-599)
     S2C_InventorySnapshot inventory_snapshot = 500;
@@ -443,6 +444,12 @@ message C2S_Attack {
 // 起手（挥拳开始）：只广播"开始攻击"，伤害在命中帧 C2S_AttackHit 才结算
 message C2S_AttackStart {
   int64 target_id = 1;
+  // 本次攻击的客户端序号：用于关联 S2C_AttackPlan（防止计划与攻击错配）
+  int32 client_seq = 2;
+  // 本次动作的段数（= 非零 eventFrame 个数，1..4）。服务端据此预排结果，并以此作为
+  // 「合法段数上限」——C2S_AttackHit 的 hit_index 超出即忽略（部分补齐 §8 的段数校验）。
+  // ⚠ 该值目前由客户端声明（服务端只做 1..4 截断），完整校验需服务端持有动画表（后续）。
+  int32 segments = 3;
 }
 
 // 命中帧（每段一次）：hit_index = 段序号（0..3，对应 motion.eventFrame 第几个非零帧）
@@ -464,6 +471,25 @@ message S2C_AttackResult {
   bool is_critical = 4;
   bool missed = 5;  // 未命中(MISS 飘字)；missed 时 damage=0
   int32 hit_index = 6;  // 段序号（多段攻击的第几段）
+}
+
+// 攻击计划（B 方案）：服务端在**收到起手意图时**即裁定各段结果，随本包下发。
+// 客户端据此在事件帧**直接播正确的结果音**（miss / 暴击），不必等 AttackResult —— 消灭音效延迟。
+// 若本包未到（高延迟/丢包/起手被拒），客户端退回「乐观按命中」并等 AttackResult 纠正（已知最差情形）。
+// ⚠ `segments` 的**长度**同时是合法段数上限：AttackHit 的 index 超出即忽略。
+message S2C_AttackPlan {
+  int32 client_seq = 1;     // 对应 C2S_AttackStart.client_seq
+  int64 attacker_id = 2;
+  int64 target_id = 3;
+  repeated AttackSegment segments = 4;
+}
+
+// 单段裁定结果（字段风格对齐 S2C_AttackResult）
+message AttackSegment {
+  int32 index = 1;          // 段序号 = hit_index
+  bool missed = 2;
+  bool is_critical = 3;
+  int32 damage = 4;
 }
 
 // 起手广播：旁观者据此立刻播放攻击者挥拳并设定挥拳时长（attack_speed）
