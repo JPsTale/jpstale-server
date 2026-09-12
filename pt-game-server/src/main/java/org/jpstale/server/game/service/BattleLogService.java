@@ -31,6 +31,7 @@ public class BattleLogService {
     private static final String KEY_PLAYER_MISS = "chat.log.playerMiss";
     private static final String KEY_PLAYER_WHIFF = "chat.log.playerWhiff";
     private static final String KEY_MONSTER_MISS = "chat.log.monsterMiss";
+    private static final String KEY_PLAYER_RESPAWN = "chat.log.playerRespawn";
 
     @Autowired
     private GameMessageSender messageSender;
@@ -76,6 +77,12 @@ public class BattleLogService {
         send(victim, KEY_PLAYER_HURT, Map.of(
             "monster", monsterName,
             "damage", String.valueOf(damage)), true);
+    }
+
+    /** 死亡重生：已被送回出生地并恢复半血（低频、需要被看见 → 系统频道，同升级） */
+    public void playerRespawned(PlayerSession session) {
+        if (session == null) return;
+        send(session, KEY_PLAYER_RESPAWN, Map.of(), false);
     }
 
     /** 升级：获得自由属性点（低频、需要被看见 → 留在系统频道） */

@@ -51,6 +51,22 @@ public class PlayerEntity extends BaseEntity {
         return session != null && session.isPlaying();
     }
 
+    /** 是否处于死亡态（躺下等待复活；对齐原版 CHRMOTION_STATE_DEAD） */
+    public boolean isDead() {
+        return moveState == PlayerMoveState.DEAD;
+    }
+
+    /**
+     * 能否被怪物/他人选为目标 —— **唯一判定**。
+     *
+     * 以前各处只判 `isPlaying()`，于是死亡躺下的玩家仍是有效目标：怪物会围着尸体继续打。
+     * 原版行为是死亡即移出目标列表、重新搜寻其他目标或回归（用户 2026-09-13 明确）。
+     * ⚠ 以后要给"目标有效性"加条件，**只改这里**。
+     */
+    public boolean isTargetable() {
+        return isPlaying() && !isDead();
+    }
+
     public PlayerMoveState getMoveState() {
         return moveState;
     }

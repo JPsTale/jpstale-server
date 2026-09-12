@@ -59,7 +59,10 @@ public class RegenerationService {
                 continue;
             }
             Player p = playerService.getPlayer(session);
-            if (p == null || p.getHp() <= 0) {
+            // 死亡（躺下等复活）期间不回血：enterDeath 已把 hp 置 0，这里是第二道闸 ——
+            // 免得任何"把 hp 抬起来"的路径让尸体半死不活
+            org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+            if (p == null || p.getHp() <= 0 || (ent != null && ent.isDead())) {
                 continue;
             }
             boolean changed = settleOne(p);

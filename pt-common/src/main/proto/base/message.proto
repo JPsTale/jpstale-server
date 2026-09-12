@@ -36,6 +36,7 @@ message ClientMessage {
     C2S_UseSkill use_skill = 301;
     C2S_AttackStart attack_start = 302;  // 起手（挥拳开始）
     C2S_AttackHit attack_hit = 303;      // 命中帧（每段一次）
+    C2S_RespawnChoice respawn_choice = 304;  // 死亡后的复活选择（见该消息注释）
     
     // 社交 (400-499)
     C2S_Chat chat = 400;
@@ -328,9 +329,16 @@ message S2C_PlayerState {
   int64 level_exp = 18;
 }
 
+// 玩家死亡：客户端据此播 DEAD 动画（躺下停在末帧）+ 弹复活选项 + 倒计时。
+// 死亡**不再立刻复活** —— 玩家在三个选项里选（原版 `sinInterFace.h`：
+// RESTART_FEILD=1 附近重生点 / RESTART_TOWN=2 村庄 / RESTART_EXIT=3 继续躺）。
 message S2C_PlayerDeath {
   int64 player_id = 1;
-  int64 exp_loss = 2;
+  int64 exp_loss = 2;            // 已废弃（代价随选项不同，改由下面几个字段给出）；字段号保留不动
+  int32 force_respawn_ms = 3;    // 强制复活倒计时（1 分钟）—— 客户端 UI 显示
+  int64 exp_loss_field = 4;      // 选项1 代价：本级跨度经验
+  int64 gold_loss_field = 5;     // 选项1 代价：金币
+  int64 exp_loss_town = 6;       // 选项2/3 代价：本级跨度经验
 }
 
 message S2C_PlayerRespawn {
@@ -338,6 +346,14 @@ message S2C_PlayerRespawn {
   Position position = 2;
   int32 hp = 3;
   int32 mp = 4;
+  int32 map_id = 5;    // 复活所在图（与当前图不同时客户端要换图 + 走加载遮罩）
+  int32 max_hp = 6;
+  int32 reason = 7;    // 1=附近重生点 2=村庄 3=强制（倒计时到）
+}
+
+// 死亡后的复活选择（对应上面三个 RESTART_* 常量）
+message C2S_RespawnChoice {
+  int32 choice = 1;    // 1=附近重生点（10% 本级经验 + 10% 金币）/ 2=村庄（1% 本级经验）/ 3=继续躺
 }
 
 // 角色信息面板完整数据（C 键角色面板 + HUD 联动）。

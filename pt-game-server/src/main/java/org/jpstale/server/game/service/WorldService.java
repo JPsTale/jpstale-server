@@ -70,6 +70,12 @@ public class WorldService {
         if (session == null || !session.isPlaying()) {
             return;
         }
+        // 死亡躺下期间不接受移动（原版 DEAD 时点击/移动均无效）——
+        // 否则客户端仍按本地预测往前跑，服务端却把你定在尸体处，两边位置分叉。
+        PlayerEntity dead = session.getEntity();
+        if (dead != null && dead.isDead()) {
+            return;
+        }
         MessageProto.C2S_PlayerMove move = message.getPlayerMove();
         if (!move.hasPosition()) {
             return;

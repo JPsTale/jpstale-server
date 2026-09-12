@@ -7,7 +7,10 @@ import org.jpstale.server.game.model.DamageResult;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.GamePacketHandler;
+import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -57,6 +60,9 @@ public class CombatService {
     private BattleLogService battleLogService;
 
     @Autowired
+    private SessionManager sessionManager;
+
+    @Autowired
     private PlayerStatCalculator statCalculator;
 
     @Autowired
@@ -70,6 +76,8 @@ public class CombatService {
 
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
     private static final double MELEE_ATTACK_RANGE = 48.0;
+    /** 攻击/死亡这类瞬时事件的广播半径（世界单位） */
+    private static final float AOI_BROADCAST_RANGE = 50f;
 
     /** 每次攻击最多 4 段（原版 `EventFrame[0..3]`） */
     private static final int MAX_ATTACK_SEGMENTS = 4;
@@ -114,6 +122,11 @@ public class CombatService {
         if (player == null) {
             return;
         }
+        // 死亡躺下期间不能出拳（原版 SetMousePlay 对 DEAD 直接 return FALSE，点击无效）
+        PlayerEntity dead = session.getEntity();
+        if (dead != null && dead.isDead()) {
+            return;
+        }
         MessageProto.C2S_AttackStart req = message.getAttackStart();
         playerAttackStart(player, req.getTargetId(), req.getClientSeq(), req.getSegments(),
             req.getAnimIndex(), req.getAnimClip());
@@ -131,6 +144,10 @@ public class CombatService {
         Player player = playerService.getOrCreate(session);
         if (player == null) {
             return;
+        }
+        PlayerEntity dead = session.getEntity();
+        if (dead != null && dead.isDead()) {
+            return;   // 死亡躺下期间剩余段不再结算
         }
         MessageProto.C2S_AttackHit hit = message.getAttackHit();
         playerAttackHit(player, hit.getTargetId(), hit.getHitIndex());
@@ -590,19 +607,181 @@ public class CombatService {
             .orElse(null);
     }
 
+    // ==================== 死亡与重生 ====================
+    //
+    // 原版出处（ex-machina 源码，路径见 AGENTS.md）：
+    //   · 死后躺下、停在 DEAD 动画末帧 —— `playsub.cpp` 换装备分支：
+    //       `if (dwMotionCode == CHRMOTION_STATE_DEAD) { SetMotionFromCode(DEAD); frame = (EndFrame-1)*160; }`
+    //   · 死亡时不能点击/选怪 —— `Main.cpp SetMousePlay`：`MotionInfo->State == CHRMOTION_STATE_DEAD → return FALSE`
+    //   · 三个选项 —— `Interface/sinInterFace.h`：`RESTART_FEILD=1 / RESTART_TOWN=2 / RESTART_EXIT=3`
+    //   · 选项1 的落点 = **本图离尸体最近的 StartPoint** —— `Base/field.cpp sFIELD::GetStartPoint(x,z)` 遍历取最近
+    //   · 死亡后不再被怪选中 —— 见 `PlayerEntity.isTargetable()`（原版行为：移出目标列表、重搜或回归）
+    //
+    // 代价为**用户定义**（2026-09-13）：选项1 = 本级跨度经验 10% + 金币 10%；选项2/3 = 本级跨度经验 1%，
+    // 且**不掉级**（经验下限 = 本级起点，同原版 `DeadPlayerExp` 的 `exp64 < LowExp → LowExp`）。
+
+    /** 强制复活等待（用户定义：1 分钟）；躺够时间自动按"村庄"复活 */
+    private static final long RESPAWN_FORCE_MS = 60_000L;
+    private static final int FIELD_EXP_PERCENT = 10;
+    private static final int FIELD_GOLD_PERCENT = 10;
+    private static final int TOWN_EXP_PERCENT = 1;
+
+    /** 复活原因（下发给客户端，UI 据此显示不同提示） */
+    private static final int REASON_FIELD = 1;
+    private static final int REASON_TOWN = 2;
+    private static final int REASON_FORCED = 3;
+
+    /** 村庄复活点：坦普族(job1-4) → 理查登 ric(3)；魔灵族 → 菲尔拉 pilai(21) */
+    private static final int TOWN_MAP_TEMPLE = 3;
+    private static final int TOWN_MAP_PILAI = 21;
+
+    /** 死亡中的玩家：playerId → 尸体所在地（选项1 要按它找最近的 StartPoint） */
+    private final Map<Long, DeathSpot> deadPlayers = new ConcurrentHashMap<>();
+
+    private record DeathSpot(int mapId, double x, double z, long atMs) {}
+
     /**
-     * 玩家死亡重生（对齐原版 record.cpp）：半血，回种族出生地
-     * 坦普族(job1-4) → ric(3)，魔灵族 → pilai(21)；坐标用该地图出生点（安全区）
+     * HP≤0 → **进入死亡态**（不再立刻复活）。
+     *
+     * 客户端据此播 DEAD 动画躺下、弹三个复活选项并倒计时；到期由 `tickDeaths` 强制送回村庄。
+     * 怪物侧无需额外处理：`PlayerEntity.isTargetable()` 变为 false，AI 会自己移出目标并重搜。
      */
-    public void respawnPlayer(Player player) {
+    public void enterDeath(Player player) {
         PlayerSession session = player.getSession();
         PlayerEntity entity = session != null ? session.getEntity() : null;
-        int job = player.getJob();
-        int mapId = job <= 4 ? 3 : 21;
-        int[] start = mapRegionService.getStartPoint(mapId, 0, 0);
-        int x = start != null ? start[0] : 0;
-        int z = start != null ? start[1] : 0;
+        if (entity == null) {
+            return;
+        }
+        player.setHp(0);
+        entity.setMoveState(PlayerMoveState.DEAD);
+        deadPlayers.put(player.getId(), new DeathSpot(
+            entity.getMapId(), entity.getX(), entity.getZ(), System.currentTimeMillis()));
+
+        MessageProto.S2C_PlayerDeath death = MessageProto.S2C_PlayerDeath.newBuilder()
+            .setPlayerId(player.getId())
+            .setForceRespawnMs((int) RESPAWN_FORCE_MS)
+            .setExpLossField(expLoss(player, FIELD_EXP_PERCENT))
+            .setGoldLossField(goldLoss(player, FIELD_GOLD_PERCENT))
+            .setExpLossTown(expLoss(player, TOWN_EXP_PERCENT))
+            .build();
+        // 广播（含自己）：旁观者也要看到躺下
+        messageSender.broadcastToArea(entity.getMapId(), (float) entity.getX(), (float) entity.getZ(),
+            AOI_BROADCAST_RANGE,
+            MessageProto.ServerMessage.newBuilder().setPlayerDeath(death).build());
+        log.info("COMBAT {} 死亡于 map {} ({},{}) —— 等待复活选择（{}s 后强制回村庄）",
+            player.getName(), entity.getMapId(), (int) entity.getX(), (int) entity.getZ(),
+            RESPAWN_FORCE_MS / 1000);
+    }
+
+    /** C2S_RespawnChoice 报文入口 */
+    @GamePacketHandler(MessageProto.ClientMessage.RESPAWN_CHOICE_FIELD_NUMBER)
+    public void handleRespawnChoicePacket(PlayerSession session, MessageProto.ClientMessage message) {
+        if (session == null || !session.isPlaying()) {
+            return;
+        }
+        Player player = playerService.getOrCreate(session);
+        if (player == null) {
+            return;
+        }
+        handleRespawnChoice(player, message.getRespawnChoice().getChoice());
+    }
+
+    /**
+     * 复活选择：1=附近重生点（10% 本级经验 + 10% 金币）/ 2=村庄（1% 本级经验）/ 3=继续躺（等强制）。
+     * 非死亡态的请求一律忽略（重复/迟到包）。
+     */
+    public void handleRespawnChoice(Player player, int choice) {
+        if (player == null) {
+            return;
+        }
+        DeathSpot spot = deadPlayers.get(player.getId());
+        if (spot == null) {
+            log.info("COMBAT {} 收到复活选择 {} 但不在死亡态 → 忽略（重复/迟到包）", player.getName(), choice);
+            return;
+        }
+        switch (choice) {
+            case 1 -> respawnAtField(player, spot);
+            case 2 -> respawnAtTown(player, REASON_TOWN);
+            case 3 -> log.info("COMBAT {} 选择继续躺下 → {}s 后强制复活",
+                player.getName(), RESPAWN_FORCE_MS / 1000);
+            default -> log.warn("COMBAT {} 非法复活选项 {} → 忽略", player.getName(), choice);
+        }
+    }
+
+    /** 每 tick：躺够 1 分钟的玩家强制送回村庄（代价同选项2） */
+    public void tickDeaths(long nowMs) {
+        if (deadPlayers.isEmpty()) {
+            return;
+        }
+        Set<Long> online = new HashSet<>();
+        for (PlayerSession session : sessionManager.getAllSessions()) {
+            if (session == null || !session.isPlaying()) {
+                continue;
+            }
+            Player player = playerService.getPlayer(session);
+            if (player == null) {
+                continue;
+            }
+            online.add(player.getId());
+            DeathSpot spot = deadPlayers.get(player.getId());
+            if (spot == null || nowMs - spot.atMs() < RESPAWN_FORCE_MS) {
+                continue;
+            }
+            log.info("COMBAT {} 躺满 {}s → 强制在村庄复活",
+                player.getName(), RESPAWN_FORCE_MS / 1000);
+            respawnAtTown(player, REASON_FORCED);
+        }
+        // 死在半路就断线/换角的玩家：记录要清掉，否则这张表只增不减（泄漏）
+        deadPlayers.keySet().removeIf(id -> !online.contains(id));
+    }
+
+    /** 选项1：本图**离尸体最近**的 StartPoint（对齐 sFIELD::GetStartPoint 的取最近语义） */
+    private void respawnAtField(Player player, DeathSpot spot) {
+        int[] p = mapRegionService.getStartPoint(spot.mapId(), spot.x(), spot.z());
+        if (p == null || p.length < 2) {
+            // 该图没有 StartPoint 数据（我们 63 张图里有 24 张是 0 个）→ 回落到村庄复活。
+            // 不套用原版的"地图中心"：中心可能在水里/怪堆里，比回城更糟（用户 2026-09-13 定）。
+            log.info("COMBAT {} 选项1：map {} 无 StartPoint 数据 → 回落到村庄复活", player.getName(), spot.mapId());
+            respawnAtTown(player, REASON_TOWN);
+            return;
+        }
+        doRespawn(player, spot.mapId(), p[0], p[1], FIELD_EXP_PERCENT, FIELD_GOLD_PERCENT, REASON_FIELD);
+    }
+
+    /** 选项2/3：种族村庄出生点（不扣金币） */
+    private void respawnAtTown(Player player, int reason) {
+        int mapId = player.getJob() <= 4 ? TOWN_MAP_TEMPLE : TOWN_MAP_PILAI;
+        int[] p = mapRegionService.getStartPoint(mapId, 0, 0);
+        int x = p != null && p.length >= 2 ? p[0] : 0;
+        int z = p != null && p.length >= 2 ? p[1] : 0;
+        doRespawn(player, mapId, x, z, TOWN_EXP_PERCENT, 0, reason);
+    }
+
+    /**
+     * 三条路径共用：结算代价 → 传送到 (mapId,x,z) → 恢复状态 → 通知本人与旁观者。
+     *
+     * @param expPercent  扣本级跨度经验的百分比
+     * @param goldPercent 扣金币的百分比
+     */
+    private void doRespawn(Player player, int mapId, int x, int z, int expPercent, int goldPercent, int reason) {
+        PlayerSession session = player.getSession();
+        PlayerEntity entity = session != null ? session.getEntity() : null;
+        deadPlayers.remove(player.getId());
+
+        // ---- 代价：经验（下限 = 本级起点 → 不掉级）与金币 ----
+        long expLoss = expLoss(player, expPercent);
+        int goldLoss = (int) goldLoss(player, goldPercent);
+        if (expLoss > 0) {
+            long floor = playerService.getExpForLevel(player.getLevel());
+            long next = Math.max(floor, player.getExp() - expLoss);
+            player.setExp(next);
+        }
+        if (goldLoss > 0) {
+            player.setGold(Math.max(0, player.getGold() - goldLoss));
+        }
+
         int half = Math.max(1, player.getMaxHp() / 2);
+        player.setHp(half);
 
         // y 必须按**目标地图**的地形算：出生点数据只有 {x,z}，不设 y 就会带着上一张图的高度复活，
         // 客户端随即自由落体（日志 0x70 FALLDOWN）并把坏 y 写回存档 → 下次登录继续沉（用户 2026-09-12 报）。
@@ -613,8 +792,6 @@ public class CombatService {
                 player.getName(), mapId, x, z, entity != null ? entity.getY() : 0);
         }
 
-        player.setHp(half);
-
         // 坐标/地图权威在 PlayerEntity;跨图才做 AOI 摘除/重挂(无缝坐标下相邻仍可见,由 AOI 判断)
         if (entity != null) {
             boolean switchedMap = entity.getMapId() != mapId;
@@ -623,6 +800,8 @@ public class CombatService {
             if (terrainY > 0) {
                 entity.setY(terrainY);
             }
+            entity.setMoveState(PlayerMoveState.IDLE);   // 解除死亡态（可以动、也能被怪选中）
+            entity.setLastSyncedAnimState(0x0040);       // 复位动画去重基线（尸体最后一帧不是 STAND）
             if (switchedMap) {
                 entity.setMapId(mapId);
                 aoiManager.onPlayerLeave(entity);
@@ -631,10 +810,64 @@ public class CombatService {
                 aoiManager.onPlayerEnter(entity);
             }
         }
-        log.info("Player {} died, respawn to map {} ({},{}) y={} hp {}",
-            player.getName(), mapId, x, z, terrainY > 0 ? String.valueOf((int) terrainY) : "keep", half);
-        // 通知前端：重新进入出生地图（半血）
-        session.sendText("{\"type\":\"game.playerRespawn\",\"data\":{\"mapId\":"
-            + mapId + ",\"x\":" + x + ",\"z\":" + z + ",\"hp\":" + half + "}}");
+        log.info("Player {} 复活（reason={}）→ map {} ({},{}) y={} hp {} 代价: exp -{} / gold -{}",
+            player.getName(), reason, mapId, x, z,
+            terrainY > 0 ? String.valueOf((int) terrainY) : "keep", half, expLoss, goldLoss);
+
+        // 旁观者同步：**必须服务端广播**，不能指望客户端自己上报 ——
+        // 客户端复活的瞬移距离远超限速阈值，上报会被 MovementService 的限速**拒绝**
+        // （与"限速拒绝会冻死玩家"同一类隐患），于是视野内其他人会看到你留在原地。
+        if (entity != null) {
+            messageSender.broadcastToArea(entity.getMapId(), (float) entity.getX(), (float) entity.getZ(),
+                AOI_BROADCAST_RANGE,
+                MessageProto.ServerMessage.newBuilder()
+                    .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
+                        .setPlayerId(player.getId())
+                        .setPosition(CommonProto.Position.newBuilder()
+                            .setX((float) entity.getX())
+                            .setY((float) entity.getY())
+                            .setZ((float) entity.getZ())
+                            .build())
+                        .setAngle((float) entity.getAngle())
+                        .setAnimState(0x0040)   // STAND
+                        .setTimestamp(System.currentTimeMillis())
+                        .build())
+                    .build());
+        }
+
+        if (session != null) {
+            // ⚠ 自机位置权威在**客户端** —— 这条消息就是"服务端要求客户端把自己搬过去"，
+            //   客户端不处理的话，服务端以为你在出生地、你还站在原地继续挨打（两边状态错乱）。
+            //   mapId 与当前图不同时，客户端要先走加载遮罩再进画面（用户 2026-09-13：原版做法）。
+            MessageProto.S2C_PlayerRespawn respawn = MessageProto.S2C_PlayerRespawn.newBuilder()
+                .setPlayerId(player.getId())
+                .setMapId(mapId)
+                .setPosition(CommonProto.Position.newBuilder()
+                    .setX(x).setY((float) Math.max(0, terrainY)).setZ(z).build())
+                .setHp(half)
+                .setMaxHp(player.getMaxHp())
+                .setReason(reason)
+                .build();
+            session.send(MessageProto.ServerMessage.newBuilder().setPlayerRespawn(respawn).build());
+            // HUD 的数字走权威状态（血/蓝/经验金币一起刷），否则面板停在死亡那一刻
+            playerService.sendPlayerStatus(session, player);
+            // 死亡/复活是低频且必须被看见的事件 → 系统频道（同升级），不并入战斗刷屏
+            battleLogService.playerRespawned(session);
+        }
+    }
+
+    /** 本级跨度经验 = expForLevel(level+1) - expForLevel(level) —— 死亡代价的分母 */
+    private long levelSpanExp(Player player) {
+        long lo = playerService.getExpForLevel(player.getLevel());
+        long hi = playerService.getExpForLevel(player.getLevel() + 1);
+        return Math.max(0, hi - lo);
+    }
+
+    private long expLoss(Player player, int percent) {
+        return percent <= 0 ? 0 : levelSpanExp(player) * percent / 100;
+    }
+
+    private long goldLoss(Player player, int percent) {
+        return percent <= 0 ? 0 : (long) player.getGold() * percent / 100;
     }
 }

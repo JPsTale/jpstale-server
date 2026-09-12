@@ -153,7 +153,7 @@ public class AiEngine {
         // 若已锁一个目标,先校验它是否仍有效
         if (target != null) {
             double lose = loseRangeOf(monster);
-            if (!target.isPlaying()
+            if (!target.isTargetable()
                 || target.getMapId() != monster.getMapId()
                 || distXZ(monster, target) > lose) {
                 log.info("[MonsterAI] {}#{} lost target {} (out of range/area)",
@@ -196,7 +196,7 @@ public class AiEngine {
         PlayerEntity nearest = null;
         double nearestDistSq = Double.MAX_VALUE;
         for (PlayerEntity entity : nearby) {
-            if (entity == null || !entity.isPlaying() || entity.getMapId() != monster.getMapId()) {
+            if (entity == null || !entity.isTargetable() || entity.getMapId() != monster.getMapId()) {
                 continue;
             }
             double dy = monster.getY() - entity.getY();
@@ -215,7 +215,7 @@ public class AiEngine {
     /** 受击反击/仇恨指定:把目标设为指定玩家实体(供 CombatService 受击调用) */
     public void setTargetPlayer(Monster monster, PlayerEntity target, double targetX, double targetZ) {
         AiContext context = monsterContexts.computeIfAbsent(monster.getId(), k -> new AiContext());
-        if (target == null || !target.isPlaying()) {
+        if (target == null || !target.isTargetable()) {
             return;
         }
         context.setTargetPlayer(target);
@@ -343,7 +343,9 @@ public class AiEngine {
         monster.setLastBroadcastAnim(-1);
 
         if (newHp <= 0) {
-            combatService.respawnPlayer(player);
+            // 不再立刻复活：进入死亡态躺下，由玩家在三个选项里选、或 1 分钟后被强制送回村庄。
+            // 客户端 HUD 由上面那条 status（hp=0）与 enterDeath 广播的 S2C_PlayerDeath 一起刷新。
+            combatService.enterDeath(player);
         }
     }
 

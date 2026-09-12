@@ -31,6 +31,9 @@ public class GameServer implements Server {
     private RegenerationService regenerationService;
 
     @Autowired
+    private org.jpstale.server.game.service.CombatService combatService;
+
+    @Autowired
     private GroundItemAOI groundItemAOI;
 
     @Autowired
@@ -53,6 +56,8 @@ public class GameServer implements Server {
         movementService.tickPlayers();
         // 主动检查玩家是否跨图（依据 PlayerSession 当前位置）
         worldService.tick();
+        // 死亡躺下的玩家：躺满 1 分钟强制送回村庄（原版"一段时间后强制复活"）
+        combatService.tickDeaths(currentTimeMillis);
         // 地面物品 AOI：进场补发 / 走远消失 / 走近出现（与怪物 AOI 同 tick 同口径）
         groundItemAOI.syncSessions();
         // NPC AOI：玩家进图/换图时下发该图所有 NPC
