@@ -666,6 +666,13 @@ public class ItemService {
                     it == null ? "该 uid 不存在" : it.getLocation());
             return null;
         }
+        // 职业门（原版 `NotUseFlag` 语义，见 ItemRules.canUse）：该职业用不了这件装备 → 拒绝。
+        int useCode = it.getItemCode() != null ? it.getItemCode() : 0;
+        if (!ItemRules.canUse(player.getJob(), useCode)) {
+            log.info("[Equip] 拒绝 {} uid={} idCode=0x{}（职业门：job={}）",
+                    player.getName(), uid, Integer.toHexString(useCode), player.getJob());
+            return null;
+        }
         // 药水快捷槽（ITEMSLOT 11/12/13）走**堆叠**语义，不是"一格一件"的装备语义：
         // 同槽同种 + 容量上限 + 超出部分留在背包（拆堆）。见 putPotionToSlot。
         if (EquipSlots.isPotionSlot(equipSlot)) {
@@ -679,17 +686,22 @@ public class ItemService {
         if (!meetsRequirements(player, it)) {
             return null;
         }
-        // 双手武器只能进主手(1)
+        // 双手武器占**两只手**（原版 `OverlapTwoHandItem`，sinInvenTory1.cpp:5241）：
+        // 放槽1就清槽2、放槽2就清槽1，被清掉的那件自动回背包。
+        // 原先我们只允许它进主手(1)，与"进哪个槽就清另一个槽"的原版行为不一致。
         boolean twoHand = EquipSlots.isTwoHand(it.getTemplate());
-        if (twoHand && equipSlot != ItemLocations.SLOT_MAIN_HAND) {
-            return null;
+        if (twoHand && equipSlot != ItemLocations.SLOT_MAIN_HAND
+                && equipSlot != ItemLocations.SLOT_OFF_HAND) {
+            return null;   // 双手武器只能进主手或副手
         }
-        // 取同槽旧件（若占用）先放回背包；双手武器还清副手槽
+        // 取同槽旧件（若占用）先放回背包
         ItemInstance replaced = takeEquipSlot(items, equipSlot);
-        if (twoHand && equipSlot == ItemLocations.SLOT_MAIN_HAND) {
-            ItemInstance offReplaced = takeEquipSlot(items, ItemLocations.SLOT_OFF_HAND);
-            if (offReplaced != null) {
-                returnToBag(items, offReplaced);
+        if (twoHand) {
+            int other = equipSlot == ItemLocations.SLOT_MAIN_HAND
+                    ? ItemLocations.SLOT_OFF_HAND : ItemLocations.SLOT_MAIN_HAND;
+            ItemInstance otherItem = takeEquipSlot(items, other);
+            if (otherItem != null) {
+                returnToBag(items, otherItem);
             }
         }
         // 从背包格移除

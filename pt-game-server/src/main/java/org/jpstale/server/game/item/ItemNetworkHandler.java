@@ -594,6 +594,20 @@ public class ItemNetworkHandler {
             sendError(session, "drop failed");
             return;
         }
+        // 禁丢清单（原版 NotDrow_Item_*，见 ItemRules）：任务物品等不许丢到地面。
+        // 权威判定在这里；客户端也有一份同样的预校验（免得本地先移除、服务端却拒绝）。
+        ItemInstance toDrop = p.getItems().byUid(req.getUid());
+        if (toDrop == null) {
+            sendError(session, "drop failed");
+            return;
+        }
+        int dropCode = toDrop.getItemCode() != null ? toDrop.getItemCode() : 0;
+        if (!ItemRules.isDroppable(dropCode)) {
+            log.info("[DropItem] {} 拒绝丢弃 uid={} idCode=0x{}（禁丢清单：任务物品）",
+                    p.getName(), req.getUid(), Integer.toHexString(dropCode));
+            sendError(session, "该物品无法丢弃");
+            return;
+        }
         // 丢到地面（对齐原版 ThrowItem）：从背包/装备取出 → 玩家附近生成地面物
         ItemInstance dropped = itemService.removeToGround(p, req.getUid());
         if (dropped == null) {
