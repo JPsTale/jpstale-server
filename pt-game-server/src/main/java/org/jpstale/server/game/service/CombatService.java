@@ -663,9 +663,6 @@ public class CombatService {
         MessageProto.S2C_PlayerDeath death = MessageProto.S2C_PlayerDeath.newBuilder()
             .setPlayerId(player.getId())
             .setForceRespawnMs((int) RESPAWN_FORCE_MS)
-            .setExpLossField(expLoss(player, FIELD_EXP_PERCENT))
-            .setGoldLossField(goldLoss(player, FIELD_GOLD_PERCENT))
-            .setExpLossTown(expLoss(player, TOWN_EXP_PERCENT))
             .build();
         // 广播（含自己）：旁观者也要看到躺下
         messageSender.broadcastToArea(entity.getMapId(), (float) entity.getX(), (float) entity.getZ(),

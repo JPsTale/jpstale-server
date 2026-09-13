@@ -47,6 +47,12 @@ public class TeleportService {
 
     /** 种族村庄：job ≤ 4 = 神殿村，其余 = 菲拉村（对齐原版 RESTART_TOWN 的两张图） */
     private static final int TOWN_MAP_TEMPLE = 3;
+
+    /**
+     * 传送/复活后的**初始朝向**（用户 2026-09-13 指定 -π）。
+     * 客户端 `charGroup.rotation.y` 直接吃这个值，故单位是**弧度**（-π 即面向 -z）。
+     */
+    private static final float INITIAL_ANGLE = (float) -Math.PI;
     private static final int TOWN_MAP_PILAI = 21;
 
     /** 脱困冷却（同一角色两次之间的最小间隔） */
@@ -131,6 +137,10 @@ public class TeleportService {
         if (terrainY > 0) {
             entity.setY(terrainY);
         }
+        // 朝向复位为**初始角度**（用户 2026-09-13 指定：-π）。
+        // 广播给本人与旁观者的 S2C_PlayerTeleport 都读 entity.getAngle()，所以在这里改一处即可，
+        // 传送（卷轴/传送门/婚戒/GM）、复活、脱困全都自动带上。
+        entity.setAngle(INITIAL_ANGLE);
         entity.setMoveState(PlayerMoveState.IDLE);      // 打断移动/攻击态（站立）
         entity.setLastSyncedAnimState(0x0040);          // 复位动画去重基线（STAND）
         if (switchedMap) {

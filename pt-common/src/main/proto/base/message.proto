@@ -341,9 +341,10 @@ message S2C_PlayerDeath {
   int64 player_id = 1;
   int64 exp_loss = 2;            // 已废弃（代价随选项不同，改由下面几个字段给出）；字段号保留不动
   int32 force_respawn_ms = 3;    // 强制复活倒计时（1 分钟）—— 客户端 UI 显示
-  int64 exp_loss_field = 4;      // 选项1 代价：本级跨度经验
-  int64 gold_loss_field = 5;     // 选项1 代价：金币
-  int64 exp_loss_town = 6;       // 选项2/3 代价：本级跨度经验
+  // 4/5/6 原为"死亡代价的具体点数"（exp_loss_field / gold_loss_field / exp_loss_town）。
+  // 用户 2026-09-13：UI 只显示**比例**（"代价：10% 经验与金币"），具体点数既没价值又是重复信息，
+  // 故删除；字段号保留，避免以后被复用到语义不同的地方。
+  reserved 4, 5, 6;
 }
 
 message S2C_PlayerRespawn {
