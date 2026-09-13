@@ -192,6 +192,10 @@ public class MapRegionService {
     }
 
     /** 该图中心（无数据 → null） */
+    /**
+     * 地图中心（几何中心）。**只用于显示/可视化**（如 pt-visualizer 画中心标记），
+     * **绝不可当作落点/出生点** —— 它不保证有可站立地面（用户 2026-09-13 定）。
+     */
     public int[] center(int mapId) {
         FieldInfo entry = map(mapId);
         return entry != null ? entry.getCenter() : null;
@@ -204,7 +208,11 @@ public class MapRegionService {
         }
         java.util.List<int[]> points = entry.getStartPoints();
         if (points == null || points.isEmpty()) {
-            return entry.getCenter();
+            // **不返回图心**（2026-09-13 用户定：不允许任何 fallback）：
+            // 图心是几何中心，不保证是可站地面/可达位置。用"看起来像位置"的数据凑合，
+            // 等于把"这张图没数据"这个失败伪装成成功（实测后果：人掉出地图）。
+            // 没有出生点就是没有，由调用方决定（拒绝/换规则），并留下可见日志。
+            return null;
         }
         int best = 0;
         double bestDist = Double.MAX_VALUE;

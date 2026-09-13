@@ -10,6 +10,7 @@ import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.jpstale.server.common.enums.packets.CharacterRace;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  *   · {@link #teleport} —— 机制：按目标图地形补 y → 写 PlayerEntity 坐标/朝向/状态 → 跨图摘挂 AOI
  *     → 本人收 `S2C_PlayerTeleport`、视野内其他人收同一条播报 → INFO 日志。**零代价、零策略**。
- *   · 落点解析（{@link #nearestValidStartPoint} / {@link #mapCenter} / {@link #villageStartPoint}）——
+ *   · 落点解析（{@link #nearestValidStartPoint} / {@link #villageStartPoint}）——
  *     只回答"这个语义目标对应哪组坐标"，不做任何搬运。
  *   · 各来源自己负责代价/限流/回执（例：脱困有 30s 冷却；卷轴要扣道具；回城有吟唱）。
  *
@@ -247,15 +248,20 @@ public class TeleportService {
     }
 
     /** 该图中心（无数据 → null）。原版没有"回图心"语义，这是我们自己的兜底档 */
-    public int[] mapCenter(int mapId) {
-        return mapRegionService.center(mapId);
-    }
-
-    /** 本族村庄出生点 [x, z]（job ≤ 4 = 神殿村，其余 = 菲拉村），无数据 → 该图的图心/第一个出生点 */
+    /**
+     * 本族村庄出生点 [x, z]（坦普族=理查登，魔灵族=菲拉）。
+     * **必须挑"有可站立地面"的点**：村庄数据里可能有点落在虚空，直接送过去玩家会自由落体
+     * 掉出地图（用户 2026-09-13 实测回村庄掉出去）。与脱困用同一套判据（getHeight > 0）。
+     */
     public int[] villageStartPoint(Player player) {
-        int mapId = player.getJob() <= 4 ? TOWN_MAP_TEMPLE : TOWN_MAP_PILAI;
-        int[] p = mapRegionService.getStartPoint(mapId, 0, 0);
-        return p != null && p.length >= 2 ? p : null;
+        int mapId = villageMapId(player);
+        int[] p = nearestValidStartPoint(mapId, 0, 0);
+        if (p != null) {
+            return p;
+        }
+        // 没有有效出生点 → 明确失败（调用方留痕/拒绝）。**不用图心凑**（见 MapRegionService.center 注释）。
+        log.warn("villageStartPoint: map {} 没有有效出生点（请核对 startPoint 数据）", mapId);
+        return null;
     }
 
     /**
@@ -277,35 +283,32 @@ public class TeleportService {
                 }
                 return null;
             }
-            case "center": {
-                int[] c = mapCenter(mapId);
-                return c != null ? new double[]{c[0], c[1]} : null;
-            }
-            case "startpoint-nearest": {
-                int[] p = nearestValidStartPoint(mapId, fromX, fromZ);
-                return p != null ? new double[]{p[0], p[1]} : null;
-            }
-            case "startpoint-random":
-            default: {
+            case "startpoint-random": {
+                // 只认"有可站立地面"的出生点（randomValidStartPoint 内部用 getHeight>0 筛）。
                 int[] p = randomValidStartPoint(mapId);
                 if (p == null) {
                     p = nearestValidStartPoint(mapId, fromX, fromZ);
                 }
                 if (p == null) {
-                    int[] c = mapCenter(mapId);
-                    if (c != null) {
-                        log.warn("TELEPORT map {} 无可用 StartPoint → 退化到图心 ({},{})", mapId, c[0], c[1]);
-                        return new double[]{c[0], c[1]};
-                    }
+                    // 明确失败：**不退化到图心**（用户 2026-09-13 定：不允许任何 fallback）。
+                    // 调用方据 null 给玩家可见提示；这张图的出生点数据需要补。
+                    log.warn("TELEPORT map {} 没有可用出生点（startPoint 数据缺失或全部无地面）→ 拒绝传送", mapId);
                 }
                 return p != null ? new double[]{p[0], p[1]} : null;
+            }
+            default: {
+                // 未知策略**不猜**：以前落到 default 会被当成 startpoint-random，
+                // 于是 landing="none"（表示"不是固定目的地"）会被静默变成一次随机传送。
+                log.warn("未知落点策略 '{}'（map {}）→ 拒绝传送，不猜", landing, mapId);
+                return null;
             }
         }
     }
 
-    /** 本族村庄的图号（给需要"送到村庄"的调用方，例如死亡复活的选项 2、回城卷轴） */
+    /** 本族村庄的图号（给需要"送到村庄"的调用方，例如死亡复活的选项 2、回城卷轴）。
+     *  族判据收口在 CharacterRace（含刺客 9 / 格斗家 11，用户 2026-09-13 指正）。 */
     public int villageMapId(Player player) {
-        return player.getJob() <= 4 ? TOWN_MAP_TEMPLE : TOWN_MAP_PILAI;
+        return CharacterRace.isTempskron(player.getJob()) ? TOWN_MAP_TEMPLE : TOWN_MAP_PILAI;
     }
 
     // ==================== 物品 → 固定目的地（照原版写在代码里） ====================

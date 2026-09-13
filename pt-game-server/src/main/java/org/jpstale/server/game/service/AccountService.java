@@ -623,12 +623,10 @@ public class AccountService {
                     int idx = random.nextInt(pts.size());
                     sx = pts.get(idx)[0];
                     sz = pts.get(idx)[1];
-                } else if (fm.getCenter() != null) {
-                    log.warn("当前地图没有start point:{}", mapId);
-                    sx = fm.getCenter()[0];
-                    sz = fm.getCenter()[1];
                 } else {
-                    log.warn("当前地图没有startPoint:{}", mapId);
+                    // **不退到图心**（用户 2026-09-13 定：不允许任何 fallback）：图心不保证可站，
+                    // 拿它当出生点只会让人落到虚空。明确留痕，让"这张图缺出生点数据"暴露出来。
+                    log.error("map {} 没有 startPoint 数据 → 无法定出生点（该图不可作为出生图，请补数据）", mapId);
                 }
             }
             sy = mapRegionService.getHeight(mapId, sx, sz);
@@ -834,9 +832,9 @@ public class AccountService {
     private static final int START_FIELD_NUM = 3;
     private static final int START_FIELD_MORYON = 21;
 
-    /** 坦普族职业（1,2,3,4,9），其余为魔灵族（5,6,7,8,10） */
+    /** 坦普族职业 —— 判据收口在 {@link CharacterRace#isTempskron}（含刺客 9 / 格斗家 11）。 */
     private static boolean isTempscronJob(int jobCode) {
-        return jobCode == 1 || jobCode == 2 || jobCode == 3 || jobCode == 4 || jobCode == 9;
+        return org.jpstale.server.common.enums.packets.CharacterRace.isTempskron(jobCode);
     }
 
     private String getAccountName(PlayerSession session) {

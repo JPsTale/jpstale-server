@@ -753,11 +753,15 @@ public class CombatService {
 
     /** 选项2/3：种族村庄出生点（不扣金币） */
     private void respawnAtTown(Player player, int reason) {
-        int mapId = player.getJob() <= 4 ? TOWN_MAP_TEMPLE : TOWN_MAP_PILAI;
-        int[] p = mapRegionService.getStartPoint(mapId, 0, 0);
-        int x = p != null && p.length >= 2 ? p[0] : 0;
-        int z = p != null && p.length >= 2 ? p[1] : 0;
-        doRespawn(player, mapId, x, z, TOWN_EXP_PERCENT, 0, reason);
+        // 落点交给 TeleportService.villageStartPoint（族判据 + 地形校验都在那里，唯一实现）：
+        // 原先这里写 `job <= 4`（刺客/格斗家被误判成魔灵族）且不校验地形（点落在虚空就掉出地图）。
+        int mapId = teleportService.villageMapId(player);
+        int[] p = teleportService.villageStartPoint(player);
+        if (p == null) {
+            log.warn("COMBAT {} 复活失败：map {} 无有效村庄出生点", player.getName(), mapId);
+            return;
+        }
+        doRespawn(player, mapId, p[0], p[1], TOWN_EXP_PERCENT, 0, reason);
     }
 
     /**
