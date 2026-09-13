@@ -547,18 +547,25 @@ public class ItemService {
         }
         ItemList def = it.getTemplate();
         if (!EquipSlots.isPotion(def) || !EquipSlots.isPotionSlot(slot)) {
+            log.info("[Potion] 拒绝 uid={} slot={}：isPotion={} classItem={} isPotionSlot={}",
+                    uid, slot, EquipSlots.isPotion(def),
+                    def == null ? "模板为空" : def.getClassItem(), EquipSlots.isPotionSlot(slot));
             return null;
         }
         int cap = potionSlotCapacity(player, def);
         ItemInstance inSlot = items.at(ItemLocations.EQUIP, slot);
         if (inSlot != null && (inSlot.getTemplate() == null
                 || !java.util.Objects.equals(inSlot.getTemplate().getId(), def.getId()))) {
-            return null;   // 同槽同种
+            log.info("[Potion] 拒绝 uid={} slot={}：同槽同种（槽内 uid={} 是别的药水）",
+                    uid, slot, inSlot.getId());
+            return null;
         }
         int used = inSlot != null ? Math.max(0, inSlot.getCount()) : 0;
         int space = cap - used;
         if (space <= 0) {
-            return null;   // 槽已满
+            log.info("[Potion] 拒绝 uid={} slot={}：槽已满（{}/{}，臂环={}）", uid, slot, used, cap,
+                    player.getItems().at(ItemLocations.EQUIP, ItemLocations.SLOT_ARMLET) != null);
+            return null;
         }
         int n = Math.min(Math.max(1, it.getCount()), space);
 
@@ -655,6 +662,8 @@ public class ItemService {
         PlayerItems items = player.getItems();
         ItemInstance it = items.byUid(uid);
         if (it == null || it.getLocation() != ItemLocations.BAG) {
+            log.info("[Equip] 拒绝 uid={} slot={}：不在背包 (loc={})", uid, equipSlot,
+                    it == null ? "该 uid 不存在" : it.getLocation());
             return null;
         }
         // 药水快捷槽（ITEMSLOT 11/12/13）走**堆叠**语义，不是"一格一件"的装备语义：
