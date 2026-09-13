@@ -68,15 +68,6 @@ public class ItemNetworkHandler {
      *   · 其它家族 → 明确回"暂未实现"，**不静默、不错扣**
      */
     @GamePacketHandler(MessageProto.ClientMessage.USE_ITEM_FIELD_NUMBER)
-    /** 该物品当前位置是否允许"使用"：背包，或药水快捷槽。 */
-    private static boolean isUsableLocation(ItemInstance it) {
-        if (it.getLocation() == ItemLocations.BAG) {
-            return true;
-        }
-        return it.getLocation() == ItemLocations.EQUIP
-                && org.jpstale.server.game.item.EquipSlots.isPotionSlot(it.getSlot());
-    }
-
     public void handleUseItem(PlayerSession session, MessageProto.ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
@@ -337,6 +328,17 @@ public class ItemNetworkHandler {
     }
 
     /** 背包内移动/换格（含背包↔仓库） */
+    /** 该物品当前位置是否允许"使用"：背包，或药水快捷槽。
+     *  （无注解 —— 只被 handleUseItem 调用；注解必须紧贴 public 入口方法，
+     *   否则注册器 getMethods() 扫不到，消息会静默变成 "No handler registered"。） */
+    private static boolean isUsableLocation(ItemInstance it) {
+        if (it.getLocation() == ItemLocations.BAG) {
+            return true;
+        }
+        return it.getLocation() == ItemLocations.EQUIP
+                && org.jpstale.server.game.item.EquipSlots.isPotionSlot(it.getSlot());
+    }
+
     @GamePacketHandler(MessageProto.ClientMessage.INVENTORY_MOVE_FIELD_NUMBER)
     public void handleInventoryMove(PlayerSession session, MessageProto.ClientMessage message) {
         Player p = requirePlayer(session);
