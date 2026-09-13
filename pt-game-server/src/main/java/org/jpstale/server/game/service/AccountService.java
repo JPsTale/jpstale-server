@@ -680,10 +680,18 @@ public class AccountService {
 
         // 地图安全区表（gamedb.maplist.typemap='Cities'）：客户端本地换图时判定村庄/野外动画姿态
         for (org.jpstale.server.game.model.GameMap gm : mapManager.allMaps()) {
-            enterGame.addMaps(MessageProto.MapInfo.newBuilder()
+            MessageProto.MapInfo.Builder mi = MessageProto.MapInfo.newBuilder()
                 .setMapId(gm.getId())
                 .setIsSafe(gm.isSafe())
-                .setLevelReq(gm.getLevelReq()));   // 客户端据此本地拦截跨图边界（同一份 maplist.levelreq）
+                .setLevelReq(gm.getLevelReq());   // 客户端据此本地拦截跨图边界（同一份 maplist.levelreq）
+            // 世界坐标包围盒（fields.json bounds，SMD 派生）：客户端判图/预加载的逐帧查找表，
+            // 替代原先「进图下载全部 SMD 取 bounds」的 334MB 隐藏预取
+            double[] bounds = mapRegionService.getBounds(gm.getId());
+            if (bounds != null) {
+                mi.setMinX((float) bounds[0]).setMaxX((float) bounds[1])
+                    .setMinZ((float) bounds[2]).setMaxZ((float) bounds[3]);
+            }
+            enterGame.addMaps(mi);
         }
 
         session.send(MessageProto.ServerMessage.newBuilder()

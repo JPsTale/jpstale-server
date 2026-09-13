@@ -794,14 +794,28 @@ public class ItemService {
                 && equipSlot != ItemLocations.SLOT_OFF_HAND) {
             return OpResult.fail(OpReason.TWO_HAND_SLOT);   // 双手武器只能进主手或副手
         }
-        // 被换下的件：同槽旧件 +（双手武器）另一只手上那件
+        // 被换下的件：同槽旧件 +「另一只手」那件。
+        // 「另一只手」要腾空有**两种**情形（都是原版 `sInven[]` 的**占位语义**）：
+        //   ① **新件是双手武器** → 它要占两只手，另一只手必须空出来；
+        //   ② **另一只手拿着双手武器** → 它本来就占着两只手（原版 `sInven[1].ItemIndex` 也指向它
+        //      那一件 —— 即副手格"被占位"，见 `OverlapTwoHandItem`/`OverlapTwoHandSwitch`，两者都只在
+        //      "放进去的这件是双手武器"时动作，规则是**涌现**的：往任一手放东西都与它撞件 → 走换手）。
+        // ② 正是我们漏掉的那半：实测"装了双手匕首还能再装副手盾"（用户 2026-09-14）。
         final int srcSlot = it.getSlot();
         ItemInstance replaced = takeEquipSlot(items, equipSlot);
         ItemInstance otherItem = null;
         final int otherSlot = equipSlot == ItemLocations.SLOT_MAIN_HAND
                 ? ItemLocations.SLOT_OFF_HAND : ItemLocations.SLOT_MAIN_HAND;
         if (twoHand) {
-            otherItem = takeEquipSlot(items, otherSlot);
+            otherItem = takeEquipSlot(items, otherSlot);       // ① 新件占两只手 → 另一只手腾空
+        } else if (equipSlot == ItemLocations.SLOT_MAIN_HAND
+                || equipSlot == ItemLocations.SLOT_OFF_HAND) {
+            ItemInstance inOther = items.at(ItemLocations.EQUIP, otherSlot);
+            if (inOther != null && !inOther.isDeleted()
+                    && EquipSlots.isTwoHand(inOther.getTemplate())) {
+                otherItem = takeEquipSlot(items, otherSlot);   // ② 另一只手是双手武器 → 它让位
+                log.info("[Equip] {} 另一只手是双手武器(uid={}) → 让位", player.getName(), otherItem.getId());
+            }
         }
         // **先把所有涉及的行从容器索引里摘出来，再逐个落位**（与 `applyBagLayout` 同一套顺序）。
         // 源可能是背包格（画布上）或**鼠标位**（装备栏 slot=-1）：从鼠标位换装时，被换下的那件要进鼠标位
@@ -811,7 +825,14 @@ public class ItemService {
         items.byUidRemove(it.getId());
         List<ItemInstance> moved = new ArrayList<>();
         boolean okReplaced = replaced == null || returnToHandOrBag(items, replaced, moved);
-        boolean okOther = okReplaced && (otherItem == null || returnToBag(items, otherItem, moved));
+        // **两件被换下的件按同一优先级依次"优先进鼠标位、手忙则回背包"** ——
+        // 对应原版 `sinInvenTory.cpp:6545` 那段：谁进鼠标位取决于**谁是"撞件"**：
+        //   · 目标槽被占 → 撞件 = 目标槽那件 → 它进鼠标位（`memcpy(pItem, &TempItem)`，pItem 就是鼠标位）；
+        //     另一只手那件走 `AutoSetItemIndex` → **背包**（`InvenEmptyAearCheck`，没空格才丢地）。
+        //   · 目标槽**空**且新件是双手 → `OverlapTwoHandSwitch` 把**另一只手那件**标成撞件 → **它进鼠标位**
+        //     （用户 2026-09-14 实测："副手盾 + 主手空 + 装双手武器 → 盾应交换到鼠标位"）。
+        // 所以顺序 = replaced 先占手位，otherItem 再看手位是否还空着 —— 一条规则覆盖全部三种组合。
+        boolean okOther = okReplaced && (otherItem == null || returnToHandOrBag(items, otherItem, moved));
         if (!okReplaced || !okOther) {
             // **全撤**：被换下的件都放回原槽 —— 要么"换上"，要么"原样"，
             // 不留"旧件掉进背包、新件还没穿上"的半成品。此时**还没有任何写库**，所以只需复原内存。

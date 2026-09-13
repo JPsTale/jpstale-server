@@ -24,6 +24,9 @@ public class FieldInfo {
     /** field/map/{minimap}.tga 基名（小写无扩展名）；无小地图为 null */
     private String minimap;
     private int[] center;
+    // 世界坐标包围盒（SMD 派生，efria-studio map-bounds 写入；world float 域，z=-rawZ/256）。
+    // 客户端判图/预加载与服务端 findMapPrecise 粗筛共用的同一份数据。
+    private double[] bounds;
     private List<int[]> startPoints;
     private List<FieldGate> fieldGates;
     private List<WarpGate> warpGates;

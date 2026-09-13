@@ -31,7 +31,7 @@ message ClientMessage {
     C2S_BagLayout bag_layout = 210;
     C2S_StackMerge stack_merge = 211;
     C2S_Unstuck unstuck = 212;           // 脱困请求：服务端算落点（本图最近 StartPoint）并广播传送
-    C2S_TakeToHand take_to_hand = 213;   // 拿起：把物品移到"手持位"（location=HELD=-1），原容器腾空
+    C2S_TakeToHand take_to_hand = 213;   // 拿起：把物品移到"鼠标位"（装备栏 slot=-1），原容器腾空
     C2S_BagSwap bag_swap = 214;           // **换手**：手上那件 ↔ 背包里某件（原子互换）
     
     // 战斗 (300-399)
@@ -165,6 +165,12 @@ message MapInfo {
   // 进入该图所需等级（gamedb.maplist.levelreq 原样下发；0=无门槛，>=150=未开放）。
   // 客户端用它**本地拦截跨图边界**（服务端另有同一判定的权威校验 MapManager.canEnter）。
   int32 level_req = 3;
+  // 世界坐标包围盒（SMD 派生，efria-studio map-bounds 生成、fields.json 权威）。
+  // 客户端判图/预加载的逐帧查找表——替代原先「进图下载全部 SMD 取 bounds」的 334MB 隐藏预取。
+  float min_x = 4;
+  float max_x = 5;
+  float min_z = 6;
+  float max_z = 7;
 }
 
 message S2C_CharacterList {

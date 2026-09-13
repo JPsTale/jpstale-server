@@ -201,6 +201,20 @@ public class MapRegionService {
         return entry != null ? entry.getCenter() : null;
     }
 
+    /**
+     * 地图世界坐标包围盒（SMD 派生，fields.json 的 bounds 字段，efria-studio map-bounds 写入）。
+     * 返回 [minX, maxX, minZ, maxZ]（world double 域）；无数据返回 null。
+     * 供 EnterGame 下发（客户端判图/预加载查找表）——服务端 findMapPrecise 的 SMD 网格仍照旧。
+     */
+    public double[] getBounds(int mapId) {
+        FieldInfo entry = map(mapId);
+        if (entry == null) {
+            return null;
+        }
+        double[] b = entry.getBounds();
+        return (b != null && b.length >= 4) ? b : null;
+    }
+
     public int[] getStartPoint(int mapId, double x, double z) {
         FieldInfo entry = map(mapId);
         if (entry == null) {
