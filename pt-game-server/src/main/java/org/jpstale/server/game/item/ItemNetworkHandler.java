@@ -422,8 +422,14 @@ public class ItemNetworkHandler {
                 @Override public int slot() { return slot; }
             });
         }
+        int lastSeqBefore = p.getItems().lastSeq();
         boolean ok = itemService.applyBagLayout(p, seq, entries);
         if (!ok) {
+            // ⚠ 非乱序的失败必须**回错**：过去这里什么都不发 → 客户端乐观改动永不回滚，
+            // 屏幕上留下"两件叠在同一格"（用户 2026-09-14 实测）。乱序/重放是正常丢弃，不该报错。
+            if (seq > lastSeqBefore) {
+                sendErrorKey(session, "item.op.failed");
+            }
             // 乱序（seq<=lastSeq）已由 applyBagLayout 内部记录；其余失败事件记日志
             if (seq > p.getItems().lastSeq()) {
                 log.warn("[BagLayout] {} seq={} 校验失败（不裁决、不改格）", session.getCharacterName(), seq);
@@ -459,6 +465,34 @@ public class ItemNetworkHandler {
     }
 
     /**
+     * **换手**：手上那件 ↔ 背包/仓库里某件，原子互换（原版 `ChangeInvenItem` 的换手）。
+     * 客户端在"拿着 A 点已占格上的 B"时发这条；服务端用两行互换的写库原语落地。
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.BAG_SWAP_FIELD_NUMBER)
+    public void handleBagSwap(PlayerSession session, MessageProto.ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        MessageProto.C2S_BagSwap req = message.getBagSwap();
+        ItemService.OpResult r = itemService.swapWithHand(p, req.getHandUid(), req.getTargetUid());
+        if (r.reason != ItemService.OpReason.OK) {
+            sendErrorKey(session, "item.op." + opKeySuffix(r.reason));   // 客户端据前缀回滚两件
+            return;
+        }
+        // 换到手上那件（目标）+ 落到目标格那件（原手上）都要推
+        ItemInstance nowHeld = r.instance;
+        pushUpdate(session, nowHeld);
+        ItemInstance moved = p.getItems().byUid(req.getHandUid());
+        if (moved != null && !moved.isDeleted()) {
+            pushUpdate(session, moved);
+        }
+        refreshPlayerStats(session, p);   // 换下来的若原本在装备位？不会（目标必须在画布上）→ 但负重/外观保持一致
+        log.info("[Swap] {} hand={} target={} 完成", session.getCharacterName(), req.getHandUid(), req.getTargetUid());
+    }
+
+    /**
+     * **拿起**：任意容器 → 鼠标位（装备栏 `slot = -1`）。见 `ItemLocations.HELD_SLOT`。    /**
      * **拿起**：任意容器 → 鼠标位（装备栏 `slot = -1`）。见 `ItemLocations.HELD_SLOT`。
      * 放下不需要配套消息：放到装备槽/药水槽走 `EquipItem`、放到背包/仓库格走 `BagLayout`、丢地上走 `DropItem`，
      * 这些路径现在都接受"来源 = 鼠标位"。

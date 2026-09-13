@@ -32,6 +32,7 @@ message ClientMessage {
     C2S_StackMerge stack_merge = 211;
     C2S_Unstuck unstuck = 212;           // 脱困请求：服务端算落点（本图最近 StartPoint）并广播传送
     C2S_TakeToHand take_to_hand = 213;   // 拿起：把物品移到"手持位"（location=HELD=-1），原容器腾空
+    C2S_BagSwap bag_swap = 214;           // **换手**：手上那件 ↔ 背包里某件（原子互换）
     
     // 战斗 (300-399)
     C2S_Attack attack = 300;
@@ -232,6 +233,18 @@ message C2S_DropItem {
 // 服务端据此把物品移出原容器、立刻重算属性/外观，并在断线重连后原样恢复"手上还拿着它"。
 message C2S_TakeToHand {
   int64 uid = 1;
+}
+
+// **换手**（拿起 A 后点到已占格上的 B）：把手上那件放到 B 的位置，**同时**把 B 拿到手上。
+//
+// 为什么必须是一条消息（而不是"先从手上放下、再把 B 拿起"两步）：鼠标位只有一个 ——
+// A 还在手上时 `TakeToHand(B)` 必然回 `handBusy`；而"先把 A 放下"又要求 B 让开那一格。
+// 两步在任何顺序下都会撞死。原版的换手本来就是**原子**的
+// （`ChangeInvenItem`：源落进目标格 + 被撞件上鼠标，客户端一次做完、服务器事后只记位置），
+// 我们把它显式化成一条消息，服务端用"两行互换"的写库原语落地（`ItemStorageService.writeMoved`）。
+message C2S_BagSwap {
+  int64 hand_uid = 1;     // 手上那件（服务端按 (EQUIP, HELD_SLOT) 校验，防客户端乱指）
+  int64 target_uid = 2;   // 被换进手里那件（必须在背包/仓库画布上）
 }
 
 // 背包内移动/换格（含背包↔仓库）：toLocation/toSlot 为画布目标（location+slot）

@@ -977,6 +977,66 @@ public class ItemService {
         return touched;
     }
 
+    /**
+     * **换手**：手上那件 ↔ 背包/仓库里的某件，**原子互换**（对应原版 `ChangeInvenItem` 的"换手"）。
+     *
+     * 为什么必须原子：鼠标位只有一个。A 还在手上时 `takeToHand(B)` 必然 `handBusy`；
+     * 而"先把 A 放下"又要求 B 让开它那一格 —— 拆成两步在任何顺序下都会撞死。
+     *
+     * 落地用 `writeMoved`（两行互换：A → B 的原格、B → 鼠标位），它内部先停车再落地，
+     * 唯一键下任意调换都安全（见 `ItemStorageService.writeMoved`）。
+     *
+     * @return 成功给**换到手上**的那件（B）；失败给原因
+     */
+    @Transactional
+    public OpResult swapWithHand(Player player, long handUid, long targetUid) {
+        PlayerItems items = player.getItems();
+        ItemInstance hand = items.byUid(handUid);
+        ItemInstance target = items.byUid(targetUid);
+        // 手上那件必须是**当前鼠标位那件**（按位置核对，不信客户端报的 uid）
+        if (hand == null || hand.isDeleted() || !ItemLocations.isHeld(hand)) {
+            log.info("[Swap] 拒绝 {} handUid={}：不在鼠标位", player.getName(), handUid);
+            return OpResult.fail(OpReason.NOT_IN_BAG);
+        }
+        if (target == null || target.isDeleted() || !ItemLocations.isCanvas(target.getLocation())) {
+            log.info("[Swap] 拒绝 {} targetUid={}：不在画布上（loc={}）", player.getName(), targetUid,
+                    target == null ? "-" : target.getLocation());
+            return OpResult.fail(OpReason.NOT_IN_BAG);
+        }
+        if (target.getLocation() == ItemLocations.HELD_SLOT) {
+            return OpResult.fail(OpReason.NOT_IN_BAG);
+        }
+        CanvasGrid cg = items.canvas(target.getLocation());
+        int tSlot = target.getSlot();
+        if (cg == null || !cg.canPlaceExcept(cg.xOf(tSlot), cg.yOf(tSlot),
+                hand.gridW(), hand.gridH(), cg.xOf(tSlot), cg.yOf(tSlot), target.gridW(), target.gridH())) {
+            log.info("[Swap] 拒绝 {}：手上那件 {}x{} 放不进目标格 loc={} slot={}",
+                    player.getName(), hand.gridW(), hand.gridH(), target.getLocation(), tSlot);
+            return OpResult.fail(OpReason.SLOT_MISMATCH);   // 目标格容不下手上那件（原版也是拒绝）
+        }
+        // 与"搬运"同一套门：超重则拒绝（原版 CheckSetOk 的负重分支）
+        if (overWeightBlocks(player, hand)) {
+            return OpResult.fail(OpReason.OVER_WEIGHT);
+        }
+        final int handOldSlot = hand.getSlot();
+        // 内存：先都摘出索引，再各落各家（与 applyBagLayout 同一顺序）
+        items.byUidRemove(hand.getId());
+        items.byUidRemove(target.getId());
+        hand.setLocation(target.getLocation());
+        hand.setSlot(tSlot);
+        items.byUidPut(hand);
+        items.markDirty(hand.getLocation(), tSlot, hand.getId());
+        target.setLocation(ItemLocations.EQUIP);
+        target.setSlot(ItemLocations.HELD_SLOT);
+        items.byUidPut(target);
+        items.markDirty(ItemLocations.EQUIP, ItemLocations.HELD_SLOT, target.getId());
+        storage.writeMoved(java.util.List.of(hand, target));   // 两行互换 → 停车再落地
+        cg.place(cg.xOf(tSlot), cg.yOf(tSlot), hand.gridW(), hand.gridH());
+        log.info("[Swap] {} 换手：{} → loc={}/slot={}，{} → 鼠标位（原 slot={}）",
+                player.getName(), hand.getId(), hand.getLocation(), tSlot, target.getId(), handOldSlot);
+        return OpResult.ok(target);
+    }
+
     /** 拾取前的负重检查（原版在拾取入口就查，超重则**整次拾取拒绝**、物品留在地上）。 */
     public boolean pickupOverWeight(Player player, ItemInstance fresh) {
         return statCalculator.isOverWeight(player, fresh);
@@ -1044,8 +1104,9 @@ public class ItemService {
             return OpResult.fail(OpReason.NOT_HOLDABLE);
         }
         // 从原容器摘除（画布/位图/索引一起），再落到鼠标位
+        final int srcSlot = it.getSlot();   // ⚠ 必须在改 slot 之前取：否则日志里永远打 -1（曾经如此，害得排查时看不出源头）
         if (ItemLocations.isCanvas(loc)) {
-            items.takeFromCanvas(loc, it.getSlot());
+            items.takeFromCanvas(loc, srcSlot);
         }
         items.byUidRemove(it.getId());
         it.setLocation(ItemLocations.EQUIP);
@@ -1055,7 +1116,7 @@ public class ItemService {
         log.info("[TakeToHand] {} 拿起 uid={} {} ← location={} slot={}",
                 player.getName(), uid,
                 it.getTemplate() != null ? it.getTemplate().getName() : "?",
-                loc, it.getSlot());
+                loc, srcSlot);
         return OpResult.ok(it);
     }
 
