@@ -885,22 +885,7 @@ public class ItemService {
 
     /** 需求校验：角色等级与 5 属性 ≥ 物品 req_*。 */
     public boolean meetsRequirements(Player player, ItemInstance it) {
-        if (player.getLevel() < it.getReqLevel()) {
-            return false;
-        }
-        if (player.getStrength() < it.getReqStrength()) {
-            return false;
-        }
-        if (player.getSpirit() < it.getReqSpirit()) {
-            return false;
-        }
-        if (player.getTalent() < it.getReqTalent()) {
-            return false;
-        }
-        if (player.getAgility() < it.getReqAgility()) {
-            return false;
-        }
-        return player.getHealth() >= it.getReqHealth();
+        return ItemRules.meetsRequirements(player, it);   // 唯一实现在 ItemRules（属性门只此一份）
     }
 
     /**
@@ -924,6 +909,77 @@ public class ItemService {
         it.setLocation(ItemLocations.EQUIP);
         it.setSlot(ItemLocations.HELD_SLOT);
         items.byUidPut(it);
+    }
+
+    /**
+     * **把拾取到的药水优先灌进药水槽** —— 原版 `cINVENTORY::AutoSetPotion`（由 `AutoSetInvenItem`
+     * 在"自动入包"时调用；窗口开着的那条路是玩家自己放，不走这里）。
+     *
+     * 规则（逐槽 11→12→13）：**同种且未满 → 补满**；**空槽 → 放 min(剩余, 容量)**；异种/已满 → 下一格。
+     * 灌不完的余数留在 `fresh.getCount()` 上，由调用方走"上手 / 进背包"。
+     *
+     * ⚠ 与原版的**有意差异**：原版只用**第一个能用的槽**，该槽灌满后余数直接进背包；
+     * 我们改成**把所有能用（含同种未满）的槽都灌满**再交给背包 —— 依据是用户 2026-09-14 的期望
+     * （"如果药水槽有空位，或者同类型药水在药水槽没达到数量上限，应该优先填充药水槽，
+     * 多余的部分才是进入背包或鼠标位"）。
+     *
+     * @return 被改动的**槽内堆**（调用方需要推送给客户端）；非药水/已空 → 空列表
+     */
+    @Transactional
+    public List<ItemInstance> pourIntoPotionSlots(Player player, ItemInstance fresh) {
+        List<ItemInstance> touched = new ArrayList<>();
+        PlayerItems items = player.getItems();
+        if (fresh == null || fresh.getCount() <= 0 || !EquipSlots.isPotion(fresh.getTemplate())) {
+            return touched;
+        }
+        int cap = potionSlotCapacity(player, fresh.getTemplate());
+        if (cap <= 0) {
+            return touched;
+        }
+        for (int slot : new int[]{ItemLocations.SLOT_POTION_1, ItemLocations.SLOT_POTION_2,
+                ItemLocations.SLOT_POTION_3}) {
+            if (fresh.getCount() <= 0) {
+                break;
+            }
+            ItemInstance inSlot = items.at(ItemLocations.EQUIP, slot);
+            if (inSlot == null) {
+                int n = Math.min(fresh.getCount(), cap);
+                // ⚠ **一律拆堆**（哪怕整堆都装得下）：本函数的契约是"**源只会被扣减，不会被搬走**"，
+                // 调用方靠 `fresh.getCount() > 0` 判断"还有余数要走背包/手上"。
+                // 早先对"整堆装得下"走的是"同一条记录换位置"（与 putPotionToSlot 一致），
+                // 结果源实例的瓶数原样留着 → 调用方把**已经在槽里的那堆**又当成余数发一次（重复给）。
+                // 字段与掉落/奖励同源；药水不参与战斗数值计算，掷点差异无影响。
+                ItemInstance part = roll.roll(fresh.getTemplate(), fresh.getJobCodeMask());
+                part.setCharacterId(Math.toIntExact(player.getId()));
+                part.setCount(n);
+                part.setLocation(ItemLocations.EQUIP);
+                part.setSlot(slot);
+                storage.update(part);      // id 为空 → 内部转 insert 并回填
+                items.byUidPut(part);
+                touched.add(part);
+                fresh.setCount(fresh.getCount() - n);
+            } else if (inSlot.getTemplate() != null && fresh.getTemplate() != null
+                    && java.util.Objects.equals(inSlot.getTemplate().getId(), fresh.getTemplate().getId())
+                    && inSlot.getCount() < cap) {
+                int n = Math.min(fresh.getCount(), cap - inSlot.getCount());
+                inSlot.setCount(inSlot.getCount() + n);
+                items.markDirty(ItemLocations.EQUIP, slot, inSlot.getId());
+                storage.update(inSlot);
+                touched.add(inSlot);
+                fresh.setCount(fresh.getCount() - n);
+            }
+            // 异种 / 已满 → 看下一格
+        }
+        if (!touched.isEmpty()) {
+            log.info("[Pickup] {} 药水优先进槽：{} 个槽被填充，剩 {} 瓶走背包/手上",
+                    player.getName(), touched.size(), Math.max(0, fresh.getCount()));
+        }
+        return touched;
+    }
+
+    /** 拾取前的负重检查（原版在拾取入口就查，超重则**整次拾取拒绝**、物品留在地上）。 */
+    public boolean pickupOverWeight(Player player, ItemInstance fresh) {
+        return statCalculator.isOverWeight(player, fresh);
     }
 
     /**

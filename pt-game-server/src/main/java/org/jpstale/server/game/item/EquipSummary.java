@@ -36,6 +36,12 @@ public final class EquipSummary {
             if (it.isDeleted()) {
                 continue;
             }
+            // **需求不满足的装备不算数**：原版 `SetItemToChar` 里
+            // `if (InvenItem[i].sItemInfo.NotUseFlag) continue;`（sinInvenTory.cpp:7355）——
+            // 洗点/降级后属性掉下来的装备**属性不生效**（外观照旧、负重照算；客户端会把它标红）。
+            if (!ItemRules.meetsRequirements(player, it)) {
+                continue;
+            }
             var def = it.getTemplate();
             // 上限提升（掷点实例值）
             s.increaseLife += (int) it.getIncreaseLife();

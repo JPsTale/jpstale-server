@@ -243,6 +243,10 @@ public class PlayerStatCalculator {
             if (it.isDeleted()) {
                 continue;
             }
+            // 同上：需求不满足的装备连抗性也不加（原版 SetItemToChar 的 continue）
+            if (!org.jpstale.server.game.item.ItemRules.meetsRequirements(p, it)) {
+                continue;
+            }
             sum += it.getAttackRating();
         }
         return sum;

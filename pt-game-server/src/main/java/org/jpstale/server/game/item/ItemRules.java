@@ -1,5 +1,7 @@
 package org.jpstale.server.game.item;
 
+import org.jpstale.server.game.model.Player;
+
 /**
  * 物品使用规则（**原版代码里的表**，不是我们发明的）。
  *
@@ -120,6 +122,29 @@ public final class ItemRules {
      */
     private static boolean isFemaleJob(int job) {
         return job == 3 || job == 5 || job == 8 || job == 9 || job == 11;
+    }
+
+    /**
+     * **需求门（原版 `NotUseFlag` 的属性侧）**：等级 + 5 属性。出处 `sinInvenTory.cpp:6971`
+     * `CheckRequireItem`（Level/Dexterity/Strength/Talent/Spirit/Health 任一不足即置 `NotUseFlag`）。
+     *
+     * 两个用途，必须是同一份判据：
+     *  - **能不能穿上**（`ItemService.equipFromBag` 的门槛）；
+     *  - **已装备的件还算不算数** —— 原版 `SetItemToChar` 在累加属性时
+     *    `if (InvenItem[i].sItemInfo.NotUseFlag) continue;`（`sinInvenTory.cpp:7355`），
+     *    即属性不满足的装备**属性不生效**（但外观照旧、负重照算），且背包格/装备槽画**红底**提示
+     *    （`:944`，`sinInvenColor[2]` = 255,0,0,128）。
+     */
+    public static boolean meetsRequirements(Player player, ItemInstance it) {
+        if (it == null) {
+            return false;
+        }
+        return player.getLevel() >= it.getReqLevel()
+                && player.getStrength() >= it.getReqStrength()
+                && player.getSpirit() >= it.getReqSpirit()
+                && player.getTalent() >= it.getReqTalent()
+                && player.getAgility() >= it.getReqAgility()
+                && player.getHealth() >= it.getReqHealth();
     }
 
     /**

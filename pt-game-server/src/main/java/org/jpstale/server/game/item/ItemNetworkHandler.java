@@ -589,35 +589,47 @@ public class ItemNetworkHandler {
                 session.getCharacterName(), gid, Math.abs(gi.y - ent.getY()), PICKUP_HEIGHT_DIFF);
             return;
         }
-        // **拾取上手**（原版：背包窗口开着时 `memcpy(&MouseItem, ...)`，不走背包、也不需要背包空格）。
-        // 客户端把"面板是否打开"作为 to_hand 报上来；手位被占/超重时 grantToHand 返回 null → 回退进背包。
+        // ① 负重：原版在拾取入口就查，超重则整次拾取拒绝（物品留在地上）
+        if (itemService.pickupOverWeight(p, gi.item)) {
+            log.info("[Pickup] {} gid={} : over weight → 保持原地", session.getCharacterName(), gid);
+            sendSystemMessageKey(session, "chat.pickup.overWeight");
+            return;
+        }
+        // ② 药水优先填药水槽（原版 AutoSetPotion）：灌不完的余数才继续走"上手 / 进背包"
+        java.util.List<ItemInstance> potionSlots = itemService.pourIntoPotionSlots(p, gi.item);
+        for (ItemInstance t : potionSlots) {
+            pushUpdate(session, t);
+        }
         ItemInstance granted = null;
-        if (message.getPickupItem().getToHand()) {
-            granted = itemService.grantToHand(p, gi.item);
-        }
-        if (granted == null) {
-            ItemService.GrantResult result = itemService.grantInstanceToBag(p, gi.item);
-            if (result.reason == ItemService.GrantReason.BAG_FULL) {
-                // 背包满：物品保持原地，仅提示（对齐原版 INVENTORY_FULL 语义，不重丢）
-                log.info("[Pickup] {} gid={} : bag full → 保持原地", session.getCharacterName(), gid);
-                sendSystemMessageKey(session, "chat.pickup.bagFull");
-                return;
+        if (gi.item.getCount() > 0) {
+            // ③ 余数：拾取上手（原版背包窗口开着时 `memcpy(&MouseItem, ...)`，不走背包也不需要空格）
+            if (message.getPickupItem().getToHand()) {
+                granted = itemService.grantToHand(p, gi.item);
             }
-            if (result.reason == ItemService.GrantReason.OVER_WEIGHT) {
-                // 超重：物品保持原地，仅提示（对齐原版 Weight[0]>Weight[1] 语义）
-                log.info("[Pickup] {} gid={} : over weight → 保持原地", session.getCharacterName(), gid);
-                sendSystemMessageKey(session, "chat.pickup.overWeight");
-                return;
+            // ④ 还落不下就进背包（手位被占 / 未要求上手）；背包满则保持原地
+            if (granted == null) {
+                ItemService.GrantResult result = itemService.grantInstanceToBag(p, gi.item);
+                if (result.reason == ItemService.GrantReason.BAG_FULL) {
+                    log.info("[Pickup] {} gid={} : bag full（药水槽已收 {}）→ 余数留在地上",
+                            session.getCharacterName(), gid, potionSlots.size());
+                    sendSystemMessageKey(session, "chat.pickup.bagFull");
+                    return;
+                }
+                granted = result.instance;
             }
-            granted = result.instance;
         }
-        groundItems.remove(ent.getMapId(), gid);
-        log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @loc={}/slot={}",
-            session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
-            granted.getTemplate() != null ? granted.getTemplate().getName() : "?",
-            granted.getLocation(), granted.getSlot());
-        broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
-        pushUpdate(session, granted);
+        // 整堆都被药水槽吃掉 → 地上那件已耗尽；否则移除地面物并广播消失
+        if (gi.item.getCount() > 0) {
+            groundItems.remove(ent.getMapId(), gid);
+            broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
+        }
+        if (granted != null) {
+            log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @loc={}/slot={}",
+                session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
+                granted.getTemplate() != null ? granted.getTemplate().getName() : "?",
+                granted.getLocation(), granted.getSlot());
+            pushUpdate(session, granted);
+        }
         refreshPlayerStats(session, p); // 负重/属性（拿起装备会撤效果）需要更新
     }
 

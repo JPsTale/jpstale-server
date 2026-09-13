@@ -576,7 +576,8 @@ public class PlayerService {
             // 元素抗性（EElementID: 0生物 1大地 2火 3冰 4雷 5毒 6水 7风）
             // ⚠ 排除鼠标位（slot=-1）：重登时"手上还拿着"的那件不算装备、不加抗性。
             if (it.getLocation() == org.jpstale.server.game.item.ItemLocations.EQUIP
-                    && !org.jpstale.server.game.item.ItemLocations.isHeld(it)) {
+                    && !org.jpstale.server.game.item.ItemLocations.isHeld(it)
+                    && org.jpstale.server.game.item.ItemRules.meetsRequirements(player, it)) {
                 res[0] += it.getResBionic();
                 res[1] += it.getResEarth();
                 res[2] += it.getResFire();
