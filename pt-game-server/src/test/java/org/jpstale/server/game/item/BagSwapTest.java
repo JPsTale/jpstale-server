@@ -84,7 +84,8 @@ public class BagSwapTest {
         items.index(target);
         Player p = newPlayer(items);
 
-        ItemService.OpResult r = service.swapWithHand(p, 1L, 2L);
+        // 落点 = 被撞件原格（同尺寸互换）
+        ItemService.OpResult r = service.swapWithHand(p, 1L, 2L, ItemLocations.BAG_PAGE, slot);
 
         assertEquals("换手成功", ItemService.OpReason.OK, r.reason);
         assertTrue("被撞件换到鼠标位", ItemLocations.isHeld(items.byUid(2L)));
@@ -95,6 +96,48 @@ public class BagSwapTest {
         // 位图归属正确（不会两件都"看不见"）
         CanvasGrid cg = items.canvas(ItemLocations.BAG_PAGE);
         assertTrue("目标格已归手上那件", cg.xOf(slot) == 3 && cg.yOf(slot) == 2);
+    }
+
+    @Test
+    public void partialOverlapSwapUsesLandingCellNotTargetAnchor() {
+        // 用户实测（2026-09-14）：2×4 放到 2×3 旁边，两者足迹**部分重叠**；
+        // 落点(锚 x7y8) ≠ 被撞件锚格(x8y9)。服务端按"被撞件锚格"校验会误判越界（x8+2=10 宽没问题、
+        // 但 y9+4=13 > 12 越界）→ 合法的换手被拒。必须按客户端给的落点校验。
+        ItemList big = item(73, 44, 88);      // 2×4
+        ItemList mid = item(233, 44, 66);     // 2×3
+        PlayerItems items = new PlayerItems();
+        ItemInstance hand = inst(1L, ItemLocations.EQUIP, ItemLocations.HELD_SLOT, big);
+        int targetSlot = 9 * ItemLocations.BAG_W + 8;    // 被撞件锚 (x8,y9)
+        int landSlot = 8 * ItemLocations.BAG_W + 7;      // 落点锚 (x7,y8) —— 2×4 放这里正好不越界
+        ItemInstance target = inst(2L, ItemLocations.BAG_PAGE, targetSlot, mid);
+        items.index(hand);
+        items.index(target);
+        Player p = newPlayer(items);
+
+        ItemService.OpResult r = service.swapWithHand(p, 1L, 2L, ItemLocations.BAG_PAGE, landSlot);
+
+        assertEquals("按落点校验应通过", ItemService.OpReason.OK, r.reason);
+        assertEquals("手上那件落在客户端给的落点", landSlot, items.byUid(1L).getSlot());
+        assertTrue("被撞件进鼠标位", ItemLocations.isHeld(items.byUid(2L)));
+    }
+
+    @Test
+    public void rejectsWhenLandingCellIsOutOfBounds() {
+        ItemList big = item(73, 44, 88);      // 2×4
+        ItemList mid = item(233, 44, 66);
+        PlayerItems items = new PlayerItems();
+        ItemInstance hand = inst(1L, ItemLocations.EQUIP, ItemLocations.HELD_SLOT, big);
+        ItemInstance target = inst(2L, ItemLocations.BAG_PAGE, 0, mid);
+        items.index(hand);
+        items.index(target);
+        Player p = newPlayer(items);
+
+        // 落点在最后一行：2×4 的 y 会超界 → 拒绝（且两件都不许动）
+        int badSlot = (ItemLocations.BAG_H - 1) * ItemLocations.BAG_W;
+        assertNotEquals(ItemService.OpReason.OK,
+                service.swapWithHand(p, 1L, 2L, ItemLocations.BAG_PAGE, badSlot).reason);
+        assertTrue(ItemLocations.isHeld(items.byUid(1L)));
+        assertEquals(0, items.byUid(2L).getSlot());
     }
 
     @Test
@@ -109,7 +152,8 @@ public class BagSwapTest {
         items.index(target);
         Player p = newPlayer(items);
 
-        assertEquals(ItemService.OpReason.NOT_IN_BAG, service.swapWithHand(p, 1L, 2L).reason);
+        assertEquals(ItemService.OpReason.NOT_IN_BAG,
+                service.swapWithHand(p, 1L, 2L, ItemLocations.BAG_PAGE, 2).reason);
         assertEquals("原样不动", 0, items.byUid(1L).getSlot());
         assertEquals(2, items.byUid(2L).getSlot());
     }
@@ -127,7 +171,7 @@ public class BagSwapTest {
         items.index(target);
         Player p = newPlayer(items);
 
-        ItemService.OpReason reason = service.swapWithHand(p, 1L, 2L).reason;
+        ItemService.OpReason reason = service.swapWithHand(p, 1L, 2L, ItemLocations.BAG_PAGE, slot).reason;
         assertNotEquals("容不下就拒绝（不是硬塞）", ItemService.OpReason.OK, reason);
         assertTrue("手上那件仍在鼠标位", ItemLocations.isHeld(items.byUid(1L)));
         assertEquals("被撞件仍在原格", slot, items.byUid(2L).getSlot());

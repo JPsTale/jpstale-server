@@ -989,7 +989,7 @@ public class ItemService {
      * @return 成功给**换到手上**的那件（B）；失败给原因
      */
     @Transactional
-    public OpResult swapWithHand(Player player, long handUid, long targetUid) {
+    public OpResult swapWithHand(Player player, long handUid, long targetUid, int toLocation, int toSlot) {
         PlayerItems items = player.getItems();
         ItemInstance hand = items.byUid(handUid);
         ItemInstance target = items.byUid(targetUid);
@@ -1003,37 +1003,56 @@ public class ItemService {
                     target == null ? "-" : target.getLocation());
             return OpResult.fail(OpReason.NOT_IN_BAG);
         }
-        if (target.getLocation() == ItemLocations.HELD_SLOT) {
+        if (ItemLocations.isHeld(target)) {
             return OpResult.fail(OpReason.NOT_IN_BAG);
         }
-        CanvasGrid cg = items.canvas(target.getLocation());
-        int tSlot = target.getSlot();
-        if (cg == null || !cg.canPlaceExcept(cg.xOf(tSlot), cg.yOf(tSlot),
-                hand.gridW(), hand.gridH(), cg.xOf(tSlot), cg.yOf(tSlot), target.gridW(), target.gridH())) {
-            log.info("[Swap] 拒绝 {}：手上那件 {}x{} 放不进目标格 loc={} slot={}",
-                    player.getName(), hand.gridW(), hand.gridH(), target.getLocation(), tSlot);
-            return OpResult.fail(OpReason.SLOT_MISMATCH);   // 目标格容不下手上那件（原版也是拒绝）
+        // 手上那件落到**客户端算出的落点**（`toLocation/toSlot`），不是"被撞件自己的锚格" ——
+        // 2×4 与 2×3 只是**部分重叠**时两者不同（实测 2026-09-14：按被撞件锚格校验会误判越界）。
+        CanvasGrid cg = items.canvas(toLocation);
+        if (cg == null) {
+            return OpResult.fail(OpReason.SLOT_MISMATCH);
+        }
+        int tx = cg.xOf(toSlot);
+        int ty = cg.yOf(toSlot);
+        if (cg.xOf(toSlot) < 0 || cg.yOf(toSlot) < 0
+                || tx + hand.gridW() > cg.width() || ty + hand.gridH() > cg.height()) {
+            log.info("[Swap] 拒绝 {}：落点 loc={} slot={} 越界（手上 {}x{}）",
+                    player.getName(), toLocation, toSlot, hand.gridW(), hand.gridH());
+            return OpResult.fail(OpReason.SLOT_MISMATCH);
+        }
+        // 同画布时，被撞件那一块视为已腾空（它要去手上）；异画布（背包↔仓库）则要求落点本来就空
+        boolean sameCanvas = target.getLocation() == toLocation;
+        boolean free = sameCanvas
+                ? cg.canPlaceExcept(tx, ty, hand.gridW(), hand.gridH(),
+                        cg.xOf(target.getSlot()), cg.yOf(target.getSlot()), target.gridW(), target.gridH())
+                : cg.canPlace(tx, ty, hand.gridW(), hand.gridH());
+        if (!free) {
+            log.info("[Swap] 拒绝 {}：手上那件 {}x{} 放不进落点 loc={} slot={}",
+                    player.getName(), hand.gridW(), hand.gridH(), toLocation, toSlot);
+            return OpResult.fail(OpReason.SLOT_MISMATCH);   // 落点容不下（原版也是拒绝）
         }
         // 与"搬运"同一套门：超重则拒绝（原版 CheckSetOk 的负重分支）
         if (overWeightBlocks(player, hand)) {
             return OpResult.fail(OpReason.OVER_WEIGHT);
         }
-        final int handOldSlot = hand.getSlot();
-        // 内存：先都摘出索引，再各落各家（与 applyBagLayout 同一顺序）
+        // 内存：先都摘出索引（清掉各自在画布上的足迹），再各落各家（与 applyBagLayout 同一顺序）
         items.byUidRemove(hand.getId());
         items.byUidRemove(target.getId());
-        hand.setLocation(target.getLocation());
-        hand.setSlot(tSlot);
-        items.byUidPut(hand);
-        items.markDirty(hand.getLocation(), tSlot, hand.getId());
+        hand.setLocation(toLocation);
+        hand.setSlot(toSlot);
+        if (ItemLocations.isCanvas(toLocation)) {
+            items.putToCanvas(toLocation, toSlot, hand);   // 落点画布：连同位图一起登记
+        } else {
+            items.byUidPut(hand);
+        }
+        items.markDirty(toLocation, toSlot, hand.getId());
         target.setLocation(ItemLocations.EQUIP);
         target.setSlot(ItemLocations.HELD_SLOT);
         items.byUidPut(target);
         items.markDirty(ItemLocations.EQUIP, ItemLocations.HELD_SLOT, target.getId());
         storage.writeMoved(java.util.List.of(hand, target));   // 两行互换 → 停车再落地
-        cg.place(cg.xOf(tSlot), cg.yOf(tSlot), hand.gridW(), hand.gridH());
-        log.info("[Swap] {} 换手：{} → loc={}/slot={}，{} → 鼠标位（原 slot={}）",
-                player.getName(), hand.getId(), hand.getLocation(), tSlot, target.getId(), handOldSlot);
+        log.info("[Swap] {} 换手：{} → loc={}/slot={}，{} → 鼠标位",
+                player.getName(), hand.getId(), toLocation, toSlot, target.getId());
         return OpResult.ok(target);
     }
 

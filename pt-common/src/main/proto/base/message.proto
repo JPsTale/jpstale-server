@@ -245,6 +245,11 @@ message C2S_TakeToHand {
 message C2S_BagSwap {
   int64 hand_uid = 1;     // 手上那件（服务端按 (EQUIP, HELD_SLOT) 校验，防客户端乱指）
   int64 target_uid = 2;   // 被换进手里那件（必须在背包/仓库画布上）
+  // **手上那件的落点**（客户端算出的锚格）。必须带上：目标件的锚格常常不是落点 ——
+  // 2×4 放到一个 2×3 旁边时，两者足迹只是**部分重叠**，落点(如 x7y8) 与被撞件锚格(如 x8y9) 不同；
+  // 服务端若拿"被撞件的锚格"当落点去校验，就会把一次合法换手判成越界（实测 2026-09-14）。
+  int32 to_location = 3;
+  int32 to_slot = 4;
 }
 
 // 背包内移动/换格（含背包↔仓库）：toLocation/toSlot 为画布目标（location+slot）

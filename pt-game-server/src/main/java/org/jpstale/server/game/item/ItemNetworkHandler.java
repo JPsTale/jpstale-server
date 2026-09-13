@@ -475,7 +475,8 @@ public class ItemNetworkHandler {
             return;
         }
         MessageProto.C2S_BagSwap req = message.getBagSwap();
-        ItemService.OpResult r = itemService.swapWithHand(p, req.getHandUid(), req.getTargetUid());
+        ItemService.OpResult r = itemService.swapWithHand(p, req.getHandUid(), req.getTargetUid(),
+                req.getToLocation(), req.getToSlot());
         if (r.reason != ItemService.OpReason.OK) {
             sendErrorKey(session, "item.op." + opKeySuffix(r.reason));   // 客户端据前缀回滚两件
             return;
