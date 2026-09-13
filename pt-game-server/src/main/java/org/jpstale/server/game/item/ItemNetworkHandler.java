@@ -19,6 +19,8 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class ItemNetworkHandler {
+    private final org.jpstale.server.game.network.MessageSender messageSender;
+
 
     private final ItemService itemService;
     private final PlayerService playerService;
@@ -33,7 +35,8 @@ public class ItemNetworkHandler {
                               org.jpstale.server.game.service.AOIManager aoiManager,
                               GroundItemManager groundItems,
                               org.jpstale.server.game.service.TeleportService teleportService,
-                              org.jpstale.server.game.service.MapManager mapManager) {
+                              org.jpstale.server.game.service.MapManager mapManager,
+                              org.jpstale.server.game.network.MessageSender messageSender) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
@@ -41,6 +44,7 @@ public class ItemNetworkHandler {
         this.groundItems = groundItems;
         this.teleportService = teleportService;
         this.mapManager = mapManager;
+        this.messageSender = messageSender;
     }
 
     // ------------------------------------------------------------------
@@ -67,6 +71,31 @@ public class ItemNetworkHandler {
      *   · 药水族 → 回复 HP/MP/SP（数值待补：`items-11job.json` 目前没保留 `*생명력상승` 等列）
      *   · 其它家族 → 明确回"暂未实现"，**不静默、不错扣**
      */
+    /** 客户端 STATE 枚举里的 EAT（`anim-state-machine.ts` 的 `EAT = 0x0140`） */
+    private static final int ANIM_STATE_EAT = 0x0140;
+
+    /** 药水 → 向 AOI 广播一次 EAT 动作（位置/朝向取当前实体，只作动作载体） */
+    private void broadcastEatIfPotion(PlayerSession session, Player p, long uid) {
+        org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+        if (ent == null) {
+            return;
+        }
+        ItemInstance it = p.getItems().byUid(uid);
+        if (it == null || it.getTemplate() == null || !ItemClass.isPotion(it.getTemplate().getClassItem())) {
+            return;
+        }
+        MessageProto.S2C_PlayerMove move = MessageProto.S2C_PlayerMove.newBuilder()
+                .setPlayerId(p.getId())
+                .setPosition(org.jpstale.server.proto.base.CommonProto.Position.newBuilder()
+                        .setX((float) ent.getX()).setY((float) ent.getY()).setZ((float) ent.getZ()).build())
+                .setAngle((float) ent.getAngle())
+                .setAnimState(ANIM_STATE_EAT)
+                .setTimestamp(System.currentTimeMillis())
+                .build();
+        messageSender.broadcastToArea(ent.getMapId(), (float) ent.getX(), (float) ent.getZ(), 50,
+                MessageProto.ServerMessage.newBuilder().setPlayerMove(move).build());
+    }
+
     @GamePacketHandler(MessageProto.ClientMessage.USE_ITEM_FIELD_NUMBER)
     public void handleUseItem(PlayerSession session, MessageProto.ClientMessage message) {
         Player p = requirePlayer(session);
@@ -74,6 +103,10 @@ public class ItemNetworkHandler {
             return;
         }
         MessageProto.C2S_UseItem req = message.getUseItem();
+        // 使用**药水**时把 EAT 动作广播给 AOI（原版 sinActionPotion → CHRMOTION_STATE_EAT）。
+        // 收到请求即发：原版是点击瞬间本地切动作，服务端不等效果结算；
+        // 旁观者按 anim_state 本地匹配自己那套 EAT 条目（服务端不解释动画数据，只透传状态）。
+        broadcastEatIfPotion(session, p, req.getUid());
         ItemInstance it = p.getItems().byUid(req.getUid());
         // 可使用的位置：**背包**，以及**药水快捷槽**（ITEMSLOT 11/12/13）——
         // 后者就是"按数字键 1/2/3 吃药"的链路（docs/pt-core-gameplay.md 19 节）。

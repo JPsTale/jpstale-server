@@ -114,8 +114,7 @@ public class ItemInstance {
         if (template == null || template.getClassItem() == null) {
             return true;
         }
-        int c = template.getClassItem();
-        return c == 0 || c == 1 || c == ItemClass.POTION;
+        return ItemClass.isStackable(template.getClassItem());
     }
 
     /** 物品名（模板）。 */
