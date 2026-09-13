@@ -40,6 +40,11 @@ public final class ItemRules {
         return (idCode & MASK2) == FAMILY_QUEST;
     }
 
+    /** 是否属于**任务物品家族**（`sinQT1 = 0x07010000`）。禁丢清单与超重豁免共用这一份近似。 */
+    public static boolean isQuestFamily(int idCode) {
+        return idCode != 0 && inFamily(idCode);
+    }
+
     /** 能否丢到地面（原版 `NotDrow_Item_*`）。 */
     public static boolean isDroppable(int idCode) {
         if (idCode == 0) {
@@ -68,32 +73,59 @@ public final class ItemRules {
 
     // ================= 装备职业门（原版 `NotUseFlag` 的真正语义）=================
     //
-    // 出处：`NewSourcePT-2023/SrcGame/src/sinbaram/sinInvenTory1.cpp:6152-6206` —— 原版客户端在
-    // 放装备时按下面这些**硬编码规则**置 `NotUseFlag`，命中就不许放进槽（`CheckSetOk` 里
-    // `ItemPosition != 0 && NotUseFlag` → `MESSAGE_NO_USE_ITEM` 并拒绝）。
-    // 家族码取自 `sinItem.h:68-88`。客户端同一份在 `src/game/itemRules.ts`。
+    // 出处：`ex-machina/src/game/Legacy/Game/Interface/sinInvenTory.cpp:4341-4440`（`CharOnlySetItem`）
+    // + `:4470-4520`（`CheckRequireItem` / `CheckRequireItemToSet`）。原版在放装备时按这些
+    // **硬编码规则**置 `NotUseFlag`，命中就不许放进槽（`CheckSetOk` 里 `ItemPosition != 0
+    // && NotUseFlag` → `MESSAGE_NO_USE_ITEM` 并拒绝）。家族码取自 `sinItem.h`。
+    // 客户端同一份在 `src/game/itemRules.ts`（改一边要改另一边）。
     //
     // ⚠ 更权威的是服务端 OpenItem 的 `**특화`/`**특화랜덤` 字段（AGENTS 纠错 #8），
     //   但 `items-11job.json` 当初没保留那两列；在重扫之前，这里用**与原版客户端一致**的规则兜住。
 
-    private static final int WA1 = 0x01010000;   // 斧
-    private static final int WC1 = 0x01020000;   // 爪
-    private static final int WH1 = 0x01030000;   // 锤
-    private static final int WM1 = 0x01040000;   // 法杖
-    private static final int WP1 = 0x01050000;   // 枪
-    private static final int WS1 = 0x01060000;   // 弓
-    private static final int WS2 = 0x01070000;   // 剑
-    private static final int WT1 = 0x01080000;   // 标枪
-    private static final int WN1 = 0x01090000;   // 图腾（萨满）
-    private static final int WD1 = 0x010A0000;   // 匕首（刺客）
-    private static final int DA1 = 0x02010000;   // 铠甲
-    private static final int DA2 = 0x02050000;   // 法袍
-    private static final int OM1 = 0x03030000;   // 法球
+    private static final int DA1 = 0x02010000;   // 铠甲（物理系）
+    private static final int DA2 = 0x02050000;   // 法袍（法系）
+    private static final int OM1 = 0x03030000;   // 法球（副手）
+    private static final int WD1 = 0x010A0000;   // 匕首（刺客专属）
+    private static final int WN1 = 0x01090000;   // 图腾（萨满专属）
+    private static final int WV1 = 0x010B0000;   // 拳套（格斗家专属）
+    /** 原版 `sinITEM_MASK3`（playmain.h:220）：低 16 位 —— 男/女外观变体就在这一层区分 */
+    private static final int MASK3 = 0x0000FFFF;
+
+    /**
+     * 原版 `CharOnlySetItem` **第一分支**的 10 个甲码 —— **女性职业被这 10 个码拒绝**
+     * ⇒ 它们是**男款**外观：`sin31 sin32 sin35 sin36 sin39 sin40 sin43 sin44 sin51 sin54`。
+     * <p>
+     * ⚠ 命名按**语义**（谁是这一款的主人）而不是按"源码里谁被判"：源码第一分支写的是
+     * "PRIESTESS/ATALANTA/ARCHER 不可用"，所以那个列表是**男款**。搞反会让下一个人误判。
+     * <p>
+     * 同一批甲在男/女两套外观下是**两个不同的 idcode**（同名的两件）——实测我方数据：
+     * `da151`/`da152` 都叫 Dark Gaia Armor、`da251`/`da252` 都叫 Dark Iria Robe。
+     * 回归：`npm run verify-canuse`（会用"同名对"反向自证这个维度）。
+     */
+    private static final int[] MALE_VARIANT_CODES = {
+            0x2F00, 0x3000, 0x3300, 0x3400, 0x3700, 0x3800, 0x3B00, 0x3C00, 0x4300, 0x4600
+    };
+    /** 原版 `CharOnlySetItem` **第二分支**的 10 个甲码 —— **其余职业被拒绝** ⇒ 它们是**女款**：`sin33 sin34 sin37 sin38 sin41 sin42 sin45 sin46 sin52 sin55` */
+    private static final int[] FEMALE_VARIANT_CODES = {
+            0x3100, 0x3200, 0x3500, 0x3600, 0x3900, 0x3A00, 0x3D00, 0x3E00, 0x4400, 0x4700
+    };
+
+    /**
+     * 女性职业集合 = 客户端 `JOB_DATA[].gender === 'f'`（3 弓手 / 5 女战神 / 8 祭司 / 9 刺客 / 11 格斗家）。
+     * <p>
+     * 原版 `CharOnlySetItem` 里写死的是 `PRIESTESS || ATALANTA || ARCHER` —— 8 职业时代那 3 个女性职业，
+     * 与我们的 `gender` 表**完全吻合**。新增的 9/10/11 在原版源码里没有（那个时代还没有），
+     * 故按**体型性别**外推：刺客(m6)/格斗家(m8) 用的是女性体型（`bipMeshPrefix 'tfb'`）→ 归女性；
+     * 萨满(m7) 用男性体型 → 归男性。依据记在此处，不是照抄。
+     */
+    private static boolean isFemaleJob(int job) {
+        return job == 3 || job == 5 || job == 8 || job == 9 || job == 11;
+    }
 
     /**
      * 该职业能否使用这件装备 —— **逐条照抄原版客户端的判定**（顺序与条件一一对应）。
      *
-     * @param job   角色职业号（1..11；7 法师 / 8 祭司 / 9 刺客 / 10 萨满）
+     * @param job   角色职业号（1..11；3 弓手 / 5 女战神 / 7 法师 / 8 祭司 / 9 刺客 / 10 萨满 / 11 格斗家）
      * @param idCode 物品 idcode
      */
     public static boolean canUse(int job, int idCode) {
@@ -101,27 +133,39 @@ public final class ItemRules {
             return true;
         }
         int f = idCode & MASK2;
-        // 法系（法师/祭司/萨满）穿不了铠甲；非魔法职业穿不了法袍、用不了法球
+        // ① 甲（DA1/DA2）按**男/女外观码**分派：只能穿自己那一款（女性 → 男款不可用，反之亦然）
+        if (f == DA1 || f == DA2) {
+            int m3 = idCode & MASK3;
+            int[] foreign = isFemaleJob(job) ? MALE_VARIANT_CODES : FEMALE_VARIANT_CODES;
+            for (int c : foreign) {
+                if (c == m3) {
+                    return false;
+                }
+            }
+        }
+        // ② 铠甲(DA1) 法系穿不了；法袍(DA2)、法球(OM1) 非魔法职业用不了
         boolean magicJob = job == 7 || job == 8 || job == 10;
         if (magicJob ? (f == DA1) : (f == DA2 || f == OM1)) {
             return false;
         }
-        // 刺客用不了这些武器
-        if (job == 9 && (f == WA1 || f == WH1 || f == WT1 || f == WP1
-                || f == WS1 || f == WS2 || f == WM1 || f == WN1)) {
-            return false;
+        // ③ **全族一致**的职业锁（来源：服务端 OpenItem 的 `**특화`/`**특화랜덤`，AGENTS 纠错 #8）。
+        //    只收录"整个族 100% 一致"的族 —— 这种族才敢当**族级**规则用：
+        //    OM 法球 = Priestess/Magician 25/25、WD 匕首 = Assassin 33/33、
+        //    WN 图腾 = Shaman 33/33、WV 拳套 = MartialArtist 34/34。
+        //    （WA/WP/WS/WT/WC/WH 是 `**특화` **单职业且只覆盖一部分**，不能推成族规则 → 不收。）
+        //    ⚠ 更细的权威是逐件的 JobCodeMask（`**특화랜덤` 在掉落时挑一个写回），
+        //      那一列还没扫进 `items-11job.json`；在那之前用这 4 条族规则兜住。
+        if (f == OM1) {
+            return job == 7 || job == 8;
         }
-        // 萨满用不了这些武器
-        if (job == 10 && (f == WA1 || f == WC1 || f == WH1 || f == WT1 || f == WP1
-                || f == WS1 || f == WS2 || f == WM1 || f == WD1)) {
-            return false;
+        if (f == WD1) {
+            return job == 9;
         }
-        // 匕首只有刺客、图腾只有萨满
-        if (f == WD1 && job != 9) {
-            return false;
+        if (f == WN1) {
+            return job == 10;
         }
-        if (f == WN1 && job != 10) {
-            return false;
+        if (f == WV1) {
+            return job == 11;
         }
         return true;
     }

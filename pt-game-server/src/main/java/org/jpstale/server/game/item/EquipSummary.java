@@ -32,7 +32,7 @@ public final class EquipSummary {
             return s;
         }
         int job = player.getJob();
-        for (ItemInstance it : items.itemsIn(ItemLocations.EQUIP)) {
+        for (ItemInstance it : items.equippedItems()) {   // 排除鼠标位（slot=-1，拿了还没放下的那件不算装备）
             if (it.isDeleted()) {
                 continue;
             }

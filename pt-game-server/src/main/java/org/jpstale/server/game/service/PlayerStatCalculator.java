@@ -239,7 +239,7 @@ public class PlayerStatCalculator {
         if (items == null) {
             return 0;
         }
-        for (ItemInstance it : items.itemsIn(ItemLocations.EQUIP)) {
+        for (ItemInstance it : items.equippedItems()) {   // 排除鼠标位：手上那件不提供装备属性
             if (it.isDeleted()) {
                 continue;
             }
@@ -431,25 +431,41 @@ public class PlayerStatCalculator {
      * 用户拍板：副装备栏（备用套，未激活）不计负重，W 切换激活后才计入（让玩家更爽）。
      */
     public int currentWeight(Player p) {
+        return weightOf(p, null);
+    }
+
+    /**
+     * 负重求和（唯一实现）。`extra` 为"尚未进入背包/装备栏"的待入包实例，可为 null。
+     * 药水按**瓶数**(count)计，其它累加模板 weight（weight<0 忽略）。
+     */
+    private int weightOf(Player p, ItemInstance extra) {
         int w = 0;
         java.util.List<ItemInstance> all = new java.util.ArrayList<>();
         all.addAll(p.getItems().itemsIn(ItemLocations.BAG_PAGE));
+        // ⚠ 这里**要**包含鼠标位（装备栏 slot=-1）：原版 `CheckWeight` 把 `InvenItem` 与鼠标缓冲
+        // `InvenItemTemp` 一起算，所以"拿在手上"那件照样占负重（也因此搬运不改变总重）。
+        // 这与"按装备算属性/外观"的遍历正好相反 —— 那些必须走 `equippedItems()` 排除鼠标位。
         all.addAll(p.getItems().itemsIn(ItemLocations.EQUIP));
+        if (extra != null) {
+            all.add(extra);
+        }
         for (ItemInstance it : all) {
             if (it == null || it.isDeleted()) {
                 continue;
             }
-            Integer ci = it.getTemplate() != null ? it.getTemplate().getClassItem() : null;
-            if (ci != null && ItemClass.isPotion(ci)) { // 药水：每瓶 1 单位
-                w += it.getCount();
-                continue;
-            }
-            Integer wt = it.getTemplate() != null ? it.getTemplate().getWeight() : null;
-            if (wt != null && wt >= 0) {
-                w += wt;
-            }
+            w += weightOfItem(it);
         }
         return w;
+    }
+
+    /** 单件物品的负重（药水按瓶数，其余按模板 weight） */
+    private int weightOfItem(ItemInstance it) {
+        Integer ci = it.getTemplate() != null ? it.getTemplate().getClassItem() : null;
+        if (ci != null && ItemClass.isPotion(ci)) { // 药水：每瓶 1 单位
+            return Math.max(0, it.getCount());
+        }
+        Integer wt = it.getTemplate() != null ? it.getTemplate().getWeight() : null;
+        return (wt != null && wt >= 0) ? wt : 0;
     }
 
     /**
@@ -457,37 +473,19 @@ public class PlayerStatCalculator {
      * 对齐原版 Weight[0] > Weight[1] 语义。药水按瓶数计入。
      */
     public boolean isOverWeight(Player p, ItemInstance fresh) {
-        int w = 0;
-        java.util.List<ItemInstance> all = new java.util.ArrayList<>();
-        all.addAll(p.getItems().itemsIn(ItemLocations.BAG_PAGE));
-        all.addAll(p.getItems().itemsIn(ItemLocations.EQUIP));
-        for (ItemInstance it : all) {
-            if (it == null || it.isDeleted()) {
-                continue;
-            }
-            Integer ci = it.getTemplate() != null ? it.getTemplate().getClassItem() : null;
-            if (ci != null && ItemClass.isPotion(ci)) {
-                w += it.getCount();
-                continue;
-            }
-            Integer wt = it.getTemplate() != null ? it.getTemplate().getWeight() : null;
-            if (wt != null && wt >= 0) {
-                w += wt;
-            }
-        }
-        if (fresh == null) {
-            return false;
-        }
-        Integer ci = fresh.getTemplate() != null ? fresh.getTemplate().getClassItem() : null;
-        if (ci != null && ItemClass.isPotion(ci)) {
-            w += fresh.getCount();
-        } else {
-            Integer wt = fresh.getTemplate() != null ? fresh.getTemplate().getWeight() : null;
-            if (wt != null && wt >= 0) {
-                w += wt;
-            }
-        }
-        int max = maxWeightOf(p);
-        return w > max;
+        return weightOf(p, fresh) > maxWeightOf(p);
+    }
+
+    /**
+     * 当前是否**已经超重**（不含待入包件）。
+     * <p>
+     * 用于原版 `CheckSetOk` 的负重分支（sinInvenTory.cpp:6021）：
+     * 那里判的是 `Weight[0] + 该件重量 > Weight[1]`，而 `Weight[0]` 是"背包+装备"的合计、
+     * **不含鼠标上那件**，所以加上该件后恰好就是"搬运完成后的总重"。在背包↔装备槽、
+     * 背包↔药水槽之间搬运**不改变总重** ⇒ 该判定等价于"当前已超重就拒绝搬运"。
+     * 例外：原版对 `ITEM_KIND_QUEST_WEAPON` 豁免（我们无该字段，用任务家族近似，见 ItemRules）。
+     */
+    public boolean isOverloaded(Player p) {
+        return currentWeight(p) > maxWeightOf(p);
     }
 }

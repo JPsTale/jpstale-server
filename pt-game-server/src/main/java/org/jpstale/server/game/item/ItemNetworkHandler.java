@@ -234,6 +234,8 @@ public class ItemNetworkHandler {
                 .setGold(player.getGold());
         PlayerItems items = player.getItems();
         if (items != null) {
+            // EQUIP 段含**鼠标位**（slot=-1）→ 断线重连/重登时把"手上还拿着的那件"一并下发，
+            // 客户端据此原样恢复手持（用户 2026-09-14 定：重登必须还原）。
             for (int loc : new int[]{ItemLocations.BAG, ItemLocations.WAREHOUSE,
                     ItemLocations.EQUIP, ItemLocations.BACKUP_WEAPON}) {
                 for (ItemInstance it : items.itemsIn(loc)) {
@@ -456,6 +458,28 @@ public class ItemNetworkHandler {
         pushRemove(session, req.getSrcUid());
     }
 
+    /**
+     * **拿起**：任意容器 → 鼠标位（装备栏 `slot = -1`）。见 `ItemLocations.HELD_SLOT`。
+     * 放下不需要配套消息：放到装备槽/药水槽走 `EquipItem`、放到背包/仓库格走 `BagLayout`、丢地上走 `DropItem`，
+     * 这些路径现在都接受"来源 = 鼠标位"。
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.TAKE_TO_HAND_FIELD_NUMBER)
+    public void handleTakeToHand(PlayerSession session, MessageProto.ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        long uid = message.getTakeToHand().getUid();
+        ItemService.OpResult r = itemService.takeToHand(p, uid);
+        if (r.reason != ItemService.OpReason.OK) {
+            sendErrorKey(session, "item.op." + opKeySuffix(r.reason));
+            return;
+        }
+        pushUpdate(session, r.instance);
+        // 拿起装备 → 立刻掉属性/换外观（原版拿起即 sinSetCharItem(FALSE) + CheckWeight）
+        refreshPlayerStats(session, p);
+    }
+
     /** 穿装备：背包 → 装备槽 */
     @GamePacketHandler(MessageProto.ClientMessage.EQUIP_ITEM_FIELD_NUMBER)
     public void handleEquipItem(PlayerSession session, MessageProto.ClientMessage message) {
@@ -464,14 +488,51 @@ public class ItemNetworkHandler {
             return;
         }
         MessageProto.C2S_EquipItem req = message.getEquipItem();
-        ItemInstance equipped = itemService.equipFromBag(p, req.getUid(), req.getEquipSlot());
-        if (equipped == null) {
-            sendError(session, "equip failed (slot/requirement)");
+        long srcUid = req.getUid();
+        ItemService.OpResult r = itemService.equipFromBag(p, srcUid, req.getEquipSlot());
+        if (r.reason != ItemService.OpReason.OK) {
+            // 按**原因**回 key：原版 CheckSetOk 也是按原因分别弹 MESSAGE_OVER_WEIGHT / MESSAGE_NO_USE_ITEM。
+            // key 前缀 `item.op.` 同时是客户端的"回滚乐观更新"信号（不再靠字符串匹配）。
+            sendErrorKey(session, "item.op." + opKeySuffix(r.reason));
             return;
         }
+        ItemInstance equipped = r.instance;
         pushUpdate(session, equipped);
+        // **拆堆搬入**（药水槽：超出容量的部分留在背包，`putPotionToSlot`）走的是"新建槽内记录 +
+        // 扣减源堆"，所以**源堆不是** r.instance → 必须单独推一次，否则客户端背包里那堆
+        // 数量停在旧值（服务端只推了新记录）。整堆搬入时 r.instance 就是源记录，跳过。
+        if (equipped.getId() == null || equipped.getId() != srcUid) {
+            ItemInstance src = p.getItems().byUid(srcUid);
+            if (src != null && !src.isDeleted() && src.getCount() > 0) {
+                pushUpdate(session, src);
+            }
+        }
         refreshPlayerStats(session, p);
-        // 同槽旧件已回背包（equipFromBag 内部），此处推送被换下的旧件
+        // 被换下的件（同槽旧件 / 双手武器另一只手那件）已进背包 → 推它的新位置。
+        // 这一步不能省：客户端只知道"新件进槽了"，被换下那件就成了界面上的幽灵 ——
+        // 既不在原来的槽（被占了）也不在背包（没收到通知），用户看到的是"直接消失了"。
+        for (ItemInstance d : r.displaced) {
+            pushUpdate(session, d);
+        }
+    }
+
+    /** OpReason → i18n key 后缀（客户端 `locales/*.json` 的 `item.op.*`） */
+    private static String opKeySuffix(ItemService.OpReason r) {
+        switch (r) {
+            case NOT_IN_BAG: return "notInBag";
+            case JOB_NOT_ALLOWED: return "jobNotAllowed";
+            case SLOT_MISMATCH: return "slotMismatch";
+            case REQ_NOT_MET: return "reqNotMet";
+            case OVER_WEIGHT: return "overWeight";
+            case TWO_HAND_SLOT: return "twoHandSlot";
+            case NOT_POTION: return "notPotion";
+            case SLOT_FULL: return "slotFull";
+            case DIFFERENT_POTION: return "differentPotion";
+            case BAG_FULL: return "bagFull";
+            case HAND_BUSY: return "handBusy";
+            case NOT_HOLDABLE: return "notHoldable";
+            default: return "failed";
+        }
     }
 
     /** 脱装备：装备槽 → 背包 */
@@ -482,9 +543,9 @@ public class ItemNetworkHandler {
             return;
         }
         MessageProto.C2S_UnequipItem req = message.getUnequipItem();
-        boolean ok = itemService.unequipToBag(p, req.getEquipSlot());
-        if (!ok) {
-            sendError(session, "unequip failed (bag full?)");
+        ItemService.OpReason reason = itemService.unequipToBag(p, req.getEquipSlot());
+        if (reason != ItemService.OpReason.OK) {
+            sendErrorKey(session, "item.op." + opKeySuffix(reason));
             return;
         }
         // 推送装备槽清空 + 背包新位置
@@ -528,27 +589,36 @@ public class ItemNetworkHandler {
                 session.getCharacterName(), gid, Math.abs(gi.y - ent.getY()), PICKUP_HEIGHT_DIFF);
             return;
         }
-        ItemService.GrantResult result = itemService.grantInstanceToBag(p, gi.item);
-        if (result.reason == ItemService.GrantReason.BAG_FULL) {
-            // 背包满：物品保持原地，仅提示（对齐原版 INVENTORY_FULL 语义，不重丢）
-            log.info("[Pickup] {} gid={} : bag full → 保持原地", session.getCharacterName(), gid);
-            sendSystemMessageKey(session, "chat.pickup.bagFull");
-            return;
+        // **拾取上手**（原版：背包窗口开着时 `memcpy(&MouseItem, ...)`，不走背包、也不需要背包空格）。
+        // 客户端把"面板是否打开"作为 to_hand 报上来；手位被占/超重时 grantToHand 返回 null → 回退进背包。
+        ItemInstance granted = null;
+        if (message.getPickupItem().getToHand()) {
+            granted = itemService.grantToHand(p, gi.item);
         }
-        if (result.reason == ItemService.GrantReason.OVER_WEIGHT) {
-            // 超重：物品保持原地，仅提示（对齐原版 Weight[0]>Weight[1] 语义）
-            log.info("[Pickup] {} gid={} : over weight → 保持原地", session.getCharacterName(), gid);
-            sendSystemMessageKey(session, "chat.pickup.overWeight");
-            return;
+        if (granted == null) {
+            ItemService.GrantResult result = itemService.grantInstanceToBag(p, gi.item);
+            if (result.reason == ItemService.GrantReason.BAG_FULL) {
+                // 背包满：物品保持原地，仅提示（对齐原版 INVENTORY_FULL 语义，不重丢）
+                log.info("[Pickup] {} gid={} : bag full → 保持原地", session.getCharacterName(), gid);
+                sendSystemMessageKey(session, "chat.pickup.bagFull");
+                return;
+            }
+            if (result.reason == ItemService.GrantReason.OVER_WEIGHT) {
+                // 超重：物品保持原地，仅提示（对齐原版 Weight[0]>Weight[1] 语义）
+                log.info("[Pickup] {} gid={} : over weight → 保持原地", session.getCharacterName(), gid);
+                sendSystemMessageKey(session, "chat.pickup.overWeight");
+                return;
+            }
+            granted = result.instance;
         }
-        ItemInstance granted = result.instance;
         groundItems.remove(ent.getMapId(), gid);
-        log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @bagSlot={}",
+        log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @loc={}/slot={}",
             session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
-            granted.getTemplate() != null ? granted.getTemplate().getName() : "?", granted.getSlot());
+            granted.getTemplate() != null ? granted.getTemplate().getName() : "?",
+            granted.getLocation(), granted.getSlot());
         broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
         pushUpdate(session, granted);
-        refreshPlayerStats(session, p); // 负重变了，HUD/状态需要更新
+        refreshPlayerStats(session, p); // 负重/属性（拿起装备会撤效果）需要更新
     }
 
     /** 向地面物品所在位置周围玩家广播消失 */
@@ -591,27 +661,27 @@ public class ItemNetworkHandler {
         MessageProto.C2S_DropItem req = message.getDropItem();
         org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
         if (ent == null || ent.getMapId() < 0) {
-            sendError(session, "drop failed");
+            sendErrorKey(session, "item.op.failed");
             return;
         }
         // 禁丢清单（原版 NotDrow_Item_*，见 ItemRules）：任务物品等不许丢到地面。
         // 权威判定在这里；客户端也有一份同样的预校验（免得本地先移除、服务端却拒绝）。
         ItemInstance toDrop = p.getItems().byUid(req.getUid());
         if (toDrop == null) {
-            sendError(session, "drop failed");
+            sendErrorKey(session, "item.op.failed");
             return;
         }
         int dropCode = toDrop.getItemCode() != null ? toDrop.getItemCode() : 0;
         if (!ItemRules.isDroppable(dropCode)) {
             log.info("[DropItem] {} 拒绝丢弃 uid={} idCode=0x{}（禁丢清单：任务物品）",
                     p.getName(), req.getUid(), Integer.toHexString(dropCode));
-            sendError(session, "该物品无法丢弃");
+            sendErrorKey(session, "item.op.notDroppable");
             return;
         }
         // 丢到地面（对齐原版 ThrowItem）：从背包/装备取出 → 玩家附近生成地面物
         ItemInstance dropped = itemService.removeToGround(p, req.getUid());
         if (dropped == null) {
-            sendError(session, "drop failed");
+            sendErrorKey(session, "item.op.failed");
             return;
         }
         double ang = Math.random() * Math.PI * 2;
@@ -645,7 +715,7 @@ public class ItemNetworkHandler {
         }
         itemService.switchWeaponSet(p);
         // 推送主/备武器槽变化
-        for (ItemInstance it : p.getItems().itemsIn(ItemLocations.EQUIP)) {
+        for (ItemInstance it : p.getItems().equippedItems()) {   // 排除鼠标位（推送装备槽变化，不该推手上那件）
             pushUpdate(session, it);
         }
         for (ItemInstance it : p.getItems().itemsIn(ItemLocations.BACKUP_WEAPON)) {
@@ -659,7 +729,7 @@ public class ItemNetworkHandler {
         playerService.sendPlayerStatus(session, p);
         // 抗性重算：遍历当前装备
         int[] res = new int[8];
-        for (ItemInstance it : p.getItems().itemsIn(ItemLocations.EQUIP)) {
+        for (ItemInstance it : p.getItems().equippedItems()) {   // 排除鼠标位（推送装备槽变化，不该推手上那件）
             res[0] += it.getResBionic();
             res[1] += it.getResEarth();
             res[2] += it.getResFire();

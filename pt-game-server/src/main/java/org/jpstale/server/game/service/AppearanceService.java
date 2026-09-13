@@ -115,7 +115,7 @@ public class AppearanceService {
         PlayerItems items = p.getItems();
         if (items != null) {
             // 当前装备套固定在 EQUIP(location=0)：W 交换后当前套总在 EQUIP。主手+副手+身体都从这里读。
-            for (ItemInstance it : items.itemsIn(ItemLocations.EQUIP)) {
+            for (ItemInstance it : items.equippedItems()) {   // 排除鼠标位：手上那件不驱动外观（原版拿起即 sinSetCharItem FALSE）
                 if (it.isDeleted()) {
                     continue;
                 }

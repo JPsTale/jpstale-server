@@ -31,6 +31,7 @@ message ClientMessage {
     C2S_BagLayout bag_layout = 210;
     C2S_StackMerge stack_merge = 211;
     C2S_Unstuck unstuck = 212;           // 脱困请求：服务端算落点（本图最近 StartPoint）并广播传送
+    C2S_TakeToHand take_to_hand = 213;   // 拿起：把物品移到"手持位"（location=HELD=-1），原容器腾空
     
     // 战斗 (300-399)
     C2S_Attack attack = 300;
@@ -214,12 +215,23 @@ message C2S_UseItem {
 
 message C2S_PickupItem {
   int64 ground_item_id = 1;
+  // 拾取后是否**直接拿到手上**（鼠标位）。对应原版：背包窗口**开着**时拾取物 `memcpy` 进 `MouseItem`
+  // （不需要背包空格）；关着时走 `AutoSetInvenItem` 自动进背包空格。手位被占则仍进背包（不覆盖手上那件）。
+  bool to_hand = 2;
 }
 
 // 丢弃物品（软删；count=丢弃堆叠数，装备恒 1）
 message C2S_DropItem {
   int64 uid = 1;
   int32 count = 2;
+}
+
+// 拿起（任意容器 → 手持位）。**没有配套的"放下"消息**：放下就是把它放到某个去处，
+// 复用已有的 EquipItem（装备槽/药水槽）、BagLayout（背包页/仓库格）、DropItem（地面）。
+// 拿起要单独一条消息，是因为"在手上"是一个真实位置（location = ItemLocations.HELD = -1）：
+// 服务端据此把物品移出原容器、立刻重算属性/外观，并在断线重连后原样恢复"手上还拿着它"。
+message C2S_TakeToHand {
+  int64 uid = 1;
 }
 
 // 背包内移动/换格（含背包↔仓库）：toLocation/toSlot 为画布目标（location+slot）

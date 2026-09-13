@@ -6,10 +6,32 @@ package org.jpstale.server.game.item;
  * location 语义（userdb.item.location，十进制分段）：
  *   0=装备栏   1=副装备栏   10~19=背包页   20=任务栏   30~39=仓库页   40=商店（拍卖行）
  *   v1 只启用：0 装备栏 / 1 副装备栏 / 10 背包页1 / 30 仓库页1
+ * <p>
+ * **鼠标位（手持位）= 装备栏(location=0) 的 `slot = HELD_SLOT(-1)`**（用户 2026-09-14 定）：
+ * "拿在手上还没放下"的那一件就存在这里，不复用背包格、也不新增 location 段。
  */
 public final class ItemLocations {
 
-    // ---- location 十进制段 ----
+    /**
+     * **鼠标位（手持位）**：鼠标拿起来、还没决定放哪的那一件（原版客户端 `MouseItem` 的等价物），
+     * 表示为**装备栏里的 -1 号槽**。真实装备槽是 1~13，所以 -1 不可能与它们冲突。
+     *
+     * 为什么"拿起"必须在服务端可见（而不是客户端自己记个 uid）：我们的属性/外观/负重都由服务端算，
+     * 拿起的瞬间装备效果就必须消失（原版 `sinSetCharItem(CODE, ..., FALSE)` 同理）。
+     * 过去没有这个位，只能借道别的容器 —— 从装备槽拿起要先 `UnequipItem` 绕到背包：
+     * **背包满就根本拿不起来**，而且"拿到一半掉线"会变成"东西自己进了背包"（用户实测）。
+     * 有了它，断线重连后"手上还拿着那件"是**可持久化**的（用户 2026-09-14 定：重登必须还原）。
+     * <p>
+     * ⚠ 代价（用它就要守这条纪律）：`location = EQUIP` 的遍历会连带看到这件未装备的物品，
+     * 任何"按装备算属性/外观/抗性"的遍历**必须**走 {@link PlayerItems#equippedItems()}（已排除本槽）。
+     * 需要包含它的只有一处：负重（原版 `CheckWeight` 把 `InvenItem` 与鼠标缓冲 `InvenItemTemp` 一起算）。
+     */
+    public static final int HELD_SLOT = -1;
+
+    /** 这件物品是否正被鼠标拿着（= 装备栏的 -1 号槽）。**唯一判据**，别在别处再写一遍。 */
+    public static boolean isHeld(ItemInstance it) {
+        return it != null && it.getLocation() == EQUIP && it.getSlot() == HELD_SLOT;
+    }
 
     /** 装备栏：13 个有名槽（非画布），slot 1~13 命名槽 */
     public static final int EQUIP = 0;

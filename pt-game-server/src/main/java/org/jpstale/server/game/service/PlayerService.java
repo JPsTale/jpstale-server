@@ -550,9 +550,33 @@ public class PlayerService {
                 org.jpstale.dao.gamedb.entity.ItemList def = itemRoll.itemListById(itemListId);
                 it.setTemplate(def);
             }
+            // 哨兵槽残留（`slot < -1`，见 `ItemStorageService.PARKING_SLOT`）= 写库没收尾。
+            // 只有事务中间态才会用它，所以出现就说明有 bug：**大声报错 + 捞回背包**（可见、不丢），
+            // 而不是让它变成谁也看不见、又占着唯一键的行。
+            if (it.getSlot() < org.jpstale.server.game.item.ItemLocations.HELD_SLOT) {
+                int free = items.canvas(org.jpstale.server.game.item.ItemLocations.BAG_PAGE)
+                        .findFreeSlot(it.gridW(), it.gridH());
+                if (free >= 0) {
+                    log.error("[SlotConflict] 角色 {} 的 uid={}（{}）槽号停在哨兵值 {}（写库未收尾）→ 捞回背包槽 {}",
+                            player.getName(), it.getId(),
+                            it.getTemplate() != null ? it.getTemplate().getName() : "?",
+                            it.getSlot(), free);
+                    it.setLocation(org.jpstale.server.game.item.ItemLocations.BAG_PAGE);
+                    it.setSlot(free);
+                } else {
+                    // 背包满到放不下：不猜、不丢，保留哨兵槽并报错（人工处理）
+                    log.error("[SlotConflict] 角色 {} 的 uid={}（{}）槽号停在哨兵值 {}，且背包已满无法捞回（需人工处理）",
+                            player.getName(), it.getId(),
+                            it.getTemplate() != null ? it.getTemplate().getName() : "?",
+                            it.getSlot());
+                }
+                itemStorage.update(it);
+            }
             items.index(it);
             // 元素抗性（EElementID: 0生物 1大地 2火 3冰 4雷 5毒 6水 7风）
-            if (it.getLocation() == org.jpstale.server.game.item.ItemLocations.EQUIP) {
+            // ⚠ 排除鼠标位（slot=-1）：重登时"手上还拿着"的那件不算装备、不加抗性。
+            if (it.getLocation() == org.jpstale.server.game.item.ItemLocations.EQUIP
+                    && !org.jpstale.server.game.item.ItemLocations.isHeld(it)) {
                 res[0] += it.getResBionic();
                 res[1] += it.getResEarth();
                 res[2] += it.getResFire();
