@@ -102,15 +102,20 @@ public class ItemInstance {
      * 是否可堆叠（消耗/材料/药水等 count 语义）；装备不可堆叠恒 1。
      * <p>
      * DB classitem 即原版 INVENTORY_POS 位值：2副手/4单/6双手/8甲/16靴/32手/
-     * 192戒/256宝石/512项链/2048护腕/8192药水/16384时装 均为装备位；
-     * classitem=1 与 0 无装备位（消耗/材料/任务等）→ 可堆叠。
+     * 192戒/256宝石/512项链/2048护腕/8192药水/16384时装。
+     *
+     * ⚠ **不能把"有槽位位值"等同于"装备、不可堆叠"**：药水（`ItemClass.POTION = 8192`）
+     * 的位值是**快捷槽**不是装备槽，它恰恰是**必须能堆叠**的消耗品 ——
+     * 文档 `pt-core-gameplay.md` §19："能堆叠的主要是药水、材料"，
+     * 药水槽也是按堆叠设计的（不装臂环每槽 2 个、装臂环按 potionspace）。
+     * 漏掉药水曾导致背包里的药水无法合并（用户 2026-09-13 实测）。
      */
     public boolean stackable() {
         if (template == null || template.getClassItem() == null) {
             return true;
         }
         int c = template.getClassItem();
-        return c == 0 || c == 1;
+        return c == 0 || c == 1 || c == ItemClass.POTION;
     }
 
     /** 物品名（模板）。 */
