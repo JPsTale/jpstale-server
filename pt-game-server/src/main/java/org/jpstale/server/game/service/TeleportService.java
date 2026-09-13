@@ -260,7 +260,7 @@ public class TeleportService {
 
     /**
      * 按目的地表的落点策略解析出实际坐标 [x, z]。
-     * 策略见 `gamedb.teleportdestination.landing`：
+     * 策略字符串来自 `ItemDestination.landing`（代码常量表；不查 DB）：
      *   · startpoint-random  —— 原版回城道具语义（`WarpStartField` 随机出生点）
      *   · startpoint-nearest —— 离 (fromX,fromZ) 最近的有效出生点（原版 `GetStartPoint(x,z)`，死亡复活用的那条）
      *   · center             —— 该图中心（无出生点数据时的兜底）
@@ -306,6 +306,65 @@ public class TeleportService {
     /** 本族村庄的图号（给需要"送到村庄"的调用方，例如死亡复活的选项 2、回城卷轴） */
     public int villageMapId(Player player) {
         return player.getJob() <= 4 ? TOWN_MAP_TEMPLE : TOWN_MAP_PILAI;
+    }
+
+    // ==================== 物品 → 固定目的地（照原版写在代码里） ====================
+
+    /**
+     * 一条"物品 → 固定图"的目的地。
+     *
+     * **为什么写在代码里而不是 DB 表**（用户 2026-09-13 定）：原版就是硬编码 ——
+     * `character.cpp` 的 `switch (UseEtherCoreCode)` 把 `sinEC1|sin01/02/04` 分别送到
+     * `START_FIELD_NUM(3)/NEBISCO(9)/MORYON(21)`（`field.h:106-108`），**没有任何数据表**。
+     * 这项数据只有几条、几乎不变，价值在"依据可查"；为它建表会让运行库承担一次 schema 变更，
+     * 收益不成比例。要新增一种"物品→固定图"的传送，就在这里加一行（`note` 必须写依据）。
+     *
+     * @param family  idcode 高 16 位（原版 `sinITEM_MASK2` 口径）
+     * @param code    idcode 低 16 位；0 = 该族通用
+     */
+    public record ItemDestination(int family, int code, int destMap, String landing, String note) {}
+
+    private static final java.util.List<ItemDestination> ITEM_DESTINATIONS = java.util.List.of(
+        new ItemDestination(0x0601, 0x0100, 3, "startpoint-random",
+            "硬证：character.cpp switch(UseEtherCoreCode) sinEC1|sin01 → WarpStartField(START_FIELD_NUM=3)；field.h:106 START_FIELD_NUM=3 = Ricarten"),
+        new ItemDestination(0x0601, 0x0200, 9, "startpoint-random",
+            "硬证：sinEC1|sin02 → START_FIELD_NEBISCO=9 = Navisko"),
+        new ItemDestination(0x0601, 0x0300, 45, "startpoint-random",
+            "推断：8 职业客户端 switch 未覆盖该码（物品存在）；wartale 指南 5 镇中 EC101/102/104 已定，余下 Atlantis=45。待核对"),
+        new ItemDestination(0x0601, 0x0400, 21, "startpoint-random",
+            "硬证：sinEC1|sin04 → START_FIELD_MORYON=21 = Phillai"),
+        new ItemDestination(0x0601, 0x0500, 0, "none",
+            "不是回城卷轴：EC105 = Union Core（OpenItem 名 Union Stick Core），目标是**被签名的玩家**（动态），"
+          + "原版另有 sinInvenTory 的 Union/签名机制。走婚戒那一类，**禁止当回城卷轴**"),
+        new ItemDestination(0x080B, 0x0800, 0, "none",
+            "不是固定目的地：BI108 = Teleport Core（商城货），原版要玩家**自己选图**（弹地图列表），"
+          + "将来接传送网络表 + Reason.WARP_GATE")
+    );
+
+    /**
+     * 物品 idcode → 固定目的地；没有则 null。
+     * 先精确匹配（family+code），再退到族通用（code=0）。`destMap<=0` = 该物品**不是**固定目的地
+     * （调用方据此走各自分支，别默认送某张图）。
+     */
+    public ItemDestination destinationOf(int idCode) {
+        if (idCode == 0) {
+            return null;
+        }
+        int family = (idCode >>> 16) & 0xFFFF;
+        int code = idCode & 0xFFFF;
+        ItemDestination general = null;
+        for (ItemDestination d : ITEM_DESTINATIONS) {
+            if (d.family() != family) {
+                continue;
+            }
+            if (d.code() == code) {
+                return d.destMap() > 0 ? d : null;
+            }
+            if (d.code() == 0) {
+                general = d;
+            }
+        }
+        return general != null && general.destMap() > 0 ? general : null;
     }
 
     // ================================ 脱困（传送的一个入口） ================================

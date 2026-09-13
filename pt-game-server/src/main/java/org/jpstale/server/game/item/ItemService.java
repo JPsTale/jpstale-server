@@ -427,30 +427,11 @@ public class ItemService {
      *         null = 不可用（不在背包 / 已删 / 数量不足）
      */
     public ItemInstance consumeFromBag(Player player, long uid, int qty) {
-        PlayerItems items = player.getItems();
-        ItemInstance it = items.byUid(uid);
+        ItemInstance it = player.getItems().byUid(uid);
         if (it == null || it.isDeleted() || it.getLocation() != ItemLocations.BAG) {
             return null;
         }
-        int n = Math.max(1, qty);
-        if (it.getCount() < n) {
-            return null;
-        }
-        if (it.getCount() > n) {
-            it.setCount(it.getCount() - n);
-            items.markDirty(ItemLocations.BAG, it.getSlot(), it.getId());
-            storage.update(it);
-        } else {
-            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
-            items.byUidRemove(it.getId());
-            storage.softDelete(it.getId());
-            it.setCount(0);
-        }
-        if (log.isDebugEnabled()) {
-            log.debug("[UseItem] {} 消耗 uid={} x{} name={}", player.getName(), uid, n,
-                it.getTemplate() != null ? it.getTemplate().getName() : "?");
-        }
-        return it;
+        return consumeAt(player, uid, qty);
     }
 
     /**
@@ -529,6 +510,141 @@ public class ItemService {
     }
 
     /**
+     * 药水快捷槽的**每槽容量上限**。
+     *
+     * 依据（用户亲授 docs/pt-core-gameplay.md 19 节「药水快捷槽（与护腕/臂环联动）」）：
+     * - **不装臂环也能用**，此时每槽基础容量 = 药水自身的 potioncount（实测 15 瓶药水全是 2）；
+     * - **装备臂环**后按臂环的 potionspace 扩容（实测 OA206 Elven Armlets = 34，全表臂环 26 件、范围 20~132）。
+     *
+     * 护腕 = 臂环 = Bracelet（ItemClass.ARMLET，槽位 8），同一件物品。
+     */
+    public int potionSlotCapacity(Player player, ItemList potionDef) {
+        ItemInstance armlet = player.getItems().at(ItemLocations.EQUIP, ItemLocations.SLOT_ARMLET);
+        if (armlet != null && armlet.getTemplate() != null && armlet.getTemplate().getPotionSpace() != null) {
+            int ps = armlet.getTemplate().getPotionSpace();
+            if (ps > 0) {
+                return ps;
+            }
+        }
+        int base = potionDef != null && potionDef.getPotionCount() != null ? potionDef.getPotionCount() : 0;
+        return base > 0 ? base : 2;   // 数据缺失时的原版基础容量
+    }
+
+    /**
+     * 药水放入快捷槽（ITEMSLOT 11/12/13）。**堆叠语义**，不是装备语义：
+     * - **同槽同种**：槽里已有药水时，必须与它同一种（同 itemlist）；
+     * - **容量上限** = potionSlotCapacity；超出容量的部分**留在背包**（拆堆），不整堆拒绝；
+     * - 槽满 / 异种 / 非药水 / 非背包来源 → 返回 null（调用方给可见提示）。
+     *
+     * @return 槽内那条实例（成功）；失败 null
+     */
+    @Transactional
+    public ItemInstance putPotionToSlot(Player player, long uid, int slot) {
+        PlayerItems items = player.getItems();
+        ItemInstance it = items.byUid(uid);
+        if (it == null || it.isDeleted() || it.getLocation() != ItemLocations.BAG) {
+            return null;
+        }
+        ItemList def = it.getTemplate();
+        if (!EquipSlots.isPotion(def) || !EquipSlots.isPotionSlot(slot)) {
+            return null;
+        }
+        int cap = potionSlotCapacity(player, def);
+        ItemInstance inSlot = items.at(ItemLocations.EQUIP, slot);
+        if (inSlot != null && (inSlot.getTemplate() == null
+                || !java.util.Objects.equals(inSlot.getTemplate().getId(), def.getId()))) {
+            return null;   // 同槽同种
+        }
+        int used = inSlot != null ? Math.max(0, inSlot.getCount()) : 0;
+        int space = cap - used;
+        if (space <= 0) {
+            return null;   // 槽已满
+        }
+        int n = Math.min(Math.max(1, it.getCount()), space);
+
+        ItemInstance target;
+        if (inSlot != null) {
+            inSlot.setCount(used + n);
+            items.markDirty(ItemLocations.EQUIP, slot, inSlot.getId());
+            storage.update(inSlot);
+            target = inSlot;
+        } else if (n >= it.getCount()) {
+            // 整堆搬入：同一条记录换位置（与 equipFromBag 同一做法）
+            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            it.setLocation(ItemLocations.EQUIP);
+            it.setSlot(slot);
+            items.byUidPut(it);
+            items.markDirty(ItemLocations.EQUIP, slot, it.getId());
+            storage.update(it);
+            target = it;
+        } else {
+            // 拆堆：背包那堆留一部分，槽里新建一条。用工厂生成（字段与掉落/奖励同源）；
+            // 药水不参与战斗数值计算，掷点差异无影响。
+            ItemInstance fresh = roll.roll(def, it.getJobCodeMask());
+            fresh.setCount(n);
+            fresh.setLocation(ItemLocations.EQUIP);
+            fresh.setSlot(slot);
+            storage.update(fresh);          // id 为空 -> 内部转 insert 并回填 id
+            items.byUidPut(fresh);
+            items.markDirty(ItemLocations.EQUIP, slot, fresh.getId());
+            target = fresh;
+        }
+        // 源堆扣减（整堆搬入时 target == it，已在上面处理）
+        if (target != it) {
+            if (n >= it.getCount()) {
+                items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+                items.byUidRemove(it.getId());
+                storage.softDelete(it.getId());
+            } else {
+                it.setCount(it.getCount() - n);
+                items.markDirty(ItemLocations.BAG, it.getSlot(), it.getId());
+                storage.update(it);
+            }
+        }
+        log.info("[Potion] {} 放入药水槽{}: {} x{} -> 槽内 {}/{}", player.getName(), slot - 10,
+                def.getName(), n, used + n, cap);
+        return target;
+    }
+
+    /**
+     * 消耗任意位置的堆叠物（背包或药水快捷槽）。
+     * consumeFromBag 委托到这里，保证"扣减/删除/软删"只有一份实现。
+     *
+     * @return 被消耗的实例（数量已扣好；整堆用完时 count=0 且已软删）；失败 null
+     */
+    @Transactional
+    public ItemInstance consumeAt(Player player, long uid, int qty) {
+        PlayerItems items = player.getItems();
+        ItemInstance it = items.byUid(uid);
+        if (it == null || it.isDeleted()) {
+            return null;
+        }
+        boolean fromBag = it.getLocation() == ItemLocations.BAG;
+        boolean fromPotionSlot = it.getLocation() == ItemLocations.EQUIP && EquipSlots.isPotionSlot(it.getSlot());
+        if (!fromBag && !fromPotionSlot) {
+            return null;
+        }
+        int n = Math.max(1, qty);
+        if (it.getCount() < n) {
+            return null;
+        }
+        if (it.getCount() > n) {
+            it.setCount(it.getCount() - n);
+            items.markDirty(it.getLocation(), it.getSlot(), it.getId());
+            storage.update(it);
+        } else {
+            if (fromBag) {
+                items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            } else {
+                items.byUidRemove(it.getId());   // 药水槽：从容器索引摘除（无画布位图）
+            }
+            storage.softDelete(it.getId());
+            it.setCount(0);
+        }
+        return it;
+    }
+
+    /**
      * 穿装备：背包格物品 → 装备槽。校验：槽位合法 + 需求(等级/5属性)满足。
      * 同槽旧件自动回背包；双手武器主手占用时槽2一并处理。
      *
@@ -540,6 +656,11 @@ public class ItemService {
         ItemInstance it = items.byUid(uid);
         if (it == null || it.getLocation() != ItemLocations.BAG) {
             return null;
+        }
+        // 药水快捷槽（ITEMSLOT 11/12/13）走**堆叠**语义，不是"一格一件"的装备语义：
+        // 同槽同种 + 容量上限 + 超出部分留在背包（拆堆）。见 putPotionToSlot。
+        if (EquipSlots.isPotionSlot(equipSlot)) {
+            return putPotionToSlot(player, uid, equipSlot);
         }
         // 槽位类型校验
         if (!EquipSlots.slotAllows(it.getTemplate(), equipSlot)) {

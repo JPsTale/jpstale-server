@@ -26,7 +26,6 @@ public class ItemNetworkHandler {
     private final org.jpstale.server.game.service.AOIManager aoiManager;
     private final GroundItemManager groundItems;
     private final org.jpstale.server.game.service.TeleportService teleportService;
-    private final org.jpstale.server.game.service.TeleportDestinationCatalog teleportDestinations;
     private final org.jpstale.server.game.service.MapManager mapManager;
 
     public ItemNetworkHandler(ItemService itemService, PlayerService playerService,
@@ -34,7 +33,6 @@ public class ItemNetworkHandler {
                               org.jpstale.server.game.service.AOIManager aoiManager,
                               GroundItemManager groundItems,
                               org.jpstale.server.game.service.TeleportService teleportService,
-                              org.jpstale.server.game.service.TeleportDestinationCatalog teleportDestinations,
                               org.jpstale.server.game.service.MapManager mapManager) {
         this.itemService = itemService;
         this.playerService = playerService;
@@ -42,7 +40,6 @@ public class ItemNetworkHandler {
         this.aoiManager = aoiManager;
         this.groundItems = groundItems;
         this.teleportService = teleportService;
-        this.teleportDestinations = teleportDestinations;
         this.mapManager = mapManager;
     }
 
@@ -71,6 +68,15 @@ public class ItemNetworkHandler {
      *   · 其它家族 → 明确回"暂未实现"，**不静默、不错扣**
      */
     @GamePacketHandler(MessageProto.ClientMessage.USE_ITEM_FIELD_NUMBER)
+    /** 该物品当前位置是否允许"使用"：背包，或药水快捷槽。 */
+    private static boolean isUsableLocation(ItemInstance it) {
+        if (it.getLocation() == ItemLocations.BAG) {
+            return true;
+        }
+        return it.getLocation() == ItemLocations.EQUIP
+                && org.jpstale.server.game.item.EquipSlots.isPotionSlot(it.getSlot());
+    }
+
     public void handleUseItem(PlayerSession session, MessageProto.ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
@@ -78,7 +84,9 @@ public class ItemNetworkHandler {
         }
         MessageProto.C2S_UseItem req = message.getUseItem();
         ItemInstance it = p.getItems().byUid(req.getUid());
-        if (it == null || it.isDeleted() || it.getLocation() != ItemLocations.BAG) {
+        // 可使用的位置：**背包**，以及**药水快捷槽**（ITEMSLOT 11/12/13）——
+        // 后者就是"按数字键 1/2/3 吃药"的链路（docs/pt-core-gameplay.md 19 节）。
+        if (it == null || it.isDeleted() || !isUsableLocation(it)) {
             sendErrorKey(session, "chat.cmd.useItemNotInBag");
             return;
         }
@@ -86,34 +94,35 @@ public class ItemNetworkHandler {
         int idCode = it.getItemCode() != null ? it.getItemCode() : 0;
         int family = familyOf(idCode);
 
-        // ---- ① 传送类：目的地表里有这个 idcode ----
-        org.jpstale.dao.gamedb.entity.TeleportDestination dest = teleportDestinations.resolve(idCode);
+        // ---- ① 传送类：固定目的地写在 TeleportService 的代码表里（照原版 switch；不依赖 DB）----
+        org.jpstale.server.game.service.TeleportService.ItemDestination dest = teleportService.destinationOf(idCode);
         if (dest != null) {
             org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
             if (ent == null) {
                 return;
             }
-            if (!teleportService.canTeleportTo(p, dest.getDestMap(), org.jpstale.server.game.service.TeleportService.Reason.ITEM)) {
+            if (!teleportService.canTeleportTo(p, dest.destMap(), org.jpstale.server.game.service.TeleportService.Reason.ITEM)) {
                 return;   // 门槛/目标非法：canTeleportTo 已给可见提示，且**没扣道具**
             }
-            double[] pos = teleportService.resolveLanding(dest.getDestMap(), dest.getLanding(),
-                    dest.getFixedX(), dest.getFixedZ(), ent.getX(), ent.getZ());
+            double[] pos = teleportService.resolveLanding(dest.destMap(), dest.landing(),
+                    null, null, ent.getX(), ent.getZ());
             if (pos == null) {
                 log.warn("[UseItem] {} idCode={} 目标图 {} 无可用落点（landing={}）→ 拒绝且不扣道具",
-                        p.getName(), idCode, dest.getDestMap(), dest.getLanding());
+                        p.getName(), idCode, dest.destMap(), dest.landing());
                 sendErrorKey(session, "chat.cmd.teleportNoLanding");
                 return;
             }
-            ItemInstance used = itemService.consumeFromBag(p, req.getUid(), qty);
+            ItemInstance used = itemService.consumeAt(p, req.getUid(), qty);
             if (used == null) {
                 sendErrorKey(session, "chat.cmd.useItemFailed");
                 return;
             }
             pushAfterUse(session, used);
-            boolean ok = teleportService.teleport(p, dest.getDestMap(), pos[0], pos[1],
+            boolean ok = teleportService.teleport(p, dest.destMap(), pos[0], pos[1],
                     org.jpstale.server.game.service.TeleportService.Reason.ITEM);
-            log.info("[UseItem] {} {} → 传送 map {} ({},{}) ok={}",
-                    p.getName(), dest.getItemName(), dest.getDestMap(), (int) pos[0], (int) pos[1], ok);
+            log.info("[UseItem] {} idCode=0x{} → 传送 map {} ({},{}) ok={} 依据: {}",
+                    p.getName(), Integer.toHexString(idCode), dest.destMap(),
+                    (int) pos[0], (int) pos[1], ok, dest.note());
             return;
         }
 
@@ -122,7 +131,7 @@ public class ItemNetworkHandler {
         // idcode 家族与 DB 相反（见 docs/传送系统.md §6），按数据判就不会被那处冲突传染。
         int[] rec = rollRecovery(it.getTemplate());
         if (rec != null) {
-            ItemInstance used = itemService.consumeFromBag(p, req.getUid(), qty);
+            ItemInstance used = itemService.consumeAt(p, req.getUid(), qty);
             if (used == null) {
                 sendErrorKey(session, "chat.cmd.useItemFailed");
                 return;

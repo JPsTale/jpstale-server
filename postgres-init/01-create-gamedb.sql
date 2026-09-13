@@ -904,19 +904,3 @@ CREATE TABLE IF NOT EXISTS gamedb.rarity_chance_mod (
     mod_epic real NOT NULL,
     mod_legendary real NOT NULL
 );
--- 传送目的地表：物品（idcode 族/码）→ 去哪张图 + 怎么选落点。
--- 搬运机制在服务端 TeleportService（唯一入口），本表只管"哪个物品去哪"（游戏数据）。
--- idcode 拆分口径 = 原版 sinITEM_MASK2/MASK3：family = idcode>>16，code = idcode&0xFFFF。
-CREATE TABLE IF NOT EXISTS gamedb.teleportdestination (
-    id         serial PRIMARY KEY,
-    itemfamily integer NOT NULL,
-    itemcode   integer,
-    itemname   text,
-    destmap    integer NOT NULL,
-    landing    text NOT NULL,
-    fixedx     integer,
-    fixedz     integer,
-    note       text
-);
-CREATE UNIQUE INDEX IF NOT EXISTS teleportdestination_family_code_uq
-    ON gamedb.teleportdestination (itemfamily, coalesce(itemcode, -1));

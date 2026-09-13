@@ -42,6 +42,21 @@ public final class EquipSlots {
         return allowedSlots(def).length > 0;
     }
 
+    /**
+     * 是否药水（可放进药水快捷槽的消耗品）。
+     * 判据用**槽位位值** `INVENTORY_POS_POTION`(0x2000)，不用 code 前缀 ——
+     * 实测 EU 物品表里 15 瓶药水（pl101-105/pm101-105/ps101-105）classItem 全是 8192，
+     * 而 NewSourcePT 的 `PM1` 前缀在 EU 表里 0 行（那是另一代的编码）。
+     */
+    public static boolean isPotion(ItemList def) {
+        return def != null && def.getClassItem() != null && def.getClassItem() == ItemClass.POTION;
+    }
+
+    /** 是否药水快捷槽（ITEMSLOT 11/12/13，原版 PotionOne/Two/Three）。 */
+    public static boolean isPotionSlot(int slot) {
+        return slot >= ItemLocations.SLOT_POTION_1 && slot <= ItemLocations.SLOT_POTION_3;
+    }
+
     /** 是否双手武器（classItem=6）。 */
     public static boolean isTwoHand(ItemList def) {
         return def != null && def.getClassItem() != null
