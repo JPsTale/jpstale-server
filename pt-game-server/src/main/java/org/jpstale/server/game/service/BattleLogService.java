@@ -93,6 +93,17 @@ public class BattleLogService {
             "points", String.valueOf(points)), false);
     }
 
+    /** 对外暴露的系统消息（走 i18n key，客户端 t(key, params) 渲染）—— 供脱困等玩家可见回执复用 */
+    public void systemKey(PlayerSession session, String key) {
+        systemKey(session, key, Map.of());
+    }
+
+    /** 对外暴露的系统消息（带参数） */
+    public void systemKey(PlayerSession session, String key, Map<String, String> params) {
+        if (session == null) return;
+        send(session, key, params, false);
+    }
+
     private void send(PlayerSession session, String key, Map<String, String> params, boolean battle) {
         if (session.getCharacterId() == null) return;
         MessageProto.S2C_SystemMessage.Builder body = MessageProto.S2C_SystemMessage.newBuilder()

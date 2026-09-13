@@ -417,6 +417,43 @@ public class ItemService {
     }
 
     /**
+     * 从背包**扣掉**一个消耗品（使用道具的原语）。
+     *
+     * 只做"能不能扣 + 扣"，**不管效果**（效果分发在调用方，见 ItemNetworkHandler.handleUseItem）。
+     * 调用顺序约定：调用方**先**确认"效果能落地"（例如目标图等级够、有可用落点）**再**扣，
+     * 这样不需要"扣了再退"的回滚路径。
+     *
+     * @return 扣成功返回该实例（堆叠未耗尽时 count 已减、耗尽时已从背包移除并软删）；
+     *         null = 不可用（不在背包 / 已删 / 数量不足）
+     */
+    public ItemInstance consumeFromBag(Player player, long uid, int qty) {
+        PlayerItems items = player.getItems();
+        ItemInstance it = items.byUid(uid);
+        if (it == null || it.isDeleted() || it.getLocation() != ItemLocations.BAG) {
+            return null;
+        }
+        int n = Math.max(1, qty);
+        if (it.getCount() < n) {
+            return null;
+        }
+        if (it.getCount() > n) {
+            it.setCount(it.getCount() - n);
+            items.markDirty(ItemLocations.BAG, it.getSlot(), it.getId());
+            storage.update(it);
+        } else {
+            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            items.byUidRemove(it.getId());
+            storage.softDelete(it.getId());
+            it.setCount(0);
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[UseItem] {} 消耗 uid={} x{} name={}", player.getName(), uid, n,
+                it.getTemplate() != null ? it.getTemplate().getName() : "?");
+        }
+        return it;
+    }
+
+    /**
      * 药水堆叠合并：src 并入 dst（同 itemlist、均可堆叠、容量允许）。
      */
     public ItemInstance mergeStack(Player player, long srcUid, long dstUid) {

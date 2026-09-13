@@ -85,41 +85,31 @@ public class ItemRollService {
     }
 
     /**
-     * GM 刷物入口：按 token 解析模板——数字先按 itemlist.id、再按 idCode；
-     * 非数字先按 name 精确、再按 name 模糊（%token%，取最小 id）。
+     * GM 刷物入口（`/@get`）：按**物品码**取模板并掷点。
      */
-    public ItemInstance rollByIdOrCodeOrName(String token, Integer jobCodeMask) {
-        if (token == null || token.isEmpty()) {
+    public ItemInstance rollByCode(String itemCode, Integer jobCodeMask) {
+        ItemList def = resolveByCode(itemCode);
+        return def != null ? roll(def, jobCodeMask) : null;
+    }
+
+    /**
+     * 物品码 → 模板。**参数只有一种意思：物品码**（`gamedb.itemlist.codeimg1`，忽略大小写，
+     * 例 `ec101` / `EC101` / `bi108`）。不做任何兜底、不看参数形态：
+     * 数字**不**当主键、也不当 idCode；名称**不**匹配（连 LIKE 都没有）。
+     *
+     * 为什么（用户 2026-09-13 明确要求）：一个参数"按形态决定含义"就等于模糊 ——
+     * `435` 到底是主键还是 idCode？`Ether Core` 会命中哪一行？调用者无法从命令本身断言结果。
+     * 宁可这里解析不出来、回一句"找不到物品: <token>"，也不在下面给出一个猜测的物品。
+     */
+    public ItemList resolveByCode(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
             return null;
         }
-        if (token.chars().allMatch(Character::isDigit)) {
-            try {
-                int n = Integer.parseInt(token);
-                ItemInstance byId = rollById(n, jobCodeMask);
-                if (byId != null) {
-                    return byId;
-                }
-                return rollByIdCode(n, jobCodeMask);
-            } catch (NumberFormatException ignore) {
-                // 落到 name 查询
-            }
-        }
-        ItemList def = itemListMapper.selectOne(
+        return itemListMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ItemList>()
-                        .eq(ItemList::getName, token)
+                        .apply("lower(codeimg1) = {0}", itemCode.trim().toLowerCase())
                         .orderByAsc(ItemList::getId)
                         .last("limit 1"));
-        if (def == null) {
-            def = itemListMapper.selectOne(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ItemList>()
-                            .like(ItemList::getName, token)
-                            .orderByAsc(ItemList::getId)
-                            .last("limit 1"));
-        }
-        if (def != null) {
-            return roll(def, jobCodeMask);
-        }
-        return null;
     }
 
     public ItemInstance roll(ItemList def, Integer jobCodeMask) {

@@ -26,7 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * 客户端只把固定前缀（/:、/;、/TRADE>、@）识别为专属 channel，
  * 其余 "/" 开头的文本原样上送，由本服务 treatCommand 权威解析
- * （含 //party 组队邀请、/@ GM 命令、/giveitem /items 调试命令）。
+ * （含 //party 组队邀请、/@ GM 命令、/items 调试命令）。刷物一律走 /@get。）
  */
 @Slf4j
 @Component
@@ -44,23 +44,24 @@ public class ChatService {
     @Autowired
     private PlayerService playerService;
 
-    @Autowired
-    private org.jpstale.server.game.item.ItemService itemService;
 
     @Autowired
-    private org.jpstale.server.game.item.ItemNetworkHandler itemNetwork;
+    private org.jpstale.server.game.item.ItemRollService itemRoll;
+
 
     @Autowired
     private PartyService partyService;
 
-    @Autowired
-    private org.jpstale.server.game.item.ItemRollService itemRoll;
 
     @Autowired
     private org.jpstale.server.game.item.GroundItemManager groundItems;
 
     @Autowired
     private org.jpstale.server.game.service.AOIManager aoiManager;
+
+    @Autowired
+    private TeleportService teleportService;
+
 
     @Autowired
     private org.jpstale.server.game.service.MapRegionService mapRegionService;
@@ -174,17 +175,10 @@ public class ChatService {
         }
 
         try {
-            if (name.equals("giveitem") && parts.length >= 2) {
-                int itemListId = Integer.parseInt(parts[1]);
+            // /unstuck —— 脱困：零代价传送到本图最近的 StartPoint（系统菜单"脱离卡死"按钮也走这条）
+            if (name.equals("unstuck") || name.equals("脱离") || name.equals("卡死")) {
                 var player = playerService.getOrCreate(session);
-                var granted = itemService.grantToBag(player, itemListId, null);
-                String msg = granted != null
-                        ? "granted itemlist#" + itemListId + " uid=" + granted.getId()
-                        : "grant failed: template missing or bag full (itemlist#" + itemListId + ")";
-                systemMessage(session, msg);
-                if (granted != null) {
-                    itemNetwork.pushUpdate(session, granted);
-                }
+                teleportService.respondUnstuck(session, teleportService.unstuck(player));
                 return;
             }
             if (name.equals("items")) {
@@ -231,7 +225,7 @@ public class ChatService {
         if (ent == null || ent.getMapId() < 0) {
             return; // 尚未进场，无刷物位置
         }
-        org.jpstale.server.game.item.ItemInstance fresh = itemRoll.rollByIdOrCodeOrName(parts[1], null);
+        org.jpstale.server.game.item.ItemInstance fresh = itemRoll.rollByCode(parts[1], null);
         if (fresh == null || fresh.getTemplate() == null) {
             log.info("[GM] /@get token={} by {} : item not found", parts[1], session.getCharacterName());
             systemMessageKey(session, "chat.cmd.itemNotFound", Map.of("token", parts[1]));
@@ -328,7 +322,7 @@ public class ChatService {
         systemMessageKey(session, key, Map.of());
     }
 
-    /** 调试输出：纯文本直发（giveitem/items 等开发者诊断，不走翻译） */
+    /** 调试输出：纯文本直发（/items 等开发者诊断，不走翻译） */
     private void systemMessage(PlayerSession session, String msg) {
         session.send(MessageProto.ServerMessage.newBuilder()
                 .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()

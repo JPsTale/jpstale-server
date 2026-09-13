@@ -30,6 +30,7 @@ message ClientMessage {
     C2S_SwitchWeapon switch_weapon = 209;
     C2S_BagLayout bag_layout = 210;
     C2S_StackMerge stack_merge = 211;
+    C2S_Unstuck unstuck = 212;           // 脱困请求：服务端算落点（本图最近 StartPoint）并广播传送
     
     // 战斗 (300-399)
     C2S_Attack attack = 300;
@@ -71,6 +72,7 @@ message ServerMessage {
     S2C_EnterGame enter_game = 206;
     S2C_CharacterStatus character_status = 207;
     S2C_AppearanceUpdate appearance_update = 208;
+    S2C_PlayerTeleport player_teleport = 209;  // 不连续位移（脱困/传送）：本人据此搬自己，旁观者据此挪 actor
     
     // 怪物 (300-399)
     S2C_MonsterAppear monster_appear = 300;
@@ -158,6 +160,9 @@ message MapInfo {
   int32 map_id = 1;
   // true=安全区（村庄，禁战斗姿态/自动收武器动画）；false=战斗区域
   bool is_safe = 2;
+  // 进入该图所需等级（gamedb.maplist.levelreq 原样下发；0=无门槛，>=150=未开放）。
+  // 客户端用它**本地拦截跨图边界**（服务端另有同一判定的权威校验 MapManager.canEnter）。
+  int32 level_req = 3;
 }
 
 message S2C_CharacterList {
@@ -349,6 +354,24 @@ message S2C_PlayerRespawn {
   int32 map_id = 5;    // 复活所在图（与当前图不同时客户端要换图 + 走加载遮罩）
   int32 max_hp = 6;
   int32 reason = 7;    // 1=附近重生点 2=村庄 3=强制（倒计时到）
+}
+
+// 传送（不连续位移）。**一次广播同时服务两个受众**：
+//   本人（player_id == 自己）→ 把自己搬过去、必要时换图走加载遮罩；
+//   旁观者 → 把该 actor 挪到新位置（目标图不是当前图则摘掉显示）。
+// 与 S2C_PlayerRespawn 的区别：不含 hp/max_hp/死亡语义，纯粹是"位置跳变"，
+// 因此可复用给脱困、传送道具、GM 传送、未来的传送门。
+message S2C_PlayerTeleport {
+  int64 player_id = 1;
+  int32 map_id = 2;
+  Position position = 3;
+  float angle = 4;
+  int32 reason = 5;    // 0=未知 1=脱困 2=GM 3=传送道具（客户端只做展示，不参与判定）
+}
+
+// 脱困请求（系统菜单"脱离卡死"按钮 / 聊天框 /unstuck 都走它）。
+// 服务端权威计算落点：本图离玩家最近的 StartPoint（无数据则回村庄出生点），零代价。
+message C2S_Unstuck {
 }
 
 // 死亡后的复活选择（对应上面三个 RESTART_* 常量）

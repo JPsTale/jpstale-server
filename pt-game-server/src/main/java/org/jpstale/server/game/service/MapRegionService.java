@@ -185,6 +185,18 @@ public class MapRegionService {
      *
      * @return [x, z]，地图不存在返回 null
      */
+    /** 该图全部 StartPoint（可能为空 = 该图没有出生点数据）。供传送落点挑选使用 */
+    public java.util.List<int[]> startPoints(int mapId) {
+        FieldInfo entry = map(mapId);
+        return entry != null ? entry.getStartPoints() : null;
+    }
+
+    /** 该图中心（无数据 → null） */
+    public int[] center(int mapId) {
+        FieldInfo entry = map(mapId);
+        return entry != null ? entry.getCenter() : null;
+    }
+
     public int[] getStartPoint(int mapId, double x, double z) {
         FieldInfo entry = map(mapId);
         if (entry == null) {

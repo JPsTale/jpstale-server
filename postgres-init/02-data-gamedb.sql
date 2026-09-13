@@ -14696,3 +14696,13 @@ INSERT INTO gamedb.map_spawn_point (id, stage, x, z, description) OVERRIDING SYS
 (6708, 31, 28405, 31554, 'IceNewHS'),
 (6709, 31, 28329, 31293, 'IceNewHS'),
 (6710, 16, -200467, 200461, '2021-07-30');
+-- 传送目的地（以太核心 Ether Core，family 1537 = 0x0601）：
+-- 依据见 note 列；落点策略 startpoint-random = 原版 WarpStartField 的"随机出生点"语义。
+-- 注意 EC105(Union Core)/BI108(Teleport Core) **不在此表**：前者目标是被签名的玩家、
+-- 后者要玩家自己选图（见 docs/传送系统.md），都不是"物品→固定图"。
+INSERT INTO gamedb.teleportdestination (itemfamily, itemcode, itemname, destmap, landing, note) VALUES
+ (1537, 256,  'EC101 Ether Core', 3,  'startpoint-random', '硬证：character.cpp switch(UseEtherCoreCode) sinEC1|sin01 → WarpStartField(START_FIELD_NUM=3)；field.h:106 START_FIELD_NUM=3 = Ricarten'),
+ (1537, 512,  'EC102 Ether Core', 9,  'startpoint-random', '硬证：sinEC1|sin02 → START_FIELD_NEBISCO=9 = Navisko'),
+ (1537, 768,  'EC103 Ether Core', 45, 'startpoint-random', '推断：8 职业客户端 switch 未覆盖该码（物品存在）；wartale 指南列以太核心可达 5 镇，EC101/102/104 已定 Ricarten/Navisko/Phillai，余下 Atlantis=45。待核对'),
+ (1537, 1024, 'EC104 Ether Core', 21, 'startpoint-random', '硬证：sinEC1|sin04 → START_FIELD_MORYON=21 = Phillai')
+ON CONFLICT DO NOTHING;

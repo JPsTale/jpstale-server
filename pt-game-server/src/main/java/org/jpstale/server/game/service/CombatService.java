@@ -60,6 +60,9 @@ public class CombatService {
     private BattleLogService battleLogService;
 
     @Autowired
+    private TeleportService teleportService;
+
+    @Autowired
     private SessionManager sessionManager;
 
     @Autowired
@@ -765,7 +768,6 @@ public class CombatService {
      */
     private void doRespawn(Player player, int mapId, int x, int z, int expPercent, int goldPercent, int reason) {
         PlayerSession session = player.getSession();
-        PlayerEntity entity = session != null ? session.getEntity() : null;
         deadPlayers.remove(player.getId());
 
         // ---- 代价：经验（下限 = 本级起点 → 不掉级）与金币 ----
@@ -783,72 +785,28 @@ public class CombatService {
         int half = Math.max(1, player.getMaxHp() / 2);
         player.setHp(half);
 
-        // y 必须按**目标地图**的地形算：出生点数据只有 {x,z}，不设 y 就会带着上一张图的高度复活，
-        // 客户端随即自由落体（日志 0x70 FALLDOWN）并把坏 y 写回存档 → 下次登录继续沉（用户 2026-09-12 报）。
-        double terrainY = mapRegionService.getHeight(mapId, x, z);
-        if (terrainY <= 0) {
-            // getHeight=0 表示该点无可站立地面（出生点数据与地形不匹配）——可见地降级，不静默塞 0
-            log.warn("COMBAT {} 复活点 map {} ({},{}) 无可站立地面（getHeight=0）→ 保留原 y {}, 请核对出生点数据",
-                player.getName(), mapId, x, z, entity != null ? entity.getY() : 0);
+        // 搬人走唯一入口（TeleportService）：与脱困/传送门/卷轴共用同一份实现
+        if (!teleportService.teleport(player, mapId, x, z, TeleportService.Reason.RESPAWN)) {
+            log.warn("Player {} 复活失败：目标 map {} ({},{}) 不可用", player.getName(), mapId, x, z);
+            return;
         }
-
-        // 坐标/地图权威在 PlayerEntity;跨图才做 AOI 摘除/重挂(无缝坐标下相邻仍可见,由 AOI 判断)
-        if (entity != null) {
-            boolean switchedMap = entity.getMapId() != mapId;
-            entity.setX(x);
-            entity.setZ(z);
-            if (terrainY > 0) {
-                entity.setY(terrainY);
-            }
-            entity.setMoveState(PlayerMoveState.IDLE);   // 解除死亡态（可以动、也能被怪选中）
-            entity.setLastSyncedAnimState(0x0040);       // 复位动画去重基线（尸体最后一帧不是 STAND）
-            if (switchedMap) {
-                entity.setMapId(mapId);
-                aoiManager.onPlayerLeave(entity);
-                aoiManager.removePlayer(entity);
-                aoiManager.addPlayer(entity);
-                aoiManager.onPlayerEnter(entity);
-            }
-        }
-        log.info("Player {} 复活（reason={}）→ map {} ({},{}) y={} hp {} 代价: exp -{} / gold -{}",
-            player.getName(), reason, mapId, x, z,
-            terrainY > 0 ? String.valueOf((int) terrainY) : "keep", half, expLoss, goldLoss);
-
-        // 旁观者同步：**必须服务端广播**，不能指望客户端自己上报 ——
-        // 客户端复活的瞬移距离远超限速阈值，上报会被 MovementService 的限速**拒绝**
-        // （与"限速拒绝会冻死玩家"同一类隐患），于是视野内其他人会看到你留在原地。
-        if (entity != null) {
-            messageSender.broadcastToArea(entity.getMapId(), (float) entity.getX(), (float) entity.getZ(),
-                AOI_BROADCAST_RANGE,
-                MessageProto.ServerMessage.newBuilder()
-                    .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
+        log.info("Player {} 复活（reason={}）→ map {} ({},{}) hp {} 代价: exp -{} / gold -{}",
+            player.getName(), reason, mapId, x, z, half, expLoss, goldLoss);
+        if (session != null) {
+            // 死亡专属收尾：半血 + 关死亡面板。位置已由 S2C_PlayerTeleport 搬完（同一条广播两个受众），
+            // 这里只补死亡语义（hp/max_hp + reason），所以不再重复 S2C_PlayerMove 广播。
+            session.send(MessageProto.ServerMessage.newBuilder()
+                    .setPlayerRespawn(MessageProto.S2C_PlayerRespawn.newBuilder()
                         .setPlayerId(player.getId())
+                        .setMapId(mapId)
                         .setPosition(CommonProto.Position.newBuilder()
-                            .setX((float) entity.getX())
-                            .setY((float) entity.getY())
-                            .setZ((float) entity.getZ())
-                            .build())
-                        .setAngle((float) entity.getAngle())
-                        .setAnimState(0x0040)   // STAND
-                        .setTimestamp(System.currentTimeMillis())
+                            .setX(x).setY((float) Math.max(0, mapRegionService.getHeight(mapId, x, z)))
+                            .setZ(z).build())
+                        .setHp(half)
+                        .setMaxHp(player.getMaxHp())
+                        .setReason(reason)
                         .build())
                     .build());
-        }
-
-        if (session != null) {
-            // ⚠ 自机位置权威在**客户端** —— 这条消息就是"服务端要求客户端把自己搬过去"，
-            //   客户端不处理的话，服务端以为你在出生地、你还站在原地继续挨打（两边状态错乱）。
-            //   mapId 与当前图不同时，客户端要先走加载遮罩再进画面（用户 2026-09-13：原版做法）。
-            MessageProto.S2C_PlayerRespawn respawn = MessageProto.S2C_PlayerRespawn.newBuilder()
-                .setPlayerId(player.getId())
-                .setMapId(mapId)
-                .setPosition(CommonProto.Position.newBuilder()
-                    .setX(x).setY((float) Math.max(0, terrainY)).setZ(z).build())
-                .setHp(half)
-                .setMaxHp(player.getMaxHp())
-                .setReason(reason)
-                .build();
-            session.send(MessageProto.ServerMessage.newBuilder().setPlayerRespawn(respawn).build());
             // HUD 的数字走权威状态（血/蓝/经验金币一起刷），否则面板停在死亡那一刻
             playerService.sendPlayerStatus(session, player);
             // 死亡/复活是低频且必须被看见的事件 → 系统频道（同升级），不并入战斗刷屏

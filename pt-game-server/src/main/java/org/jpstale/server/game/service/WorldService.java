@@ -31,6 +31,13 @@ public class WorldService {
     @Autowired
     private MapRegionService mapRegionService;
 
+    @Autowired
+    private PlayerService playerService;
+
+    /** 边界门槛的服务端权威校验（防作弊）；给玩家的提示由客户端本地拦截负责，避免双份提示 */
+    private final java.util.Map<Long, Long> gateLogAt = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long GATE_LOG_MS = 5000;
+
     /**
      * 主循环 tick：主动检查所有在线玩家当前坐标是否已跨入其他地图。
      * 由 GameServer.tick() 在 movementService.tickPlayers() 之后调用。
@@ -55,6 +62,25 @@ public class WorldService {
         int currentMapId = e.getMapId();
         int targetMap = mapRegionService.findMapPrecise(currentMapId, e.getX(), e.getZ());
         if (targetMap >= 0 && targetMap != currentMapId) {
+            // 等级门槛（原版：等级不够最多只能跑到地图边缘）。判定与客户端本地拦截、
+            // 与传送入口（TeleportService）用的是**同一份** `MapManager.canEnter`。
+            // 这里**不换图**：客户端位置权威，人已被客户端挡在门口；服务端只做权威侧拒绝 +
+            // 节流日志（给玩家的可见提示由客户端出，避免同一句提示发两遍）。
+            org.jpstale.server.game.model.Player p = playerService.getPlayer(session);
+            if (p != null) {
+                MapManager.EnterDeny deny = mapManager.canEnter(p.getLevel(), targetMap);
+                if (deny != MapManager.EnterDeny.OK) {
+                    long now = System.currentTimeMillis();
+                    Long last = gateLogAt.get(session.getCharacterId());
+                    if (last == null || now - last > GATE_LOG_MS) {
+                        gateLogAt.put(session.getCharacterId(), now);
+                        log.info("BOUNDARY {} 试图进入受限地图 {}（level {} < levelreq {} / {}）→ 拒绝换图，位置 ({},{})",
+                                p.getName(), targetMap, p.getLevel(), mapManager.levelReqOf(targetMap), deny,
+                                Math.round(e.getX()), Math.round(e.getZ()));
+                    }
+                    return;
+                }
+            }
             switchMap(session, targetMap);
         }
     }

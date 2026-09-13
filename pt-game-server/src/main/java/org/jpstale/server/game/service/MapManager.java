@@ -124,4 +124,42 @@ public class MapManager {
     public Map<Integer, GameMap> getMaps() {
         return maps;
     }
+
+    // ======== 地图进入门槛（数据来自 gamedb.maplist.levelreq，原版 FieldLimitLevel_Table 的同源列） ========
+
+    /**
+     * `levelreq` 达到该值 = 该图未开放（原版用 1000 表示锁死；11 职业库的新图用 150/110 等，
+     * 而 PT 满级约 148 → 一律按"等级永远够不到"处理，报"未开放"而不是"需要 150 级"）。
+     */
+    private static final int MAP_LEVEL_LOCKED = 150;
+
+    /** 拒绝原因（调用方据此给玩家**可见**提示，不许静默） */
+    public enum EnterDeny {
+        OK, LEVEL_TOO_LOW, NOT_OPEN, NO_SUCH_MAP
+    }
+
+    /**
+     * 玩家能否进入某图 —— **全服唯一的门槛判定**。
+     * 原版语义是硬门槛（`WingWarpGate_Field`: `if (FieldLimitLevel_Table[code] > Level) return FALSE`），
+     * 我们照此实现：`levelreq <= level` 才放行。
+     *
+     * 调用点（别在各处各写一份）：跨图边界、传送（`TeleportService.teleport`）、传送门、NPC 对话传送。
+     */
+    public EnterDeny canEnter(int level, int mapId) {
+        GameMap m = maps.get(mapId);
+        if (m == null) {
+            return EnterDeny.NO_SUCH_MAP;
+        }
+        int req = m.getLevelReq();
+        if (req >= MAP_LEVEL_LOCKED) {
+            return EnterDeny.NOT_OPEN;
+        }
+        return level >= req ? EnterDeny.OK : EnterDeny.LEVEL_TOO_LOW;
+    }
+
+    /** 该图的等级要求（0 = 无门槛）。给提示文案用 */
+    public int levelReqOf(int mapId) {
+        GameMap m = maps.get(mapId);
+        return m != null ? m.getLevelReq() : 0;
+    }
 }

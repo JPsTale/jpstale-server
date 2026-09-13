@@ -25,16 +25,171 @@ public class ItemNetworkHandler {
     private final org.jpstale.server.game.service.AppearanceService appearanceService;
     private final org.jpstale.server.game.service.AOIManager aoiManager;
     private final GroundItemManager groundItems;
+    private final org.jpstale.server.game.service.TeleportService teleportService;
+    private final org.jpstale.server.game.service.TeleportDestinationCatalog teleportDestinations;
+    private final org.jpstale.server.game.service.MapManager mapManager;
 
     public ItemNetworkHandler(ItemService itemService, PlayerService playerService,
                               org.jpstale.server.game.service.AppearanceService appearanceService,
                               org.jpstale.server.game.service.AOIManager aoiManager,
-                              GroundItemManager groundItems) {
+                              GroundItemManager groundItems,
+                              org.jpstale.server.game.service.TeleportService teleportService,
+                              org.jpstale.server.game.service.TeleportDestinationCatalog teleportDestinations,
+                              org.jpstale.server.game.service.MapManager mapManager) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
         this.aoiManager = aoiManager;
         this.groundItems = groundItems;
+        this.teleportService = teleportService;
+        this.teleportDestinations = teleportDestinations;
+        this.mapManager = mapManager;
+    }
+
+    // ------------------------------------------------------------------
+    // 消耗品使用（背包右键 / 药水槽快捷键，同一入口）
+    // ------------------------------------------------------------------
+
+    /** idcode 家族（原版 `sinITEM_MASK2` 口径）：高 16 位 */
+    private static int familyOf(int idCode) {
+        return (idCode >>> 16) & 0xFFFF;
+    }
+
+    /** 药水族（`sinPL1 = 0x0401`，PL101/PL102… 生命/魔法/体力药水） */
+    private static final int FAMILY_POTION = 0x0401;
+
+    /**
+     * `C2S_UseItem`：使用背包里的一个消耗品。客户端只报 **uid（+数量）**，其余全服务端判。
+     *
+     * 流程：查物品 → **按 idcode 家族分发**（对齐原版 `cINVENTORY::RButtonDown` 的
+     * `CODE & sinITEM_MASK2` 分派）→ 能落地效果**才**扣道具 → 推送背包变化。
+     *
+     * 落地判据（按家族）：
+     *   · 传送类（目的地表里有这个 idcode）→ `TeleportService`：先 `canTeleportTo`（含等级门槛），
+     *     再解析落点，都通过才扣；任何一步不过 → **可见提示**且不扣道具
+     *   · 药水族 → 回复 HP/MP/SP（数值待补：`items-11job.json` 目前没保留 `*생명력상승` 等列）
+     *   · 其它家族 → 明确回"暂未实现"，**不静默、不错扣**
+     */
+    @GamePacketHandler(MessageProto.ClientMessage.USE_ITEM_FIELD_NUMBER)
+    public void handleUseItem(PlayerSession session, MessageProto.ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        MessageProto.C2S_UseItem req = message.getUseItem();
+        ItemInstance it = p.getItems().byUid(req.getUid());
+        if (it == null || it.isDeleted() || it.getLocation() != ItemLocations.BAG) {
+            sendErrorKey(session, "chat.cmd.useItemNotInBag");
+            return;
+        }
+        int qty = Math.max(1, req.getQuantity());
+        int idCode = it.getItemCode() != null ? it.getItemCode() : 0;
+        int family = familyOf(idCode);
+
+        // ---- ① 传送类：目的地表里有这个 idcode ----
+        org.jpstale.dao.gamedb.entity.TeleportDestination dest = teleportDestinations.resolve(idCode);
+        if (dest != null) {
+            org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+            if (ent == null) {
+                return;
+            }
+            if (!teleportService.canTeleportTo(p, dest.getDestMap(), org.jpstale.server.game.service.TeleportService.Reason.ITEM)) {
+                return;   // 门槛/目标非法：canTeleportTo 已给可见提示，且**没扣道具**
+            }
+            double[] pos = teleportService.resolveLanding(dest.getDestMap(), dest.getLanding(),
+                    dest.getFixedX(), dest.getFixedZ(), ent.getX(), ent.getZ());
+            if (pos == null) {
+                log.warn("[UseItem] {} idCode={} 目标图 {} 无可用落点（landing={}）→ 拒绝且不扣道具",
+                        p.getName(), idCode, dest.getDestMap(), dest.getLanding());
+                sendErrorKey(session, "chat.cmd.teleportNoLanding");
+                return;
+            }
+            ItemInstance used = itemService.consumeFromBag(p, req.getUid(), qty);
+            if (used == null) {
+                sendErrorKey(session, "chat.cmd.useItemFailed");
+                return;
+            }
+            pushAfterUse(session, used);
+            boolean ok = teleportService.teleport(p, dest.getDestMap(), pos[0], pos[1],
+                    org.jpstale.server.game.service.TeleportService.Reason.ITEM);
+            log.info("[UseItem] {} {} → 传送 map {} ({},{}) ok={}",
+                    p.getName(), dest.getItemName(), dest.getDestMap(), (int) pos[0], (int) pos[1], ok);
+            return;
+        }
+
+        // ---- ② 回复类（药水）：数值就是 gamedb.itemlist 的 recovery* 三列（ItemList 已映射）----
+        // 判据用**数据**（recovery 非零）而不是 idcode 族：`items-11job.json` 里 Life/Mana 的
+        // idcode 家族与 DB 相反（见 docs/传送系统.md §6），按数据判就不会被那处冲突传染。
+        int[] rec = rollRecovery(it.getTemplate());
+        if (rec != null) {
+            ItemInstance used = itemService.consumeFromBag(p, req.getUid(), qty);
+            if (used == null) {
+                sendErrorKey(session, "chat.cmd.useItemFailed");
+                return;
+            }
+            pushAfterUse(session, used);
+            applyRecovery(session, p, rec, it);
+            return;
+        }
+
+        // ---- ②b 占药水槽但没有任何回复数值：说明是别的使用类（增益/力量石…）→ 可见拒绝 ----
+        if (family == FAMILY_POTION || ItemClass.isPotion(it.getTemplate() != null ? it.getTemplate().getClassItem() : 0)) {
+            sendErrorKey(session, "chat.cmd.useItemPotionPending");
+            log.info("[UseItem] {} 药水槽物品 idCode={} 无 recovery 数值 → 视作未实现的增益类，未消耗",
+                    p.getName(), idCode);
+            return;
+        }
+
+        // ---- ③ 其它：明确回"暂未实现"，把 idcode 打进日志便于逐个补 ----
+        sendErrorKey(session, "chat.cmd.useItemUnsupported");
+        log.info("[UseItem] {} 未支持的消耗品 family=0x{} idCode={} name={}（未消耗）",
+                p.getName(), Integer.toHexString(family), idCode,
+                it.getTemplate() != null ? it.getTemplate().getName() : "?");
+    }
+
+    // ---------------- 回复类（药水）效果 ----------------
+
+    /** 掷一次回复量 [hp, mp, stm]；三者全 0 → null（不是回复类，别乱扣） */
+    private static int[] rollRecovery(org.jpstale.dao.gamedb.entity.ItemList t) {
+        if (t == null) {
+            return null;
+        }
+        int hp = roll(t.getRecoveryHpMin(), t.getRecoveryHpMax());
+        int mp = roll(t.getRecoveryMpMin(), t.getRecoveryMpMax());
+        int stm = roll(t.getRecoveryStmMin(), t.getRecoveryStmMax());
+        return (hp == 0 && mp == 0 && stm == 0) ? null : new int[]{hp, mp, stm};
+    }
+
+    /** [min,max] 闭区间掷点（原版药水是区间随机；min==max 取该值；max<=0 → 0） */
+    private static int roll(Integer min, Integer max) {
+        int a = min == null ? 0 : min;
+        int b = max == null ? 0 : max;
+        if (b <= 0) return 0;
+        if (a > b) a = b;
+        if (a == b) return b;
+        return a + java.util.concurrent.ThreadLocalRandom.current().nextInt(b - a + 1);
+    }
+
+    /** 应用到角色（clamp 到上限）→ 推权威状态刷 HUD。满值时不特殊处理（原版也照喝照扣） */
+    private void applyRecovery(PlayerSession session, Player p, int[] rec, ItemInstance src) {
+        if (rec[0] > 0) p.setHp(Math.min(p.getMaxHp(), p.getHp() + rec[0]));
+        if (rec[1] > 0) p.setMp(Math.min(p.getMaxMp(), p.getMp() + rec[1]));
+        if (rec[2] > 0) p.setSp(Math.min(p.getMaxSp(), p.getSp() + rec[2]));
+        playerService.sendPlayerStatus(session, p);
+        log.info("[UseItem] {} 使用 {} → HP+{} MP+{} STM+{}（现 {}/{} {} {}）",
+                p.getName(),
+                src.getTemplate() != null ? src.getTemplate().getName() : "?",
+                rec[0], rec[1], rec[2],
+                p.getHp(), p.getMaxHp(), p.getMp(), p.getSp());
+    }
+
+    /** 用掉之后把背包变化推给客户端：堆叠没耗尽推 update、耗尽推 remove */
+    private void pushAfterUse(PlayerSession session, ItemInstance used) {
+        if (used.getCount() > 0) {
+            pushUpdate(session, used);
+        } else {
+            pushRemove(session, used.getId());
+        }
     }
 
     // ------------------------------------------------------------------

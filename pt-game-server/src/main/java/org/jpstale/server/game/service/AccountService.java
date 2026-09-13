@@ -684,7 +684,8 @@ public class AccountService {
         for (org.jpstale.server.game.model.GameMap gm : mapManager.allMaps()) {
             enterGame.addMaps(MessageProto.MapInfo.newBuilder()
                 .setMapId(gm.getId())
-                .setIsSafe(gm.isSafe()));
+                .setIsSafe(gm.isSafe())
+                .setLevelReq(gm.getLevelReq()));   // 客户端据此本地拦截跨图边界（同一份 maplist.levelreq）
         }
 
         session.send(MessageProto.ServerMessage.newBuilder()
