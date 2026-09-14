@@ -1,17 +1,18 @@
 package org.jpstale.server.game.item;
 
+import static org.jpstale.server.game.item.ItemTestSupport.fakeStorage;
+import static org.jpstale.server.game.item.ItemTestSupport.inSlot;
+import static org.jpstale.server.game.item.ItemTestSupport.newPlayer;
+import static org.jpstale.server.game.item.ItemTestSupport.newService;
+import static org.jpstale.server.game.item.ItemTestSupport.potion;
+import static org.jpstale.server.game.item.ItemTestSupport.stack;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.List;
 
 import org.jpstale.dao.gamedb.entity.ItemList;
-import org.jpstale.dao.userdb.mapper.ItemMapper;
 import org.jpstale.server.game.model.Player;
-import org.jpstale.server.game.service.PlayerStatCalculator;
 import org.junit.Test;
 
 /**
@@ -23,70 +24,7 @@ import org.junit.Test;
  */
 public class PotionAutoFillTest {
 
-    /** 药水模板：classItem = 0x2000 (POTION)；potioncount 同时是"无臂环时的槽容量"（实测 15 瓶药水都是 2）。 */
-    private static ItemList potion(int id, String name, int potionCount) {
-        ItemList t = new ItemList();
-        t.setId(id);
-        t.setName(name);
-        t.setClassItem(ItemClass.POTION);
-        t.setPotionCount(potionCount);
-        t.setWidth(22);
-        t.setHeight(22);
-        t.setWeight(1);
-        return t;
-    }
-
-    private static ItemStorageService fakeStorage() {
-        InvocationHandler h = (Object proxy, Method method, Object[] args) -> {
-            String n = method.getName();
-            if (n.equals("update") || n.equals("insert") || n.equals("updateById") || n.equals("restore")) {
-                if (n.equals("insert") && args.length > 0 && args[0] instanceof ItemInstance) {
-                    ((ItemInstance) args[0]).setId(900L + Math.abs(((ItemInstance) args[0]).getItemListId()));
-                }
-                return 1;
-            }
-            return method.getDefaultValue();
-        };
-        ItemMapper mapper = (ItemMapper) Proxy.newProxyInstance(
-                ItemMapper.class.getClassLoader(), new Class<?>[]{ItemMapper.class}, h);
-        return new ItemStorageService(mapper);
-    }
-
-    private final ItemService service = new ItemService(new ItemRollService(null), fakeStorage(), new PlayerStatCalculator());
-
-    private static Player newPlayer(PlayerItems items) {
-        Player p = new Player(null, 1);
-        p.setItems(items);
-        p.setCharacterId(1L);   // 不依赖 session（Player.characterId 注释即为此）
-        p.setName("tester");
-        p.setStrength(50);
-        return p;
-    }
-
-    private static ItemInstance stack(long uid, ItemList def, int count) {
-        ItemInstance it = new ItemInstance();
-        it.setId(uid);
-        it.setCharacterId(1);
-        it.setLocation(ItemLocations.BAG_PAGE);
-        it.setSlot(0);
-        it.setTemplate(def);
-        it.setItemListId(Math.toIntExact(def.getId()));
-        it.setCount(count);
-        return it;
-    }
-
-    private static ItemInstance inSlot(PlayerItems items, int slot, ItemList def, int count) {
-        ItemInstance it = new ItemInstance();
-        it.setId(100L + slot);
-        it.setCharacterId(1);
-        it.setLocation(ItemLocations.EQUIP);
-        it.setSlot(slot);
-        it.setTemplate(def);
-        it.setItemListId(Math.toIntExact(def.getId()));
-        it.setCount(count);
-        items.index(it);
-        return it;
-    }
+    private final ItemService service = newService();
 
     @Test
     public void poursIntoAllUsableSlotsThenLeavesRemainder() {

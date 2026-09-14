@@ -669,8 +669,12 @@ public class ItemService {
             storage.update(inSlot);
             target = inSlot;
         } else if (n >= it.getCount()) {
-            // 整堆搬入：同一条记录换位置（与 equipFromBag 同一做法）
-            items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
+            // 整堆搬入：同一条记录换位置（与 equipFromBag 同一做法）。
+            // 摘件必须按**来源自己的 location** 摘：源既可以是背包格，也可以是**鼠标位**（装备栏 slot=-1）。
+            // 曾写死 `takeFromCanvas(BAG, ...)`：从药水槽拿起再放回（源=鼠标位）时旧索引从未释放
+            // ⇒ 同一件同时挂在 (EQUIP,-1) 与药水槽上 ⇒ 之后每次"拿起"都被拒"鼠标位已被占用"
+            //（用户 2026-09-14 实测；服务端日志 `[Potion] 放入药水槽2 ... x1 -> 槽内 1/40` 之后全被拒）。
+            items.byUidRemove(it.getId());
             it.setLocation(ItemLocations.EQUIP);
             it.setSlot(slot);
             items.byUidPut(it);
@@ -692,12 +696,11 @@ public class ItemService {
         // 源堆扣减（整堆搬入时 target == it，已在上面处理）
         if (target != it) {
             if (n >= it.getCount()) {
-                items.takeFromCanvas(ItemLocations.BAG, it.getSlot());
-                items.byUidRemove(it.getId());
+                items.byUidRemove(it.getId());   // 按来源自己的 location 摘（背包格 / 鼠标位都认）
                 storage.softDelete(it.getId());
             } else {
                 it.setCount(it.getCount() - n);
-                items.markDirty(ItemLocations.BAG, it.getSlot(), it.getId());
+                items.markDirty(it.getLocation(), it.getSlot(), it.getId());
                 storage.update(it);
             }
         }

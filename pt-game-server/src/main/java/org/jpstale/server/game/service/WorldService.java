@@ -143,13 +143,16 @@ public class WorldService {
         // 跨图：重发视野内外观快照（双方互见）
         aoiManager.onPlayerEnter(e);
 
-        // 通知客户端切图（前端切换地图背景/刷怪，坐标不变）
-        session.sendText("{\"type\":\"game.mapSwitched\",\"data\":{"
-            + "\"fromMapId\":" + oldMapId
-            + ",\"mapId\":" + newMapId
-            + ",\"x\":" + newX
-            + ",\"z\":" + newZ
-            + "}}");
+        // 通知客户端切图（protobuf，S2C_MapSwitched）：客户端对齐 currentMapId 并同步区域/音频/姿态
+        session.send(MessageProto.ServerMessage.newBuilder()
+            .setMapSwitched(MessageProto.S2C_MapSwitched.newBuilder()
+                .setPlayerId(session.getCharacterId())
+                .setFromMapId(oldMapId)
+                .setMapId(newMapId)
+                .setPosition(CommonProto.Position.newBuilder()
+                    .setX((float) newX).setY((float) e.getY()).setZ((float) newZ))
+                .build())
+            .build());
 
         // 切图后广播权威位置（含自己）：即便坐标未变，也同步一次让客户端刷新 amount/anim
         broadcastMove(session, e);

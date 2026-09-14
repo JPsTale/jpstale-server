@@ -74,6 +74,7 @@ message ServerMessage {
     S2C_EnterGame enter_game = 206;
     S2C_CharacterStatus character_status = 207;
     S2C_AppearanceUpdate appearance_update = 208;
+    S2C_MapSwitched map_switched = 210;
     S2C_PlayerTeleport player_teleport = 209;  // 不连续位移（脱困/传送）：本人据此搬自己，旁观者据此挪 actor
     
     // 怪物 (300-399)
@@ -381,6 +382,16 @@ message S2C_PlayerDeath {
   // 用户 2026-09-13：UI 只显示**比例**（"代价：10% 经验与金币"），具体点数既没价值又是重复信息，
   // 故删除；字段号保留，避免以后被复用到语义不同的地方。
   reserved 4, 5, 6;
+}
+
+// 服务端权威换图通知：findMapPrecise 判定玩家跨图后下发（无缝大世界坐标连续）。
+// 客户端据此对齐 currentMapId 并同步区域/音频/姿态——本地判定是高频预判，本消息是权威校准。
+message S2C_MapSwitched {
+  int64 player_id = 1;
+  int32 from_map_id = 2;
+  int32 map_id = 3;
+  // 跨图后的服务端权威坐标（无缝大世界下与上报值一致；保留用于未来校准）
+  Position position = 4;
 }
 
 message S2C_PlayerRespawn {
