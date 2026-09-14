@@ -1297,9 +1297,19 @@ public class ItemService {
 
             // 拆出去的那份：复制原件全部属性，落到鼠标位
             ItemInstance part = storage.insertCopy(it, ItemLocations.EQUIP, ItemLocations.HELD_SLOT, splitCount);
+            // ⚠ **必须补 template**（用户 2026-09-14 实测：拆出的药水丢地上后名字是空的、
+            //    服务端日志 `name=?`）。`template` 是 `ItemInstance` 的 transient 字段，
+            //    只在两处被填：`ItemRollService.roll`（新掷点）与 `PlayerService.loadItems`（登录加载）——
+            //    `insertCopy` 复制的是**数据库行**，不含它。缺了它除了拿不到名字，
+            //    `getWidth/getHeight/stackable` 也全都失效。
+            Integer listId = part.getItemListId();
+            if (listId != null) {
+                part.setTemplate(roll.itemListById(listId));
+            }
             items.byUidPut(part);
-            log.info("[TakeToHand] {} 拆分拿起 uid={} 拿走 {} / 共 {}，余 {} 留在 loc={} slot={}（新 uid={}）",
-                    player.getName(), uid, splitCount, have, have - splitCount, loc, srcSlot, part.getId());
+            log.info("[TakeToHand] {} 拆分拿起 uid={} 拿走 {} / 共 {}，余 {} 留在 loc={} slot={}（新 uid={} {}）",
+                    player.getName(), uid, splitCount, have, have - splitCount, loc, srcSlot, part.getId(),
+                    part.getTemplate() != null ? part.getTemplate().getName() : "?");
             return OpResult.ok(part);
         }
 
