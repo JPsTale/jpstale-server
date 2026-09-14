@@ -126,8 +126,8 @@ public class MovementService {
     // ======== 客户端位置上权威（方向二）限速参数 ========
     /** 最高档跑 ≈ stepOfF(25,RUN)×3 per 50ms ⇒ world/ms */
     private static final double PLAYER_MAX_RUN_PER_MS = stepOfF(25, EU_COEFF_RUN) * 3.0 / 50.0; // ≈0.2105
-    private static final double SPEED_TOLERANCE = 1.3; // 30% 容差（网络抖动/客户端碰撞细微差异）
-    private static final double SNAP_SLACK = 3.0;      // 绝对 slack（world），容忍停止/转身等小跳跃
+    private static final double SPEED_TOLERANCE = 1.5; // 50% 容差（网络抖动/客户端碰撞细微差异）
+    private static final double SNAP_SLACK = 16.0;      // 绝对 slack（world），容忍停止/转身等小跳跃
     /**
      * 限速的 `dt` 取**两条上报的到达时刻之差**（不是"上次应用发生的时刻"）——见
      * `PlayerSession.lastAppliedReportArrivalMs` 的说明：应用的坐标是客户端几十毫秒前生成的，
