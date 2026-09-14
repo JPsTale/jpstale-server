@@ -3,7 +3,6 @@ package org.jpstale.server.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.item.GroundItemManager;
-import org.jpstale.server.game.item.ItemRules;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.proto.base.CommonProto;
@@ -126,19 +125,25 @@ public class GroundItemAOI {
     /**
      * 构造 S2C_GroundItemAppear（含掉落模型码，客户端据此加载 DropItem 模型 `dropitem/it{码}.smd`）。
      *
-     * 模型码的取法**按家族分流**（不是"取不到再换一个"的回落 —— 那样会掩盖数据问题）：
-     * - 普通物品用 `codeImg1`（如武器的 `WS111`，资产 `itws111.smd` 存在）；
-     * - **金币家族**（原版 `sinGG1`）用 `codeImg2`：该行是 `codeImg1='GG101'`（**没有**对应模型）、
-     *   `codeImg2='DRCOIN'`（资产 `itdrcoin.smd` 存在）。取错会让客户端 404 回落到旗帜。
+     * 模型码一律取 `codeImg2` —— 即原版 Drop Item Image（EU `itemserver.cpp` 的 SELECT 列 6，
+     * 变量名 `szDropItem`）。它是**地面模型码**，与 `codeImg1`（物品自有图标码）不同：
+     * - 药水/法球/力石/配方等高级版 `codeImg2` 指向**基础版**模型（如 `pl104 → pl101`、
+     *   `fo101 → os101`、`gp102 → GP101`、`dr209 → DR101`、`ec104 → ec101`），共用一只模型；
+     * - 金币行 `codeImg2='DRCOIN'`（`codeImg1='GG101'` 没有模型），同样踩中这条规则。
+     * 取错了会让客户端 404 回落到旗帜（曾按"普通物品用 codeImg1"实现，导致 46 个方位物品
+     * 掉出来全是旗帜，2026-09-15 已修正。数据核对见 AGENTS.md「掉落模型」调查记录）。
+     * `codeImg2` 为空时回退 `codeImg1`（防御，DB 全量 1036 行实测无空值）。
      */
     private MessageProto.ServerMessage buildAppear(GroundItemManager.GroundItem gi) {
         Integer code = gi.item.getItemCode();
         String name = gi.item.getTemplate() != null && gi.item.getTemplate().getName() != null
             ? gi.item.getTemplate().getName() : "";
-        boolean gold = ItemRules.isGoldFamily(code == null ? 0 : code);
         String dorp = "";
         if (gi.item.getTemplate() != null) {
-            String pick = gold ? gi.item.getTemplate().getCodeImg2() : gi.item.getTemplate().getCodeImg1();
+            String pick = gi.item.getTemplate().getCodeImg2();
+            if (pick == null || pick.isEmpty()) {
+                pick = gi.item.getTemplate().getCodeImg1();
+            }
             dorp = pick != null ? pick : "";
         }
         return MessageProto.ServerMessage.newBuilder()
