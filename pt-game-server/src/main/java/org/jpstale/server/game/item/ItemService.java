@@ -619,10 +619,76 @@ public class ItemService {
     }
 
     /**
+     * 药水槽里是**另一种**药水时的处置：**交换**（原版 `MouseSetPotion` 的异种分支）。
+     *
+     * 落位：槽内那叠 → **鼠标位**（原版 `memcpy(pItem, &TempItem, ...)`：被换下的回到手上）；
+     * 手上那叠 → 药水槽，最多 `cap` 瓶；**余数**（手上那叠超过槽容量时）→ 背包空位新建一行
+     * （原版 `TempPotionItem` + `InvenEmptyAearCheck`）。余数**放不下背包** ⇒ 整件事放弃、一行都不动
+     * （原版同样是 `return FALSE`，且先把 `memcpy(pItem, &TempItem, ...)` 复原）。
+     *
+     * 写库走"**先把涉及的行全部摘出索引 → 内存落位 → 一次 writeMoved**"（AGENTS #26 的纪律）：
+     * 鼠标位与药水槽是**互换**，两条 UPDATE 会互撞唯一键。
+     *
+     * @return 成功给槽内那条（= 原来的 {@code it}）；`displaced` = 换到手上的那叠（+ 余数行，若有）
+     */
+    private OpResult swapPotionInSlot(Player player, ItemInstance it, int slot, ItemInstance inSlot, int cap) {
+        PlayerItems items = player.getItems();
+        int into = Math.min(Math.max(1, it.getCount()), cap);
+        int rest = Math.max(0, it.getCount() - into);
+
+        // 余数要先确认放得下背包 —— 拿不到空位就整体失败（此时还一行都没动）
+        int restSlot = -1;
+        if (rest > 0) {
+            restSlot = items.canvas(ItemLocations.BAG).findFreeSlot(it.gridW(), it.gridH());
+            if (restSlot < 0) {
+                log.info("[Potion] 交换拒绝 uid={} slot={}：手上那叠 {} 瓶超容量 {}，余 {} 瓶放不进背包",
+                        it.getId(), slot, it.getCount(), cap, rest);
+                return OpResult.fail(OpReason.BAG_FULL);
+            }
+        }
+
+        List<ItemInstance> touched = new ArrayList<>();
+        // ① 槽内那叠 → 鼠标位（先摘索引，避免两条 UPDATE 抢同一格）
+        items.byUidRemove(inSlot.getId());
+        items.byUidRemove(it.getId());
+        inSlot.setLocation(ItemLocations.EQUIP);
+        inSlot.setSlot(ItemLocations.HELD_SLOT);
+        items.byUidPut(inSlot);
+        touched.add(inSlot);
+        // ② 手上那叠 → 药水槽（只进 cap 瓶）
+        it.setCount(into);
+        it.setLocation(ItemLocations.EQUIP);
+        it.setSlot(slot);
+        items.byUidPut(it);
+        touched.add(it);
+        // ③ 余数 → 背包空位（新行；insert 走 storage.update，不能混进 writeMoved）
+        ItemInstance restRow = null;
+        if (rest > 0) {
+            restRow = roll.roll(it.getTemplate(), it.getJobCodeMask());
+            restRow.setCount(rest);
+            restRow.setLocation(ItemLocations.BAG);
+            restRow.setSlot(restSlot);
+            storage.update(restRow);          // id 为空 → 内部转 insert 并回填 id
+            items.putToCanvas(ItemLocations.BAG, restSlot, restRow);
+            items.markDirty(ItemLocations.BAG, restSlot, restRow.getId());
+        }
+        storage.writeMoved(touched);          // 两行互换：内部先停车再落地
+        log.info("[Potion] {} 槽{} 异种交换：槽内 uid={} x{} → 鼠标位；手上 uid={} x{} → 槽{}"
+                        + (restRow != null ? "；余 {} 瓶 → 背包 slot{}" : ""),
+                player.getName(), slot - 10, inSlot.getId(), inSlot.getCount(),
+                it.getId(), into, slot - 10, rest, restSlot);
+        List<ItemInstance> displaced = new ArrayList<>(List.of(inSlot));
+        if (restRow != null) {
+            displaced.add(restRow);
+        }
+        return OpResult.ok(it, displaced);
+    }
+
+    /**
      * 药水放入快捷槽（ITEMSLOT 11/12/13）。**堆叠语义**，不是装备语义：
-     * - **同槽同种**：槽里已有药水时，必须与它同一种（同 itemlist）；
-     * - **容量上限** = potionSlotCapacity；超出容量的部分**留在背包**（拆堆），不整堆拒绝；
-     * - 槽满 / 异种 / 非药水 / 非背包来源 → 失败并给**原因**（调用方按原因给可见提示）。
+     * - **同槽同种**：槽里已有的药水**补满**，超出容量的部分**留在背包**（拆堆），不整堆拒绝；
+     * - **异种**：**交换**（见 {@link #swapPotionInSlot}，原版 `MouseSetPotion` 异种分支）；
+     * - 槽满（同种且满）/ 非药水 / 非背包来源 → 失败并给**原因**（调用方按原因给可见提示）。
      *
      * @return 成功给槽内那条实例；失败给原因
      */
@@ -647,11 +713,14 @@ public class ItemService {
         }
         int cap = potionSlotCapacity(player, def);
         ItemInstance inSlot = items.at(ItemLocations.EQUIP, slot);
+        // **异种药水 = 交换**（原版 `cINVENTORY::MouseSetPotion` 的"不同 CODE"分支，
+        // `sinInvenTory.cpp:5565+`）：槽内那叠摘出来**回到鼠标位**（`memcpy(pItem, &TempItem)`），
+        // 手上那叠灌进槽（上限 `Potion_Space`），**装不下的余数找背包空位**
+        // （原版转进 `TempPotionItem` → `InvenEmptyAearCheck`；都放不下则整件事 `return FALSE`）。
+        // 我们过去一律回 `DIFFERENT_POTION` —— 与"背包里的交换位置"不一致（用户 2026-09-14 实测报障）。
         if (inSlot != null && (inSlot.getTemplate() == null
                 || !java.util.Objects.equals(inSlot.getTemplate().getId(), def.getId()))) {
-            log.info("[Potion] 拒绝 uid={} slot={}：同槽同种（槽内 uid={} 是别的药水）",
-                    uid, slot, inSlot.getId());
-            return OpResult.fail(OpReason.DIFFERENT_POTION);
+            return swapPotionInSlot(player, it, slot, inSlot, cap);
         }
         int used = inSlot != null ? Math.max(0, inSlot.getCount()) : 0;
         int space = cap - used;

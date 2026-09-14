@@ -722,7 +722,12 @@ public class ItemNetworkHandler {
         // 权威判定在这里；客户端也有一份同样的预校验（免得本地先移除、服务端却拒绝）。
         ItemInstance toDrop = p.getItems().byUid(req.getUid());
         if (toDrop == null) {
-            sendErrorKey(session, "item.op.failed");
+            // 精确原因（用户要求"不允许模糊"）：这一支过去回笼统的 `item.op.failed`，
+            // 于是"客户端拿一个服务端已经没有的 uid 来丢"（幽灵物品，见本文件 ItemRemove 那段）
+            // 显示成"操作失败"，看不出是什么原因。日志同时留档。
+            log.info("[DropItem] {} 拒绝丢弃 uid={}：服务端没有这件物品（客户端状态可能已过期）",
+                    p.getName(), req.getUid());
+            sendErrorKey(session, "item.op.notInBag");
             return;
         }
         int dropCode = toDrop.getItemCode() != null ? toDrop.getItemCode() : 0;
