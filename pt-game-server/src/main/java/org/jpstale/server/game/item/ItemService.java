@@ -1243,6 +1243,20 @@ public class ItemService {
      */
     @Transactional
     public OpResult takeToHand(Player player, long uid) {
+        return takeToHand(player, uid, 0);
+    }
+
+    /**
+     * 拿起（可指定数量 = **拆分**，用户 2026-09-14）。
+     *
+     * `splitCount <= 0` 或 ≥ 现有数量 → 整堆拿起（旧行为）；
+     * 否则**只拿 n 个**到鼠标位：原格保留 `count - n`，另建一行携带 n 个。
+     *
+     * 拆出去的行由 {@link ItemStorageService#insertCopy} 从原件复制 —— 掷点/强化/词条全部保留，
+     * **不重新掷点**（否则拆出来的属性会和原件不一样）。
+     */
+    @Transactional
+    public OpResult takeToHand(Player player, long uid, int splitCount) {
         PlayerItems items = player.getItems();
         ItemInstance it = items.byUid(uid);
         if (it == null || it.isDeleted()) {
@@ -1255,9 +1269,15 @@ public class ItemService {
             log.info("[TakeToHand] {} uid={} 拒绝：鼠标位已被占用", player.getName(), uid);
             return OpResult.fail(OpReason.HAND_BUSY);
         }
+        return takeToHandLocked(player, items, it, splitCount);
+    }
+
+    /** 鼠标位已确认空闲后的主体逻辑（整堆 / 拆分共用）。 */
+    private OpResult takeToHandLocked(Player player, PlayerItems items, ItemInstance it, int splitCount) {
+        final long uid = it.getId();
+        final int loc = it.getLocation();
         // 可拿起的来源：背包页 / 仓库页 / 装备栏 / 副装备栏 / 药水槽（都在这几段里）。
         // 任务栏、商店等未启用容器不接受拿起。
-        int loc = it.getLocation();
         boolean holdable = ItemLocations.isBagPage(loc) || ItemLocations.isWarehousePage(loc)
                 || loc == ItemLocations.EQUIP || loc == ItemLocations.BACKUP_EQUIP;
         if (!holdable) {
@@ -1266,6 +1286,23 @@ public class ItemService {
         }
         // 从原容器摘除（画布/位图/索引一起），再落到鼠标位
         final int srcSlot = it.getSlot();   // ⚠ 必须在改 slot 之前取：否则日志里永远打 -1（曾经如此，害得排查时看不出源头）
+        final int have = it.getCount();
+
+        // ── 拆分拿起（用户 2026-09-14）：只拿 n 个，余数留在**原格原位** ──
+        // 前置：可堆叠（>1）且 0 < n < have；否则按整堆走下面的旧路径。
+        if (splitCount > 0 && splitCount < have) {
+            // 原件留在原地（数量改为余数）—— 位置一律不动，避免"拆一半还把剩下那堆挪走"
+            it.setCount(have - splitCount);
+            storage.update(it);
+
+            // 拆出去的那份：复制原件全部属性，落到鼠标位
+            ItemInstance part = storage.insertCopy(it, ItemLocations.EQUIP, ItemLocations.HELD_SLOT, splitCount);
+            items.byUidPut(part);
+            log.info("[TakeToHand] {} 拆分拿起 uid={} 拿走 {} / 共 {}，余 {} 留在 loc={} slot={}（新 uid={}）",
+                    player.getName(), uid, splitCount, have, have - splitCount, loc, srcSlot, part.getId());
+            return OpResult.ok(part);
+        }
+
         if (ItemLocations.isCanvas(loc)) {
             items.takeFromCanvas(loc, srcSlot);
         }

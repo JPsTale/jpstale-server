@@ -501,7 +501,9 @@ public class ItemNetworkHandler {
             return;
         }
         long uid = message.getTakeToHand().getUid();
-        ItemService.OpResult r = itemService.takeToHand(p, uid);
+        // 0 = 整堆拿起（旧行为）；>0 且 < 现有量 = **拆分**（只拿 n 个，用户 2026-09-14）
+        int count = message.getTakeToHand().getCount();
+        ItemService.OpResult r = itemService.takeToHand(p, uid, count);
         if (r.reason != ItemService.OpReason.OK) {
             sendErrorKey(session, "item.op." + opKeySuffix(r.reason));
             return;

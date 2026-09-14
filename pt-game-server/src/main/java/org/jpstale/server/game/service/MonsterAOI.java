@@ -46,6 +46,28 @@ public class MonsterAOI {
     /** 观察者 playerId → 当前可见的怪物 id 集合（持久化，双阈值升降级状态） */
     private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
 
+    /**
+     * 玩家**进入世界**时清空他的怪物可见集
+     *（用户 2026-09-14 实测：进游戏看不到怪、却一直在挨打）。
+     *
+     * 为什么必须清：可见集以 characterId 为 key **跨会话保留**，而重连（自动续传）时
+     * 旧会话与新会话是同一个 charId —— 若旧会话那轮 `removeIf` 还没跑到，
+     * 集合里就留着上一次的怪物 id，于是 `reconcile` 里 `visible.add(mid)` 恒为 false
+     * ⇒ **一条 Appear 都不发**，而服务端 AI 照常把他当目标打（服务端日志全是
+     * `[MonsterAI] ... ATK aglob`，客户端一条"怪物出现"都没有）。
+     *
+     * 对照：玩家 AOI 在 `AOIManager.onPlayerEnter` 里本来就 `visible.clear()` —— 怪物这边漏了。
+     * 清空是安全的：下一 tick `reconcile` 会按当前位置把该看见的**全部重发**。
+     */
+    public void clearVisible(long characterId) {
+        Set<Long> visible = visibleByPlayer.get(characterId);
+        if (visible != null) {
+            synchronized (visible) {
+                visible.clear();
+            }
+        }
+    }
+
     /** 每 tick 由 MonsterSpawnService.tick() 驱动：同步所有 playing 会话的怪物可见集 */
     public void syncSessions() {
         Set<Long> active = ConcurrentHashMap.newKeySet();

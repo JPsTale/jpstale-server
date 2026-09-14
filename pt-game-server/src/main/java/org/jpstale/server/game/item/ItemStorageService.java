@@ -254,6 +254,25 @@ public class ItemStorageService {
         it.setId(r.getId());
     }
 
+    /**
+     * 按现有实例**复制**出一个新实例（新 uid），落到给定位置。用于拆分堆叠
+     * （用户 2026-09-14）—— 拆出去的那份必须带着原件的全部掷点/强化属性，
+     * 所以走 `toRow` → 改位置/数量 → `insert`，**而不是**用模板重新掷点。
+     *
+     * ⚠ 不复制 `id`：那是行主键，新行由 `insert` 生成并回填。
+     */
+    public ItemInstance insertCopy(ItemInstance src, int location, int slot, int count) {
+        Item r = toRow(src);
+        r.setId(null);                       // 新行：主键交给 DB（IdType.AUTO）
+        r.setLocation((short) location);
+        r.setSlot((short) slot);
+        r.setCount(count);
+        // characterId 由 toRow 从 src 带过来（调用方保证 src 属于该角色）
+        itemMapper.insert(r);
+        ItemInstance copy = fromRow(r);
+        return copy;
+    }
+
     /** 更新一行（位置移动/属性/堆叠等）。 */
     @Transactional
     public void update(ItemInstance it) {

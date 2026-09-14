@@ -8,6 +8,7 @@ import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -70,6 +71,15 @@ public class AOIManager {
 
     @Autowired
     private UlMapper ulMapper;
+
+    /**
+     * 怪物 AOI —— 只为"玩家进入世界时清空其怪物可见集"而注入。
+     * 标 `@Lazy` 切断 `AOIManager ↔ MonsterSpawnService` 的构造期环
+     * （MonsterSpawnService 注入了 AOIManager；MonsterAOI 注入了 MonsterSpawnService）。
+     */
+    @Lazy
+    @Autowired
+    private MonsterAOI monsterAOI;
 
     /** 公会缓存：charId → [公会名, 图标id]（懒加载一次，玩家离场清缓存） */
     private final ConcurrentHashMap<Long, String[]> clanCache = new ConcurrentHashMap<>();
@@ -237,6 +247,16 @@ public class AOIManager {
         MessageProto.S2C_PlayerAppear selfAppear = buildAppear(entity);
         Set<Long> visible = visiblePlayers.computeIfAbsent(eid, k -> ConcurrentHashMap.newKeySet());
         visible.clear();
+        // 怪物 AOI 的可见集同样要清（用户 2026-09-14 实测：重连后看不到怪、却一直挨打）。
+        // 它曾漏了这一句 —— 玩家 AOI 清、怪物 AOI 不清，而两者都跨会话保留，
+        // 于是重连时 `visible.add(mid)` 恒 false ⇒ 一条 Appear 都不发。
+        // ⚠ 键是 **charId**（`MonsterAOI.syncSessions` 用 `session.getCharacterId()`），
+        //   而本方法的 `eid` 是实体运行时 id —— 两者不同（日志实测：char=78 / runtimeId=151）。
+        //   传错键会静默清不到任何东西，所以这里显式取 charId。
+        Long charId = session != null ? session.getCharacterId() : null;
+        if (charId != null) {
+            monsterAOI.clearVisible(charId);
+        }
         StringBuilder appearLog = new StringBuilder();
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ())) {
             if (nearby.getId() == eid) continue;
