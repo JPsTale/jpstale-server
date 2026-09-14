@@ -18,12 +18,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 地面物品 AOI：与 {@link MonsterAOI} 同构的双阈值可见性同步。
+ * 地面物品 AOI：与 {@link MonsterAOI} 同构的可见性同步。
  *
- * 玩家进入 / 走动 / 掉落物增减时，按 EU 口径向视野内玩家推送
+ * 玩家进入 / 走动 / 掉落物增减时，向视野内玩家推送
  * S2C_GroundItemAppear / S2C_GroundItemDisappear：
- *  - 进入 CONNECT(1086) → Appear
- *  - 超出 DISCONNECT(1810) → Disappear
+ *  - 进入 CONNECT(1000) → Appear
+ *  - 超出 DISCONNECT(1600) → Disappear（1000~1600 是滞回区，见 {@link AOIManager}）
+ * 两个距离都在 {@link AOIManager} 里，四类 AOI 共用。
  *  - 过期/被拾取的兜底：物品不再存在时把残留可见项清出并通知
  *
  * 拾取不在本类做：必须由玩家「点击该掉落物」经 C2S_PickupItem 触发

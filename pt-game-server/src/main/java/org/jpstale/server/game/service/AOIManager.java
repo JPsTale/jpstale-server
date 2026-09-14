@@ -24,16 +24,32 @@ import java.util.concurrent.ConcurrentSkipListMap;
  * 网格里存放的是玩家运行时实体(坐标/属性权威),不再是 PlayerSession;
  * 发送消息仍经 e.getSession()。为未来"怪/地面物进同一全局索引"铺路。
  *
- * 双阈值(EU):进入 CONNECT(1086) 半径 → Appear;超出 DISCONNECT(1810) → Disappear。
+ * AOI 距离 = 1000 进入 / 1600 离开（用户 2026-09-14 定；原本是 EU 的 1086/1810）。
+ * 玩家/怪物/NPC/地面物品四类共用下面两个常量，所以"统一"只需改这里。
  * 身份键 = PlayerEntity.getId()(运行时全局唯一 id)。
  */
 @Slf4j
 @Component
 public class AOIManager {
 
-    // EU 原始实现：CONNECT≈1086 / DISCONNECT≈1810
-    public static final float VIEW_RANGE = 1086f;
-    public static final float VIEW_RANGE_DISCONNECT = 1810f;
+    /**
+     * AOI 距离：进入 {@link #VIEW_RANGE}(1000) → Appear；超出 {@link #VIEW_RANGE_DISCONNECT}(1600) → Disappear。
+     *
+     * **两个数必须不等，差值就是滞回区**（用户 2026-09-14 定 1000/1600）：实体在 1000~1600
+     * 这圈里来回走**不会**反复 Appear/Disappear。这很关键 —— 客户端每次 Appear 都要重新构建
+     * 模型与贴图，边界抖动比多显示几只怪贵得多。1600 相对 1000 留了 60% 余量
+     * （原 EU 口径 1086/1810 ≈ 67%，同量级）。
+     *
+     * ⚠ 约束：所有"广播 / 清理范围"都必须 **≥ VIEW_RANGE** —— 不能小于可见边界，否则边界附近的
+     * 观察者收不到位置更新、或收不到消失通知。`MovementService` 的玩家移动广播、本类
+     * `onPlayerLeave` 都取 DISCONNECT，正好满足（等价于取可见集合的边界）。
+     *
+     * ⚠ 与怪 AI 的模拟半径（{@code AIConstants.ACTIVE_RADIUS} = 1810）**不是一回事**：
+     * 这里管"发给哪些玩家看"，那里管"服务端模拟哪些怪的 AI"。两者不等**是有意的** ——
+     * 怪在你视野外仍在活动，走近才出现在视野里。
+     */
+    public static final float VIEW_RANGE = 1000f;
+    public static final float VIEW_RANGE_DISCONNECT = 1600f;
     private static final int GRID_SIZE = 128;
 
     // X坐标 → 实体运行时id → 玩家实体

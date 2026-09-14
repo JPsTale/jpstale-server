@@ -20,8 +20,10 @@ import org.jpstale.server.proto.base.MessageProto;
  */
 @Getter
 @Setter
-@ToString(exclude = {"channel", "entity"})
-@EqualsAndHashCode(exclude = {"channel", "entity"})
+// pending 是**可变**的合批队列：必须排除在 equals/hashCode 之外，否则它的内容一变，
+// 该 session 作为 key 的哈希就变（HashMap/HashSet 里会查不到）—— 这类 bug 症状离病根很远。
+@ToString(exclude = {"channel", "entity", "pending"})
+@EqualsAndHashCode(exclude = {"channel", "entity", "pending"})
 public class PlayerSession {
 
     private final Channel channel;
@@ -117,12 +119,69 @@ public class PlayerSession {
     }
 
     /**
-     * 发送消息给客户端
+     * 本 tick 待发消息（合批队列，见 proto 里 S2C_Batch 的注释）。
+     *
+     * 用 ConcurrentLinkedQueue：入队可能来自**主循环线程**（AOI/战斗/移动广播），也可能来自
+     * **Netty IO 线程**（如玩家击杀怪触发的死亡广播），而 flush 在主循环 —— 必须线程安全。
+     */
+    private final java.util.Queue<MessageProto.ServerMessage> pending =
+        new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    /**
+     * 发送消息给客户端。
+     *
+     * 默认**只入队**，由 tick 末尾的 {@link #flushPending()} 合批发出：同一 tick 内发给同一个
+     * 玩家的多条消息 → 一个 S2C_Batch → **一次编码、一次 writeAndFlush**。
+     * 对延迟敏感的少数消息（见 {@link #isImmediate}）直接发。
      */
     public void send(MessageProto.ServerMessage message) {
-        if (channel != null && channel.isActive()) {
-            channel.writeAndFlush(message);
+        if (channel == null || !channel.isActive()) {
+            return;
         }
+        if (isImmediate(message)) {
+            channel.writeAndFlush(message);
+            return;
+        }
+        pending.add(message);
+    }
+
+    /**
+     * 必须**立即**发送、不吃合批延迟的几类。每一条都有具体理由，不要图省事往里加：
+     *  - `pong`：客户端拿它算 RTT / 时间同步，延迟会直接计进往返时间；
+     *  - 登录响应 / 角色列表 / 建角结果：请求-响应型，而且发生在"还没进游戏循环"的阶段 ——
+     *    那时 tick 未必在跑，入了队可能永远等不到 flush；
+     *  - `disconnect`：断开通知，等下一个 tick 没有意义。
+     */
+    private static boolean isImmediate(MessageProto.ServerMessage m) {
+        return m.hasPong() || m.hasLoginResponse() || m.hasCharacterList()
+            || m.hasCreateCharacterResult() || m.hasDisconnect();
+    }
+
+    /** 把本 tick 累积的消息一次发出（由 {@code GameServer.tick} 每 tick 调一次，20Hz） */
+    public void flushPending() {
+        if (pending.isEmpty()) {
+            return;
+        }
+        if (channel == null || !channel.isActive()) {
+            pending.clear();
+            return;
+        }
+        MessageProto.ServerMessage first = pending.poll();
+        if (first == null) {
+            return;
+        }
+        // 只有一条时不包信封：S2C_Batch 自身的 tag+length 反而比直接发更大
+        if (pending.isEmpty()) {
+            channel.writeAndFlush(first);
+            return;
+        }
+        MessageProto.S2C_Batch.Builder batch = MessageProto.S2C_Batch.newBuilder();
+        batch.addMessages(first);
+        MessageProto.ServerMessage m;
+        while ((m = pending.poll()) != null) {
+            batch.addMessages(m);
+        }
+        channel.writeAndFlush(MessageProto.ServerMessage.newBuilder().setBatch(batch).build());
     }
 
     /**

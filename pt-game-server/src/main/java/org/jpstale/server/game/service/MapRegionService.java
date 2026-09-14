@@ -25,7 +25,11 @@ import java.util.LinkedHashSet;
 @Service
 public class MapRegionService {
 
-    /** 门触发距离（world 单位，与 AOI CONNECT 一致） */
+    /**
+     * 门触发距离（world 单位）。
+     * ⚠ 这是**功能参数**（走到多近才触发过门），不是 AOI 可见距离：调小 = 玩家要更靠近门才传送。
+     * 本次 AOI 统一为 1000 时**未改动它**（用户 2026-09-14 提醒过不要把非 AOI 的距离一起改）。
+     */
     public static final int GATE_CONNECT_DIST = 1086;
     /** 门最大轴向距离（world 单位） */
     private static final int GATE_MAX_AXIS = 16384;

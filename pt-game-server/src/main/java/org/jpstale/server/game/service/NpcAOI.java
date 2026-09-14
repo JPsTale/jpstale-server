@@ -17,12 +17,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * NPC AOI：与 {@link MonsterAOI}/{@link GroundItemAOI} 同构的双阈值可见性同步。
+ * NPC AOI：与 {@link MonsterAOI}/{@link GroundItemAOI} 同构的可见性同步。
  *
- * 玩家进入 / 走动 / 换图时，按 EU 口径向视野内玩家推送 S2C_NpcAppear / S2C_NpcDisappear：
- *  - 进入 CONNECT(1086) → Appear
- *  - 超出 DISCONNECT(1810) → Disappear
- * NPC 静态不移动，但玩家走动/换图会改变相对距离，故仍走双阈值升降级。
+ * 玩家进入 / 走动 / 换图时，向视野内玩家推送 S2C_NpcAppear / S2C_NpcDisappear：
+ *  - 进入 CONNECT(1000) → Appear
+ *  - 超出 DISCONNECT(1600) → Disappear（1000~1600 是滞回区，见 {@link AOIManager}）
+ * 两个距离都在 {@link AOIManager} 里，四类 AOI 共用。
+ * NPC 静态不移动，但玩家走动/换图会改变相对距离，故仍走升降级判定。
  *
  * 线程模型：由 GameServer.tick（主循环 20Hz）调用，与怪物/物品 AOI 同线程。
  */

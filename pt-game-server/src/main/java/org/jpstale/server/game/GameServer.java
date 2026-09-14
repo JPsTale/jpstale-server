@@ -42,6 +42,9 @@ public class GameServer implements Server {
     @Autowired
     private org.jpstale.server.game.service.PlayerService playerService;
 
+    @Autowired
+    private org.jpstale.server.game.network.SessionManager sessionManager;
+
     private long lastPosSaveAt = 0;
 
     @Override
@@ -69,6 +72,11 @@ public class GameServer implements Server {
             lastPosSaveAt = currentTimeMillis;
             playerService.persistAllOnlinePositions();
         }
+        // ===== 合批发送（必须放在 tick 的**最后**）=====
+        // 上面各步产生的消息这一 tick 内只入队（PlayerSession.send），到这里一次性发出：
+        // 同一 tick 发给同一玩家的多条 → 一个 S2C_Batch → 一次编码、一次 writeAndFlush。
+        // 放在最后是硬要求：放在中间会让"这一步之后产生的消息"等到下一 tick 才发（多 50ms 延迟）。
+        sessionManager.flushAll();
     }
 
     @Override

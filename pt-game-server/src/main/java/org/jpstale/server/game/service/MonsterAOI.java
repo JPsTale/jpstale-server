@@ -19,8 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 怪物 AOI：把服务端权威的怪物状态（出现/移动/死亡/消失）推送给视野内玩家。
  *
- * 可见性双阈值与玩家 AOI 一致（EU 语义）：进入 CONNECT(1086) → Appear；
- * 超出 DISCONNECT(1810) → Disappear。所有集合以玩家 characterId 为 key 持久化。
+ * 可见性距离与玩家 AOI 共用同一对常量（现为 1000 进入 / 1600 离开，见 AOIManager）：
+ * 进入 CONNECT → Appear；超出 DISCONNECT → Disappear。所有集合以玩家 characterId 为 key 持久化。
  *
  * 线程模型：syncSessions/broadcastMove 在主循环线程（MonsterSpawnService.tick）调用；
  * onMonsterDeath 可能在 Netty IO 线程（玩家击杀）调用 —— 内部用 CHM 集合，弱一致即可。

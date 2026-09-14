@@ -162,7 +162,8 @@ public class MovementService {
                 long[] c = session.drainMoveCounters();
                 session.setMoveDiagAt(now);
                 if (c[0] + c[1] + c[2] > 0) {
-                    log.info("[Move] {} 5 秒内：收 {} / 应用 {} / 限速拒绝 {}", session.getCharacterName(),
+                    // 常态下不打（每个移动中的玩家每 5 秒一条太吵）：要排查时把这个 logger 调到 debug
+                    log.debug("[Move] {} 5 秒内：收 {} / 应用 {} / 限速拒绝 {}", session.getCharacterName(),
                             c[0], c[1], c[2]);
                 }
             }
@@ -278,9 +279,10 @@ public class MovementService {
                 .build())
             .build();
 
-        // 广播范围用 DISCONNECT(1810) 而非 CONNECT(1086)：进入 1086~1810 环带的
-        // 远端仍处于可见集合（EU 双阈值，出 1810 才 Disappear），若按 1086 广播，
-        // 该区间玩家收不到位置/动画更新会停在最后一条 RUN 上"原地跑步"。
+        // 广播范围取 DISCONNECT(1600) 而非 CONNECT(1000)：可见集合是**滞回**式的 —— 进入 1000 才
+        // Appear，但要走出 1600 才 Disappear。所以 1000~1600 这一圈里的远端**仍在**观察者的可见
+        // 集合里，若按 1000 广播，他们收不到位置/动画更新，会停在最后一条 RUN 上"原地跑步"。
+        // 规则：**广播范围必须 ≥ 可见边界（= DISCONNECT）**。与 EU 原来取 1810 是同一个理由。
         for (PlayerEntity nearby : aoiManager.getNearbyPlayers(entity.getX(), entity.getZ(), AOIManager.VIEW_RANGE_DISCONNECT)) {
             PlayerSession ns = nearby.getSession();
             if (ns != null) ns.send(moveMessage);

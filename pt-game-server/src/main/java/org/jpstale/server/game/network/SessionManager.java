@@ -150,6 +150,19 @@ public class SessionManager {
     }
 
     /**
+     * 把**所有**会话本 tick 累积的消息一次发出（合批，见 PlayerSession.flushPending）。
+     *
+     * 由 GameServer.tick 每 tick 调一次（20Hz）。刻意遍历**全部**会话而不只是 playing 的：
+     * 登录/选角阶段也可能有积压（虽然那几类走了即时通道，但这里不能依赖"谁在游戏里"的假设
+     * 来决定要不要发 —— 漏发的症状是"客户端永远收不到某条消息"，且没有任何报错）。
+     */
+    public void flushAll() {
+        for (PlayerSession session : sessions.values()) {
+            session.flushPending();
+        }
+    }
+
+    /**
      * 获取在线玩家数量
      */
     public int getOnlineCount() {
