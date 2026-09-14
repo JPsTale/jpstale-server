@@ -2,10 +2,11 @@ package org.jpstale.server.game.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -65,13 +66,22 @@ public class GameServerRegistration {
         }
     }
 
-    @PreDestroy
+    /**
+     * 用 {@link ContextClosedEvent} 而不是 {@code @PreDestroy}：
+     * {@code AbstractApplicationContext.doClose()} 的顺序是
+     * ① 发布 ContextClosedEvent → ② {@code lifecycleProcessor.onClose()}（停掉 SmartLifecycle，
+     * 含 LettuceConnectionFactory）→ ③ {@code destroyBeans()}（这时才跑 {@code @PreDestroy}）。
+     * 所以 @PreDestroy 里 Redis 已经 STOPPED，delete 必然抛
+     * "LettuceConnectionFactory has been STOPPED"（每次关服都留一条像崩溃的 ERROR 栈）。
+     */
+    @EventListener(ContextClosedEvent.class)
     public void deregister() {
         try {
             redis.delete(KEY_PREFIX + serverId);
             log.info("Game server deregistered: id={}", serverId);
         } catch (Exception e) {
-            log.error("Failed to deregister game server", e);
+            // 关服时 Redis 恰好不可用（先停了 Redis / 断网）不算故障：注册键靠 TTL 自然过期。
+            log.warn("Failed to deregister game server (key expires in {}s): {}", TTL_SECONDS, e.toString());
         }
     }
 
