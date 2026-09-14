@@ -128,6 +128,9 @@ public class MovementService {
     private static final double PLAYER_MAX_RUN_PER_MS = stepOfF(25, EU_COEFF_RUN) * 3.0 / 50.0; // ≈0.2105
     private static final double SPEED_TOLERANCE = 1.3; // 30% 容差（网络抖动/客户端碰撞细微差异）
     private static final double SNAP_SLACK = 3.0;      // 绝对 slack（world），容忍停止/转身等小跳跃
+    /** 限速拒绝日志的节流（每个会话最多 5 秒一条；会话对象不强引用，随生命周期回收） */
+    private final java.util.Map<PlayerSession, Long> speedRejectLogAt =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
 
     /**
      * 每 tick（核心 loop）消费客户端上报的移动：
@@ -183,6 +186,20 @@ public class MovementService {
             }
             double maxDist = limPerSec / 1000.0 * dtMs * SPEED_TOLERANCE + SNAP_SLACK;
             if (dist > maxDist) {
+                // ⚠ **不许静默**：这条 `return` 原本什么都不说，而它的后果是"服务端实体停在旧位置"——
+                // 于是**所有按距离裁决的操作都会莫名失败**（用户 2026-09-14 实测：跑过去拾取药水，
+                // 服务端按 45.8 判超距，而 4ms 后位置才对上）。玩家会以为"提前上报了拾取动作"，
+                // 其实是这里的限速把这些上报**整批丢掉了**。
+                // 限速本身保留（防瞬移/穿图），但要把"为什么丢"喊出来：节流到每个会话每 5 秒一条。
+                long nowWall = System.currentTimeMillis();
+                Long last = speedRejectLogAt.get(session);
+                if (last == null || nowWall - last > 5000) {
+                    speedRejectLogAt.put(session, nowWall);
+                    log.warn("[Move] {} 上报被限速拒绝：dist={} > maxDist={}（limPerSec={} dt={}ms 容差={} slack={}）"
+                            + " —— 位置不更新，实体将停在旧坐标，按距离裁决的操作（拾取/商店）会失败",
+                        session.getCharacterName(), String.format("%.2f", dist), String.format("%.2f", maxDist),
+                        String.format("%.1f", limPerSec), dtMs, SPEED_TOLERANCE, SNAP_SLACK);
+                }
                 return; // 拒绝：不更新位置（等待其回到合法范围内）
             }
         }
