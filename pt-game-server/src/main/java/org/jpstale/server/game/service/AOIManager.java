@@ -62,6 +62,9 @@ public class AOIManager {
     // 实体运行时id → 当前网格 [x, z]
     private final ConcurrentHashMap<Long, int[]> playerGrids = new ConcurrentHashMap<>();
 
+    // 实体运行时id → 玩家实体(权威注册表:读点 O(1),与 xMap/yMap 同生命周期维护,removePlayer 清理)
+    private final ConcurrentHashMap<Long, PlayerEntity> entitiesById = new ConcurrentHashMap<>();
+
     // 观察者实体id → 当前可见的其他玩家实体id集合(持久化,双阈值)
     private final ConcurrentHashMap<Long, Set<Long>> visiblePlayers = new ConcurrentHashMap<>();
 
@@ -71,20 +74,11 @@ public class AOIManager {
     /** 公会缓存：charId → [公会名, 图标id]（懒加载一次，玩家离场清缓存） */
     private final ConcurrentHashMap<Long, String[]> clanCache = new ConcurrentHashMap<>();
 
-    private static PlayerSession sessionOf(PlayerEntity e) {
-        return e != null ? e.getSession() : null;
-    }
-
-    private static String nameOf(PlayerEntity e) {
-        PlayerSession s = sessionOf(e);
-        return s != null && s.getCharacterName() != null ? s.getCharacterName() : "?";
-    }
-
     /**
      * 构建完整的外观快照 Appear(属性/坐标读 PlayerEntity)。
      */
     private MessageProto.S2C_PlayerAppear buildAppear(PlayerEntity e) {
-        PlayerSession session = sessionOf(e);
+        PlayerSession session = e.getSession();
         Player p = e.getPlayer();
         MessageProto.S2C_PlayerAppear.Builder b = MessageProto.S2C_PlayerAppear.newBuilder()
             .setPlayerId(session != null ? session.getCharacterId() : e.getId())
@@ -120,7 +114,8 @@ public class AOIManager {
         long charId = e.getCharId();
         String[] cached = clanCache.get(charId);
         if (cached != null) return cached;
-        String chName = sessionOf(e) != null ? sessionOf(e).getCharacterName() : null;
+        PlayerSession s = e.getSession();
+        String chName = s != null ? s.getCharacterName() : null;
         if (chName == null || chName.isEmpty()) return null;
         try {
             Map<String, Object> row = ulMapper.selectClanByChName(chName);
@@ -150,9 +145,10 @@ public class AOIManager {
         addToMap(xMap, gridX, entity);
         addToMap(yMap, gridZ, entity);
         playerGrids.put(eid, new int[]{gridX, gridZ});
+        entitiesById.put(eid, entity);
         visiblePlayers.put(eid, ConcurrentHashMap.newKeySet());
         log.info("[AOI] {} (id={}) addPlayer grid=({},{}) pos=({},{})",
-            nameOf(entity), eid, gridX, gridZ, (float) entity.getX(), (float) entity.getZ());
+            entity.getName(), eid, gridX, gridZ, (float) entity.getX(), (float) entity.getZ());
     }
 
     /**
@@ -166,13 +162,14 @@ public class AOIManager {
             removeFromMap(xMap, grids[0], entity);
             removeFromMap(yMap, grids[1], entity);
         }
+        entitiesById.remove(eid);
         visiblePlayers.remove(eid);
         clanCache.remove(entity.getCharId());
         for (Set<Long> set : visiblePlayers.values()) {
             set.remove(eid);
         }
         log.info("[AOI] {} (id={}) removePlayer grid=({},{})",
-            nameOf(entity), eid, grids != null ? grids[0] : -1, grids != null ? grids[1] : -1);
+            entity.getName(), eid, grids != null ? grids[0] : -1, grids != null ? grids[1] : -1);
     }
 
     /**
@@ -198,7 +195,7 @@ public class AOIManager {
         playerGrids.put(eid, new int[]{newGridX, newGridZ});
 
         log.info("[AOI] {} (id={}) grid {}->{} pos=({},{})",
-            nameOf(entity), eid, oldGridX, newGridX, (float) entity.getX(), (float) entity.getZ());
+            entity.getName(), eid, oldGridX, newGridX, (float) entity.getX(), (float) entity.getZ());
 
         checkVisibility(entity, oldGridX, oldGridZ, newGridX, newGridZ);
     }
@@ -234,7 +231,7 @@ public class AOIManager {
     public void onPlayerEnter(PlayerEntity entity) {
         if (entity == null) return;
         Long eid = entity.getId();
-        PlayerSession session = sessionOf(entity);
+        PlayerSession session = entity.getSession();
 
         MessageProto.S2C_PlayerAppear selfAppear = buildAppear(entity);
         Set<Long> visible = visiblePlayers.computeIfAbsent(eid, k -> ConcurrentHashMap.newKeySet());
@@ -245,13 +242,13 @@ public class AOIManager {
             // 新玩家:附近已有玩家的外观快照
             session.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
             // 附近玩家:新玩家的外观快照
-            sessionOf(nearby).send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
+            nearby.getSession().send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
             visible.add(nearby.getId());
             visiblePlayers.computeIfAbsent(nearby.getId(), k -> ConcurrentHashMap.newKeySet()).add(eid);
-            appearLog.append(nameOf(nearby)).append(",");
+            appearLog.append(nearby.getName()).append(",");
         }
         log.info("[AOI] {} (id={}) onPlayerEnter pos=({},{}) nearby=[{}]",
-            nameOf(entity), eid, (float) entity.getX(), (float) entity.getZ(), appearLog);
+            entity.getName(), eid, (float) entity.getX(), (float) entity.getZ(), appearLog);
     }
 
     /**
@@ -261,7 +258,7 @@ public class AOIManager {
     public void onPlayerLeave(PlayerEntity entity) {
         if (entity == null) return;
         Long eid = entity.getId();
-        PlayerSession session = sessionOf(entity);
+        PlayerSession session = entity.getSession();
         if (session == null) return;
 
         MessageProto.S2C_PlayerDisappear msg = MessageProto.S2C_PlayerDisappear.newBuilder()
@@ -269,14 +266,14 @@ public class AOIManager {
             .build();
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ(), VIEW_RANGE_DISCONNECT)) {
             if (nearby.getId() == eid) continue;
-            sessionOf(nearby).send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
+            nearby.getSession().send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
         }
         visiblePlayers.remove(eid);
         for (Set<Long> set : visiblePlayers.values()) {
             set.remove(eid);
         }
         log.info("[AOI] {} (id={}) onPlayerLeave pos=({},{})",
-            nameOf(entity), eid, (float) entity.getX(), (float) entity.getZ());
+            entity.getName(), eid, (float) entity.getX(), (float) entity.getZ());
     }
 
     /**
@@ -289,7 +286,7 @@ public class AOIManager {
         if (entity == null) {
             return;
         }
-        PlayerSession session = sessionOf(entity);
+        PlayerSession session = entity.getSession();
         long pid = session != null ? session.getCharacterId() : entity.getId();
         MessageProto.S2C_AppearanceUpdate msg = MessageProto.S2C_AppearanceUpdate.newBuilder()
             .setPlayerId(pid)
@@ -304,20 +301,20 @@ public class AOIManager {
             if (nearby.getId() == entity.getId()) {
                 continue;
             }
-            PlayerSession ns = sessionOf(nearby);
+            PlayerSession ns = nearby.getSession();
             if (ns != null) {
                 ns.send(MessageProto.ServerMessage.newBuilder().setAppearanceUpdate(msg).build());
             }
         }
         log.info("[AOI] {} (id={}) appearance updated: body={} weapon={}",
-            nameOf(entity), pid,
+            entity.getName(), pid,
             appearance.getBodyModelIdcode() != 0 ? appearance.getBodyModelIdcode() : (appearance.getBodyModel().isEmpty() ? "-" : appearance.getBodyModel()),
             appearance.getWeaponDorp().isEmpty() ? "-" : appearance.getWeaponDorp());
     }
 
     private void checkVisibility(PlayerEntity moved,
                                  int oldGridX, int oldGridZ,                                 int newGridX, int newGridZ) {
-        Long eid = moved.getId();
+        long eid = moved.getId();
         double mx = moved.getX();
         double mz = moved.getZ();
         Set<Long> visible = visiblePlayers.computeIfAbsent(eid, k -> ConcurrentHashMap.newKeySet());
@@ -325,15 +322,15 @@ public class AOIManager {
         // 1) 新进入 CONNECT 半径的玩家 → 双向 Appear
         StringBuilder appearLog = new StringBuilder();
         for (PlayerEntity other : getNearbyPlayers(mx, mz, VIEW_RANGE)) {
-            Long oid = other.getId();
+            long oid = other.getId();
             if (oid == eid) continue;
             if (visible.add(oid)) {
                 moved.getSession().send(MessageProto.ServerMessage.newBuilder()
                     .setPlayerAppear(buildAppear(other)).build());
-                sessionOf(other).send(MessageProto.ServerMessage.newBuilder()
+                other.getSession().send(MessageProto.ServerMessage.newBuilder()
                     .setPlayerAppear(buildAppear(moved)).build());
                 visiblePlayers.computeIfAbsent(oid, k -> ConcurrentHashMap.newKeySet()).add(eid);
-                appearLog.append(nameOf(other)).append(",");
+                appearLog.append(other.getName()).append(",");
             }
         }
 
@@ -347,8 +344,9 @@ public class AOIManager {
         for (Long oid : visible) {
             if (!candidates.contains(oid)) {
                 toRemove.add(oid);
-                PlayerSession otherSession = sessionOf(playerById(oid));
-                if (otherSession != null) {
+                PlayerEntity other = entitiesById.get(oid);
+                if (other != null) {
+                    PlayerSession otherSession = other.getSession();
                     otherSession.send(MessageProto.ServerMessage.newBuilder()
                         .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
                             .setPlayerId(otherSession.getCharacterId()).build())
@@ -360,7 +358,7 @@ public class AOIManager {
                 if (self != null) {
                     self.send(MessageProto.ServerMessage.newBuilder()
                         .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
-                            .setPlayerId(otherSession != null ? otherSession.getCharacterId() : oid).build())
+                            .setPlayerId(other != null ? other.getSession().getCharacterId() : oid).build())
                         .build());
                 }
                 disappearLog.append(oid).append(",");
@@ -370,18 +368,8 @@ public class AOIManager {
 
         if (appearLog.length() > 0 || disappearLog.length() > 0) {
             log.info("[AOI] {} (id={}) grid {}->{} appear=[{}] disappear=[{}] pos=({},{})",
-                nameOf(moved), eid, oldGridX, newGridX, appearLog, disappearLog, (float) mx, (float) mz);
+                moved.getName(), eid, oldGridX, newGridX, appearLog, disappearLog, (float) mx, (float) mz);
         }
-    }
-
-    private PlayerEntity playerById(long id) {
-        for (Map<Integer, ConcurrentHashMap<Long, PlayerEntity>> m : List.of(xMap)) {
-            for (ConcurrentHashMap<Long, PlayerEntity> cell : m.values()) {
-                PlayerEntity e = cell.get(id);
-                if (e != null) return e;
-            }
-        }
-        return null;
     }
 
     private int toGrid(double coord) {

@@ -47,6 +47,11 @@ public class PlayerEntity extends BaseEntity {
         return session;
     }
 
+    /** 显示名：数据宿主 Player 持有，实体仅转发（与 getHp/getLevel 同）。 */
+    public String getName() {
+        return player.getName();
+    }
+
     public boolean isPlaying() {
         return session != null && session.isPlaying();
     }
