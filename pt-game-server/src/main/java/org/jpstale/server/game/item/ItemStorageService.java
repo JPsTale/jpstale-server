@@ -237,6 +237,18 @@ public class ItemStorageService {
     /** 插入新实例（掷点/拾取/发放）；写回自增 id。 */
     @Transactional
     public void insert(ItemInstance it) {
+        // **硬门**：新建的行必须属于某个角色。漏写 characterId 会以 0 落库，而唯一索引
+        // `uq_item_active_slot(character_id, location, slot)` 会把它当成"0 号角色的这个槽位"——
+        // 第一次插入成功、**之后每次同槽插入都撞唯一键**，整笔操作以 DuplicateKeyException 失败
+        //（用户 2026-09-14 实测：9 瓶药水放进空药水槽根本放不进去，库里躺着 (0,0,11) 的孤儿行）。
+        // 这里**不静默补 0、也不猜**：直接失败并喊出来（写入脏行比失败更糟 —— 它会毒化后续所有同槽操作）。
+        Integer cid = it.getCharacterId();
+        if (cid == null || cid == 0) {
+            log.error("[ItemStorage] 拒绝插入没有 characterId 的实例：uid={} itemListId={} loc={}/{} "
+                    + "—— 新建实例的代码必须 setCharacterId(player.getId())",
+                    it.getId(), it.getItemListId(), it.getLocation(), it.getSlot());
+            throw new IllegalStateException("insert without characterId: uid=" + it.getId());
+        }
         Item r = toRow(it);
         itemMapper.insert(r);
         it.setId(r.getId());

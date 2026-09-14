@@ -168,8 +168,13 @@ public class NpcShopHandler {
                 return;
             }
         }
-        log.info("[Shop] {} 买入 npc={} itemlistId={} code={} x{} 花费 {}",
-                session.getCharacterName(), npcId, itemlistId, offer.code(), n, total);
+        // **必须推给客户端**：服务端把货发进背包后，客户端只能靠 S2C_ItemUpdate 知道这件事。
+        // 漏掉这条的后果是"钱扣了、背包里什么都没有"（用户 2026-09-14 实测报障）。
+        for (ItemInstance t : grant.touched) {
+            pushUpdate(session, t);   // 并入的堆与新行都要推（见 ItemService.GrantResult.touched）
+        }
+        log.info("[Shop] {} 买入 npc={} itemlistId={} code={} x{} 花费 {} → 已推送 uid={}",
+                session.getCharacterName(), npcId, itemlistId, offer.code(), n, total, grant.instance.getId());
     }
 
     // ------------------------------------------------------------------
@@ -218,14 +223,21 @@ public class NpcShopHandler {
                     ? "item.pickup.overMoney" : "shop.failed");
             return;
         }
-        if (n >= it.getCount()) {
+        boolean wholeStack = n >= it.getCount();
+        if (wholeStack) {
             p.getItems().byUidRemove(it.getId());
             storage.softDelete(it.getId());
         } else {
             it.setCount(it.getCount() - n);
             storage.update(it);
         }
-        pushUpdate(session, it, n >= it.getCount() ? 0 : it.getCount());
+        if (wholeStack) {
+            // 整堆卖光 = 这一行没了 ⇒ 必须发 ItemRemove（发 ItemUpdate 会让客户端留个幽灵）。
+            // 这正是 AGENTS #37 的纪律：**任何让某行消失/新增的路径都要显式通知**。
+            pushRemove(session, it.getId());
+        } else {
+            pushUpdate(session, it);
+        }
         log.info("[Shop] {} 卖出 npc={} uid={} code=0x{} x{} 得到 {}",
                 session.getCharacterName(), npcId, uid, Integer.toHexString(code), n, total);
     }
@@ -296,11 +308,17 @@ public class NpcShopHandler {
         return p;
     }
 
-    private void pushUpdate(PlayerSession session, ItemInstance it, int countForPush) {
+    private void pushUpdate(PlayerSession session, ItemInstance it) {
         session.send(MessageProto.ServerMessage.newBuilder()
                 .setItemUpdate(MessageProto.S2C_ItemUpdate.newBuilder()
                         .setItem(ItemNetworkHandler.toProto(it))
                         .build())
+                .build());
+    }
+
+    private void pushRemove(PlayerSession session, long uid) {
+        session.send(MessageProto.ServerMessage.newBuilder()
+                .setItemRemove(MessageProto.S2C_ItemRemove.newBuilder().setUid(uid).build())
                 .build());
     }
 

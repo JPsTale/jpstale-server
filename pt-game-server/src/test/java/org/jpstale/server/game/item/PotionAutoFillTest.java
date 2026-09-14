@@ -93,4 +93,26 @@ public class PotionAutoFillTest {
         assertTrue("非药水不碰药水槽", touched.isEmpty());
         assertEquals("源不动", 1, fresh.getCount());
     }
+    /**
+     * 用户 2026-09-14 实测场景："只要药水槽第 1 格有药水，就会阻止拾取"。
+     * 期望（也是原版 `AutoSetPotion` 的行为）：**逐格找**同一类药水补满 / 空槽装 min(余量, 容量)，
+     * 第 1 格被**异种**药水占着只影响第 1 格，不该影响其余两格，更不该阻止拾取。
+     */
+    @Test
+    public void occupiedFirstSlotDoesNotBlockTheOtherTwo() {
+        ItemList life = potion(426, "Mystic Life Potion", 2);
+        ItemList mana = potion(430, "Mystic Mana Potion", 2);
+        PlayerItems items = new PlayerItems();
+        inSlot(items, 11, mana, 2);        // 第 1 格被**异种**药水占满
+        Player p = newPlayer(items);
+
+        ItemInstance fresh = stack(1L, life, 5);          // 地上捡到 5 瓶生命药水
+        java.util.List<ItemInstance> touched = service.pourIntoPotionSlots(p, fresh);
+
+        assertEquals("★ 后两格照收（第 1 格占着不影响）", 2, touched.size());
+        assertEquals("槽1（异种）不动", 2, items.at(ItemLocations.EQUIP, 11).getCount());
+        assertEquals("槽2 满", 2, items.at(ItemLocations.EQUIP, 12).getCount());
+        assertEquals("槽3 满", 2, items.at(ItemLocations.EQUIP, 13).getCount());
+        assertEquals("★ 余 1 瓶交给调用方走背包/手上（不是被阻止）", 1, fresh.getCount());
+    }
 }

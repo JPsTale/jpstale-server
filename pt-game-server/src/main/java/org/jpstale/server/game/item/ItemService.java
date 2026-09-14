@@ -61,34 +61,67 @@ public class ItemService {
         if (statCalculator.isOverWeight(player, fresh)) {
             return GrantResult.OVER_WEIGHT;
         }
-        // 堆叠物先尝试并入已有
+        // ① **先算计划**（能并多少），不边算边写 —— 这样"余数放不下"时还能整笔放弃。
+        List<ItemInstance> touched = new ArrayList<>();
+        List<int[]> merges = new ArrayList<>();          // [existingIndex, add] 在 itemsIn 列表中的位置
+        List<ItemInstance> mergeTargets = new ArrayList<>();
+        int remain = fresh.getCount();
         if (fresh.stackable()) {
             for (ItemInstance existing : items.itemsIn(ItemLocations.BAG_PAGE)) {
-                if (existing.getItemListId().equals(fresh.getItemListId())
-                        && !existing.isDeleted()
-                        && existing.getCount() > 0) {
-                    int add = Math.min(fresh.getCount(), 1000 - existing.getCount());
-                    if (add > 0) {
-                        existing.setCount(existing.getCount() + add);
-                        storage.update(existing);
-                        return GrantResult.ok(existing);
-                    }
+                if (remain <= 0) {
+                    break;
                 }
+                if (!existing.getItemListId().equals(fresh.getItemListId())
+                        || existing.isDeleted() || existing.getCount() <= 0) {
+                    continue;
+                }
+                int add = Math.min(remain, 1000 - existing.getCount());
+                if (add <= 0) {
+                    continue;
+                }
+                mergeTargets.add(existing);
+                merges.add(new int[]{add});
+                remain -= add;
             }
         }
-        int slot = items.canvas(ItemLocations.BAG_PAGE).findFreeSlot(fresh.gridW(), fresh.gridH());
-        if (slot < 0) {
-            return GrantResult.BAG_FULL; // 背包满
+        // ② 余数要落新格 —— **先确认拿得到格子**：拿不到就整笔失败（一行都没动），
+        //    绝不"合并一部分、把余数丢掉"（这正是过去的写法：`min(数量, 1000-已有)` 后直接 return，
+        //    已有堆 998/1000 时买 4 瓶只进 2 瓶、钱照扣 4 瓶；拾取同样中招。用户 2026-09-14 批准修）。
+        int slot = -1;
+        if (remain > 0) {
+            slot = items.canvas(ItemLocations.BAG_PAGE).findFreeSlot(fresh.gridW(), fresh.gridH());
+            if (slot < 0) {
+                log.info("[Grant] 背包满：需要为新行留位（并入 {} 行、余 {}）→ 整笔放弃，一行未动",
+                        mergeTargets.size(), remain);
+                return GrantResult.BAG_FULL;
+            }
         }
-        fresh.setSlot(slot);
-        if (fresh.getId() != null) {
-            // 已有 DB 行（丢地软删后拾回）：恢复原行，避免重复
-            storage.restore(fresh);
+        // ③ 应用：并入 → 落余数
+        for (int i = 0; i < mergeTargets.size(); i++) {
+            ItemInstance existing = mergeTargets.get(i);
+            int add = merges.get(i)[0];
+            existing.setCount(existing.getCount() + add);
+            storage.update(existing);
+            touched.add(existing);
+        }
+        ItemInstance placed = null;
+        if (remain > 0) {
+            fresh.setCount(remain);
+            fresh.setSlot(slot);
+            if (fresh.getId() != null) {
+                // 已有 DB 行（丢地软删后拾回）：恢复原行，避免重复
+                storage.restore(fresh);
+            } else {
+                storage.insert(fresh);
+            }
+            items.index(fresh);
+            touched.add(fresh);
+            placed = fresh;
         } else {
-            storage.insert(fresh);
+            // 整堆都并进去了：这一件没有独立落点，别让调用方再去推一个不存在的行
+            fresh.setCount(0);
         }
-        items.index(fresh);
-        return GrantResult.ok(fresh);
+        return GrantResult.ok(placed != null ? placed : touched.get(0), touched);
     }
 
     /** grantInstanceToBag 结果（成功实例 or 失败原因） */
@@ -96,14 +129,24 @@ public class ItemService {
 
     public static final class GrantResult {
         public final GrantReason reason;
+        /** 主件：新落下的那一行；若整堆都并进了已有堆，则是**被并入的那一行** */
         public final ItemInstance instance;
-        private GrantResult(GrantReason reason, ItemInstance instance) {
+        /**
+         * 本次发放**被触碰到的所有行**（并入的堆 + 新落下的行）。调用方必须把它们**全部**推给客户端 ——
+         * 只推 `instance` 会让另一行的数量在客户端停旧值（看不见的错），而这类"漏推"已经犯过（见 AGENTS #37/#42）。
+         */
+        public final List<ItemInstance> touched;
+        private GrantResult(GrantReason reason, ItemInstance instance, List<ItemInstance> touched) {
             this.reason = reason;
             this.instance = instance;
+            this.touched = touched;
         }
-        public static GrantResult ok(ItemInstance it) { return new GrantResult(GrantReason.OK, it); }
-        public static final GrantResult BAG_FULL = new GrantResult(GrantReason.BAG_FULL, null);
-        public static final GrantResult OVER_WEIGHT = new GrantResult(GrantReason.OVER_WEIGHT, null);
+        public static GrantResult ok(ItemInstance it) { return new GrantResult(GrantReason.OK, it, List.of(it)); }
+        public static GrantResult ok(ItemInstance it, List<ItemInstance> touched) {
+            return new GrantResult(GrantReason.OK, it, List.copyOf(touched));
+        }
+        public static final GrantResult BAG_FULL = new GrantResult(GrantReason.BAG_FULL, null, List.of());
+        public static final GrantResult OVER_WEIGHT = new GrantResult(GrantReason.OVER_WEIGHT, null, List.of());
     }
 
     /**
@@ -665,6 +708,7 @@ public class ItemService {
         ItemInstance restRow = null;
         if (rest > 0) {
             restRow = roll.roll(it.getTemplate(), it.getJobCodeMask());
+            restRow.setCharacterId(Math.toIntExact(player.getId()));   // 同上：不设就会落成 0 号角色的行
             restRow.setCount(rest);
             restRow.setLocation(ItemLocations.BAG);
             restRow.setSlot(restSlot);
@@ -754,6 +798,11 @@ public class ItemService {
             // 拆堆：背包那堆留一部分，槽里新建一条。用工厂生成（字段与掉落/奖励同源）；
             // 药水不参与战斗数值计算，掷点差异无影响。
             ItemInstance fresh = roll.roll(def, it.getJobCodeMask());
+            // ⚠ **必须设 characterId**：漏了它这一行会以 `character_id=0` 落库，而唯一索引
+            // `uq_item_active_slot(character_id, location, slot)` 会把它当成"0 号角色的装备槽 11"，
+            // 于是**第二次拆堆就撞唯一键**、整笔操作抛 DuplicateKeyException（用户 2026-09-14 实测：
+            // "9 瓶药水放进空槽（容量 2）根本放不进去"，日志里正是 (0, 0, 11) already exists）。
+            fresh.setCharacterId(Math.toIntExact(player.getId()));
             fresh.setCount(n);
             fresh.setLocation(ItemLocations.EQUIP);
             fresh.setSlot(slot);

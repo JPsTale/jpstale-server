@@ -5,6 +5,7 @@ import static org.jpstale.server.game.item.ItemTestSupport.inSlot;
 import static org.jpstale.server.game.item.ItemTestSupport.newPlayer;
 import static org.jpstale.server.game.item.ItemTestSupport.newService;
 import static org.jpstale.server.game.item.ItemTestSupport.potion;
+import static org.jpstale.server.game.item.ItemTestSupport.stack;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -167,5 +168,72 @@ public class PotionSlotReturnTest {
                 Long.valueOf(items.at(ItemLocations.EQUIP, 12).getId()));
         assertEquals("★ 手上仍是原来那叠（未被换走）", held.getId(),
                 Long.valueOf(items.at(ItemLocations.EQUIP, ItemLocations.HELD_SLOT).getId()));
+    }
+    /**
+     * 用户 2026-09-14 实测："9 瓶低级药水（容量 2）放进**空**药水槽 → 期望进 2 瓶、余 7 瓶回背包原位；
+     * 实际根本放不进去。"
+     *
+     * 这条路走的是 `putPotionToSlot` 的**拆堆**分支（`n < 源堆数量`），而之前验证过的两种情况
+     * （同种合并 / 整堆搬入）都不经过它 —— 所以这条用例专门钉它。
+     */
+    @Test
+    public void nineStackIntoEmptySlotPutsTwoAndKeepsSevenOnHand() {
+        ItemList life = potion(426, "Mystic Life Potion", 2);      // 容量 2
+        PlayerItems items = new PlayerItems();
+        Player p = newPlayer(items);
+        ItemInstance stack = inBag(items, 900L, 3, life, 9);
+
+        assertEquals(ItemService.OpReason.OK, service.takeToHand(p, stack.getId()).reason);
+        ItemService.OpResult r = service.putPotionToSlot(p, stack.getId(), 12);
+
+        assertEquals("应当成功（放得下 2 瓶就不该整笔拒绝）", ItemService.OpReason.OK, r.reason);
+        assertEquals("槽里 2 瓶", 2, items.at(ItemLocations.EQUIP, 12).getCount());
+        assertEquals("★ 手上余 7 瓶", 7, items.at(ItemLocations.EQUIP, ItemLocations.HELD_SLOT).getCount());
+        assertEquals("★ 余数仍在**原来那件**上（拆堆只扣减，不搬走源）", 900L,
+                items.at(ItemLocations.EQUIP, ItemLocations.HELD_SLOT).getId().longValue());
+    }
+    /**
+     * **发放时余数不许丢**（用户 2026-09-14 批准修）。`grantInstanceToBag` 过去在并堆时写成
+     * `min(数量, 1000-已有)` 后**直接 return** —— 已有堆 998/1000 时买 4 瓶只进 2 瓶、钱照扣 4 瓶。
+     * 现在：先算计划 → **先确认余数有格子**（拿不到就整笔放弃、一行不动）→ 再并入 + 落余数。
+     */
+    @Test
+    public void grantMergeKeepsRemainderInNewSlot() {
+        ItemList life = potion(426, "Mystic Life Potion", 2);
+        PlayerItems items = new PlayerItems();
+        Player p = newPlayer(items);
+        p.setStrength(5000);   // 目的不是测负重：999 瓶药水本身就会压过普通负重上限
+        ItemInstance existing = inBag(items, 700L, 0, life, 999);       // 已有堆几乎满
+        ItemInstance fresh = stack(701L, life, 4);                      // 再发 4 瓶
+
+        ItemService.GrantResult r = service.grantInstanceToBag(p, fresh);
+
+        assertEquals("发放成功", ItemService.GrantReason.OK, r.reason);
+        assertEquals("★ 已有堆补满到 1000（不是把 4 瓶全丢）", 1000, existing.getCount());
+        int inNewRow = items.itemsIn(ItemLocations.BAG_PAGE).stream()
+                .filter(x -> x.getId() != null && x.getId() == 701L).mapToInt(ItemInstance::getCount).sum();
+        assertEquals("★ 余 3 瓶落在新行（总数守恒）", 3, inNewRow);
+        assertEquals("★ touched 含两行，调用方据此全推", 2, r.touched.size());
+    }
+
+    /** 背包真满、余数无处落 ⇒ **整笔放弃**（一行不动），不能"合并一半、丢一半"。 */
+    @Test
+    public void grantIsAbortedWhenRemainderHasNoSlot() {
+        ItemList life = potion(426, "Mystic Life Potion", 2);
+        ItemList filler = potion(430, "Filler", 1);
+        PlayerItems items = new PlayerItems();
+        Player p = newPlayer(items);
+        p.setStrength(5000);   // 同上：先排除负重干扰，专测"余数无处落"
+        ItemInstance existing = inBag(items, 700L, 0, life, 999);
+        long uid = 2000L;
+        for (int c = 1; c < 144; c++) {
+            inBag(items, uid++, c, filler, 1);
+        }
+        ItemInstance fresh = stack(701L, life, 4);
+
+        ItemService.GrantResult r = service.grantInstanceToBag(p, fresh);
+
+        assertEquals("拿不到新格 → 整笔放弃", ItemService.GrantReason.BAG_FULL, r.reason);
+        assertEquals("★ 已有堆一点没动（不是先合并 1 瓶再失败）", 999, existing.getCount());
     }
 }

@@ -676,13 +676,23 @@ public class ItemNetworkHandler {
                     return;
                 }
                 granted = result.instance;
+                // **被触碰的所有行都要推**（并入的堆 + 新落下的行）—— 只推主件会让另一行的
+                // 数量在客户端停旧值（AGENTS #37 的纪律：让某行变化的路径必须显式通知）
+                for (ItemInstance t : result.touched) {
+                    if (t != granted) {
+                        pushUpdate(session, t);
+                    }
+                }
             }
         }
-        // 整堆都被药水槽吃掉 → 地上那件已耗尽；否则移除地面物并广播消失
-        if (gi.item.getCount() > 0) {
-            groundItems.remove(ent.getMapId(), gid);
-            broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
-        }
+        // 走完上面几步，这件地面物**已经整件被消耗**了：一部分进了药水槽、余数进了手上/背包
+        //（背包满会在上面直接 return，那时余数确实还留在原地）。
+        // ⚠ 这里曾经写成 `if (gi.item.getCount() > 0)` —— 条件正好**反了**：整堆被药水槽吃掉时
+        // `count == 0`，于是地面物**永远留在原地**（用户 2026-09-14 实测："即使药水槽空着，
+        // 拾取药水后地上的药水依然显示在地板上"），而残留的 count=0 地面物再点也没有任何反应
+        //（"似乎只要第 1 格有药水就会阻止拾取"其实是这个残影造成的错觉）。
+        groundItems.remove(ent.getMapId(), gid);
+        broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
         if (granted != null) {
             log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @loc={}/slot={}",
                 session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
