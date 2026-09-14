@@ -540,6 +540,13 @@ public class ItemNetworkHandler {
             ItemInstance src = p.getItems().byUid(srcUid);
             if (src != null && !src.isDeleted() && src.getCount() > 0) {
                 pushUpdate(session, src);
+            } else {
+                // 源那件**整件被合并掉**（同种药水入已有槽：`putPotionToSlot` 把源堆并进槽内那行后
+                // `softDelete(srcUid)`）⇒ 它在服务端已经不存在了，必须明确告诉客户端"这个 uid 没了"。
+                // 否则客户端表里还留着它、且位置仍是鼠标位 ⇒ 手上一直显示一瓶幽灵药水，
+                // 拿去放背包会被 `applyBagLayout` 拒（"操作失败"）、再点拿起回"该物品不在背包里"
+                //（用户 2026-09-14 实测的整条日志就是它）。客户端 `net/bridge.ts` 已处理 ItemRemove。
+                pushRemove(session, srcUid);
             }
         }
         refreshPlayerStats(session, p);
