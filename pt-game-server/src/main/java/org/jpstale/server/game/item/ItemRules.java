@@ -32,6 +32,10 @@ public final class ItemRules {
     private static final int MASK2 = 0xFFFF0000;
     /** 原版 `sinQT1`：任务物品家族 */
     private static final int FAMILY_QUEST = 0x07010000;
+    /** 原版 `sinGG1`：金币/经验掉落物家族（`sinGG1|sin01` = 金币 = 0x05010000）。掉落方也用这个常量建金币物。 */
+    public static final int FAMILY_GOLD = 0x05010000;
+    /** `sinGG1 | sin01`：金币道具本身（`itemlist` 的 Gold 行 idcode） */
+    public static final int CODE_GOLD = FAMILY_GOLD | 0x00010000;
 
     /** `NotDrow_Item_CODE[]`：不能丢到地上的**具体码** */
     private static final int[] NOT_DROP_CODES = { 0x07010007, 0x07010008 };
@@ -40,6 +44,27 @@ public final class ItemRules {
 
     private static boolean inFamily(int idCode) {
         return (idCode & MASK2) == FAMILY_QUEST;
+    }
+
+    /**
+     * 是否是**金币掉落物**（原版 `sinGG1 | sin01` = `0x05010000`）。
+     *
+     * 依据：`itemlist` 的 Gold 行 `idcode = 83951872 = 0x05010000`；原版客户端拾取时按
+     * `pItemInfo->CODE == (sinGG1 | sin01)` 走 `sinPlusMoney` + `SIN_SOUND_COIN` 并**直接 return**
+     * （`sinInvenTory.cpp:7808`）—— 即金币**不入背包、不占格、不负重**。
+     *
+     * ⚠ 判据是"**家族 + 带金额**"两个条件，缺一不可（用户 2026-09-14 指出）：
+     * 只看金额会把"带金额的其它家族物品"误当金币；只看家族会把"作为普通物品掉落的
+     * 金币外观物（money=0）"误当金币。所以调用方必须写成
+     * `isGoldDrop(code, money)`，而不是各自判一半。
+     */
+    public static boolean isGoldFamily(int idCode) {
+        return idCode != 0 && (idCode & MASK2) == FAMILY_GOLD;
+    }
+
+    /** 金币掉落物的完整判据：家族命中 **且** 带金额（见 {@link #isGoldFamily} 的说明）。 */
+    public static boolean isGoldDrop(int idCode, long money) {
+        return money > 0 && isGoldFamily(idCode);
     }
 
     /** 是否属于**任务物品家族**（`sinQT1 = 0x07010000`）。禁丢清单与超重豁免共用这一份近似。 */

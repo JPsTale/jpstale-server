@@ -19,4 +19,9 @@ public class Npc {
     private double x, y, z;  // world
     private double angle;    // 弧度
     private int mapId;       // maplist.id
+    /**
+     * 来自 `mapnpc.onlygm`：**只有 GM 能交互**（原版 `bGMOnly`；NPC 照常可见、非 GM 点击被拒，
+     * 见 `unitinfo.cpp:1731` + `unitserver.cpp:339-345`）。不是"对普通玩家隐藏"。
+     */
+    private boolean gmOnly;
 }

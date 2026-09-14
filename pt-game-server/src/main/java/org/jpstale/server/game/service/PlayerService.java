@@ -104,6 +104,18 @@ public class PlayerService {
         return players.computeIfAbsent(session.getCharacterId(), id -> load(session));
     }
 
+    /**
+     * 处理器的统一前置：会话在局内、能拿到（或建出）Player，否则 null。
+     * 放在这里是为了让各个 handler 共用**同一份**判据（此前 ItemNetworkHandler 自己写了一份）。
+     */
+    public Player requirePlayer(PlayerSession session) {
+        if (session == null || !session.isPlaying()) {
+            return null;
+        }
+        Player p = getPlayer(session);
+        return p != null ? p : getOrCreate(session);
+    }
+
     public Player getPlayer(PlayerSession session) {
         return players.get(session.getCharacterId());
     }

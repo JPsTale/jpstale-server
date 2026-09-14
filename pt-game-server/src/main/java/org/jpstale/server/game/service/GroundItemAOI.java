@@ -3,6 +3,7 @@ package org.jpstale.server.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.item.GroundItemManager;
+import org.jpstale.server.game.item.ItemRules;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.proto.base.CommonProto;
@@ -121,19 +122,31 @@ public class GroundItemAOI {
         }
     }
 
-    /** 构造 S2C_GroundItemAppear（含掉落模型码 codeImg1，客户端据此加载 DropItem 模型） */
+    /**
+     * 构造 S2C_GroundItemAppear（含掉落模型码，客户端据此加载 DropItem 模型 `dropitem/it{码}.smd`）。
+     *
+     * 模型码的取法**按家族分流**（不是"取不到再换一个"的回落 —— 那样会掩盖数据问题）：
+     * - 普通物品用 `codeImg1`（如武器的 `WS111`，资产 `itws111.smd` 存在）；
+     * - **金币家族**（原版 `sinGG1`）用 `codeImg2`：该行是 `codeImg1='GG101'`（**没有**对应模型）、
+     *   `codeImg2='DRCOIN'`（资产 `itdrcoin.smd` 存在）。取错会让客户端 404 回落到旗帜。
+     */
     private MessageProto.ServerMessage buildAppear(GroundItemManager.GroundItem gi) {
         Integer code = gi.item.getItemCode();
         String name = gi.item.getTemplate() != null && gi.item.getTemplate().getName() != null
             ? gi.item.getTemplate().getName() : "";
-        String dorp = gi.item.getTemplate() != null && gi.item.getTemplate().getCodeImg1() != null
-            ? gi.item.getTemplate().getCodeImg1() : "";
+        boolean gold = ItemRules.isGoldFamily(code == null ? 0 : code);
+        String dorp = "";
+        if (gi.item.getTemplate() != null) {
+            String pick = gold ? gi.item.getTemplate().getCodeImg2() : gi.item.getTemplate().getCodeImg1();
+            dorp = pick != null ? pick : "";
+        }
         return MessageProto.ServerMessage.newBuilder()
             .setGroundItemAppear(MessageProto.S2C_GroundItemAppear.newBuilder()
                 .setItem(CommonProto.GroundItemProto.newBuilder()
                     .setGroundItemId(gi.id)
                     .setItemId(code == null ? 0 : code)
                     .setQuantity(gi.item.getCount())
+                    .setMoney(gi.money)
                     .setPosition(CommonProto.Position.newBuilder()
                         .setX((float) gi.x).setY((float) gi.y).setZ((float) gi.z).build())
                     .setOwnerId(gi.ownerId)

@@ -196,8 +196,12 @@ message GroundItemProto {
   int64 owner_id = 5;
   int64 expire_time = 6;
   string name = 7;
-  // 地面掉落模型码（= itemlist.codeImg1，如 "WS111"）→ 资产 dropitem/it{code}.smd
+  // 地面掉落模型码 → 资产 dropitem/it{code}.smd。普通物品取 itemlist.codeImg1（如 "WS111"）；
+  // **金币家族**（原版 sinGG1）取 codeImg2（"DRCOIN" —— 资产 itdrcoin.smd 存在，而 codeImg1 的
+  // "GG101" 没有对应模型，取错会让客户端 404 回落到旗帜）。
   string dorp_item = 8;
+  // **金币金额**（仅金币家族的地面物 >0）：拾取时入账用；地面物只在内存里，不进 DB。
+  int64 money = 9;
 }
 
 // Buff效果

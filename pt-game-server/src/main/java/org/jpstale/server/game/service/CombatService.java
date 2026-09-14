@@ -528,14 +528,32 @@ public class CombatService {
             groundItems.add(item, monster.getMapId(), gx, gy, gz, ownerId, 0);
         }
         if (gold > 0) {
-            killer.setGold(killer.getGold() + gold);
+            // **金币是掉在地上的道具**（原版设计）：怪死掉一枚 Gold 物，玩家拾取时才入账
+            //（原版 `SetInvenToItemInfo` → `sinPlusMoney` + `SIN_SOUND_COIN`，且**不入背包**）。
+            // 我们过去直接 `killer.setGold(+gold)` —— 那样既没有拾取过程，也没有金币上限校验。
+            // 金额来自该怪 `dropitem` 的 goldmin..goldmax 掷点（每只怪**一枚**，用户 2026-09-14 定）。
+            org.jpstale.server.game.item.ItemInstance coin = itemRollService.rollByIdCode(
+                org.jpstale.server.game.item.ItemRules.CODE_GOLD, null);
+            if (coin == null) {
+                // 不静默：数据缺了就说清哪一条缺、丢了多少
+                log.error("[Drop] itemlist 里找不到金币道具（idcode=0x{}）：本次 {} 金币**未掉落**",
+                    Integer.toHexString(org.jpstale.server.game.item.ItemRules.CODE_GOLD), gold);
+            } else {
+                double ang = rnd.nextDouble() * Math.PI * 2;
+                double dist = 0.3 + rnd.nextDouble() * 1.2;
+                double gx = monster.getX() + Math.cos(ang) * dist;
+                double gz = monster.getZ() + Math.sin(ang) * dist;
+                double gy = mapRegionService.getHeight(monster.getMapId(), gx, gz);
+                long ownerId = monster.isDropIsPublic() ? 0L : killer.getId();
+                groundItems.add(coin, monster.getMapId(), gx, gy, gz, ownerId, 0, gold);
+            }
         }
 
-        log.info("Monster {} killed by {}, exp={}, gold={}",
+        log.info("Monster {} killed by {}, exp={}, goldDrop={}（掉在地上，待拾取）",
             monster.getName(), killer.getName(), exp, gold);
 
-        // 战斗日志：击杀 + 经验/金币（进聊天窗"系统"tab）
-        battleLogService.monsterKilled(killer.getSession(), monster.getName(), exp, gold);
+        // 战斗日志：击杀 + 经验（金币不再于击杀时入账，故记 0 —— 拾取时另有记录）
+        battleLogService.monsterKilled(killer.getSession(), monster.getName(), exp, 0);
 
         // 升级检测：经验反算等级（对齐原版 GetLevelFromExp），每级 +5 自由属性点
         int newLevel = playerService.getLevelFromExp(killer.getExp());

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
  * - 每地图活跃地面物上限 1024（onserver.h STG_ITEM_MAX）。
  * - Level=1（非金币/非药水：材料/装备/兽皮等）TTL 3min，永不被挤压覆盖，只靠过期清除。
  * - Level=0（金币 sinGG1 / 红蓝绿药 sinPL1/sinPS1/sinPM1）TTL 90s；容量满时被新掉落覆盖挤掉。
+ *   金币掉落物**带金额**（见 GroundItem.money）—— 现在金币是真的掉在地上的道具，不再直接入账。
  * - 两层挤压（原版 cnt2 循环）：先在不超限时直接放；超过且存在 Level=0 则覆盖其一；
  *   全是 Level=1 → 新掉落丢弃（rsItemBuffOverCount++，返回 null）。
  */
@@ -51,8 +52,13 @@ public class GroundItemManager {
         public final long expireAt;
         /** 挤压级：1=不可覆盖（材料/装备），0=可被新掉落覆盖（金币/药水）。对齐原版 StgItems[].Level */
         public final int level;
+        /**
+         * **金币金额**（仅金币掉落物 > 0）：拾取时入账用（原版 `sITEMINFO.Money`）。
+         * 地面物是内存对象、不进 DB，所以金额挂在这里而不是物品实例上。
+         */
+        public final int money;
 
-        public GroundItem(long id, ItemInstance item, int mapId, double x, double y, double z, long ownerId, long expireAt, int level) {
+        public GroundItem(long id, ItemInstance item, int mapId, double x, double y, double z, long ownerId, long expireAt, int level, int money) {
             this.id = id;
             this.item = item;
             this.mapId = mapId;
@@ -62,6 +68,7 @@ public class GroundItemManager {
             this.ownerId = ownerId;
             this.expireAt = expireAt;
             this.level = level;
+            this.money = money;
         }
 
         public boolean isExpired(long now) {
@@ -79,11 +86,21 @@ public class GroundItemManager {
 
     /** 是否 Level=0 挤压级（金币/药水 TTL 90s 且可被覆盖；原版 sinGG1/sinPL1/sinPS1/sinPM1 语义） */
     private static int levelOf(ItemInstance item) {
-        if (item == null || item.getTemplate() == null || item.getTemplate().getClassItem() == null) {
+        if (item == null || item.getTemplate() == null) {
             return 1;
         }
-        // 药水（classItem=8192）；金币无 classItem（我们金币走 player.gold, 不走地面物）
-        return ItemClass.isPotion(item.getTemplate().getClassItem()) ? 0 : 1;
+        // **金币掉落物**（原版 sinGG1）先判：它有**没有 classItem**（原版 Gold 行即如此），
+        // 若走下面那个 "classItem == null → 1" 的守卫就会被判成不可覆盖。
+        Integer code = item.getItemCode();
+        if (ItemRules.isGoldFamily(code == null ? 0 : code)) {
+            return 0;
+        }
+        Integer classItem = item.getTemplate().getClassItem();
+        if (classItem == null) {
+            return 1;
+        }
+        // 药水（classItem=8192）同样可被覆盖
+        return ItemClass.isPotion(classItem) ? 0 : 1;
     }
 
     /** 默认 TTL：Level0(金币/药水) 90s，Level1(材料/装备) 3min */
@@ -98,6 +115,11 @@ public class GroundItemManager {
      * 2. 全是 Level=1（不可覆盖）→ 丢弃该掉落（rsItemBuffOverCount++），返回 null。
      */
     public GroundItem add(ItemInstance item, int mapId, double x, double y, double z, long ownerId, long ttlMs) {
+        return add(item, mapId, x, y, z, ownerId, ttlMs, 0);
+    }
+
+    /** 投放一件**带金额**的地面物（金币掉落物用；money=0 等价于普通地面物）。 */
+    public GroundItem add(ItemInstance item, int mapId, double x, double y, double z, long ownerId, long ttlMs, int money) {
         int level = levelOf(item);
         long ttl = ttlMs > 0 ? ttlMs : defaultTtlFor(level);
         ConcurrentHashMap<Long, GroundItem> m = byMap.computeIfAbsent(mapId, k -> new ConcurrentHashMap<>());
@@ -122,11 +144,11 @@ public class GroundItemManager {
                 mapId, m.size(), victim.id);
         }
         long id = idSeq.incrementAndGet();
-        GroundItem gi = new GroundItem(id, item, mapId, x, y, z, ownerId, System.currentTimeMillis() + ttl, level);
+        GroundItem gi = new GroundItem(id, item, mapId, x, y, z, ownerId, System.currentTimeMillis() + ttl, level, money);
         m.put(id, gi);
-        log.info("[GroundItem] add id={} mapId={} itemListId={} code={} name={} @({},{},{}) owner={} ttl={}ms level={}",
+        log.info("[GroundItem] add id={} mapId={} itemListId={} code={} name={} money={} @({},{},{}) owner={} ttl={}ms level={}",
             id, mapId, item.getItemListId(), item.getItemCode(), item.getTemplate() != null ? item.getTemplate().getName() : "?",
-            (float) x, (float) y, (float) z, ownerId, ttl, level);
+            money, (float) x, (float) y, (float) z, ownerId, ttl, level);
         return gi;
     }
 

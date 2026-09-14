@@ -52,7 +52,7 @@ public class NpcSpawnService {
         int count = 0;
         for (MapNpc mn : mapNpcMapper.selectList(null)) {
             if (mn.getEnabled() != null && mn.getEnabled() == 0) continue;       // 未启用
-            if (mn.getOnlyGm() != null && mn.getOnlyGm() != 0) continue;          // 仅 GM 可见
+            // onlygm 的 NPC **照常生成**（原版语义是"只有 GM 能交互"，见 Npc.gmOnly 注释）
             NpcList def = mn.getIdNpc() == null ? null : defs.get(mn.getIdNpc());
             if (def == null) continue;
 
@@ -70,6 +70,7 @@ public class NpcSpawnService {
             angleGl = (angleGl % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
             npc.setAngle(angleGl);
             npc.setMapId(mn.getStage() == null ? -1 : mn.getStage());
+            npc.setGmOnly(mn.getOnlyGm() != null && mn.getOnlyGm() != 0);
 
             npcsByMap.computeIfAbsent(npc.getMapId(), k -> new ArrayList<>()).add(npc);
             count++;

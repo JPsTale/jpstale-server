@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ItemNetworkHandler {
     private final org.jpstale.server.game.network.MessageSender messageSender;
+    private final org.jpstale.server.game.service.GoldService goldService;
 
 
     private final ItemService itemService;
@@ -36,7 +37,8 @@ public class ItemNetworkHandler {
                               GroundItemManager groundItems,
                               org.jpstale.server.game.service.TeleportService teleportService,
                               org.jpstale.server.game.service.MapManager mapManager,
-                              org.jpstale.server.game.network.MessageSender messageSender) {
+                              org.jpstale.server.game.network.MessageSender messageSender,
+                              org.jpstale.server.game.service.GoldService goldService) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
@@ -45,6 +47,7 @@ public class ItemNetworkHandler {
         this.teleportService = teleportService;
         this.mapManager = mapManager;
         this.messageSender = messageSender;
+        this.goldService = goldService;
     }
 
     // ------------------------------------------------------------------
@@ -352,14 +355,7 @@ public class ItemNetworkHandler {
     // ------------------------------------------------------------------
 
     private Player requirePlayer(PlayerSession session) {
-        if (session == null || !session.isPlaying()) {
-            return null;
-        }
-        Player p = playerService.getPlayer(session);
-        if (p == null) {
-            p = playerService.getOrCreate(session);
-        }
-        return p;
+        return playerService.requirePlayer(session);   // 判据收敛在 PlayerService（各 handler 共用一份）
     }
 
     /** 背包内移动/换格（含背包↔仓库） */
@@ -629,6 +625,28 @@ public class ItemNetworkHandler {
         if (Math.abs(gi.y - ent.getY()) > PICKUP_HEIGHT_DIFF) {
             log.info("[Pickup] {} gid={} : too high diff={} (limit {})",
                 session.getCharacterName(), gid, Math.abs(gi.y - ent.getY()), PICKUP_HEIGHT_DIFF);
+            return;
+        }
+        // **金币掉落物**：原版 `SetInvenToItemInfo`（`sinInvenTory.cpp:7808`）在金币分支里
+        // `sinPlusMoney` + `SIN_SOUND_COIN` 后**直接 return** —— 不入背包、不占格、**不负重**。
+        // 所以这一支要放在"① 负重"**之前**，且不参与后面的药水槽/上手/背包四步。
+        // 判据 = **家族 + 带金额**（`ItemRules.isGoldDrop`，两条件缺一不可，见该方法的注释）。
+        Integer giCode = gi.item.getItemCode();
+        if (ItemRules.isGoldDrop(giCode == null ? 0 : giCode, gi.money)) {
+            org.jpstale.server.game.service.GoldService.Result r = goldService.add(session, p, gi.money, "pickup");
+            if (r != org.jpstale.server.game.service.GoldService.Result.OK) {
+                // 超等级上限：**金币留在地上**（原版行为：不发放、不截断），并给出明确原因
+                log.info("[Pickup] {} gid={} : 金币 {} 入账被拒（{}）→ 保持原地",
+                    session.getCharacterName(), gid, gi.money, r);
+                if (r == org.jpstale.server.game.service.GoldService.Result.OVER_LIMIT) {
+                    sendErrorKey(session, "item.pickup.overMoney");
+                }
+                return;
+            }
+            groundItems.remove(ent.getMapId(), gid);
+            broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
+            log.info("[Pickup] {} 拾取金币 {}（gid={}，不入背包）",
+                session.getCharacterName(), gi.money, gid);
             return;
         }
         // ① 负重：原版在拾取入口就查，超重则整次拾取拒绝（物品留在地上）
