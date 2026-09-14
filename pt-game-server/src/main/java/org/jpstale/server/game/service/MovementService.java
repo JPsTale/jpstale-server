@@ -128,6 +128,15 @@ public class MovementService {
     private static final double PLAYER_MAX_RUN_PER_MS = stepOfF(25, EU_COEFF_RUN) * 3.0 / 50.0; // ≈0.2105
     private static final double SPEED_TOLERANCE = 1.3; // 30% 容差（网络抖动/客户端碰撞细微差异）
     private static final double SNAP_SLACK = 3.0;      // 绝对 slack（world），容忍停止/转身等小跳跃
+    /**
+     * 限速的 `dt` 取**两条上报的到达时刻之差**（不是"上次应用发生的时刻"）——见
+     * `PlayerSession.lastAppliedReportArrivalMs` 的说明：应用的坐标是客户端几十毫秒前生成的，
+     * "应用时刻"会把报告延迟漏掉，一旦有覆盖/丢包还会漏掉更多周期 ⇒ 合法移动被误判超速
+     * （用户 2026-09-14 实测：`dist=28.04 > maxDist=21.69（limPerSec=282 dt=51ms）`，
+     * 而客户端实测速度 280.6/秒 —— 与上限一致，没有作弊）。
+     * 用同一对端点算 `dist` 与 `dt` 之后，**丢一条上报两个都变大**，天然自洽。
+     */
+    private static final double REPORT_GAP_FALLBACK_MS = 0.0;
     /** 限速拒绝日志的节流（每个会话最多 5 秒一条；会话对象不强引用，随生命周期回收） */
     private final java.util.Map<PlayerSession, Long> speedRejectLogAt =
             java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
@@ -188,9 +197,11 @@ public class MovementService {
         double dist = Math.hypot(nx - entity.getX(), nz - entity.getZ());
 
         // 限速：距离 > 最高跑速×Δt×容差+slack → 拒绝（加速/瞬移/穿图）；首条不设限
-        long lastAccepted = session.getLastMoveAcceptedMs();
-        if (lastAccepted > 0) {
-            double dtMs = Math.max(0, nowMs - lastAccepted);
+        long lastArrival = session.getLastAppliedReportArrivalMs();
+        long thisArrival = session.getPendingMoveArrivalMs();
+        if (lastArrival > 0 && thisArrival >= lastArrival) {
+            // **同一对端点**：dist 是这两条上报坐标之差，dt 是它们到达时刻之差
+            double dtMs = Math.max(0, thisArrival - lastArrival);
             // 限速基准 = 玩家属性跑步速度（世界/秒）；查不到玩家（异常场景）回退最高档
             double limPerSec = PLAYER_MAX_RUN_PER_MS * 1000.0;
             Player p = playerService.getPlayer(session);
@@ -219,6 +230,9 @@ public class MovementService {
         }
 
         session.noteMoveApplied();
+        if (session.getPendingMoveArrivalMs() > 0) {
+            session.setLastAppliedReportArrivalMs(session.getPendingMoveArrivalMs());
+        }
         entity.setX(nx);
         entity.setY(ny);
         entity.setZ(nz);

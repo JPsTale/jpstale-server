@@ -117,6 +117,7 @@ public class WorldService {
         session.setPendingMoveAnimIndex(move.getAnimIndex());
         session.setPendingMoveAnimClip(move.getAnimClip());
         session.noteMoveReceived();   // 诊断计数：收 / 应用 / 拒绝 三个数字一起看才分得清“没收到”与“被丢了”
+        session.setPendingMoveArrivalMs(System.currentTimeMillis());   // 供限速用：见 MovementService 的 dt 说明
     }
 
 /**

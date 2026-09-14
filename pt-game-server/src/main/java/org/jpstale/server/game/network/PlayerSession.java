@@ -54,6 +54,21 @@ public class PlayerSession {
     private volatile long moveApplied;
     private volatile long moveRejected;
     /** 上次打移动汇总日志的时刻（毫秒）；0 = 还没打过 */
+    /** 当前 pending 那条上报的**到达时刻**（服务端时钟，与客户端时钟无关） */
+    private volatile long pendingMoveArrivalMs;
+    /**
+     * 上次**成功应用**的那条上报的**到达时刻**。限速的 `dt` 必须用它来算（而不是"应用发生的时刻"）：
+     * 应用的坐标是客户端在几十毫秒前生成的，而"应用时刻"只在 tick 上，两者之间的差会把报告延迟漏掉；
+     * 一旦上报被覆盖或丢包（用户 2026-09-14 指出：无论什么频率都会有丢包与时间差），漏掉的还不止一个周期
+     * ⇒ 合法的移动会被误判超速。用"两条上报到达时刻之差"时，`dist` 与 `dt` 来自**同一对端点**，
+     * 丢一条就两个都变大，天然自洽。
+     */
+    private volatile long lastAppliedReportArrivalMs;
+    public long getPendingMoveArrivalMs() { return pendingMoveArrivalMs; }
+    public void setPendingMoveArrivalMs(long t) { pendingMoveArrivalMs = t; }
+    public long getLastAppliedReportArrivalMs() { return lastAppliedReportArrivalMs; }
+    public void setLastAppliedReportArrivalMs(long t) { lastAppliedReportArrivalMs = t; }
+
     private volatile long moveDiagAt;
 
     public void noteMoveReceived() { moveRecv++; }
