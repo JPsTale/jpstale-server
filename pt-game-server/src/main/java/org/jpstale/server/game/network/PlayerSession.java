@@ -44,6 +44,31 @@ public class PlayerSession {
 
     // ======== 客户端位置上权威（方向二）：Netty IO 线程写待处理移动，核心 loop 消费 ========
     private volatile int pendingMoveMode = -1;
+    /**
+     * 移动上报的**统计计数**（收 / 应用 / 被限速拒绝），供诊断日志用：
+     * "位置没更新"可能是"没收到"，也可能是"收到了被限速丢了" —— 两种情况症状一样，
+     * 只有把三个数字一起打出来才分得清（用户 2026-09-14 要求"服务端加日志了吗"）。
+     * `long` 而非 int：这是纯计数，溢出无所谓，但要避免读改写竞争带来的可见性问题（volatile）。
+     */
+    private volatile long moveRecv;
+    private volatile long moveApplied;
+    private volatile long moveRejected;
+    /** 上次打移动汇总日志的时刻（毫秒）；0 = 还没打过 */
+    private volatile long moveDiagAt;
+
+    public void noteMoveReceived() { moveRecv++; }
+    public void noteMoveApplied() { moveApplied++; }
+    public void noteMoveRejected() { moveRejected++; }
+    public long getMoveDiagAt() { return moveDiagAt; }
+    public void setMoveDiagAt(long t) { moveDiagAt = t; }
+    /** 汇总计数（读后清零）：返回 [收, 应用, 拒绝] */
+    public long[] drainMoveCounters() {
+        long[] out = { moveRecv, moveApplied, moveRejected };
+        moveRecv = 0;
+        moveApplied = 0;
+        moveRejected = 0;
+        return out;
+    }
     private volatile double pendingMoveX;
     private volatile double pendingMoveY;
     private volatile double pendingMoveZ;

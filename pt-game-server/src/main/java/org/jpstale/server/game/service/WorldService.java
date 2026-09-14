@@ -116,6 +116,7 @@ public class WorldService {
         // 该玩家"正播的哪一条动画"：原样透传，旁观者直接播同一条（服务端不解释其含义）
         session.setPendingMoveAnimIndex(move.getAnimIndex());
         session.setPendingMoveAnimClip(move.getAnimClip());
+        session.noteMoveReceived();   // 诊断计数：收 / 应用 / 拒绝 三个数字一起看才分得清“没收到”与“被丢了”
     }
 
 /**

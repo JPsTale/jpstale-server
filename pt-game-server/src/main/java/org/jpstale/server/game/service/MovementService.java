@@ -144,6 +144,19 @@ public class MovementService {
             if (mode < 0) continue;
             session.setPendingMoveMode(-1);
             applyClientMove(session, mode, now);
+            // 诊断汇总（每 5 秒一条）：把"收 / 应用 / 拒绝"三个数字一起打出来。
+            // 单看"位置没更新"分不清是**没收到**还是**收到被丢** —— 这两个数字对不上就直接定性。
+            long lastDiag = session.getMoveDiagAt();
+            if (lastDiag == 0) {
+                session.setMoveDiagAt(now);
+            } else if (now - lastDiag >= 5000) {
+                long[] c = session.drainMoveCounters();
+                session.setMoveDiagAt(now);
+                if (c[0] + c[1] + c[2] > 0) {
+                    log.info("[Move] {} 5 秒内：收 {} / 应用 {} / 限速拒绝 {}", session.getCharacterName(),
+                            c[0], c[1], c[2]);
+                }
+            }
             // 跑步耐力统计：RUN(mode=2) 连续上报的 tick 间距累加；停跑/换态即重置
             Long cid = session.getCharacterId();
             if (mode == 2 && cid != null) {
@@ -186,6 +199,7 @@ public class MovementService {
             }
             double maxDist = limPerSec / 1000.0 * dtMs * SPEED_TOLERANCE + SNAP_SLACK;
             if (dist > maxDist) {
+                session.noteMoveRejected();
                 // ⚠ **不许静默**：这条 `return` 原本什么都不说，而它的后果是"服务端实体停在旧位置"——
                 // 于是**所有按距离裁决的操作都会莫名失败**（用户 2026-09-14 实测：跑过去拾取药水，
                 // 服务端按 45.8 判超距，而 4ms 后位置才对上）。玩家会以为"提前上报了拾取动作"，
@@ -204,6 +218,7 @@ public class MovementService {
             }
         }
 
+        session.noteMoveApplied();
         entity.setX(nx);
         entity.setY(ny);
         entity.setZ(nz);
