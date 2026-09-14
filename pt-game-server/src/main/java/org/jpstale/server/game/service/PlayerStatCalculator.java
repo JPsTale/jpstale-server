@@ -98,7 +98,7 @@ public class PlayerStatCalculator {
         public int maxSp;
         public int attackRating;   // 命中率
         public int defense;        // 防御力（含装备掷点值）
-        public int absorption;     // 吸收率
+        public int absorption;     // 吸收（**明文减伤点数**，非百分比；见 absorptionOf）
         public int[] baseAttack;   // {min, max}
         public int attackSpeed;    // 攻击速度（装备累加）
         public int critical;       // 暴击率（上限 50）
@@ -143,7 +143,7 @@ public class PlayerStatCalculator {
         s.maxSp = maxSpOf(p) + e.increaseStamina;
         s.attackRating = attackRatingOf(p) + equipAttackRating(p, e);
         s.defense = defenseOf(p) + e.defense;
-        s.absorption = absorptionOf(p) + (int) e.absorb;
+        s.absorption = absorptionOf(p) + (int) e.absorb;   // 明文减伤点数（非百分比，见 absorptionOf）
         s.baseAttack = baseAttackOf(p);
         s.attackSpeed = attackSpeedOf(p, e);
         s.critical = Math.min(50, criticalOf(p, e));
@@ -207,7 +207,16 @@ public class PlayerStatCalculator {
         return (int) ((double) p.getAgility() / 2 + (double) p.getTalent() / 4 + p.getLevel() * 1.4);
     }
 
-    /** 吸收率：Def/100 + LV/10 + (STR+TAL)/40 + 1（上限由调用方限制） */
+    /**
+     * 吸收的**基数**：Def/100 + LV/10 + (STR+TAL)/40 + 1。
+     *
+     * ⚠ 语义订正（用户 2026-09-14）：这是**明文减伤点数**，不是"吸收率"百分比。
+     * 玩家的 absorb 直接减伤（怪攻 3 − 吸收 1 = 2）；**怪物**的吸收才是百分比减伤。
+     * 旧注释写"吸收率"是把它当百分比用的遗留口径（`DamageCalculator` 曾配合
+     * `Math.min(80, ...)` 做 `damage * (100-a)/100`，已改为明文相减）。
+     * ⚠ 装备部分是 `(int) e.absorb`（掷点浮点值直接取整）—— 单位与物品信息框显示的
+     * `it.absorb / 10` 不一致，**待确认**（见交付说明）。
+     */
     private int absorptionOf(Player p) {
         return defenseOf(p) / 100 + p.getLevel() / 10 + (p.getStrength() + p.getTalent()) / 40 + 1;
     }
@@ -267,9 +276,28 @@ public class PlayerStatCalculator {
         return (int) e.block;
     }
 
-    /** 射程（装备累加，对齐原版 Shooting_Range） */
+    /** 近战武器攻击距离：单手 40 / 双手 80（用户 2026-09-14 定）。 */
+    public static final int MELEE_RANGE_ONE_HAND = 40;
+    public static final int MELEE_RANGE_TWO_HAND = 80;
+
+    /**
+     * **攻击距离**（下发客户端，面板"射程"行显示的就是它，战斗距离判定也用它）。
+     *
+     * 分三档（用户 2026-09-14 定）：
+     *   ① 远程武器（装备射程 > 0）→ 用其射程（弓/弩/杖等，`gamedb.itemlist.range` 有值）；
+     *   ② 近战双手 → 80；
+     *   ③ 近战单手 / 徒手 → 40。
+     *
+     * ⚠ 原版是 `50 + 武器模型算出的 AttackToolRange`（`playmain.cpp:1810`），但那段计算落在
+     * exm/EU **两边都缺失的反编译里**（`AttackToolRange` 只有读取点，无赋值点），
+     * 且近战各族的 `itemlist.range` 实测**全为 0**（斧/爪/匕首/锤/镰），远程族才有值
+     * ⇒ 沿用 `e.range` 会让近战面板恒显示 0。故按武器手别做三档近似：
+     * `classitem` 4=单手 / 6=双手（见 `ItemClass.ONE_HAND_WEAPON` / `TWO_HAND_WEAPON`）。
+     */
     private int shootingRangeOf(Player p, EquipSummary e) {
-        return e.range;
+        if (e.range > 0) return e.range;                                     // ① 远程
+        return e.weaponClassItem == ItemClass.TWO_HAND_WEAPON
+            ? MELEE_RANGE_TWO_HAND : MELEE_RANGE_ONE_HAND;                   // ②/③ 近战（含徒手）
     }
 
     /**

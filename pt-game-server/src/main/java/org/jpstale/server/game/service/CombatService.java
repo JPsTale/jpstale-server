@@ -78,7 +78,6 @@ public class CombatService {
     private org.jpstale.server.game.item.GroundItemManager groundItems;
 
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
-    private static final double MELEE_ATTACK_RANGE = 48.0;
     /** 攻击/死亡这类瞬时事件的广播半径（世界单位） */
     private static final float AOI_BROADCAST_RANGE = 50f;
 
@@ -105,12 +104,14 @@ public class CombatService {
     private final Map<Long, AttackPlan> attackPlans = new ConcurrentHashMap<>();
 
     /**
-     * 玩家攻击距离：远程武器（射程>0，如弓）用其射程（对齐原版 Shooting_Range）；
-     * 近战/徒手用固定近战距离。射程小于近战时取近战（防小射程武器反而更短）。
+     * 玩家攻击距离 —— **直接用下发给客户端的同一个值**，不再本地另算一套。
+     *
+     * 那个值已经分好档（远程=装备射程 / 近战双手 80 / 近战单手与徒手 40），
+     * 见 `PlayerStatCalculator.shootingRangeOf`。客户端 `selfAttackRange()` 读同一字段，
+     * 所以面板显示、客户端停步判定、服务端距离校验三者不会漂移。
      */
     private double attackRange(Player player) {
-        int sr = statCalculator.shootingRange(player);
-        return sr > MELEE_ATTACK_RANGE ? sr : MELEE_ATTACK_RANGE;
+        return statCalculator.shootingRange(player);
     }
 
     /**

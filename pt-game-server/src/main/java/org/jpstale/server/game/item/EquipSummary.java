@@ -16,7 +16,9 @@ public final class EquipSummary {
     public double block;         // 装备格挡（block_rating 掷点值）
     public int attackSpeed;      // 攻速（模板 atkSpeed，非掷点）
     public int critical;         // 暴击（模板 critical，非掷点）
-    public int range;            // 射程（模板 range）
+    public int range;            // 射程（模板 range；**仅远程武器有值** —— 近战各族该列实测全 0）
+    /** 主手武器的 `classitem`（4=单手 / 6=双手）。近战攻击距离按它区分（用户 2026-09-14 定）。 */
+    public int weaponClassItem;
     public double bootsSpeed;    // 移速加成：靴子掷点 speed + 职业特效 spec_speed（按职业掩码）
     public double regenHp, regenMp, regenStm;  // 回复
     public int increaseLife, increaseMana, increaseStamina; // 上限提升
@@ -63,6 +65,10 @@ public final class EquipSummary {
                 s.weaponDamageMax = it.getDamageMax();
                 s.attackSpeed += it.getAttackSpeed();
                 s.range = it.getShootingRange();
+                // 主手武器手别（4=单手 / 6=双手）：近战攻击距离按它取 40/80（见 PlayerStatCalculator）
+                if (def != null && def.getClassItem() != null) {
+                    s.weaponClassItem = def.getClassItem();
+                }
             }
             if (def != null) {
                 int c = def.getClassItem() == null ? 0 : def.getClassItem();

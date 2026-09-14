@@ -78,9 +78,13 @@ public class DamageCalculator {
         int baseDamage = monster.getAttack();
         result.setRawDamage(baseDamage);
 
-        // 2. 玩家吸收减伤
-        int playerAbsorb = calculatePlayerAbsorption(player);
-        baseDamage = baseDamage * (100 - playerAbsorb) / 100;
+        // 2. 玩家吸收减伤 —— **明文减伤，不是百分比**（用户 2026-09-14 纠正）。
+        //    怪攻 3、吸收 1 ⇒ 伤害 3-1=2。与"怪物吸收"（百分比减伤，见 calculatePlayerToMonster）不同。
+        //    原版佐证：技能描述写的是 "Physical Absorption's **fixed absorb value**"、
+        //    `Metal Armor ... chains ... fixed absorb value by 200%`（skillData.ts:58），
+        //    且 `sinTempAbsorb` 累加的是 `P_Absorb = {{3,4},...}` 这类**明文值**。
+        int playerAbsorb = playerAbsorbValue(player);
+        baseDamage = Math.max(1, baseDamage - playerAbsorb);
 
         // 3. 玩家格挡判定
         int blockRate = calculateBlockRate(player);
@@ -120,10 +124,13 @@ public class DamageCalculator {
     }
 
     /**
-     * 计算玩家吸收率（statCalculator.absorption 已含装备掷点值；上限 80）
+     * 玩家吸收的**明文减伤点数**（用户 2026-09-14：玩家的 absorb 是纯数字直接减伤，不是百分比）。
+     *
+     * 来源 = `PlayerStatCalculator` 的 `absorption`（公式值 + 装备 absorb 掷点值）。
+     * ⚠ 这里**不再**有 `Math.min(80, ...)` 的百分比上限 —— 那个 80 属于"当百分比用"的旧口径。
      */
-    private int calculatePlayerAbsorption(Player player) {
-        return Math.min(80, statCalculator.absorption(player));
+    private int playerAbsorbValue(Player player) {
+        return statCalculator.absorption(player);
     }
 
     /**
