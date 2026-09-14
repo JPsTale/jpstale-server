@@ -32,10 +32,19 @@ public final class ItemRules {
     private static final int MASK2 = 0xFFFF0000;
     /** 原版 `sinQT1`：任务物品家族 */
     private static final int FAMILY_QUEST = 0x07010000;
-    /** 原版 `sinGG1`：金币/经验掉落物家族（`sinGG1|sin01` = 金币 = 0x05010000）。掉落方也用这个常量建金币物。 */
+    /** 原版 `sinGG1`：金币/经验掉落物家族（`sinGG1|sin01` = 金币 = 0x05010100）。掉落方也用这个常量建金币物。 */
     public static final int FAMILY_GOLD = 0x05010000;
-    /** `sinGG1 | sin01`：金币道具本身（`itemlist` 的 Gold 行 idcode） */
-    public static final int CODE_GOLD = FAMILY_GOLD | 0x00010000;
+    /**
+     * `sinGG1 | sin01`：金币道具本身 —— `gamedb.itemlist` 里 Gold 行的 idcode。
+     *
+     * ⚠ 实测值 **83951872 = 0x05010100**（该行 `id=484, name=Gold, codeimg1=GG101`）。
+     * 这里曾经写成 `FAMILY_GOLD | 0x00010000` = **0x05020000** —— 把子索引 `sinNN` 挪到了高 16 位，
+     * 而它实际在 `0xNN00` 位（项目里的同一编码：`Steel Axe = 0x01010200`、`Skull Beads = 0x03030500`）
+     * ⇒ 物品表里查不到这个 idcode ⇒ 金币**掷中了也造不出那枚金币**（只在日志留一条 error）
+     * ⇒ 地上永远不掉钱（用户 2026-09-14 实测"服务端根本就不掉钱"）。
+     * 回归：`ItemRulesGoldCodeTest`。
+     */
+    public static final int CODE_GOLD = FAMILY_GOLD | 0x00000100;
 
     /** `NotDrow_Item_CODE[]`：不能丢到地上的**具体码** */
     private static final int[] NOT_DROP_CODES = { 0x07010007, 0x07010008 };
@@ -49,7 +58,7 @@ public final class ItemRules {
     /**
      * 是否是**金币掉落物**（原版 `sinGG1 | sin01` = `0x05010000`）。
      *
-     * 依据：`itemlist` 的 Gold 行 `idcode = 83951872 = 0x05010000`；原版客户端拾取时按
+     * 依据：`itemlist` 的 Gold 行 `idcode = 83951872 = 0x05010100`；原版客户端拾取时按
      * `pItemInfo->CODE == (sinGG1 | sin01)` 走 `sinPlusMoney` + `SIN_SOUND_COIN` 并**直接 return**
      * （`sinInvenTory.cpp:7808`）—— 即金币**不入背包、不占格、不负重**。
      *
