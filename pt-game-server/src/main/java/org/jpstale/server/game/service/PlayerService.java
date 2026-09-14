@@ -10,7 +10,9 @@ import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.entity.EntityIdSource;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GamePacketHandler;
+import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.game.network.SessionState;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -127,6 +129,12 @@ public class PlayerService {
 
     /**
      * 确保该会话存在对应 PlayerEntity(进图后调用);不存在则创建并挂到 session.entity。
+     *
+     * 已存在时执行**接管**：该角色已有实体只可能是"旧连接还挂着"（刷新页面/断线重连时新连接先登录，
+     * 旧连接的 channelInactive 要等 TCP 关闭才到）。实体的控制权交给当前会话，旧会话被就地摘除
+     * （`entity=null` + 不在游戏中 + 关掉那条连接），因此它**迟到**的清理只会清它自己
+     * （见 SessionManager.isCurrentForCharacter），不会打掉新会话的世界状态。
+     * 这就是"退出清理"真正被完成的时刻 —— 由新登录同步做完，而不是阻塞新登录去等旧连接超时。
      */
     public PlayerEntity ensureEntity(PlayerSession session) {
         if (session == null || session.getCharacterId() == null) {
@@ -140,7 +148,25 @@ public class PlayerService {
             entities.put(cid, entity);
             session.setEntity(entity);
             log.info("PlayerEntity created: char={} runtimeId={}", cid, entity.getId());
+            return entity;
         }
+        PlayerSession old = entity.getSession();
+        if (old != null && old != session) {
+            old.setEntity(null);
+            old.setState(SessionState.CONNECTED);
+            log.warn("[Session] 角色 {} 的实体被新会话接管：旧会话仍在（ch={}）→ 就地摘除旧会话，"
+                    + "其迟到清理（channelInactive/登出）因已不是当前持有者而只清它自己",
+                cid, old.getChannel() == null ? "?" : old.getChannel().id().asShortText());
+            if (old.getChannel() != null && old.getChannel().isActive()) {
+                old.getChannel().close();
+            }
+        }
+        entity.setSession(session);
+        session.setEntity(entity);
+        // 接管后把**瞬态**状态重置为"刚进图"：旧会话可能停在 DEAD/ATTACK，或动画缓存值不为 -1
+        // （"变化才广播"的判定会认为无需下发 → 客户端看不到新实体的移动/动画）。
+        entity.setMoveState(PlayerMoveState.IDLE);
+        entity.setLastSyncedAnimState(-1);
         return entity;
     }
 

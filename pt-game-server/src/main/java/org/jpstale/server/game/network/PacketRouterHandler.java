@@ -89,7 +89,10 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
             PlayerSession old = sessionManager.getSessionByAccountId(accountId);
             if (old != null && old.getChannel() != ctx.channel()) {
                 log.info("Account {} logged in from new connection, kicking old session", accountId);
-                accountService.kick(old, "你的账号在别处登录");
+                // ⚠ **不吊销 token**：刷新页面时新旧连接用的是**同一份** token（客户端从本地取），
+                // 吊销它等于把新连接手里的 token 一起废掉 —— 下一次刷新就会被判"登录已失效"
+                // 而被迫重新登录（用户 2026-09-14 反复刷新时撞到）。旧连接已经被关掉了。
+                accountService.kick(old, "你的账号在别处登录", false);
             }
 
             PlayerSession session = sessionManager.getSession(ctx.channel());
@@ -162,9 +165,26 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
         // 移除 Session
         PlayerSession session = sessionManager.getSession(ctx.channel());
         if (session != null) {
-            if (session.isPlaying() && session.isAllowReconnect() && !session.isReconnectTokenIssued()) {
-                // 断线重连兜底：READER_IDLE 未触发（如客户端直接断网）时，生成 token 供 5 分钟内重连
+            // 是否仍是该角色的**当前持有者**：刷新页面时本连接的关闭事件往往晚于新连接的登录，
+            // 此时该角色已由新会话接管。下面这段清理全是**按 charId 定位**的（AOI 摘除、在线缓存移除、
+            // 落库），对过期连接执行就等于打掉新会话的世界状态 —— 症状是客户端收不到怪物
+            // Appear/Move/Death、服务端不再应用其移动上报（用户 2026-09-14 实测）。
+            boolean current = sessionManager.isCurrentForCharacter(session);
+            if (current
+                && session.isPlaying() && session.isAllowReconnect() && !session.isReconnectTokenIssued()) {
+                // 断线重连兜底：READER_IDLE 未触发（如客户端直接断网）时，生成 token 供 5 分钟内重连。
+                // 过期连接不发：它的角色已经在新会话里了，再发一个 token 只会去抢。
                 reconnectionManager.generateReconnectToken(session);
+            }
+            if (!current) {
+                // 过期连接：只清它自己（它已经不代表任何世界状态了）
+                log.warn("[Session] 过期连接关闭 ch={}（角色 {} 已由新会话接管）→ 跳过世界清理",
+                    ctx.channel().id().asShortText(), session.getCharacterId());
+                session.setEntity(null);
+                session.setState(SessionState.CONNECTED);
+                sessionManager.removeSession(ctx.channel());
+                super.channelInactive(ctx);
+                return;
             }
             // ⚠ 先让会话**不再"在游戏中"**：怪物 AI 的 AiContext 持有 PlayerEntity，
             //   而 AiEngine.validateTarget 只按 `entity.isPlaying()` 判断目标是否有效。

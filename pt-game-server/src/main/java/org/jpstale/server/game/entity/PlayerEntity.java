@@ -20,7 +20,19 @@ public class PlayerEntity extends BaseEntity {
 
     private final long charId;
     private final Player player;
-    private final PlayerSession session;
+    /**
+     * 当前**控制**该实体的会话。
+     *
+     * 曾经是 `final`：实体在第一次 `ensureEntity` 时就与那个会话永久绑定，于是刷新页面
+     * （新连接先登录、旧连接的关闭事件随后才到）时，同一角色的新会话拿不到实体
+     * （`ensureEntity` 见到已存在的实体就原样返回，没给新会话 `setEntity`），
+     * 而 `MonsterAOI.syncSessions` / `MovementService.tickPlayers` 都从 `session.getEntity()` 取实体
+     * → 新会话被**整体跳过**：收不到怪物 Appear/Move/Death，服务端也不再应用其移动上报
+     * （用户 2026-09-14 实测：刷新后看不到附近的怪却一直掉血、怪死了客户端不知道）。
+     *
+     * 实体是**每角色一个**、会话是它的当前控制者 —— 所以这里允许接管（见 PlayerService.ensureEntity）。
+     */
+    private PlayerSession session;
 
     /** 移动状态机(IDLE/WALK/RUN/ATTACK/DEAD) */
     private volatile PlayerMoveState moveState = PlayerMoveState.IDLE;
@@ -45,6 +57,14 @@ public class PlayerEntity extends BaseEntity {
 
     public PlayerSession getSession() {
         return session;
+    }
+
+    /**
+     * 把实体交给另一个会话控制（刷新页面/断线重连时**唯一**的接管入口，见 PlayerService.ensureEntity）。
+     * 只应由 PlayerService 在确认"旧会话已不代表这个世界状态"之后调用。
+     */
+    public void setSession(PlayerSession session) {
+        this.session = session;
     }
 
     /** 显示名：数据宿主 Player 持有，实体仅转发（与 getHp/getLevel 同）。 */

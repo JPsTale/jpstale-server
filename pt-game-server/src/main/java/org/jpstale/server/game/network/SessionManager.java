@@ -94,11 +94,11 @@ public class SessionManager {
             return;
         }
         if (session.getAccountId() != null) {
-            sessionsByAccountId.remove(session.getAccountId());
+            removeIfSame(sessionsByAccountId, session.getAccountId(), session);
         }
         if (session.getCharacterId() != null) {
-            sessionsByCharacterId.remove(session.getCharacterId());
-            sessionsByCharacterName.remove(session.getCharacterName());
+            removeIfSame(sessionsByCharacterId, session.getCharacterId(), session);
+            removeIfSame(sessionsByCharacterName, session.getCharacterName(), session);
         }
         session.setAccountId(null);
         session.setCharacterId(null);
@@ -116,8 +116,8 @@ public class SessionManager {
             return;
         }
         if (session.getCharacterId() != null) {
-            sessionsByCharacterId.remove(session.getCharacterId());
-            sessionsByCharacterName.remove(session.getCharacterName());
+            removeIfSame(sessionsByCharacterId, session.getCharacterId(), session);
+            removeIfSame(sessionsByCharacterName, session.getCharacterName(), session);
         }
         session.setCharacterId(null);
         session.setCharacterName(null);
@@ -126,17 +126,51 @@ public class SessionManager {
     }
 
     /**
+     * 该会话是否仍是它那个角色的**当前持有者** —— 过期连接的清理必须据此判定（唯一判定）。
+     *
+     * 刷新页面时旧连接的 `channelInactive` / 登出 / 回选角 常常**晚于**新连接的登录：此时
+     * `sessionsByCharacterId[cid]` 已经指向新会话，旧会话的任何"按角色清理"（AOI 摘除、在线缓存移除、
+     * 落库、解绑索引）都会打掉**新会话**的世界状态 —— 症状是收不到怪物 Appear/Move/Death、
+     * 服务端不再应用移动上报（用户 2026-09-14 实测）。
+     *
+     * 所以：过期会话只允许清理**它自己**（清 session.entity、状态回 CONNECTED、关自己的连接），
+     * 凡是"按 charId 定位"的动作都必须先过这一关。
+     */
+    public boolean isCurrentForCharacter(PlayerSession session) {
+        Long cid = session != null ? session.getCharacterId() : null;
+        return cid != null && sessionsByCharacterId.get(cid) == session;
+    }
+
+    /**
+     * 只当索引**确实指向该会话**时才删除（按引用比较）。
+     *
+     * ⚠ 这里**不能**用 `Map.remove(key, value)`：`PlayerSession` 的 equals/hashCode 是**按字段值**算的
+     * （`@EqualsAndHashCode(exclude = {"channel","entity","pending"})` —— 特意排除了 channel），
+     * 于是"同一角色的新旧两个会话"在字段上完全相等、`old.equals(live)` 为真 ⇒
+     * 两参 remove 会把**新会话**那条删掉，正是本类要防的事（本方法的第一版就是这么写的，
+     * 被 SessionIdentityTest 当场抓出：旧连接一关，新会话的角色映射就没了）。
+     */
+    private static <K> void removeIfSame(Map<K, PlayerSession> map, K key, PlayerSession session) {
+        if (key == null) {
+            return;
+        }
+        map.computeIfPresent(key, (k, cur) -> cur == session ? null : cur);
+    }
+
+    /**
      * 移除 Session
+     *
+     * 三个索引都走 {@link #removeIfSame}：过期连接关闭时不得动到新会话的映射。
      */
     public void removeSession(Channel channel) {
         PlayerSession session = sessions.remove(channel);
         if (session != null) {
             if (session.getAccountId() != null) {
-                sessionsByAccountId.remove(session.getAccountId());
+                removeIfSame(sessionsByAccountId, session.getAccountId(), session);
             }
             if (session.getCharacterId() != null) {
-                sessionsByCharacterId.remove(session.getCharacterId());
-                sessionsByCharacterName.remove(session.getCharacterName());
+                removeIfSame(sessionsByCharacterId, session.getCharacterId(), session);
+                removeIfSame(sessionsByCharacterName, session.getCharacterName(), session);
             }
             log.debug("Removed session for channel: {}", channel.remoteAddress());
         }

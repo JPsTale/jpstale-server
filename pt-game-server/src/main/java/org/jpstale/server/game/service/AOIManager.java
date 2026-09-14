@@ -80,9 +80,13 @@ public class AOIManager {
     private MessageProto.S2C_PlayerAppear buildAppear(PlayerEntity e) {
         PlayerSession session = e.getSession();
         Player p = e.getPlayer();
+        // 协议面身份**一律 charId**：客户端进图时从 S2C_EnterGame 拿到自己的 characterId，
+        // 之后 Appear/Move/Disappear/Damage 的 playerId 全按它匹配。实体的运行时 id 只用于 AOI 世界网格
+        // （见类注释）。原先这里在 session==null 时回退成运行时 id ⇒ 同一条消息带两个身份空间的 id，
+        // 客户端会留下看不见也删不掉的幽灵玩家（AGENTS #59 追记）。
         MessageProto.S2C_PlayerAppear.Builder b = MessageProto.S2C_PlayerAppear.newBuilder()
-            .setPlayerId(session != null ? session.getCharacterId() : e.getId())
-            .setName(session != null && session.getCharacterName() != null ? session.getCharacterName() : "")
+            .setPlayerId(e.getCharId())
+            .setName(e.getName() != null ? e.getName() : "")
             .setLevel(e.getLevel())
             .setHp(e.getHp())
             .setMaxHp(e.getMaxHp())
@@ -194,9 +198,6 @@ public class AOIManager {
         addToMap(yMap, newGridZ, entity);
         playerGrids.put(eid, new int[]{newGridX, newGridZ});
 
-        log.info("[AOI] {} (id={}) grid {}->{} pos=({},{})",
-            entity.getName(), eid, oldGridX, newGridX, (float) entity.getX(), (float) entity.getZ());
-
         checkVisibility(entity, oldGridX, oldGridZ, newGridX, newGridZ);
     }
 
@@ -258,15 +259,18 @@ public class AOIManager {
     public void onPlayerLeave(PlayerEntity entity) {
         if (entity == null) return;
         Long eid = entity.getId();
-        PlayerSession session = entity.getSession();
-        if (session == null) return;
-
+        // 协议面 id 用 **charId**：它是 final 的、永远拿得到，而 session 可能已被摘除。
+        // 原先这里 `session == null` 直接 return ⇒ "玩家离开但视野内客户端不知道"，那具模型会永远站着
+        // （或更糟：下面别的地方退回运行时 id，客户端按 charId 匹配不上，连 Disappear 都删不掉它）。
         MessageProto.S2C_PlayerDisappear msg = MessageProto.S2C_PlayerDisappear.newBuilder()
-            .setPlayerId(session.getCharacterId())
+            .setPlayerId(entity.getCharId())
             .build();
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ(), VIEW_RANGE_DISCONNECT)) {
             if (nearby.getId() == eid) continue;
-            nearby.getSession().send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
+            PlayerSession ns = nearby.getSession();
+            if (ns != null) {
+                ns.send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
+            }
         }
         visiblePlayers.remove(eid);
         for (Set<Long> set : visiblePlayers.values()) {
@@ -287,7 +291,7 @@ public class AOIManager {
             return;
         }
         PlayerSession session = entity.getSession();
-        long pid = session != null ? session.getCharacterId() : entity.getId();
+        long pid = entity.getCharId();   // 协议面 = charId（唯一身份空间，见 buildAppear 注释）
         MessageProto.S2C_AppearanceUpdate msg = MessageProto.S2C_AppearanceUpdate.newBuilder()
             .setPlayerId(pid)
             .setAppearance(appearance)
@@ -347,28 +351,38 @@ public class AOIManager {
                 PlayerEntity other = entitiesById.get(oid);
                 if (other != null) {
                     PlayerSession otherSession = other.getSession();
-                    otherSession.send(MessageProto.ServerMessage.newBuilder()
-                        .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
-                            .setPlayerId(otherSession.getCharacterId()).build())
-                        .build());
+                    if (otherSession != null) {
+                        otherSession.send(MessageProto.ServerMessage.newBuilder()
+                            .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
+                                .setPlayerId(other.getCharId()).build())
+                            .build());
+                    }
                     Set<Long> otherVisible = visiblePlayers.get(oid);
                     if (otherVisible != null) otherVisible.remove(eid);
                 }
                 PlayerSession self = moved.getSession();
                 if (self != null) {
-                    self.send(MessageProto.ServerMessage.newBuilder()
-                        .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
-                            .setPlayerId(other != null ? other.getSession().getCharacterId() : oid).build())
-                        .build());
+                    if (other != null) {
+                        self.send(MessageProto.ServerMessage.newBuilder()
+                            .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
+                                .setPlayerId(other.getCharId()).build())
+                            .build());
+                    } else {
+                        // 实体已被摘除（teardown 与本广播并发）→ **不发**：拿不到 charId，
+                        // 而把运行时 id 当 playerId 发出去客户端只会更糊涂（它按 charId 匹配，删不掉那具模型）。
+                        // 漏掉的这条不丢信息：onPlayerLeave 已经向视野内广播过同一具实体的 Disappear。
+                        log.warn("[AOI] 未向 {} 下发 {} 的 Disappear：该实体已不在线（拿不到 charId）",
+                            moved.getCharId(), oid);
+                    }
                 }
                 disappearLog.append(oid).append(",");
             }
         }
-        visible.removeAll(toRemove);
+        toRemove.forEach(visible::remove);
 
-        if (appearLog.length() > 0 || disappearLog.length() > 0) {
-            log.info("[AOI] {} (id={}) grid {}->{} appear=[{}] disappear=[{}] pos=({},{})",
-                moved.getName(), eid, oldGridX, newGridX, appearLog, disappearLog, (float) mx, (float) mz);
+        if (!appearLog.isEmpty() || !disappearLog.isEmpty()) {
+            log.info("[AOI] {} (id={}) grid {},{}->{},{} appear=[{}] disappear=[{}] pos=({},{})",
+                moved.getName(), eid, oldGridX, oldGridZ, newGridX, newGridZ, appearLog, disappearLog, (float) mx, (float) mz);
         }
     }
 

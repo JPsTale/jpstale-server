@@ -87,9 +87,11 @@ public class MonsterAOI {
             // 会让客户端在死亡后又收到 Appear（孤儿怪，之后永不再收到 Disappear）。
             synchronized (visible) {
                 if (!m.isAlive()) {
-                    // 死亡怪不在可见集；若仍在（竞态/漏发）补发 Disappear 清理客户端，而非静默移除
+                    // 死亡怪不在可见集；若仍在（竞态/漏发）补发 **Death + Disappear** 清理客户端，
+                    // 而非静默移除 —— 只发 Disappear 会让"死亡"这个事件丢在两条清理路径之间
+                    // （见 Monster.deathInfo：本分支可能与 onMonsterDeath 抢同一个观察者）。
                     if (visible.remove(mid)) {
-                        sendDisappear(session, mid);
+                        sendDeathAndDisappear(session, pid, m);
                     }
                 } else if (distSq > disconnectSq) {
                     if (visible.remove(mid)) {
@@ -149,8 +151,11 @@ public class MonsterAOI {
         }
     }
 
-    /** 怪物死亡：通知观察者（击杀者带 exp/gold）并清出可见集（尸体不保留） */
+    /** 怪物死亡：写入死亡负载 → 通知观察者（击杀者带 exp/gold）并清出可见集（尸体不保留） */
     public void onMonsterDeath(Monster m, long killerId, long exp, int gold) {
+        // 负载**先落**再清可见集：主循环的 reconcile 若抢在前面把某个观察者清掉，
+        // 它也会用同一份负载把 Death 带出去（否则死亡事件会被"顺手清理"吞掉）
+        m.setDeathInfo(new Monster.DeathInfo(killerId, exp, gold));
         long mid = m.getId();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
             Set<Long> set = e.getValue();
@@ -163,19 +168,36 @@ public class MonsterAOI {
                 if (s == null) {
                     continue;
                 }
-                long pid = e.getKey();
-                MessageProto.ServerMessage death = MessageProto.ServerMessage.newBuilder()
-                    .setMonsterDeath(MessageProto.S2C_MonsterDeath.newBuilder()
-                        .setMonsterId(mid)
-                        .setKillerId(killerId)
-                        .setExp((int) (pid == killerId ? exp : 0))
-                        .setGold(pid == killerId ? gold : 0)
-                        .build())
-                    .build();
-                s.send(death);
-                s.send(buildDisappear(mid));
+                sendDeathAndDisappear(s, e.getKey(), m);
             }
         }
+    }
+
+    /**
+     * 单个观察者的死亡通知：Death（击杀者才带 exp/gold）+ Disappear **成对**下发。
+     *
+     * **唯一实现** —— 击杀时的即时广播（onMonsterDeath）与主循环可见集同步（reconcile）都走这里：
+     * 两条路径都会"把这条怪从观察者的可见集里摘掉"，谁先摘谁负责把死亡事件带出去。
+     */
+    private void sendDeathAndDisappear(PlayerSession session, long pid, Monster m) {
+        Monster.DeathInfo di = m.getDeathInfo();
+        if (di == null) {
+            // 没走 onMonsterDeath 就死了（其他击杀路径）→ 不能静默：只发 Disappear 的话，
+            // 客户端看到的是"怪凭空消失"，与"死亡"是两回事，也没法排查
+            log.warn("[AOI] 怪物 {}#{} 被清理时没有死亡负载（未走 onMonsterDeath）→ 死亡事件缺 killer/exp/gold",
+                m.getName(), m.getId());
+        }
+        MessageProto.S2C_MonsterDeath.Builder death = MessageProto.S2C_MonsterDeath.newBuilder()
+            .setMonsterId(m.getId());
+        if (di != null) {
+            death.setKillerId(di.killerId());
+            if (pid == di.killerId()) {
+                death.setExp((int) di.exp());
+                death.setGold(di.gold());
+            }
+        }
+        session.send(MessageProto.ServerMessage.newBuilder().setMonsterDeath(death.build()).build());
+        session.send(buildDisappear(m.getId()));
     }
 
     /** 怪物被移除（死亡超时清理 / 无交互清理）：向仍可见的观察者广播 Disappear */

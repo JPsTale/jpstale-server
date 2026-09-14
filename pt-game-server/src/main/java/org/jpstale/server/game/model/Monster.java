@@ -67,6 +67,29 @@ public class Monster extends BaseEntity {
     /** D10 邻近回收：最近一次"有玩家临近(DISCONNECT 内)"的时间(ms) */
     private long lastNearPlayerMs = System.currentTimeMillis();
 
+    /**
+     * 死亡事件负载（击杀者 + 经验/金币），在结算那一刻写入。
+     *
+     * **为什么记在怪物身上**：死亡通知有两条清理路径 —— 击杀时的即时广播（`MonsterAOI.onMonsterDeath`，
+     * 走 Netty IO 线程）与主循环的可见集同步（`reconcile` 看到 `!isAlive()` 时清理，走核心 loop）。
+     * 结算与广播之间夹着掉落地生成、战斗日志、**落库**等耗时步骤，主循环完全可能先一步把该玩家
+     * 的可见集里这条怪清掉 —— 此时即时广播再 `set.remove` 就返回 false、直接跳过，
+     * **死亡事件被"顺手清理"吞掉**：客户端只收到 Disappear，没有死亡动画/经验飘字
+     * （用户 2026-09-14 实测：怪物死了客户端一直不知道）。两条路径共用这份负载 ⇒ 谁先清谁带出事件。
+     */
+    private DeathInfo deathInfo;
+
+    /** 死亡事件负载（不可变）。字段类型对齐 CombatService.onMonsterDeath 的入参（killerId/exp 为 long） */
+    public record DeathInfo(long killerId, long exp, int gold) {}
+
+    public DeathInfo getDeathInfo() {
+        return deathInfo;
+    }
+
+    public void setDeathInfo(DeathInfo deathInfo) {
+        this.deathInfo = deathInfo;
+    }
+
     public Monster() {
         super(EntityIdSource.nextId());
         initDefaults();

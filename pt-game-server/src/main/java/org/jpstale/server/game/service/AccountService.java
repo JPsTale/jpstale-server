@@ -724,8 +724,12 @@ public class AccountService {
         String characterName = session.getCharacterName();
         Long accountId = session.getAccountId();
 
+        // ⚠ 过期会话（刷新页面后残留的旧连接）**不得**做任何"按 charId 定位"的清理：角色已由新会话
+        // 接管，这里再清一遍就等于打掉新会话的世界状态。判据只有一处：SessionManager.isCurrentForCharacter
+        boolean current = sessionManager.isCurrentForCharacter(session);
+
         // 移出 AOI（若在游戏中）
-        if (session.isPlaying()) {
+        if (current && session.isPlaying()) {
             PlayerEntity e = session.getEntity();
             if (e != null) {
                 aoiManager.onPlayerLeave(e);
@@ -734,15 +738,23 @@ public class AccountService {
         }
 
         // 存档角色数据（属性/属性点/经验/金币落库）
-        if (session.getCharacterId() != null) {
+        if (current && session.getCharacterId() != null) {
             playerService.persistAndRemove(session.getCharacterId());
+        }
+        if (!current) {
+            log.warn("[Session] 过期会话的登出请求（ch={}，角色 {}）→ 跳过世界清理/落库/token 失效",
+                session.getChannel() == null ? "?" : session.getChannel().id().asShortText(),
+                session.getCharacterId());
         }
 
         // 清除账号/角色绑定，状态回 CONNECTED
         sessionManager.unbind(session.getChannel());
 
-        // 大退：让登录 token 失效（删除 Redis 映射，同 token 无法再选角重进）
-        gameTokenService.revoke(session.getToken());
+        // 大退：让登录 token 失效（删除 Redis 映射，同 token 无法再选角重进）。
+        // 过期会话不吊销 token：新会话很可能正是拿着同一个 token 连上来的，吊销会把新会话一起废掉。
+        if (current) {
+            gameTokenService.revoke(session.getToken());
+        }
 
         // 通知客户端登出成功（客户端收到后清 token、断开、回登录）
         session.sendText("{\"type\":\"auth.logout\",\"data\":{\"success\":true}}");
@@ -758,25 +770,42 @@ public class AccountService {
      * @param reason 展示给玩家的踢出原因（可选）
      */
     public void kick(PlayerSession session, String reason) {
+        kick(session, reason, true);
+    }
+
+    /**
+     * @param revokeToken 是否吊销该会话的登录 token。**顶号（登录时踢旧连接）必须传 false**：
+     *   刷新页面时新旧连接用的是同一份 token（客户端从本地取），吊销会把新连接手里的 token 一起废掉
+     *   —— 下一次刷新就被判"登录已失效"、被迫重新登录（用户 2026-09-14 反复刷新时撞到）。
+     */
+    public void kick(PlayerSession session, String reason, boolean revokeToken) {
         if (session == null) {
             return;
         }
         String characterName = session.getCharacterName();
         Long accountId = session.getAccountId();
 
-        if (session.isPlaying()) {
+        // 同 handleLogout：踢的如果是一个**已过期**的会话（角色已被新会话接管），只关它自己。
+        // 注意顶号场景（登录时踢旧会话）此刻旧会话**仍是**当前持有者 → 走完整清理，这是对的。
+        boolean current = sessionManager.isCurrentForCharacter(session);
+        if (current && session.isPlaying()) {
             PlayerEntity e = session.getEntity();
             if (e != null) {
                 aoiManager.onPlayerLeave(e);
                 aoiManager.removePlayer(e);
             }
         }
-        if (session.getCharacterId() != null) {
+        if (current && session.getCharacterId() != null) {
             playerService.persistAndRemove(session.getCharacterId());
         }
         sessionManager.unbind(session.getChannel());
-        if (session.getToken() != null) {
+        if (current && revokeToken && session.getToken() != null) {
             gameTokenService.revoke(session.getToken());
+        }
+        if (!current) {
+            log.warn("[Session] 踢出的是过期会话（ch={}，角色 {}）→ 跳过世界清理/落库/token 失效",
+                session.getChannel() == null ? "?" : session.getChannel().id().asShortText(),
+                session.getCharacterId());
         }
 
         String data = reason == null || reason.isBlank()
@@ -802,8 +831,11 @@ public class AccountService {
 
         String characterName = session.getCharacterName();
 
+        // 同 handleLogout：过期会话不做世界清理（角色已被新会话接管）
+        boolean current = sessionManager.isCurrentForCharacter(session);
+
         // 移出 AOI（若在游戏中）
-        if (session.isPlaying()) {
+        if (current && session.isPlaying()) {
             PlayerEntity e = session.getEntity();
             if (e != null) {
                 aoiManager.onPlayerLeave(e);
@@ -812,8 +844,13 @@ public class AccountService {
         }
 
         // 存档角色数据
-        if (session.getCharacterId() != null) {
+        if (current && session.getCharacterId() != null) {
             playerService.persistAndRemove(session.getCharacterId());
+        }
+        if (!current) {
+            log.warn("[Session] 过期会话的回选角请求（ch={}，角色 {}）→ 跳过世界清理/落库",
+                session.getChannel() == null ? "?" : session.getChannel().id().asShortText(),
+                session.getCharacterId());
         }
 
         // 仅清除角色绑定、状态回 SERVER_SELECTED，保留账号绑定与连接
