@@ -57,14 +57,27 @@ public class MonsterAOI {
      * `[MonsterAI] ... ATK aglob`，客户端一条"怪物出现"都没有）。
      *
      * 对照：玩家 AOI 在 `AOIManager.onPlayerEnter` 里本来就 `visible.clear()` —— 怪物这边漏了。
-     * 清空是安全的：下一 tick `reconcile` 会按当前位置把该看见的**全部重发**。
+     * 清空后下一 tick `reconcile` 会按当前位置把该看见的**全部重发** —— 但**必须先补发 Disappear**
+     * （见方法内注释）：客户端换图时不清场，只重发会出现"旧图的怪 + 新图的怪"同时挂着。
      */
     public void clearVisible(long characterId) {
         Set<Long> visible = visibleByPlayer.get(characterId);
-        if (visible != null) {
-            synchronized (visible) {
-                visible.clear();
+        if (visible == null) {
+            return;
+        }
+        PlayerSession session = sessionManager.getSessionByCharacterId(characterId);
+        synchronized (visible) {
+            // ⚠ 清空前**逐条补发 Disappear** —— 与 `NpcAOI.clearVisible` 同一个原因（那份先修对了）：
+            //   换图 / 传送时客户端**不清场**（`applyTeleport` 不调 `clearWorldActors`），旧图的怪仍在
+            //   场景里；只清服务端集合而不补通知，它们就成了**删不掉的幽灵**
+            //   （用户 2026-09-16 实测："走到另一个图，怪物一直都在"）。
+            //   （首次进场时客户端本就 `clearWorldActors()` 清过，补发对未知 id 是无害的 no-op。）
+            if (session != null) {
+                for (long mid : visible) {
+                    session.send(buildDisappear(mid));
+                }
             }
+            visible.clear();
         }
     }
 
@@ -126,6 +139,7 @@ public class MonsterAOI {
                 }
             }
         }
+
     }
 
     /** 怪物位移后广播（由 MonsterSpawnService 主循环每步调用）：位置/朝向/动画任一变化才下发 */

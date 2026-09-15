@@ -106,9 +106,14 @@ public class CombatService {
     /**
      * 玩家攻击距离 —— **直接用下发给客户端的同一个值**，不再本地另算一套。
      *
-     * 那个值已经分好档（远程=装备射程 / 近战双手 80 / 近战单手与徒手 40），
+     * 那个值已经分好档（远程=装备射程 / 近战双手 60 / 近战单手与徒手 30），
      * 见 `PlayerStatCalculator.shootingRangeOf`。客户端 `selfAttackRange()` 读同一字段，
      * 所以面板显示、客户端停步判定、服务端距离校验三者不会漂移。
+     *
+     * ⚠ 调这两个档位前先看客户端：追击的**停步环半径**由攻击距离算出
+     * （`src/game/combatRange.ts`，`min(32, 攻击距离×0.8)`），环必须**严格小于**射程。
+     * 2026-09-15 把单手 40→30 时客户端环还是硬编码 32 ⇒ 空手/单手武器追到怪面前停住、
+     * 既不攻击也不前进，900ms 后被判"寻路受阻"（客户端 `npm run verify-chase` 已闭环该不变量）。
      */
     private double attackRange(Player player) {
         return statCalculator.shootingRange(player);
