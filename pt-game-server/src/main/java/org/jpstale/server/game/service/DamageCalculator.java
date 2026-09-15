@@ -120,7 +120,7 @@ public class DamageCalculator {
     private int calculateCriticalRate(int attackerLevel, int targetLevel) {
         int rate = 5; // 基础暴击率 5%
         rate += ((attackerLevel - targetLevel) * 25) / 100;
-        return Math.min(70, Math.max(0, rate)); // 上限 70%
+        return Math.clamp(rate, 0, 70); // 上限 70%
     }
 
     /**

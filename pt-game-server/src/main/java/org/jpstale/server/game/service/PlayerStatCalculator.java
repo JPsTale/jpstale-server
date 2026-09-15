@@ -276,17 +276,17 @@ public class PlayerStatCalculator {
         return (int) e.block;
     }
 
-    /** 近战武器攻击距离：单手 40 / 双手 80（用户 2026-09-14 定）。 */
-    public static final int MELEE_RANGE_ONE_HAND = 40;
-    public static final int MELEE_RANGE_TWO_HAND = 80;
+    /** 近战武器攻击距离：单手 30 / 双手 60（用户 2026-09-14 定）。 */
+    public static final int MELEE_RANGE_ONE_HAND = 30;
+    public static final int MELEE_RANGE_TWO_HAND = 60;
 
     /**
      * **攻击距离**（下发客户端，面板"射程"行显示的就是它，战斗距离判定也用它）。
      *
      * 分三档（用户 2026-09-14 定）：
      *   ① 远程武器（装备射程 > 0）→ 用其射程（弓/弩/杖等，`gamedb.itemlist.range` 有值）；
-     *   ② 近战双手 → 80；
-     *   ③ 近战单手 / 徒手 → 40。
+     *   ② 近战双手 → 60；
+     *   ③ 近战单手 / 徒手 → 30。
      *
      * ⚠ 原版是 `50 + 武器模型算出的 AttackToolRange`（`playmain.cpp:1810`），但那段计算落在
      * exm/EU **两边都缺失的反编译里**（`AttackToolRange` 只有读取点，无赋值点），
