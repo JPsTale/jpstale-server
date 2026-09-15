@@ -54,7 +54,7 @@ public class NpcShopTest {
         return iface.cast(Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface}, h));
     }
 
-    /** `NpcSpawnService` 只被 `nearestInstance` 用到（本测试不覆盖它，交给处理器路径），故传 null。 */
+    /** `NpcSpawnService` 只被 `findInstance`（按实体 id 直查）用到（本测试不覆盖它，交给处理器路径），故传 null。 */
     private static NpcShopService service() {
         return new NpcShopService(stub(NpcListMapper.class), stub(ItemListMapper.class), null);
     }

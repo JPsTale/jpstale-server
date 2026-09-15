@@ -539,7 +539,7 @@ message S2C_MonsterMove {
 }
 
 message S2C_NpcAppear {
-  int64 npc_id = 1;       // npclist.id
+  int64 entity_id = 1;    // 运行时实体 id（EntityIdSource，每次摆放唯一）；npclist 定义 id 不下发
   string name_key = 2;    // 本地化 key（npclist.name 的 slug，如 miscellaneous_store_lynn）
   string model_file = 3;  // 模型路径（npclist.gamefile，如 char\npc\TN-005\TN-005.ini）
   Position position = 4;  // world 坐标（服务端已 /256）
@@ -547,7 +547,7 @@ message S2C_NpcAppear {
 }
 
 message S2C_NpcDisappear {
-  int64 npc_id = 1;
+  int64 entity_id = 1;
 }
 
 message S2C_MonsterState {
@@ -831,21 +831,21 @@ message S2C_Disconnect {
 
 // ==================== NPC 商店 ====================
 
-// NPC 交互（点击世界里的 NPC）。位置由**服务端**按 npc_id 在本图查最近实例，客户端不上报坐标。
+// NPC 交互（点击世界里的 NPC）。客户端只报**实体 id**，服务端据此查 NPC 定义并校验距离，客户端不上报坐标。
 message C2S_NpcInteract {
-  int64 npc_id = 1;
+  int64 entity_id = 1;
 }
 
 // 买入：一次一条商品，count 只对可堆叠物（药水）有意义，其余视为 1
 message C2S_ShopBuy {
-  int64 npc_id = 1;
+  int64 entity_id = 1;
   int32 itemlist_id = 2;
   int32 count = 3;
 }
 
 // 卖出：uid 必须是**自己背包里**的那件（服务端按 uid 查，不信客户端报的位置）
 message C2S_ShopSell {
-  int64 npc_id = 1;
+  int64 entity_id = 1;
   int64 uid = 2;
   int32 count = 3;
 }
@@ -863,7 +863,7 @@ message ShopItemProto {
 
 // 打开商店：kind 0=武器 1=防具 2=杂货（对应 npclist 的三列）
 message S2C_ShopOpen {
-  int64 npc_id = 1;
+  int64 entity_id = 1;
   int32 kind = 2;
   repeated ShopItemProto items = 3;
 }

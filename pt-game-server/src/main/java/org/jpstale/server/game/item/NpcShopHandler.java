@@ -79,11 +79,12 @@ public class NpcShopHandler {
 
     @GamePacketHandler(MessageProto.ClientMessage.NPC_INTERACT_FIELD_NUMBER)
     public void handleNpcInteract(PlayerSession session, MessageProto.ClientMessage message) {
-        long npcId = message.getNpcInteract().getNpcId();
-        Npc npc = resolveInteractableNpc(session, npcId, "shop.outOfRange");
+        long entityId = message.getNpcInteract().getEntityId();
+        Npc npc = resolveInteractableNpc(session, entityId, "shop.outOfRange");
         if (npc == null) {
             return;
         }
+        int npcId = npc.getNpcId();   // 定义 id（仅服务端内部用；不下发客户端）
         List<NpcShopService.Offer> offers = shopService.offers(npcId);
         if (offers.isEmpty()) {
             // 走到这里说明 npclist 说它是商家但清单解析不出（resolveCode 已 log.error 报过具体码）
@@ -91,7 +92,7 @@ public class NpcShopHandler {
             sendErrorKey(session, "shop.noItems");
             return;
         }
-        MessageProto.S2C_ShopOpen.Builder open = MessageProto.S2C_ShopOpen.newBuilder().setNpcId(npcId);
+        MessageProto.S2C_ShopOpen.Builder open = MessageProto.S2C_ShopOpen.newBuilder().setEntityId(entityId);
         for (NpcShopService.Offer o : offers) {
             open.addItems(MessageProto.ShopItemProto.newBuilder()
                     .setItemlistId(o.itemlistId())
@@ -114,12 +115,14 @@ public class NpcShopHandler {
         if (p == null) {
             return;
         }
-        long npcId = message.getShopBuy().getNpcId();
+        long entityId = message.getShopBuy().getEntityId();
         int itemlistId = message.getShopBuy().getItemlistId();
         int count = message.getShopBuy().getCount();
-        if (resolveInteractableNpc(session, npcId, "shop.outOfRange") == null) {
+        Npc npc = resolveInteractableNpc(session, entityId, "shop.outOfRange");
+        if (npc == null) {
             return;
         }
+        long npcId = npc.getNpcId();
         // 商品必须是**该 NPC 清单里的**（防伪造 itemlist_id 买别家的东西）
         NpcShopService.Offer offer = shopService.offers(npcId).stream()
                 .filter(o -> o.itemlistId() == itemlistId).findFirst().orElse(null);
@@ -187,12 +190,14 @@ public class NpcShopHandler {
         if (p == null) {
             return;
         }
-        long npcId = message.getShopSell().getNpcId();
+        long entityId = message.getShopSell().getEntityId();
         long uid = message.getShopSell().getUid();
         int count = message.getShopSell().getCount();
-        if (resolveInteractableNpc(session, npcId, "shop.outOfRange") == null) {
+        Npc npc = resolveInteractableNpc(session, entityId, "shop.outOfRange");
+        if (npc == null) {
             return;
         }
+        long npcId = npc.getNpcId();   // 仅用于日志
         // 物品必须真的在**自己背包**里（不信客户端报的位置/价格）
         ItemInstance it = p.getItems().byUid(uid);
         if (it == null || it.isDeleted() || it.getLocation() != ItemLocations.BAG_PAGE) {
@@ -247,26 +252,27 @@ public class NpcShopHandler {
     // ------------------------------------------------------------------
 
     /**
-     * 取"当前可交互的那个 NPC 实例"：定义是商家 + 本图有实例 + 距离够 + onlygm 门。
+     * 取"当前可交互的那个 NPC 实例"：本图存在该**实体 id** + 定义是商家 + 距离够 + onlygm 门。
      * 任一不过 → 回明确的错误 key 并返回 null（调用方直接 return）。
      */
-    private Npc resolveInteractableNpc(PlayerSession session, long npcId, String outOfRangeKey) {
+    private Npc resolveInteractableNpc(PlayerSession session, long entityId, String outOfRangeKey) {
         PlayerEntity ent = session.getEntity();
         if (ent == null || ent.getMapId() < 0) {
             return null;
         }
+        Npc npc = shopService.findInstance(ent.getMapId(), entityId);
+        if (npc == null) {
+            // 该实体 id 不在玩家这张图上（伪造 / 已离开视野）——外挂最爱撞的就是这条
+            log.warn("[Shop] {} 交互被拒：entity={} 在 mapId={} 上没有实例（可疑）",
+                    session.getCharacterName(), entityId, ent.getMapId());
+            sendErrorKey(session, "shop.notHere");
+            return null;
+        }
+        long npcId = npc.getNpcId();
         if (!shopService.isMerchant(npcId)) {
             log.info("[Shop] {} 交互被拒：npc={} 不是商家（或不存在）",
                     session.getCharacterName(), npcId);
             sendErrorKey(session, "shop.notMerchant");
-            return null;
-        }
-        Npc npc = shopService.nearestInstance(ent.getMapId(), npcId, ent.getX(), ent.getZ());
-        if (npc == null) {
-            // 该 NPC 不在玩家这张图上（或已随昼夜消失）——外挂最爱撞的就是这条
-            log.warn("[Shop] {} 交互被拒：npc={} 在 mapId={} 上没有实例（可疑）",
-                    session.getCharacterName(), npcId, ent.getMapId());
-            sendErrorKey(session, "shop.notHere");
             return null;
         }
         boolean gm = isGm(session);

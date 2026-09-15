@@ -189,27 +189,14 @@ public class NpcShopService {
     }
 
     /**
-     * 本图里**离玩家最近的那个该 NPC 实例**（不存在返回 null）。
+     * 按**运行时实体 id** 取本图的 NPC 实例（不在本图/不存在返回 null）。
      *
-     * 为什么按"最近实例"而不是实例 id：`S2C_NpcAppear` 只下发 `npclist.id`（同一 NPC 可能摆多份），
-     * 客户端也只回这个 id —— 所以服务端自己算最近的一份，**位置以服务端为准**，客户端报什么都不影响判定。
+     * 客户端只持有实体 id（`S2C_NpcAppear` 下发，定义 id 不下发）；位置以服务端为准，
+     * 客户端报什么都不影响判定。
      */
-    public Npc nearestInstance(int mapId, long npcId, double x, double z) {
-        Npc best = null;
-        double bestD2 = Double.MAX_VALUE;
-        for (Npc n : npcSpawnService.getNpcsByMap(mapId)) {
-            if (n.getNpcId() != npcId) {
-                continue;
-            }
-            double dx = n.getX() - x;
-            double dz = n.getZ() - z;
-            double d2 = dx * dx + dz * dz;
-            if (d2 < bestD2) {
-                bestD2 = d2;
-                best = n;
-            }
-        }
-        return best;
+    public Npc findInstance(int mapId, long entityId) {
+        Npc n = npcSpawnService.findById(entityId);
+        return (n != null && n.getMapId() == mapId) ? n : null;
     }
 
     /** 便于测试：直接注入定义与索引（不碰 DB）。 */

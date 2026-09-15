@@ -40,8 +40,8 @@ public class NpcAOI {
     @Autowired
     private NpcSpawnService npcSpawnService;
 
-    /** 观察者 characterId → 当前可见的 NPC id 集合（持久化，双阈值升降级） */
-    private final ConcurrentHashMap<Long, Set<Integer>> visibleByPlayer = new ConcurrentHashMap<>();
+    /** 观察者 characterId → 当前可见的 NPC **运行时实体 id** 集合（持久化，双阈值升降级） */
+    private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
 
     /** 每 tick 由 GameServer.tick() 驱动：同步所有 playing 会话的 NPC 可见集 */
     public void syncSessions() {
@@ -73,21 +73,23 @@ public class NpcAOI {
         }
         double sx = player.getX();
         double sz = player.getZ();
-        Set<Integer> visible = visibleByPlayer.computeIfAbsent(pid, k -> ConcurrentHashMap.newKeySet());
+        Set<Long> visible = visibleByPlayer.computeIfAbsent(pid, k -> ConcurrentHashMap.newKeySet());
         double connectSq = (double) CONNECT * CONNECT;
         double disconnectSq = (double) DISCONNECT * DISCONNECT;
 
         for (Npc npc : npcs) {
-            int id = npc.getNpcId();
+            long eid = npc.getId();   // 运行时实体 id（每次摆放唯一）——不能按 npcId（定义 id）去重：
+                                      // 同图可有多个同 npcId 的摆放（如两个 Phillai Guard），按 npcId
+                                      // 会让远的那个 remove(Disappear)、近的那个 add(Appear) 每 tick 各发一次 → 闪现。
             double dx = sx - npc.getX();
             double dz = sz - npc.getZ();
             double distSq = dx * dx + dz * dz;
             if (distSq > disconnectSq) {
-                if (visible.remove(id)) {
-                    session.send(buildDisappear(id));
+                if (visible.remove(eid)) {
+                    session.send(buildDisappear(eid));
                 }
             } else if (distSq <= connectSq) {
-                if (visible.add(id)) {
+                if (visible.add(eid)) {
                     session.send(buildAppear(npc));
                 }
             }
@@ -95,16 +97,16 @@ public class NpcAOI {
 
         // 换图兜底：旧图 NPC 已不在当前图列表 → 清出可见集并通知消失
         if (visible.size() > npcs.size()) {
-            Set<Integer> current = new HashSet<>(npcs.size() + 4);
+            Set<Long> current = new HashSet<>(npcs.size() + 4);
             for (Npc npc : npcs) {
-                current.add(npc.getNpcId());
+                current.add(npc.getId());
             }
-            Iterator<Integer> it = visible.iterator();
+            Iterator<Long> it = visible.iterator();
             while (it.hasNext()) {
-                int stale = it.next();
+                long stale = it.next();
                 if (!current.contains(stale)) {
                     it.remove();
-                    session.send(buildDisappear(stale));
+                    session.send(buildDisappear(stale));   // 换图清理：客户端按 entity_id 删
                 }
             }
         }
@@ -112,7 +114,7 @@ public class NpcAOI {
 
     private MessageProto.ServerMessage buildAppear(Npc npc) {
         MessageProto.S2C_NpcAppear.Builder b = MessageProto.S2C_NpcAppear.newBuilder()
-            .setNpcId(npc.getNpcId())
+            .setEntityId(npc.getId())
             .setNameKey(npc.getNameKey() != null ? npc.getNameKey() : "")
             .setPosition(CommonProto.Position.newBuilder()
                 .setX((float) npc.getX())
@@ -126,10 +128,10 @@ public class NpcAOI {
         return MessageProto.ServerMessage.newBuilder().setNpcAppear(b.build()).build();
     }
 
-    private MessageProto.ServerMessage buildDisappear(int npcId) {
+    private MessageProto.ServerMessage buildDisappear(long entityId) {
         return MessageProto.ServerMessage.newBuilder()
             .setNpcDisappear(MessageProto.S2C_NpcDisappear.newBuilder()
-                .setNpcId(npcId)
+                .setEntityId(entityId)
                 .build())
             .build();
     }

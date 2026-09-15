@@ -38,6 +38,9 @@ public class NpcSpawnService {
     /** mapId → 该图 NPC 列表 */
     private final Map<Integer, List<Npc>> npcsByMap = new ConcurrentHashMap<>();
 
+    /** 运行时实体 id → NPC（供交互按实体 id 直查；定义 id 不下发客户端） */
+    private final Map<Long, Npc> npcById = new ConcurrentHashMap<>();
+
     @PostConstruct
     public void init() {
         loadNpcs();
@@ -73,6 +76,7 @@ public class NpcSpawnService {
             npc.setGmOnly(mn.getOnlyGm() != null && mn.getOnlyGm() != 0);
 
             npcsByMap.computeIfAbsent(npc.getMapId(), k -> new ArrayList<>()).add(npc);
+            npcById.put(npc.getId(), npc);
             count++;
         }
         log.info("NpcSpawnService initialized: {} npcs on {} maps", count, npcsByMap.size());
@@ -80,6 +84,11 @@ public class NpcSpawnService {
 
     public List<Npc> getNpcsByMap(int mapId) {
         return npcsByMap.getOrDefault(mapId, List.of());
+    }
+
+    /** 按**运行时实体 id** 取 NPC（不存在返回 null）。交互校验用（定义 id 不下发客户端）。 */
+    public Npc findById(long entityId) {
+        return npcById.get(entityId);
     }
 
     /**
