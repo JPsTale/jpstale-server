@@ -81,6 +81,10 @@ public class AOIManager {
     @Autowired
     private MonsterAOI monsterAOI;
 
+    /** NPC AOI —— 同 {@link #monsterAOI}：玩家进入世界/换图时清空其 NPC 可见集（无环，直接注入） */
+    @Autowired
+    private NpcAOI npcAOI;
+
     /** 公会缓存：charId → [公会名, 图标id]（懒加载一次，玩家离场清缓存） */
     private final ConcurrentHashMap<Long, String[]> clanCache = new ConcurrentHashMap<>();
 
@@ -257,6 +261,9 @@ public class AOIManager {
         if (charId != null) {
             monsterAOI.clearVisible(charId);
         }
+        // NPC AOI 同样跨会话保留，也曾漏了清空（用户 2026-09-15：刚进图不推 NPC Appear）。
+        // 它按 session 清（换图时顺带补发旧图 NPC 的 Disappear —— 客户端传送不清场）。
+        npcAOI.clearVisible(session);
         StringBuilder appearLog = new StringBuilder();
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ())) {
             if (nearby.getId() == eid) continue;

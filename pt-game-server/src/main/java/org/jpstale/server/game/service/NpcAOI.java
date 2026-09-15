@@ -43,6 +43,37 @@ public class NpcAOI {
     /** 观察者 characterId → 当前可见的 NPC **运行时实体 id** 集合（持久化，双阈值升降级） */
     private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
 
+    /**
+     * 玩家**进入世界/换图**时清空他的 NPC 可见集（与 {@link MonsterAOI#clearVisible} 同因）。
+     *
+     * 可见集以 characterId 为 key **跨会话保留**：重连/重进时若集合里还留着上次的 NPC 实体 id，
+     * `reconcile` 里 `visible.add(eid)` 恒为 false ⇒ **一条 Appear 都不发**（用户 2026-09-15 实测：
+     * 刚进图看不到 NPC）。
+     *
+     * 清空前**逐条补发 Disappear**：跨图传送时客户端 `applyTeleport` **不清场**（怪物那边同此），
+     * 旧图 NPC 仍在场景里 —— 只清集合不补通知，它们就成了删不掉的幽灵。
+     * （首次进场时客户端本就 `clearWorldActors()` 清过，补发对未知 id 是无害的 no-op。）
+     */
+    public void clearVisible(PlayerSession session) {
+        if (session == null) {
+            return;
+        }
+        Long pid = session.getCharacterId();
+        if (pid == null) {
+            return;
+        }
+        Set<Long> visible = visibleByPlayer.get(pid);
+        if (visible == null) {
+            return;
+        }
+        synchronized (visible) {
+            for (long eid : visible) {
+                session.send(buildDisappear(eid));
+            }
+            visible.clear();
+        }
+    }
+
     /** 每 tick 由 GameServer.tick() 驱动：同步所有 playing 会话的 NPC 可见集 */
     public void syncSessions() {
         Set<Long> active = ConcurrentHashMap.newKeySet();
