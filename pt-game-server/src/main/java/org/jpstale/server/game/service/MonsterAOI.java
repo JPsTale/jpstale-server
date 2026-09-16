@@ -22,6 +22,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * 可见性距离与玩家 AOI 共用同一对常量（现为 1000 进入 / 1600 离开，见 AOIManager）：
  * 进入 CONNECT → Appear；超出 DISCONNECT → Disappear。所有集合以玩家 characterId 为 key 持久化。
  *
+ * **尸体是正常可见实体**：怪物死后不在这里清出可见集 —— 死掉的怪就是"动作态 = DEAD、
+ * 动画冻在末帧"的同一个实体，服务端照常按距离同步它，直到 `Monster.decayTime` 到点后
+ * `onMonsterRemoved` 才发 Disappear。所以"死"（Death 事件）与"消失"（Disappear）是**两条独立事件**：
+ * Death 只发给死亡当刻在场的观察者，中途进场的人靠 `S2C_MonsterAppear.dead` 认出尸体。
+ * 若死亡时就清出可见集，中途进场的玩家会看到"尸体凭空不存在"，与在场玩家画面不一致
+ * （原版同样如此：`OnSever.cpp` 里死怪仍被 `MakeTransPlayData` 同步，直到 `FrameCounter > 400`
+ * 才 `Close()` + `DeleteMonTable`）。
+ *
  * 线程模型：syncSessions/broadcastMove 在主循环线程（MonsterSpawnService.tick）调用；
  * onMonsterDeath 可能在 Netty IO 线程（玩家击杀）调用 —— 内部用 CHM 集合，弱一致即可。
  */
@@ -118,17 +126,22 @@ public class MonsterAOI {
             double dx = sx - m.getX();
             double dz = sz - m.getZ();
             double distSq = dx * dx + dz * dz;
-            // 与 onMonsterDeath 互斥（同锁）：否则「死亡清出可见集」与「reconcile 重新 Appear」竞态
-            // 会让客户端在死亡后又收到 Appear（孤儿怪，之后永不再收到 Disappear）。
+            // 不变式自检：`state == DEAD` ⇒ `deathInfo != null`（唯一致死入口见 Monster.onDeath）。
+            // 违反它说明有新的致死路径绕过了结算 —— 那种怪没有 Death 事件，客户端只会看到它站着不动
+            // 然后凭空消失（2026-09-14 修过一次的同一个症状）。**不静默**：报一次，不刷屏。
+            if (!m.isAlive() && m.getDeathInfo() == null && !m.isMissingDeathPayloadLogged()) {
+                m.setMissingDeathPayloadLogged(true);
+                log.error("[AOI] 怪物 {}#{} 处于 DEAD 却没有死亡负载（deathInfo=null）"
+                    + " → 客户端收不到死亡事件，这条尸体会表现为'站着不动然后消失'",
+                    m.getName(), m.getId());
+            }
+            // 与 onMonsterDeath 互斥（同锁）：死亡当刻的 Death 广播与这里的 Appear/Disappear 不能交错，
+            // 否则会出现"刚发完 Death 又发 Appear"或反过来的乱序（客户端会先播死亡再站回去）。
             synchronized (visible) {
-                if (!m.isAlive()) {
-                    // 死亡怪不在可见集；若仍在（竞态/漏发）补发 **Death + Disappear** 清理客户端，
-                    // 而非静默移除 —— 只发 Disappear 会让"死亡"这个事件丢在两条清理路径之间
-                    // （见 Monster.deathInfo：本分支可能与 onMonsterDeath 抢同一个观察者）。
-                    if (visible.remove(mid)) {
-                        sendDeathAndDisappear(session, pid, m);
-                    }
-                } else if (distSq > disconnectSq) {
+                // 生与死在这里**同一套距离规则** —— 尸体是正常可见实体，不单独排除。
+                // 死怪被算进可见集是刻意的：中途进场/重连的观察者靠 Appear(dead=true) 看见尸体，
+                // 与在场玩家画面一致（见类头注释）。
+                if (distSq > disconnectSq) {
                     if (visible.remove(mid)) {
                         sendDisappear(session, mid);
                     }
@@ -187,41 +200,51 @@ public class MonsterAOI {
         }
     }
 
-    /** 怪物死亡：写入死亡负载 → 通知观察者（击杀者带 exp/gold）并清出可见集（尸体不保留） */
+    /**
+     * 怪物死亡：写入死亡负载 → 通知**当前可见的**观察者发 Death 事件。
+     *
+     * **尸体不清出可见集**（这是本次改动的核心）：死怪留在可见集里，之后由主循环按距离继续
+     * 同步（超出 DISCONNECT 才 Disappear），直到 `Monster.decayTime` 到点后 `onMonsterRemoved`
+     * 才真正移除。"死"与"消失"从此是两条独立事件。
+     *
+     * 代价与好处都很明确：中途进场/重连的观察者拿不到 Death（它不在可见集里、没赶上），
+     * 但会在 reconcile 里收到 `Appear(dead=true)` —— 看见尸体，而不是"这里什么都没有"。
+     * 不这样做的话，同一具尸体在在场玩家屏幕上有、在后来者屏幕上没有。
+     */
     public void onMonsterDeath(Monster m, long killerId, long exp, int gold) {
-        // 负载**先落**再清可见集：主循环的 reconcile 若抢在前面把某个观察者清掉，
-        // 它也会用同一份负载把 Death 带出去（否则死亡事件会被"顺手清理"吞掉）
+        // 负载**先落**：Appear(dead) 与 Death 都从这份负载取"谁杀的/给多少经验"，
+        // 且 `state==DEAD ⇒ deathInfo!=null` 是 AOI 自检依赖的不变式（见 reconcile）
         m.setDeathInfo(new Monster.DeathInfo(killerId, exp, gold));
         long mid = m.getId();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
             Set<Long> set = e.getValue();
-            // 与 reconcile 互斥（同锁）：保证该玩家的死亡 Disappear 不会被并发的 Appear 反超
+            // 与 reconcile 互斥（同锁）：保证这条 Death 不会被并发的 Appear/Disappear 反超
             synchronized (set) {
-                if (!set.remove(mid)) {
-                    continue;
+                if (!set.contains(mid)) {
+                    continue;   // 该玩家当时看不见这只怪 → 不通知（他进场时靠 Appear(dead) 认出尸体）
                 }
                 PlayerSession s = sessionManager.getSessionByCharacterId(e.getKey());
                 if (s == null) {
                     continue;
                 }
-                sendDeathAndDisappear(s, e.getKey(), m);
+                sendDeath(s, e.getKey(), m);
             }
         }
     }
 
     /**
-     * 单个观察者的死亡通知：Death（击杀者才带 exp/gold）+ Disappear **成对**下发。
+     * 单个观察者的死亡事件：**只发 Death，不发 Disappear**（尸体还在，由 decay 到点后发 Disappear）。
      *
-     * **唯一实现** —— 击杀时的即时广播（onMonsterDeath）与主循环可见集同步（reconcile）都走这里：
-     * 两条路径都会"把这条怪从观察者的可见集里摘掉"，谁先摘谁负责把死亡事件带出去。
+     * 经验/金币只给击杀者（原版 `rsOpen_MonsterItemExp` 只结算给击杀者）；其余观察者收的是
+     * 同一个 Death 事件，只是不带 exp/gold —— 他们据此播死亡动画。
      */
-    private void sendDeathAndDisappear(PlayerSession session, long pid, Monster m) {
+    private void sendDeath(PlayerSession session, long pid, Monster m) {
         Monster.DeathInfo di = m.getDeathInfo();
         if (di == null) {
-            // 没走 onMonsterDeath 就死了（其他击杀路径）→ 不能静默：只发 Disappear 的话，
-            // 客户端看到的是"怪凭空消失"，与"死亡"是两回事，也没法排查
-            log.warn("[AOI] 怪物 {}#{} 被清理时没有死亡负载（未走 onMonsterDeath）→ 死亡事件缺 killer/exp/gold",
-                m.getName(), m.getId());
+            // 不变式被破坏（有致死路径绕过结算）→ 不能静默：这条 Death 缺 killer/exp/gold，
+            // 击杀者会拿不到经验飘字，且现象与"怪凭空消失"难以区分
+            log.warn("[AOI] 怪物 {}#{} 发死亡事件时没有死亡负载（未走 CombatService.handleMonsterDeath）"
+                + " → 本次 Death 缺 killer/exp/gold", m.getName(), m.getId());
         }
         MessageProto.S2C_MonsterDeath.Builder death = MessageProto.S2C_MonsterDeath.newBuilder()
             .setMonsterId(m.getId());
@@ -233,10 +256,9 @@ public class MonsterAOI {
             }
         }
         session.send(MessageProto.ServerMessage.newBuilder().setMonsterDeath(death.build()).build());
-        session.send(buildDisappear(m.getId()));
     }
 
-    /** 怪物被移除（死亡超时清理 / 无交互清理）：向仍可见的观察者广播 Disappear */
+    /** 怪物被移除（decay 到点 / 无交互清理）：向仍可见的观察者广播 Disappear（这是"尸体消失"那一半） */
     public void onMonsterRemoved(Monster m) {
         long mid = m.getId();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
@@ -269,6 +291,10 @@ public class MonsterAOI {
         if (m.getModelFile() != null) {
             appear.setModelFile(m.getModelFile());
         }
+        // 尸体：**必须显式下发**。中途进场/重连的观察者拿不到 Death 事件，
+        // 只能靠这个标记把"尸体"和"活怪"分开（否则会看到一具站着的尸体）。
+        // 不要改由客户端从 hp == 0 推 —— 那是隐式信号（见 proto 该字段注释）。
+        appear.setDead(!m.isAlive());
         session.send(MessageProto.ServerMessage.newBuilder().setMonsterAppear(appear.build()).build());
     }
 

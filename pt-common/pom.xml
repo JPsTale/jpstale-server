@@ -10,7 +10,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>pt-common</artifactId>
-    <description>Protocol, packet IDs, shared DTOs (no Spring)</description>
+    <description>Protocol, packet IDs, shared DTOs, Redis messaging infrastructure</description>
 
     <properties>
         <protobuf.version>4.35.1</protobuf.version>
@@ -33,6 +33,16 @@
             <artifactId>lombok</artifactId>
             <version>1.18.34</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
 

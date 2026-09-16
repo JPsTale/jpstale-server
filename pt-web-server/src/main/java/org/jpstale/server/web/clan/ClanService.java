@@ -1,5 +1,7 @@
 package org.jpstale.server.web.clan;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.jpstale.dao.clandb.entity.Cl;
 import org.jpstale.dao.clandb.entity.ClanList;
 import org.jpstale.dao.clandb.entity.Li;
@@ -9,15 +11,21 @@ import org.jpstale.dao.clandb.mapper.ClanListMapper;
 import org.jpstale.dao.clandb.mapper.LiMapper;
 import org.jpstale.dao.clandb.mapper.UlMapper;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
+import org.jpstale.server.common.redis.ClanMessageData;
+import org.jpstale.server.web.clan.dto.ClanDetailResponse;
+import org.jpstale.server.web.clan.dto.ClanMemberDto;
+import org.jpstale.server.web.clan.dto.ClanRankDto;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
  * ClanSystem 17 个接口业务逻辑，与原版 ASP 行为与 Code 一致。
  */
+@Slf4j
 @Service
 public class ClanService {
 
@@ -410,5 +418,150 @@ public class ClanService {
             return r;
         }
         return ClanResponse.of(104);
+    }
+
+    // ========== New JSON API methods ==========
+
+    public ClanDetailResponse getClanDetail(String charName) {
+        String chnameTrim = charName != null ? charName.trim() : "";
+        String clanName = ulMapper.selectClanNameByChName(chnameTrim);
+        if (clanName == null || clanName.isEmpty()) return null;
+
+        Cl cl = clMapper.selectClanZangMemCntNoteMIconCntRegiDateLimitDatePFlagKFlagClanMoneyByClanName(clanName);
+        if (cl == null) return null;
+
+        ClanDetailResponse resp = new ClanDetailResponse();
+        resp.setClanId(cl.getId());
+        resp.setClanName(clanName);
+        resp.setLeader(cl.getClanZang());
+        resp.setNote(cl.getNote());
+        resp.setMemberCount(cl.getMemCnt());
+        resp.setIconId(cl.getMIconCnt());
+        resp.setRegiDate(cl.getRegiDate() != null ? cl.getRegiDate().format(REGI_LIMIT_FORMAT) : "");
+        resp.setLimitDate(cl.getLimitDate() != null ? cl.getLimitDate().format(REGI_LIMIT_FORMAT) : "");
+        resp.setClanMoney(cl.getClanMoney());
+        resp.setCPoint(cl.getCPoint());
+        resp.setAmLeader(chnameTrim.equals(cl.getClanZang()));
+
+        String subChief = ulMapper.selectChNameByPermi2AndClanName(clanName);
+        resp.setSubLeader(subChief != null ? subChief : "");
+        resp.setAmSubLeader(subChief != null && subChief.equals(chnameTrim));
+
+        List<Cl> rankList = clMapper.selectByClanNameOrderByCpointDesc();
+        resp.setRank(0);
+        if (rankList != null && cl.getCPoint() != null && cl.getCPoint() > 0) {
+            for (int i = 0; i < rankList.size(); i++) {
+                if (clanName.equals(rankList.get(i).getClanName())) {
+                    resp.setRank(i + 1);
+                    break;
+                }
+            }
+        }
+
+        List<ClanMemberDto> members = new ArrayList<>();
+        List<String> names = ulMapper.selectChNameListByClanName(clanName);
+        if (names != null) {
+            for (String name : names) {
+                Ul u = ulMapper.selectByChName(name);
+                if (u == null) continue;
+                ClanMemberDto md = new ClanMemberDto();
+                md.setCharName(u.getChName());
+                md.setUserId(u.getUserId());
+                md.setCharType(u.getChType());
+                md.setCharLevel(u.getChLv());
+                md.setPermission(u.getPermi());
+                md.setJoinDate(u.getJoinDate() != null ? u.getJoinDate().format(REGI_LIMIT_FORMAT) : "");
+                members.add(md);
+            }
+        }
+        resp.setMembers(members);
+
+        return resp;
+    }
+
+    public List<ClanRankDto> getRanking() {
+        List<Cl> list = clMapper.selectByClanNameOrderByCpointDesc();
+        List<ClanRankDto> result = new ArrayList<>();
+        if (list == null) return result;
+        for (Cl c : list) {
+            if (c.getCPoint() == null || c.getCPoint() <= 0) continue;
+            ClanRankDto rank = new ClanRankDto();
+            rank.setClanId(c.getId());
+            rank.setClanName(c.getClanName());
+            rank.setLeader(c.getClanZang());
+            rank.setMemberCount(c.getMemCnt());
+            rank.setIconId(c.getMIconCnt());
+            rank.setCPoint(c.getCPoint());
+            rank.setClanMoney(c.getClanMoney());
+            result.add(rank);
+        }
+        return result;
+    }
+
+    public boolean isClanNameTaken(String clanName) {
+        String zang = clMapper.selectClanZangByClanName(clanName != null ? clanName.trim() : "");
+        return zang != null;
+    }
+
+    // ========== Redis message handlers ==========
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    public void handleClanCreate(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        newClan(d.getUserId(), "redis", d.getCharName(), d.getClanName(), d.getCharType(), d.getLevel());
+    }
+
+    public void handleClanDissolve(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        deleteClan(d.getUserId(), "redis", d.getCharName(), d.getClanName());
+    }
+
+    public void handleClanInvite(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        inviteClan(d.getUserId(), "redis", d.getCharName(), d.getClanName(),
+                d.getTargetName(), d.getTargetUserId(), 0, d.getTargetType(), d.getTargetLevel(), "0");
+    }
+
+    public void handleClanKick(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        leavePlayer(d.getUserId(), "redis", d.getCharName(), d.getClanName(), d.getTargetName(), "0");
+    }
+
+    public void handleClanLeave(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        leavePlayerSelf(d.getUserId(), "redis", d.getCharName(), d.getClanName());
+    }
+
+    public void handleClanTransferLeader(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        changeLeader(d.getTargetName(), "redis", d.getClanName());
+    }
+
+    public void handleClanSetSubLeader(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        subLeaderUpdate(d.getCharName(), "redis");
+    }
+
+    public void handleClanReleaseSubLeader(String json) {
+        ClanMessageData d = parseMessage(json);
+        if (d == null) return;
+        subLeaderRelease(d.getCharName(), "redis");
+    }
+
+    private ClanMessageData parseMessage(String json) {
+        try {
+            return OBJECT_MAPPER.readValue(json, ClanMessageData.class);
+        } catch (Exception e) {
+            log.error("Failed to parse clan message: {}", json, e);
+            return null;
+        }
     }
 }

@@ -525,6 +525,12 @@ message S2C_MonsterAppear {
   int32 max_hp = 7;
   string model_file = 8; // 客户端渲染资源（资产相对路径，如 char/monster/monimp/monimp-a.inx）
   float angle = 9;       // 面朝方向（弧度，0=Z+）
+  // 尸体：这只怪已死，但仍在 AOI 内可见（服务端发 S2C_MonsterDisappear 才移除）。
+  // **必须显式下发，不能由客户端从 hp==0 推** —— 那种隐式信号改一次 hp 语义就会静默失效。
+  // 谁需要它：`S2C_MonsterDeath` 只发给死亡当刻在场（在可见集里）的观察者，
+  // 中途走进视野或重连的观察者拿不到死亡事件，只能靠 Appear 上的这个标记
+  // 把"尸体"和"活怪"区分开（否则会看到尸体站着）。
+  bool dead = 10;
 }
 
 message S2C_MonsterDisappear {

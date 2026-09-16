@@ -584,7 +584,9 @@ public class CombatService {
         // S2C_PlayerState(HUD) + S2C_CharacterStatus(面板)。
         playerService.sendPlayerStatus(killer.getSession(), killer);
 
-        // 通知视野内观察者：击杀者带 exp/gold；其余只收死亡事件。尸体不保留（AOI 清出）。
+        // 通知视野内观察者：击杀者带 exp/gold；其余只收死亡事件。
+        // 尸体**保留**：死怪留在 AOI 可见集里，直到 Monster.decayTime 到点后由主循环发 Disappear
+        //（"死"与"消失"是两条独立事件；中途进场的观察者靠 S2C_MonsterAppear.dead 认出尸体）
         monsterAOI.onMonsterDeath(monster, killer.getId(), exp, gold);
     }
 

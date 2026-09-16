@@ -281,23 +281,45 @@ public class PlayerStatCalculator {
     public static final int MELEE_RANGE_TWO_HAND = 60;
 
     /**
+     * **魔法职业空手施法**的攻击距离（用户 2026-09-16 定："法师、祭司、萨满的徒手攻击距离应该有 140"）。
+     *
+     * 依据：`gamedb.itemlist` 里魔法武器的 `range` 就是 **140~230**（法杖 `Wands & Staffs` 35 件、
+     * 图腾 `Phantoms` 35 件，扫自 11 职业 OpenItem 实测），140 = **最低阶魔法武器的射程**
+     * ⇒ 空手与最低阶法杖同距。有武器时走 ① 分支（用物品自己的 range），本档只管**空手**。
+     */
+    public static final int MAGIC_UNARMED_RANGE = 140;
+
+    /** 施法职业：法师 7 / 祭司 8 / 萨满 10 —— 与客户端 `MAGIC_JOBS` 是**同一组**（见下）。 */
+    private static boolean isMagicJob(int job) {
+        return job == 7 || job == 8 || job == 10;
+    }
+
+    /**
      * **攻击距离**（下发客户端，面板"射程"行显示的就是它，战斗距离判定也用它）。
      *
-     * 分三档（用户 2026-09-14 定）：
-     *   ① 远程武器（装备射程 > 0）→ 用其射程（弓/弩/杖等，`gamedb.itemlist.range` 有值）；
-     *   ② 近战双手 → 60；
-     *   ③ 近战单手 / 徒手 → 30。
+     * 分四档（用户 2026-09-14 / 2026-09-16 定）：
+     *   ① 远程/魔法武器（装备射程 > 0）→ 用其射程（弓/弩/标枪/法杖/图腾，`gamedb.itemlist.range` 有值）；
+     *   ② **魔法职业（法师/祭司/萨满）空手** → 140（空手也是施法，与最低阶法杖同距）；
+     *   ③ 近战双手 → 60；
+     *   ④ 近战单手 / 其它职业徒手 → 30。
      *
      * ⚠ 原版是 `50 + 武器模型算出的 AttackToolRange`（`playmain.cpp:1810`），但那段计算落在
      * exm/EU **两边都缺失的反编译里**（`AttackToolRange` 只有读取点，无赋值点），
      * 且近战各族的 `itemlist.range` 实测**全为 0**（斧/爪/匕首/锤/镰），远程族才有值
      * ⇒ 沿用 `e.range` 会让近战面板恒显示 0。故按武器手别做三档近似：
      * `classitem` 4=单手 / 6=双手（见 `ItemClass.ONE_HAND_WEAPON` / `TWO_HAND_WEAPON`）。
+     *
+     * ⚠ "哪个职业空手算施法"这一条**客户端也有一份**（`src/render/projectile.ts` 的 `MAGIC_JOBS`）：
+     * 跨语言无法共享常量，故两边都写了注释互相指认，并由客户端 `npm run verify-projectile` 读本文件
+     * 断言两处**职业集合一致**（改一边会红）。
      */
     private int shootingRangeOf(Player p, EquipSummary e) {
-        if (e.range > 0) return e.range;                                     // ① 远程
+        if (e.range > 0) return e.range;                                     // ① 远程 / 魔法武器自带射程
+        if (!e.hasWeapon && isMagicJob(p.getJob())) {                        // ② 魔法职业空手施法
+            return MAGIC_UNARMED_RANGE;
+        }
         return e.weaponClassItem == ItemClass.TWO_HAND_WEAPON
-            ? MELEE_RANGE_TWO_HAND : MELEE_RANGE_ONE_HAND;                   // ②/③ 近战（含徒手）
+            ? MELEE_RANGE_TWO_HAND : MELEE_RANGE_ONE_HAND;                   // ③/④ 近战（含其它职业徒手）
     }
 
     /**

@@ -410,20 +410,25 @@ public class MonsterSpawnService {
             // 实体间避让:同图怪两两推开(防重叠成"合成怪")。O(n²)但对每图上限有限、活跃时才关键。
             separateMonsters(monsters);
 
-            // 清理:死亡超 respawnTime 移除;存活但连续 60s 无玩家临近移除(D10)
+            // 清理：尸体超 decayTime 移除（尸体停留时长 —— 与刷新冷却**不是**同一个时钟，
+            //      见 Monster.decayTime / SpawnPoint.respawnCooldownMs）；存活但连续 60s 无玩家临近移除(D10)
             monsters.removeIf(m -> {
                 if (!m.isAlive()) {
-                    if (now - m.getDeathTime() >= m.getRespawnTime()) {
+                    if (m.isDecayed(now)) {
                         monsterAOI.onMonsterRemoved(m);
+                        // 名额与击杀冷却都在**死亡时刻**起算 —— 尸体停留时长（decayTime）到此为止，
+                        // 不再顺带决定刷多快（此前两者是同一个 30s 时钟，见 SpawnPoint 字段注释）
                         findSpawnPoint(gameMap, m.getSpawnPointIndex())
-                            .ifPresent(SpawnPoint::onMonsterDeath);
-                        log.info("[Spawn] {}#{} removed after death", m.getName(), m.getId());
+                            .ifPresent(sp -> sp.onMonsterDeath(m.getDeathTime(), m.getRespawnTime()));
+                        log.info("[Spawn] {}#{} 尸体消失（死亡后 {}ms）",
+                            m.getName(), m.getId(), now - m.getDeathTime());
                         return true;
                     }
                 } else if (now - m.getLastNearPlayerMs() > AIConstants.NO_PLAYER_REMOVE_MS) {
                     monsterAOI.onMonsterRemoved(m);
+                    // 非死亡的离场：只释放名额，不启动击杀冷却（不是玩家打死的）
                     findSpawnPoint(gameMap, m.getSpawnPointIndex())
-                        .ifPresent(SpawnPoint::onMonsterDeath);
+                        .ifPresent(SpawnPoint::onMonsterRemoved);
                     log.info("[Spawn] {}#{} removed, no player nearby {}ms", m.getName(), m.getId(),
                         now - m.getLastNearPlayerMs());
                     return true;
