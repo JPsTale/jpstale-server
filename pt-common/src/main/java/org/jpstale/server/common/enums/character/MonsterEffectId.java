@@ -262,10 +262,12 @@ public enum MonsterEffectId {
     private final int value;
 
     private static final Map<Integer, MonsterEffectId> BY_VALUE = new HashMap<>();
+    private static final Map<String, MonsterEffectId> BY_NAME = new HashMap<>();
 
     static {
         for (MonsterEffectId e : values()) {
             BY_VALUE.putIfAbsent(e.value, e);
+            BY_NAME.putIfAbsent(e.name(), e);
         }
     }
 
@@ -277,13 +279,8 @@ public enum MonsterEffectId {
         return BY_VALUE.getOrDefault(value, NONE);
     }
 
-    /** 按 DB effect 列的名字（如 "MUSHROOM"）查找，大小写不敏感；未找到返回 NONE */
     public static MonsterEffectId fromName(String name) {
         if (name == null || name.isBlank()) return NONE;
-        String upper = name.trim().toUpperCase();
-        for (MonsterEffectId e : values()) {
-            if (e.name().equals(upper)) return e;
-        }
-        return NONE;
+        return BY_NAME.getOrDefault(name.trim().toUpperCase(), NONE);
     }
 }
