@@ -38,6 +38,13 @@ public class PlayerEntity extends BaseEntity {
     private volatile PlayerMoveState moveState = PlayerMoveState.IDLE;
     /** 已广播的动画状态值(0x0040 STAND/0x0050 WALK/0x0060 RUN),-1=未广播 */
     private volatile int lastSyncedAnimState = -1;
+    /**
+     * 「使用道具」广播序号（`S2C_PlayerMove.use_seq`），每次使用 +1。
+     *
+     * 用途：旁观者的去重键是 (anim_state, anim_index)，而站着连喝两瓶时两者完全相同
+     * ⇒ 只靠它们去重会**吞掉第二次**。序号让每次使用都成为一条"新事件"。
+     */
+    private final java.util.concurrent.atomic.AtomicInteger useSeq = new java.util.concurrent.atomic.AtomicInteger();
 
     public PlayerEntity(long runtimeId, long charId, Player player, PlayerSession session) {
         super(runtimeId);
@@ -76,9 +83,16 @@ public class PlayerEntity extends BaseEntity {
         return session != null && session.isPlaying();
     }
 
-    /** 是否处于死亡态（躺下等待复活；对齐原版 CHRMOTION_STATE_DEAD） */
+    /**
+     * 是否处于死亡态（躺下等待复活；对齐原版 CHRMOTION_STATE_DEAD）。
+     *
+     * ⚠ 真值在 `Player.dead`，**不是** `moveState`：`moveState` 是移动状态机的状态，
+     * 迟到的移动包会把它从 DEAD 改回站立（`MovementService.applyClientMove` 限速校验用 `session` 而非实体），
+     * 于是死亡态被悄悄抹掉。2026-09-16 实测症状链：死亡 → 迟到移动包覆盖 → 怪重新锁定 +
+     * 回血服务给死人回血 → 反复广播死亡（`(51->0)`、`(48->0)`…）。
+     */
     public boolean isDead() {
-        return moveState == PlayerMoveState.DEAD;
+        return player.isDead();
     }
 
     /**
@@ -106,6 +120,11 @@ public class PlayerEntity extends BaseEntity {
 
     public void setLastSyncedAnimState(int lastSyncedAnimState) {
         this.lastSyncedAnimState = lastSyncedAnimState;
+    }
+
+    /** 取下一个「使用道具」广播序号（从 1 起；0 保留给"非使用道具"） */
+    public int nextUseSeq() {
+        return useSeq.incrementAndGet();
     }
 
     // ======== 血量/等级:转发到 Player(数据宿主) ========

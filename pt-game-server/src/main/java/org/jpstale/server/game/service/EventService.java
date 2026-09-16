@@ -2,13 +2,11 @@ package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.model.Monster;
-import org.jpstale.server.game.service.MonsterSpawnService;
 import org.jpstale.server.game.model.GameMap;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.model.GameEvent;
 import org.jpstale.server.game.model.EventType;
 import org.jpstale.server.game.network.GameMessageSender;
-import org.jpstale.server.game.service.MapManager;
 import org.jpstale.server.proto.base.S2C_SystemMessage;
 import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -191,7 +189,7 @@ public class EventService {
             monster.setLevel(1);
             monster.setHp(100);
             monster.setMaxHp(100);
-            monster.setAttack(10);
+            monster.setAtkMin(10);
             monster.setDefense(5);
             monster.setSpeed(3.0f);
             monster.setMapId(event.getMapId());

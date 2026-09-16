@@ -184,6 +184,11 @@ public class CombatService {
         if (player == null) {
             return;
         }
+        // 死亡躺下期间不能放技能（与 handleAttackStart/Hit 同一判据；此前只有攻击那两条有，漏了这条）
+        PlayerEntity dead = session.getEntity();
+        if (dead != null && dead.isDead()) {
+            return;
+        }
         C2S_UseSkill skill = message.getUseSkill();
         playerAttackMonster(player, skill.getTargetId(), skill.getSkillId());
     }
@@ -696,6 +701,9 @@ public class CombatService {
             return;
         }
         player.setHp(0);
+        // 死亡是**角色级**状态（`Player.dead`），它才是 `isDead()` 的真值；
+        // `moveState` 只是移动状态机（会被迟到的移动包覆盖，见 PlayerEntity.isDead 注释）。
+        player.setDead(true);
         entity.setMoveState(PlayerMoveState.DEAD);
         deadPlayers.put(player.getId(), new DeathSpot(
             entity.getMapId(), entity.getX(), entity.getZ(), System.currentTimeMillis()));
@@ -825,6 +833,13 @@ public class CombatService {
 
         int half = Math.max(1, player.getMaxHp() / 2);
         player.setHp(half);
+        player.setDead(false);   // 解除死亡态（唯一判据，见 Player.dead）
+        // 移动状态机也要复位：它只在收到移动上报时才被改写（MovementService.applyClientMove），
+        // 不重置的话复活瞬间 `moveState` 还是 DEAD —— 旁观者看到"活人躺着"直到本人动一下。
+        PlayerEntity ent = session != null ? session.getEntity() : null;
+        if (ent != null) {
+            ent.setMoveState(PlayerMoveState.IDLE);
+        }
 
         // 搬人走唯一入口（TeleportService）：与脱困/传送门/卷轴共用同一份实现
         if (!teleportService.teleport(player, mapId, x, z, TeleportService.Reason.RESPAWN)) {

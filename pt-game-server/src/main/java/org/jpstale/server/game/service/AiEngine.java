@@ -5,6 +5,7 @@ import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.AiContext;
 import org.jpstale.server.game.model.DamageResult;
 import org.jpstale.server.game.model.Monster;
+import org.jpstale.server.game.model.MonsterAnimData;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GameMessageSender;
@@ -77,6 +78,19 @@ public class AiEngine {
             homeDistOf(monster), leashOf(monster));
 
         if (target != null) {
+            // 刚出过刀 → **站完这一刀**：动画时长内不切状态（哪怕目标已移出攻击范围）。
+            //
+            // 原版服务端跑的是**同一份 `smCHAR::Main()`**，怪进入 ATTACK 后要等 `MotionInfo->EndFrame`
+            // 播完才切别的状态；我们服务端不持有动画数据，只能按
+            // `帧数(monster-attack-frames.json) ÷ 播放步进(DB attackspeed)` 算同样的时长。
+            // 少了这一步：怪一刀刚出手、目标一挪出范围就立刻切 CHASE ⇒ **客户端的攻击动画被打断**，
+            // 而玩家攻击时却被定身等动画播完 —— 两边不公平（用户 2026-09-16 实测）。
+            long lockMs = monster.getAttackIntervalMs();
+            if (monster.getState() == MonsterState.ATTACK && lockMs > 0
+                    && System.currentTimeMillis() - monster.getLastAttackTime() < lockMs) {
+                faceTarget(monster, target);   // 站桩也要面向目标
+                return;
+            }
             if (next == MonsterState.ATTACK) {
                 if (monster.getState() != MonsterState.ATTACK) {
                     logState(monster, prevState, MonsterState.ATTACK, "lock target=" + targetName(target));
@@ -137,12 +151,11 @@ public class AiEngine {
         return Math.sqrt(dx * dx + dz * dz);
     }
 
-    /** 归位半径:优先 moveRange,缺省 viewsight×1.5 且不下于 100 */
     private static double leashOf(Monster monster) {
         if (monster.getMoveRange() > 0) {
             return monster.getMoveRange();
         }
-        return Math.max(monster.getViewsight() * 1.5f, 100.0f);
+        return 0.0;
     }
 
     // ======== 目标管理 ========
@@ -283,12 +296,21 @@ public class AiEngine {
     /** 按攻击冷却结算一次伤害(对齐原版:站桩出刀,帧外由 tick 决定出手节奏) */
     private void tryAttack(Monster monster, PlayerEntity target) {
         long now = System.currentTimeMillis();
-        long interval = (long) monster.getAttackSpeed();
-        if (interval <= 0) interval = 1000;
+        // 两刀间隔 = 攻击动画时长 —— 唯一判据在 Monster.getAttackIntervalMs()
+        // （原版服务端跑同一份 smCHAR::Main()，动画没播完不能出下一刀，等价于这个时长）。
+        // 恒 > 0（没有攻击动画的模型由 `NO_ANIM_ATTACK_FRAMES` 推一个间隔，不会变成"永不出刀"）
+        long interval = monster.getAttackIntervalMs();
         if (now - monster.getLastAttackTime() < interval) {
             return;
         }
         monster.setLastAttackTime(now);
+
+        // 选本刀要播的攻击动画变体 —— **服务端权威**（所有客户端必须看到同一条）。
+        // 与玩家那条链同一套：服务端持有动画数据 → 选 → 把条目索引随 `S2C_MonsterMove.anim_index`
+        // 下发给客户端（客户端直接 `playMotion(该条目)`，不再各自 `deriveAnimSeed` 派生）。
+        // 每刀都重选（原版 `SetMotionFromCode(ATTACK)` 每刀都随机）；选完强制重广播。
+        monster.setAttackAnim(MonsterAnimData.get().pick(monster.getModelFile(), "attack"));
+        monster.setLastBroadcastAnim(-1);
 
         Player player = target.getPlayer();
         if (player == null) {
@@ -313,6 +335,26 @@ public class AiEngine {
                         .build())
                     .build());
             monster.setLastBroadcastAnim(-1);   // 下一刀仍广播攻击动作，玩家看得到挥空
+            return;
+        }
+
+        // 被格挡（`DamageCalculator` 的格挡判定通过）：伤害为 0、不扣血、不触发受击硬直/受击音，
+        // 只广播一条 blocked 让受害者头顶飘 "Blocked" + 客户端随机播 impact/block{1,2,3}.wav。
+        // 与 missed 分开：格挡有音、miss 没有（用户 2026-09-16）。
+        if (result.isBlocked()) {
+            log.info("[MonsterAI] {}#{} ATK {} -> BLOCKED, interval={}ms",
+                monster.getName(), monster.getId(), targetName(target), interval);
+            messageSender.broadcastToArea(target.getMapId(),
+                (float) target.getX(), (float) target.getZ(), 50,
+                ServerMessage.newBuilder()
+                    .setDamage(S2C_Damage.newBuilder()
+                        .setTargetId(player.getId())
+                        .setDamage(0)
+                        .setCurrentHp(player.getHp())
+                        .setBlocked(true)
+                        .build())
+                    .build());
+            monster.setLastBroadcastAnim(-1);   // 下一刀仍广播攻击动作
             return;
         }
 

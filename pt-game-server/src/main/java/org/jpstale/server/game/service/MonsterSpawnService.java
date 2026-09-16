@@ -3,15 +3,13 @@ package org.jpstale.server.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.dao.gamedb.entity.MonsterList;
 import org.jpstale.dao.gamedb.mapper.MonsterListMapper;
-import org.jpstale.server.game.service.AiEngine;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
-import org.jpstale.server.game.service.AOIManager;
-import org.jpstale.server.game.service.MapManager;
 import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.GameMap;
 import org.jpstale.server.game.model.Monster;
+import org.jpstale.server.game.model.MonsterAnimData;
 import org.jpstale.server.game.model.MonsterWave;
 import org.jpstale.server.game.model.MonsterSpawnConfig;
 import org.jpstale.server.common.enums.character.MonsterEffectId;
@@ -272,7 +270,7 @@ public class MonsterSpawnService {
                 return names.get(i);
             }
         }
-        return names.get(names.size() - 1);
+        return names.getLast();
     }
 
     // ======== 创建怪物实例 ========
@@ -283,7 +281,8 @@ public class MonsterSpawnService {
         monster.setLevel(template.getLevel() != null ? template.getLevel() : 1);
         monster.setHp(template.getHp() != null ? template.getHp() : 1);
         monster.setMaxHp(template.getHp() != null ? template.getHp() : 1);
-        monster.setAttack(template.getAtkPowMin() != null ? template.getAtkPowMin() : 1);
+        monster.setAtkMin(template.getAtkPowMin() != null ? template.getAtkPowMin() : 1);
+        monster.setAtkMax(template.getAtkPowMax() != null ? template.getAtkPowMax() : monster.getAtkMin());
         monster.setDefense(template.getDefense() != null ? template.getDefense() : 0);
         monster.setAttackRating(template.getAttackRating() != null ? template.getAttackRating() : 0);
         monster.setSpeed(template.getMoveSpeed() != null ? template.getMoveSpeed() : 1);
@@ -291,15 +290,30 @@ public class MonsterSpawnService {
         monster.setAbsorption(template.getAbsorb() != null ? template.getAbsorb() : 0);
         monster.setViewsight(template.getViewSight() != null ? template.getViewSight() : 200);
         monster.setIntelligence(template.getInteligence() != null ? template.getInteligence() : 0);
-        // canRun = IQ≥6 且资产含 RUN 动画(has_run 由扫描 monsterlist.modelfile→inx 回写)
+        // 客户端渲染资源路径：DB modelfile（如 char\monster\Monimp\Monimp-a.INI）→
+        // 规范化为磁盘实际小写 .inx 路径（Linux 大小写敏感）。
+        // ⚠ 必须在 canRun / 动画自检**之前** —— 那两处都按 modelFile 查表。
+        monster.setModelFile(normalizeModelPath(template.getModelFile()));
+        // 动画条目表（下面 canRun 与攻击动画自检都要用，先取）
+        MonsterAnimData animTable = MonsterAnimData.get();
+        // canRun = IQ≥6 且**该模型有 RUN 动画**。
+        // ⚠ 此前读的是 `monsterlist.has_run` —— 那列是"扫 modelfile 的 .inx 后回写"的**派生数据**，
+        // 与这里要的信息是同一份，只是当时服务端没有动画数据才塞进 DB（用户 2026-09-16 指出）。
+        // 现在服务端直接持有 `monster-anim.json` ⇒ 同一份信息只有一个来源，不再读 has_run。
+        // （列留着无害；删除属 DB 改动，需另行确认。）
         monster.setCanRun(monster.getIntelligence() >= 6
-            && Boolean.TRUE.equals(template.getHasRun()));
+            && !animTable.entriesOf(monster.getModelFile(), "run").isEmpty());
         // 本性（原版 Nature）：Evil 主动攻击；Neutral/Normal 被动（受击反击）；Good 中立
         monster.setNature(natureOf(template.getMonsterType()));
-        // 活动/归位范围：以视野 1.5 倍为界（原版 MoveRange，monsterlist 无此列）
-        monster.setMoveRange(monster.getViewsight() * 1.5f);
-        // 攻击间隔（毫秒）：对齐原版 GetAttackSpeedFrame —— frame = 80 + 10*clamp(attackSpeed-6,0,6)，按 60fps 换算
-        monster.setAttackSpeed(attackIntervalMs(template.getAttackSpeed() != null ? template.getAttackSpeed() : 6));
+        // 活动/归位范围：以视野 0.3 倍为界（原版 MoveRange，monsterlist 无此列）
+        monster.setMoveRange(monster.getViewsight() * 0.3f);
+        // 攻击速度**档位**（原样存 DB 的 `attackspeed`）—— 它**不是毫秒**。
+        // 原版语义：`GetAttackFrameSpeed(档位) = 80 + 10*clamp(档位-6,0,6)` 是**动画播放步进**
+        // （每渲染帧前进多少动画单位），档位越高动画播得越快、出刀越快。
+        // 攻击间隔（= 动画时长）由 `Monster.getAttackIntervalMs()` 现算，不在这里换算。
+        // ⚠ 这里曾经存的是 `attackIntervalMs(档位)`（**毫秒**），而 `Monster.attackAnimStep()`
+        // 把它当档位用 ⇒ `clamp(1333-6,0,6)` 恒为 6 ⇒ **所有怪的步进都是 140**（用户 2026-09-16 发现）。
+        monster.setAttackSpeed(template.getAttackSpeed() != null ? template.getAttackSpeed() : 6);
         // 击杀经验：monsterlist.exp（单值数字字符串）
         monster.setExp(parseExp(template.getExp()));
         // 掉落：dropid == monsterlist.id；金币改由 dropitem 的 Gold 行决定（见 CombatService）
@@ -312,9 +326,22 @@ public class MonsterSpawnService {
         monster.setMapId(mapId);
         monster.setState(MonsterState.IDLE);
         monster.setLastTransTime(System.currentTimeMillis());
-        // 客户端渲染资源路径：DB modelfile（如 char\monster\Monimp\Monimp-a.INI）→
-        // 规范化为磁盘实际小写 .inx 路径（Linux 大小写敏感）。
-        monster.setModelFile(normalizeModelPath(template.getModelFile()));
+        // 动画条目表可用性自检（表由客户端仓库 `npm run monster-anim` 统计 .inx 生成）。
+        // **具体选哪条攻击动画**在出刀时决定（`AiEngine.tryAttack` → `MonsterAnimData.pick`），
+        // 因为每刀都该重新选变体（原版 `SetMotionFromCode(ATTACK)` 每刀都随机）。
+        // 这里只把"这个模型有没有攻击动画"记进日志：模型不在表里（表没生成/路径不符）与
+        // 模型在表里但本来就没有 ATTACK 条目（实测 88 个，如 Naz/Mystic/城门 —— 照样出刀）
+        // 是两件事，严重程度不同，分开说、都不静默。
+        if (animTable.entriesOf(monster.getModelFile(), "attack").isEmpty()) {
+            if (animTable.hasModel(monster.getModelFile())) {
+                log.info("[MonsterSpawn] 模型 {} 没有 ATTACK 动画条目（该模型本来就没有）→ "
+                        + "攻击节奏按中位帧数推（见 Monster.getAttackIntervalMs）", monster.getModelFile());
+            } else {
+                log.warn("[MonsterSpawn] 模型 {} 不在 monster-anim.json 里 → 查不到攻击动画，"
+                        + "攻击节奏按中位帧数推。跑 `npm run monster-anim`（客户端仓库）重新生成表。",
+                        monster.getModelFile());
+            }
+        }
 
         // 在出生点附近随机偏移
         int offsetRange = point.getRange() > 0 ? point.getRange() : 200;
@@ -374,16 +401,8 @@ public class MonsterSpawnService {
         return 0; // Neutral / Normal → 被动
     }
 
-    /**
-     * 攻击间隔毫秒（对齐原版 GetAttackSpeedFrame）：
-     * frame = 80 + 10*clamp(attackSpeed-6, 0, 6)，按 60fps 换算。
-     * attackSpeed 7-8 → 90-100 帧 → 1.5-1.67s
-     */
-    private static long attackIntervalMs(int attackSpeed) {
-        int cnt = Math.max(0, Math.min(6, attackSpeed - 6));
-        int frames = 80 + 10 * cnt;
-        return Math.round(frames * 1000.0 / 60.0);
-    }
+    // （原 `attackIntervalMs(档位)` 已删：它把"播放步进帧数"当毫秒换算，量纲与 60fps 都是错的。
+    //   攻击间隔现在由 `Monster.getAttackIntervalMs()` = 动画帧数 × 160 ÷ 步进 ÷ 70 现算。）
 
     // ======== AI 更新 + 清理 ========
 
@@ -497,29 +516,6 @@ public class MonsterSpawnService {
     }
 
     // ======== 外部接口 ========
-
-    /**
-     * 按图取怪 —— **只给"这张图自己"的逻辑用**（刷怪、地图上限、世界地图）。
-     *
-     * ⚠ 不要拿它当"谁在我附近"的判据：地图是**人为切分**的，坐标才是空间的真身。
-     * 可见性/可交互一律走 {@link #allMonsterLists()} 或 {@link #findById(long)}（见各自注释）。
-     */
-    public List<Monster> getMonstersByMap(int mapId) {
-        return entityRegistry.monstersByMap(mapId);
-    }
-
-    /**
-     * **全部**怪物（只读遍历用，不复制）。AOI 用它按**坐标**判可见性 ——
-     * 地图边界是人为切分的，按图取会让"就在旁边"的怪不可见。
-     */
-    public java.util.Collection<Monster> allMonsters() {
-        return entityRegistry.allMonsters();
-    }
-
-    /** 按全局唯一 id 找怪（id 跨图唯一）。门槛是调用处的 `inRange(...)` 距离，不是"哪张图"。 */
-    public Monster findById(long monsterId) {
-        return entityRegistry.findMonster(monsterId);
-    }
 
     public MonsterList getTemplate(String name) {
         return monsterTemplatesByName.get(name);

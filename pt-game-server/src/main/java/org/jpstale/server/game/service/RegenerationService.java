@@ -17,6 +17,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 满 1 点才落地，星遗石 0.1/s 这样的低值也能平稳生效。体力全日制回复（原版 Recovery_Stamina）。
  * <p>
  * 由 GameServer.tick 驱动（固定 tick 循环单线程），玩家死亡时不回复，满值不推送。
+ * <p>
+ * ⚠ **不要在这里发 `S2C_Recovery`**（用户 2026-09-16 明确）：被动缓慢回复是"每秒一次"的
+ * 持续过程，广播飘字会把它变成每秒一个 "+N" 刷屏。那条消息只给**一次性回复事件**
+ * （药水 / 治疗技能 / 生命转换），入口在 `ItemNetworkHandler.broadcastRecovery`。
+ * 这里只刷 HUD（`sendPlayerStatus`）。
  */
 @Slf4j
 @Component

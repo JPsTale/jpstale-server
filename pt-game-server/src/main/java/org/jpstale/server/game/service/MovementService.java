@@ -184,6 +184,10 @@ public class MovementService {
     private void applyClientMove(PlayerSession session, int mode, long nowMs) {
         PlayerEntity entity = session.getEntity();
         if (entity == null) return; // 未进图/未建实体,忽略上报
+        // 死亡态拒绝移动上报（唯一判据 Player.isDead，见 PlayerEntity.isDead 注释）。
+        // 必须挡在 setMoveState 之前：迟到的移动包会把 moveState 从 DEAD 改回站立，
+        // 于是 `isTargetable()` 变回 true（怪重新锁尸体）、回血服务也重新给死人回血。
+        if (entity.isDead()) return;
 
         double nx = session.getPendingMoveX();
         double ny = session.getPendingMoveY();

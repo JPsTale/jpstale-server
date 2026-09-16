@@ -23,6 +23,7 @@ import org.jpstale.server.proto.base.S2C_InventorySnapshot;
 import org.jpstale.server.proto.base.S2C_ItemRemove;
 import org.jpstale.server.proto.base.S2C_ItemUpdate;
 import org.jpstale.server.proto.base.S2C_PlayerMove;
+import org.jpstale.server.proto.base.S2C_Recovery;
 import org.jpstale.server.proto.base.S2C_SystemMessage;
 import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.stereotype.Component;
@@ -94,14 +95,42 @@ public class ItemNetworkHandler {
     /** 客户端 STATE 枚举里的 EAT（`anim-state-machine.ts` 的 `EAT = 0x0140`） */
     private static final int ANIM_STATE_EAT = 0x0140;
 
-    /** 药水 → 向 AOI 广播一次 EAT 动作（位置/朝向取当前实体，只作动作载体） */
-    private void broadcastEatIfPotion(PlayerSession session, Player p, long uid) {
+    /**
+     * 吃药冷却（毫秒）= 原版 `sinUsePotionDelayFlag` 的 **50 帧**（`sinInvenTory.cpp:794`
+     * `dwUsePotionDelayTime > 50` 才清零），按原版 70Hz 主循环换算 ⇒ 50/70 ≈ 714ms。
+     * 客户端 `WorldView.EAT_COOLDOWN_MS` 是同一个值（那边负责"动画不重播"，这边负责"不被绕"）。
+     */
+    private static final long USE_ITEM_COOLDOWN_MS = Math.round(50.0 / 70.0 * 1000);
+
+    /**
+     * 会进 EAT 的 idcode 家族 —— **必须与客户端 `useEffectKindOf` 的集合逐项一致**
+     * （`jpstale-client/src/game/useEffect.ts`）。不一致的后果是
+     * "自机没播、旁观者播了"（或反过来）——`npm run verify-useeffect` 会红。
+     *
+     * 原版对应两个入口：`sinActionPotion`（三种药水）与 `ActionEtherCore`（以太核心）。
+     * 出处：`sinItem.h:75-82`（`sinPM1/sinPL1/sinPS1/sinEC1`）。
+     */
+    private static final java.util.Set<Integer> EAT_FAMILIES =
+            java.util.Set.of(0x0401, 0x0402, 0x0403, 0x0601);
+
+    /**
+     * 使用道具 → 向 AOI 广播一次 EAT 动作 **+ 表现信息**（位置/朝向取当前实体，只作动作载体）。
+     *
+     * `use_item_idcode` 原样透传，旁观者用**与自机同一个** `useEffectKindOf` 推表现种类
+     * （服务端不解释表现，与 `anim_index`/`anim_clip` 同一原则）。
+     * `use_seq` 每次使用自增 → 旁观者据此去重（站着连喝两瓶时前两项完全相同）。
+     */
+    private void broadcastUseItem(PlayerSession session, Player p, long uid) {
         org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
         if (ent == null) {
             return;
         }
         ItemInstance it = p.getItems().byUid(uid);
-        if (it == null || it.getTemplate() == null || !ItemClass.isPotion(it.getTemplate().getClassItem())) {
+        if (it == null || it.getTemplate() == null) {
+            return;
+        }
+        int idCode = it.getItemCode() != null ? it.getItemCode() : 0;
+        if (!EAT_FAMILIES.contains(familyOf(idCode))) {
             return;
         }
         S2C_PlayerMove move = S2C_PlayerMove.newBuilder()
@@ -111,6 +140,8 @@ public class ItemNetworkHandler {
                 .setAngle((float) ent.getAngle())
                 .setAnimState(ANIM_STATE_EAT)
                 .setTimestamp(System.currentTimeMillis())
+                .setUseSeq(ent.nextUseSeq())
+                .setUseItemIdcode(idCode)
                 .build();
         messageSender.broadcastToArea(ent.getMapId(), (float) ent.getX(), (float) ent.getZ(), 50,
                 ServerMessage.newBuilder().setPlayerMove(move).build());
@@ -122,11 +153,12 @@ public class ItemNetworkHandler {
         if (p == null) {
             return;
         }
+        // 死亡躺下期间不能吃药/用消耗品（与攻击/技能同一判据：PlayerEntity.isDead → Player.dead）
+        org.jpstale.server.game.entity.PlayerEntity deadEnt = session.getEntity();
+        if (deadEnt != null && deadEnt.isDead()) {
+            return;
+        }
         C2S_UseItem req = message.getUseItem();
-        // 使用**药水**时把 EAT 动作广播给 AOI（原版 sinActionPotion → CHRMOTION_STATE_EAT）。
-        // 收到请求即发：原版是点击瞬间本地切动作，服务端不等效果结算；
-        // 旁观者按 anim_state 本地匹配自己那套 EAT 条目（服务端不解释动画数据，只透传状态）。
-        broadcastEatIfPotion(session, p, req.getUid());
         ItemInstance it = p.getItems().byUid(req.getUid());
         // 可使用的位置：**背包**，以及**药水快捷槽**（ITEMSLOT 11/12/13）——
         // 后者就是"按数字键 1/2/3 吃药"的链路（docs/pt-core-gameplay.md 19 节）。
@@ -137,6 +169,28 @@ public class ItemNetworkHandler {
         int qty = Math.max(1, req.getQuantity());
         int idCode = it.getItemCode() != null ? it.getItemCode() : 0;
         int family = familyOf(idCode);
+
+        // ---- 吃药冷却（先于任何副作用）----
+        // 原版 `sinUsePotionDelayFlag`（`sinInvenTory.cpp:791-798`：50 帧 @70Hz ≈ 714ms）在**客户端**，
+        // 但那层改包就能绕；"连按刷药"直接改战斗节奏，所以服务端同样挡一道。
+        // 只对**会进 EAT 的两类**（药水/以太核心）生效 —— 与 `broadcastUseItem` 同一判据。
+        if (EAT_FAMILIES.contains(family)) {
+            long since = System.currentTimeMillis() - p.getLastUseItemAt();
+            if (since < USE_ITEM_COOLDOWN_MS) {
+                log.info("[UseItem] {} 距上次使用 {}ms < {}ms（原版 sinUsePotionDelayFlag 50 帧）→ 拒绝，未消耗",
+                        p.getName(), since, USE_ITEM_COOLDOWN_MS);
+                sendErrorKey(session, "chat.cmd.useItemTooFast");
+                return;
+            }
+            p.setLastUseItemAt(System.currentTimeMillis());
+        }
+
+        // 使用**药水/以太核心**时把 EAT 动作 + 道具 idcode 广播给 AOI
+        // （原版 sinActionPotion / ActionEtherCore → CHRMOTION_STATE_EAT）。
+        // 收到请求即发：原版是点击瞬间本地切动作，服务端不等效果结算；
+        // 旁观者按 anim_state 播自己那套 EAT 条目、按 use_item_idcode 推粒子/音
+        // （服务端不解释表现，只透传"用了哪件"）。
+        broadcastUseItem(session, p, req.getUid());
 
         // ---- ① 传送类：固定目的地写在 TeleportService 的代码表里（照原版 switch；不依赖 DB）----
         org.jpstale.server.game.service.TeleportService.ItemDestination dest = teleportService.destinationOf(idCode);
@@ -225,15 +279,50 @@ public class ItemNetworkHandler {
 
     /** 应用到角色（clamp 到上限）→ 推权威状态刷 HUD。满值时不特殊处理（原版也照喝照扣） */
     private void applyRecovery(PlayerSession session, Player p, int[] rec, ItemInstance src) {
+        int beforeHp = p.getHp();
+        int beforeMp = p.getMp();
         if (rec[0] > 0) p.setHp(Math.min(p.getMaxHp(), p.getHp() + rec[0]));
         if (rec[1] > 0) p.setMp(Math.min(p.getMaxMp(), p.getMp() + rec[1]));
         if (rec[2] > 0) p.setSp(Math.min(p.getMaxSp(), p.getSp() + rec[2]));
         playerService.sendPlayerStatus(session, p);
+        // 回复飘字：只报**实际**回复量（满值那一项是 0 → 不飘，免得"什么都没加却显示 +N"）。
+        // 形状与 AiEngine 的 S2C_Damage 一致：AOI 广播 + 权威 current 值。
+        int gainedHp = p.getHp() - beforeHp;
+        int gainedMp = p.getMp() - beforeMp;
+        if (gainedHp > 0 || gainedMp > 0) {
+            broadcastRecovery(session, p, gainedHp, gainedMp);
+        }
         log.info("[UseItem] {} 使用 {} → HP+{} MP+{} STM+{}（现 {}/{} {} {}）",
                 p.getName(),
                 src.getTemplate() != null ? src.getTemplate().getName() : "?",
                 rec[0], rec[1], rec[2],
                 p.getHp(), p.getMaxHp(), p.getMp(), p.getSp());
+    }
+
+    /**
+     * 资源回复广播（HP/MP 各为 0 表示该项没回复）—— 客户端在目标头顶飘字（HP 绿 / MP 蓝）。
+     *
+     * 与 {@code AiEngine} 的 S2C_Damage 广播**同一形状**（AOI 范围 + 权威 current 值），
+     * 旁观者也能看到别人吃药/被治疗。技能（治疗、生命转换）落地时也走这里。
+     *
+     * ⚠ **被动缓慢回复不走这里**（`RegenerationService` 每秒结算一次，广播会把飘字刷爆）。
+     * 本入口只给"一次性回复事件"用：药水 / 治疗技能 / 生命转换。
+     */
+    private void broadcastRecovery(PlayerSession session, Player p, int hp, int mp) {
+        org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+        if (ent == null) {
+            return;
+        }
+        messageSender.broadcastToArea(ent.getMapId(), (float) ent.getX(), (float) ent.getZ(), 50,
+                ServerMessage.newBuilder()
+                        .setRecovery(S2C_Recovery.newBuilder()
+                                .setTargetId(p.getId())
+                                .setHpAmount(hp)
+                                .setCurrentHp(p.getHp())
+                                .setMpAmount(mp)
+                                .setCurrentMp(p.getMp())
+                                .build())
+                        .build());
     }
 
     /** 用掉之后把背包变化推给客户端：堆叠没耗尽推 update、耗尽推 remove */
@@ -871,10 +960,15 @@ public class ItemNetworkHandler {
             res[7] += it.getResWind();
         }
         p.setResistances(res);
-        // 外观重算 + 广播（自机 + 视野玩家），驱动 3D 换装
+        // 外观重算 + 广播（自机 + 视野玩家），驱动 3D 换装。
+        // ⚠ **只在真的变了才推**：本方法被 8 个入口调用（含整理背包/拿起/拾取/丢弃），
+        // 无条件推的话客户端每次都会重建模型 + `reselectForCurrentState()` 重选动画
+        // ⇒ "随便整理一下背包，角色动画就重播一次"（用户 2026-09-16 实测）。
+        // 外观只由主手武器 / 副手 / 躯干甲决定（`AppearanceService.derive`），其余槽位不推。
+        var before = p.getAppearance();
         var app = appearanceService.recalc(p);
         org.jpstale.server.game.entity.PlayerEntity entity = session != null ? session.getEntity() : null;
-        if (entity != null) {
+        if (entity != null && !app.equals(before)) {
             aoiManager.broadcastAppearance(entity, app);
         }
     }

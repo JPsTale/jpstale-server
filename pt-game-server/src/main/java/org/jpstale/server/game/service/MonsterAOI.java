@@ -193,6 +193,9 @@ public class MonsterAOI {
                     .build())
                 .setAngle((float) m.getAngle())
                 .setAnimState(anim)
+                // 攻击时带上**服务端选定的条目索引** —— 客户端直接播这一条（与玩家 anim_index 同一语义）。
+                // 非攻击状态没有服务端选择的变体，留 0（客户端按自己的状态机匹配）。
+                .setAnimIndex(anim == 0x0100 ? m.getAttackAnimIndex() : 0)
                 .build())
             .build();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
@@ -301,6 +304,9 @@ public class MonsterAOI {
         // 不要改由客户端从 hp == 0 推 —— 那是隐式信号（见 proto 该字段注释）。
         appear.setDead(!m.isAlive());
         appear.setMonsterEffectId(m.getMonsterEffectId());
+        // 动画播放速率：服务端持有 attackspeed 档位（客户端没有），算好下发 —— 客户端直接当 animRate 用。
+        // 与 `Monster.getAttackIntervalMs()`（服务端等动画播完的时长）同源，两边时间才对得上。
+        appear.setAnimRate(m.getAnimRate());
         session.send(ServerMessage.newBuilder().setMonsterAppear(appear.build()).build());
     }
 

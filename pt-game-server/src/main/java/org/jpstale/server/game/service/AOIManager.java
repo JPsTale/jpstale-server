@@ -95,6 +95,10 @@ public class AOIManager {
     /** 公会缓存：charId → [公会名, 图标id]（懒加载一次，玩家离场清缓存） */
     private final ConcurrentHashMap<Long, String[]> clanCache = new ConcurrentHashMap<>();
 
+    /** 移动速度：Appear 要带上，旁观者据此缩放该角色的走/跑动画播放速度（见 S2C_PlayerAppear.walk_speed） */
+    @Autowired
+    private PlayerStatCalculator statCalculator;
+
     /**
      * 构建完整的外观快照 Appear(属性/坐标读 PlayerEntity)。
      */
@@ -122,6 +126,9 @@ public class AOIManager {
             if (p.getAppearance() != null) {
                 b.setAppearance(p.getAppearance());
             }
+            // 移动速度：旁观者用它缩放该角色的走/跑动画播放速度（动画按 1 档做的，加速后步频要跟上）
+            b.setWalkSpeed((int) statCalculator.walkSpeed(p));
+            b.setRunSpeed((int) statCalculator.runSpeed(p));
         }
         String[] clan = clanOf(e);
         if (clan != null) {

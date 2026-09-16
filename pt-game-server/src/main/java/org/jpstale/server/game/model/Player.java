@@ -49,6 +49,43 @@ public class Player {
     /** 元素抗性 [8]：0生物 1大地 2火 3冰 4雷 5毒 6水 7风（来自装备实例） */
     private int[] resistances = new int[8];
 
+    /**
+     * **死亡态**（躺下等复活选择）—— 角色级状态，与 `hp` **解耦**。
+     *
+     * 为什么不复用 `hp <= 0`：回血服务会把 hp 抬起来（见下），`hp` 不是可靠的"死没死"判据。
+     * 为什么不复用 `PlayerEntity.moveState == DEAD`：那是**移动状态机**的状态，会被
+     * 迟到的移动包覆盖（`MovementService.applyClientMove` 不判死亡 → `setMoveState(fromMode(mode))`）
+     * —— 2026-09-16 实测的症状链正是：死亡 → 迟到移动包把 moveState 改回站立 →
+     * `isTargetable()` 变回 true（怪重新锁定）→ 回血服务的前置检查也失效 → **给死人回血** →
+     * 怪再打死 → **反复广播死亡**（`(51->0)`、`(48->0)`…）。
+     *
+     * 死亡是**角色**的属性，不是"移动到哪一步"的属性 —— 所以它在这里，且 `isDead()` 只有一处实现。
+     */
+    private boolean dead;
+
+    /**
+     * 是否处于死亡态 —— **角色"死没死"的唯一判据**。
+     *
+     * 所有"活着才做的事"（回血、接受移动上报、被怪物锁为目标、攻击、吃药…）都要判它，
+     * **不要**去读 `PlayerEntity.moveState == DEAD`（那会被迟到的移动包覆盖，见字段注释）。
+     */
+    public boolean isDead() {
+        return dead;
+    }
+
+    public void setDead(boolean dead) {
+        this.dead = dead;
+    }
+
+    /**
+     * 上次使用**会进 EAT 的消耗品**（药水/以太核心）的时刻（毫秒）。
+     *
+     * 原版的吃药延迟 `sinUsePotionDelayFlag` 是**客户端**的（`sinInvenTory.cpp:791`，50 帧 ≈ 714ms）；
+     * 服务端同样挡一道 —— 客户端那层改包就能绕，而"连按刷药"是直接改战斗节奏的事。
+     * 冷却值见 `ItemNetworkHandler.USE_ITEM_COOLDOWN_MS`（与原版 50 帧同值）。
+     */
+    private long lastUseItemAt;
+
     /** 派生属性缓存（PlayerStatCalculator.stats 惰性填充；升级/属性分配/装备变化后 invalidate）。非持久化 */
     private transient volatile Object statsCache;
 

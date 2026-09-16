@@ -63,40 +63,34 @@ public class DamageCalculator {
      * 计算怪物对玩家的伤害
      */
     public DamageResult calculateMonsterToPlayer(Monster monster, Player player) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
         // 0. 命中判定（原版 `sinGetMonsterAccuracy`：怪.attackRating 对 玩家.等级/防御，系数 ×2、等级修正 ×50）
         //    必须在伤害/格挡之前：未命中就不该有伤害，也不该触发受击硬直与受击音（客户端按 damage 判断）。
         int hitPercent = statCalculator.monsterAccuracyPvp(
             monster.getLevel(), monster.getAttackRating(),
             player.getLevel(), calculatePlayerDefense(player));
-        if (ThreadLocalRandom.current().nextInt(100) >= hitPercent) {
+        if (rnd.nextInt(100) >= hitPercent) {
             return DamageResult.miss();
         }
 
         DamageResult result = new DamageResult();
 
         // 1. 基础伤害 = 怪物攻击力
-        int baseDamage = monster.getAttack();
+        int baseDamage = rnd.nextInt(monster.getAtkMax() - monster.getAtkMin()) + monster.getAtkMin() + 1;
         result.setRawDamage(baseDamage);
 
-        // 2. 玩家吸收减伤 —— **明文减伤，不是百分比**（用户 2026-09-14 纠正）。
-        //    怪攻 3、吸收 1 ⇒ 伤害 3-1=2。与"怪物吸收"（百分比减伤，见 calculatePlayerToMonster）不同。
-        //    原版佐证：技能描述写的是 "Physical Absorption's **fixed absorb value**"、
-        //    `Metal Armor ... chains ... fixed absorb value by 200%`（skillData.ts:58），
-        //    且 `sinTempAbsorb` 累加的是 `P_Absorb = {{3,4},...}` 这类**明文值**。
+        // 2. 玩家吸收减伤
         int playerAbsorb = playerAbsorbValue(player);
         baseDamage = Math.max(1, baseDamage - playerAbsorb);
 
         // 3. 玩家格挡判定
         int blockRate = calculateBlockRate(player);
-        if (ThreadLocalRandom.current().nextInt(100) < blockRate) {
+        if (rnd.nextInt(100) < blockRate) {
             return DamageResult.blocked(baseDamage);
         }
 
-        // 4. 玩家防御力减伤 (固定值)
-        int defense = calculatePlayerDefense(player);
-        baseDamage = Math.max(1, baseDamage - defense);
-
-        result.setFinalDamage(Math.max(1, baseDamage));
+        result.setFinalDamage(baseDamage);
         return result;
     }
 

@@ -21,13 +21,42 @@ public class Monster extends BaseEntity {
     private int maxHp;
     private int mp;
     private int maxMp;
-    private int attack;
+    private int atkMin;
+    private int atkMax;
     private int defense;
     /** 命中值（模板 attackrating）：怪打玩家的命中判定用（原版 sinGetMonsterAccuracy） */
     private int attackRating;
     private float speed;
     private float attackRange;
-    private float attackSpeed; // 攻击间隔（毫秒）
+    /**
+     * `monsterlist.attackspeed` —— **原版语义是"攻击动画的播放速度档"**，不是"间隔毫秒"。
+     *
+     * 依据（EU `shared/unit.h:697` 的字段注释）：`iMotionLoopSpeed // Frame rate for repeating motion`，
+     * 而它由 `GetAttackFrameSpeed(iAttackSpeed)` 算出（`80 + 10*clamp(speed-6,0,6)`，
+     * ex-machina `playsub.cpp:5374`）。⇒ **数值越高，动画播得越快、出刀越快**。
+     * 实测 DB 取值 1/4/5/6/7/8/9（多数 7~9）⇒ 播放步进 80~110。
+     */
+    private float attackSpeed;
+    /**
+     * 本刀**选中的攻击动画条目索引**（`.inx` 序号）—— 出刀时由 `MonsterAnimData.pick` 选定，
+     * 随 `S2C_MonsterMove.anim_index` 下发给客户端（它们直接 `playMotion(这一条)`，不再各自随机）。
+     * `-1` = 还没选 / 该模型没有攻击动画。
+     */
+    private int attackAnimIndex = -1;
+    /**
+     * 本刀选中条目的**帧数**（`MonsterAnimData.Entry.frames()`）；0 = 该模型没有攻击动画。
+     *
+     * 为什么要它：原版服务端跑同一份 `smCHAR::Main()`，怪进入 ATTACK 后要等动画播完才切状态；
+     * 我们服务端不持有动画数据，只能靠"帧数 ÷ 播放步进"算出这段时长（见 `getAttackIntervalMs`）。
+     * 因为服务端**自己选的条目**，这里的帧数是**精确值**（不是对多条取的上界）。
+     */
+    private int attackAnimFrames;
+
+    /** 出刀时选定本刀要播的攻击动画条目（服务端权威 —— 所有客户端必须看到同一条）。 */
+    public void setAttackAnim(MonsterAnimData.Entry entry) {
+        this.attackAnimIndex = entry == null ? -1 : entry.index();
+        this.attackAnimFrames = entry == null ? 0 : entry.frames();
+    }
     private MonsterState state;
     private Long targetPlayerId; // 当前仇恨目标
     private long lastMoveTime;
@@ -43,11 +72,7 @@ public class Monster extends BaseEntity {
      */
     private int respawnTime; // 刷新冷却（毫秒）
 
-    /**
-     * 尸体停留时长（ms）。**我们定的数**：原版是裸字面量 `FrameCounter > 400`，两侧 FrameCounter
-     * 都等价 70fps 帧数 ⇒ 400 帧 ≈ 5.71s（推导与出处见 docs/怪物死亡与尸体.md）。
-     */
-    public static final int DEFAULT_DECAY_MS = 6000;
+    public static final int DEFAULT_DECAY_MS = 2000;
     private int decayTime = DEFAULT_DECAY_MS;
     private int absorption;     // 吸收率 (%)
     private int exp;            // 击杀经验
@@ -143,6 +168,36 @@ public class Monster extends BaseEntity {
 
     public boolean isAlive() {
         return hp > 0;
+    }
+
+    /**
+     * 该模型**没有 ATTACK 动画条目**时用来推间隔的帧数。
+     *
+     * 实测 456 条 `monsterlist` 里有 **20 个**模型没有 ATTACK 条目（`Naz`/`Mystic`/`Ice Bomb`/
+     * `Shurikar`/`Seal Crasher`/`Soldier 1,2`/`Minigue`/城门/部分 NPC…），帧数统计的中位是 **40**。
+     * 这类怪**照样要出刀**（原版 `SetMotionFromCode(ATTACK)` 找不到条目时只是状态不变，
+     * 伤害照结算）—— 取中位是为了让它们的节奏与普通怪同量级，不是为了"假装有动画"。
+     */
+    private static final int NO_ANIM_ATTACK_FRAMES = 40;
+
+    private static final int RENDER_FPS = 60;
+
+    /** 客户端动画基准（`char/animation.ts` 的 `ANIM_UNITS_PER_SEC`）—— 换算播放速率用 */
+    private static final int CLIENT_ANIM_UNITS_PER_SEC = 4800;
+
+    /** 攻击动画的播放步进（每渲染帧前进的动画单位；1 动画帧 = 160 单位，60 渲染帧/秒） */
+    public int attackAnimStep() {
+        int clamped = Math.clamp((int) attackSpeed - 6, 0, 6);
+        return 80 + 10 * clamped;   // 原版 GetAttackFrameSpeed（ex-machina playsub.cpp:5374）
+    }
+
+    public long getAttackIntervalMs() {
+        int frames = attackAnimFrames > 0 ? attackAnimFrames : NO_ANIM_ATTACK_FRAMES;
+        return Math.round(frames * 160.0 * 1000.0 / (attackAnimStep() * RENDER_FPS));
+    }
+
+    public float getAnimRate() {
+        return attackAnimStep() * (float) RENDER_FPS / 4800f;
     }
 
     /** 死亡时刻 + `decayTime` 已到（只用于"何时移除"，不是"是否可见"）。 */
