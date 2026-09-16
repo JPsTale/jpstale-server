@@ -10,5 +10,6 @@ spring:
           username: ${DB_USER:sa}
           password: ${DB_PASSWORD:632514Go}
           driver-class-name: org.postgresql.Driver
-  redis:
-    host: 192.168.31.10
+  data:
+    redis:
+      host: 192.168.31.10
