@@ -18,8 +18,19 @@ import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.network.SessionState;
+import org.jpstale.server.proto.base.C2S_CreateCharacter;
+import org.jpstale.server.proto.base.C2S_LoginRequest;
+import org.jpstale.server.proto.base.C2S_SelectCharacter;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.MapInfo;
+import org.jpstale.server.proto.base.S2C_CharacterList;
+import org.jpstale.server.proto.base.S2C_CreateCharacterResult;
+import org.jpstale.server.proto.base.S2C_Disconnect;
+import org.jpstale.server.proto.base.S2C_EnterGame;
+import org.jpstale.server.proto.base.S2C_Error;
+import org.jpstale.server.proto.base.S2C_LoginResponse;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -311,9 +322,9 @@ public class AccountService {
     /**
      * 报文入口：登录
      */
-    @GamePacketHandler(MessageProto.ClientMessage.LOGIN_REQUEST_FIELD_NUMBER)
-    public void handleLogin(PlayerSession session, MessageProto.ClientMessage message) {
-        MessageProto.C2S_LoginRequest request = message.getLoginRequest();
+    @GamePacketHandler(ClientMessage.LOGIN_REQUEST_FIELD_NUMBER)
+    public void handleLogin(PlayerSession session, ClientMessage message) {
+        C2S_LoginRequest request = message.getLoginRequest();
 
         if (session == null) {
             log.error("No session for login request");
@@ -355,8 +366,8 @@ public class AccountService {
         if (existingSession != null && existingSession != session) {
             // 顶号：禁止旧会话断线重连
             existingSession.setAllowReconnect(false);
-            existingSession.send(MessageProto.ServerMessage.newBuilder()
-                .setDisconnect(MessageProto.S2C_Disconnect.newBuilder()
+            existingSession.send(ServerMessage.newBuilder()
+                .setDisconnect(S2C_Disconnect.newBuilder()
                     .setReason("Account logged in from another location")
                     .build())
                 .build());
@@ -369,11 +380,11 @@ public class AccountService {
         sessionManager.bindAccountId(session.getChannel(), user.getId().longValue());
 
         // 发送登录成功
-        MessageProto.S2C_LoginResponse.Builder responseBuilder = MessageProto.S2C_LoginResponse.newBuilder()
+        S2C_LoginResponse.Builder responseBuilder = S2C_LoginResponse.newBuilder()
             .setSuccess(true)
             .setAccountId(user.getId());
 
-        session.send(MessageProto.ServerMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
             .setLoginResponse(responseBuilder.build())
             .build());
 
@@ -408,9 +419,9 @@ public class AccountService {
         }
         List<CharacterInfo> characters = getCharacters(accountName);
 
-        MessageProto.S2C_CharacterList.Builder characterListBuilder = MessageProto.S2C_CharacterList.newBuilder();
+        S2C_CharacterList.Builder characterListBuilder = S2C_CharacterList.newBuilder();
         for (CharacterInfo character : characters) {
-            characterListBuilder.addCharacters(MessageProto.CharacterInfo.newBuilder()
+            characterListBuilder.addCharacters(org.jpstale.server.proto.base.CharacterInfo.newBuilder()
                 .setCharacterId(character.getId())
                 .setName(character.getName())
                 .setClassId(character.getJobCode() != null ? character.getJobCode() : 0)
@@ -420,7 +431,7 @@ public class AccountService {
                 .build());
         }
 
-        session.send(MessageProto.ServerMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
             .setCharacterList(characterListBuilder.build())
             .build());
     }
@@ -482,9 +493,9 @@ public class AccountService {
     /**
      * 报文入口：创建角色
      */
-    @GamePacketHandler(MessageProto.ClientMessage.CREATE_CHARACTER_FIELD_NUMBER)
-    public void handleCreateCharacter(PlayerSession session, MessageProto.ClientMessage message) {
-        MessageProto.C2S_CreateCharacter request = message.getCreateCharacter();
+    @GamePacketHandler(ClientMessage.CREATE_CHARACTER_FIELD_NUMBER)
+    public void handleCreateCharacter(PlayerSession session, ClientMessage message) {
+        C2S_CreateCharacter request = message.getCreateCharacter();
 
         if (session == null || !session.isLoggedIn()) {
             return;
@@ -522,8 +533,8 @@ public class AccountService {
         CharacterInfo character = createCharacter(accountName, name, classId, null, head);
 
         // 发送创建成功
-        session.send(MessageProto.ServerMessage.newBuilder()
-            .setCreateCharacterResult(MessageProto.S2C_CreateCharacterResult.newBuilder()
+        session.send(ServerMessage.newBuilder()
+            .setCreateCharacterResult(S2C_CreateCharacterResult.newBuilder()
                 .setSuccess(true)
                 .setCharacterId(character.getId())
                 .build())
@@ -538,9 +549,9 @@ public class AccountService {
     /**
      * 报文入口：选择角色
      */
-    @GamePacketHandler(MessageProto.ClientMessage.SELECT_CHARACTER_FIELD_NUMBER)
-    public void handleSelectCharacter(PlayerSession session, MessageProto.ClientMessage message) {
-        MessageProto.C2S_SelectCharacter request = message.getSelectCharacter();
+    @GamePacketHandler(ClientMessage.SELECT_CHARACTER_FIELD_NUMBER)
+    public void handleSelectCharacter(PlayerSession session, ClientMessage message) {
+        C2S_SelectCharacter request = message.getSelectCharacter();
 
         if (session == null || !session.isLoggedIn()) {
             return;
@@ -624,8 +635,6 @@ public class AccountService {
                     sx = pts.get(idx)[0];
                     sz = pts.get(idx)[1];
                 } else {
-                    // **不退到图心**（用户 2026-09-13 定：不允许任何 fallback）：图心不保证可站，
-                    // 拿它当出生点只会让人落到虚空。明确留痕，让"这张图缺出生点数据"暴露出来。
                     log.error("map {} 没有 startPoint 数据 → 无法定出生点（该图不可作为出生图，请补数据）", mapId);
                 }
             }
@@ -669,7 +678,7 @@ public class AccountService {
         }
 
         // 发送进入游戏：出生地图/位置 + 完整外观 + 出生朝向（客户端据此进图渲染自机）
-        MessageProto.S2C_EnterGame.Builder enterGame = MessageProto.S2C_EnterGame.newBuilder()
+        S2C_EnterGame.Builder enterGame = S2C_EnterGame.newBuilder()
             .setPlayerId(characterId)
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder()
@@ -680,7 +689,7 @@ public class AccountService {
 
         // 地图安全区表（gamedb.maplist.typemap='Cities'）：客户端本地换图时判定村庄/野外动画姿态
         for (org.jpstale.server.game.model.GameMap gm : mapManager.allMaps()) {
-            MessageProto.MapInfo.Builder mi = MessageProto.MapInfo.newBuilder()
+            MapInfo.Builder mi = MapInfo.newBuilder()
                 .setMapId(gm.getId())
                 .setIsSafe(gm.isSafe())
                 .setLevelReq(gm.getLevelReq());   // 客户端据此本地拦截跨图边界（同一份 maplist.levelreq）
@@ -694,7 +703,7 @@ public class AccountService {
             enterGame.addMaps(mi);
         }
 
-        session.send(MessageProto.ServerMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
             .setEnterGame(enterGame)
             .build());
 
@@ -715,8 +724,8 @@ public class AccountService {
      * 客户端发来退出意图 → 存档 → token 失效 → 下发 auth.logout。
      * 连接由客户端收到 ack 后自行断开（服务端权威已达成，无需服务端强关）。
      */
-    @GamePacketHandler(MessageProto.ClientMessage.LOGOUT_FIELD_NUMBER)
-    public void handleLogout(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.LOGOUT_FIELD_NUMBER)
+    public void handleLogout(PlayerSession session, ClientMessage message) {
         if (session == null) {
             return;
         }
@@ -823,8 +832,8 @@ public class AccountService {
      * 与登出不同：保留 accountId 绑定，仅清除角色绑定、状态回 SERVER_SELECTED。
      * 客户端可直接继续 characterList / selectCharacter。
      */
-    @GamePacketHandler(MessageProto.ClientMessage.BACK_TO_CHARACTER_SELECT_FIELD_NUMBER)
-    public void handleBackToCharacterSelect(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.BACK_TO_CHARACTER_SELECT_FIELD_NUMBER)
+    public void handleBackToCharacterSelect(PlayerSession session, ClientMessage message) {
         if (session == null) {
             return;
         }
@@ -890,9 +899,9 @@ public class AccountService {
         return null;
     }
 
-    private MessageProto.ServerMessage buildErrorResponse(CommonProto.ErrorCode errorCode, String message) {
-        return MessageProto.ServerMessage.newBuilder()
-            .setError(MessageProto.S2C_Error.newBuilder()
+    private ServerMessage buildErrorResponse(CommonProto.ErrorCode errorCode, String message) {
+        return ServerMessage.newBuilder()
+            .setError(S2C_Error.newBuilder()
                 .setErrorCode(errorCode)
                 .setErrorMessage(message)
                 .build())

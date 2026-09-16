@@ -8,11 +8,13 @@ import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.MapManager;
+import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.GameMap;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterWave;
 import org.jpstale.server.game.model.MonsterSpawnConfig;
+import org.jpstale.server.common.enums.character.MonsterEffectId;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.model.SpawnPoint;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,8 +39,6 @@ import java.util.concurrent.ThreadLocalRandom;
 @Component
 public class MonsterSpawnService {
 
-    /** 每 tick 最大刷新间隔（约16次/秒） */
-    private static final int SPAWN_CHECK_INTERVAL = 4;
     /** 玩家proximity距离平方（~33米） */
     private static final int PROXIMITY_DISTANCE_SQ = 0x1C2000;
     /** 出生点最大检测范围 */
@@ -71,8 +71,9 @@ public class MonsterSpawnService {
     @Autowired
     private MonsterListMapper monsterListMapper;
 
-    /** mapId → 该地图所有活着的怪物 */
-    private final Map<Integer, List<Monster>> monstersByMap = new ConcurrentHashMap<>();
+    @Autowired
+    private EntityRegistry entityRegistry;
+
     /** 怪物名 → 模板 */
     private final Map<String, MonsterList> monsterTemplatesByName = new ConcurrentHashMap<>();
     /** 加权随机用：mapId → 累积权重数组 */
@@ -187,7 +188,7 @@ public class MonsterSpawnService {
                 if (!targetPoint.canSpawn()) break;
 
                 Monster monster = createMonster(template, mapId, targetPoint);
-                monstersByMap.computeIfAbsent(mapId, k -> new ArrayList<>()).add(monster);
+                entityRegistry.register(monster);
                 targetPoint.onMonsterSpawn();
                 aliveCount++;
             }
@@ -305,6 +306,9 @@ public class MonsterSpawnService {
         monster.setTemplateId(template.getId());
         monster.setDropQuantity(template.getDropQuantity() == null ? 1 : template.getDropQuantity());
         monster.setDropIsPublic(template.getDropIsPublic() != null && template.getDropIsPublic() != 0);
+        // 音效/特效 ID：DB effect 列存名字（如 "MUSHROOM"），转成数字编码下发客户端
+        monster.setMonsterEffectId(MonsterEffectId.fromName(template.getEffect()).getValue());
+
         monster.setMapId(mapId);
         monster.setState(MonsterState.IDLE);
         monster.setLastTransTime(System.currentTimeMillis());
@@ -384,10 +388,10 @@ public class MonsterSpawnService {
     // ======== AI 更新 + 清理 ========
 
     private void updateAndCleanup(long now) {
-        for (Map.Entry<Integer, List<Monster>> entry : monstersByMap.entrySet()) {
+        for (Map.Entry<Integer, GameMap> entry : mapManager.getMaps().entrySet()) {
             int mapId = entry.getKey();
-            GameMap gameMap = mapManager.getMap(mapId);
-            List<Monster> monsters = entry.getValue();
+            GameMap gameMap = entry.getValue();
+            List<Monster> monsters = entityRegistry.monstersByMap(mapId);
             if (monsters.isEmpty()) continue;
 
             // 邻近门控(D3/D10):用 AOI 网格查怪周围 AIConstants.ACTIVE_RADIUS 内是否有玩家;
@@ -412,29 +416,29 @@ public class MonsterSpawnService {
 
             // 清理：尸体超 decayTime 移除（尸体停留时长 —— 与刷新冷却**不是**同一个时钟，
             //      见 Monster.decayTime / SpawnPoint.respawnCooldownMs）；存活但连续 60s 无玩家临近移除(D10)
-            monsters.removeIf(m -> {
+            List<Long> toRemove = new ArrayList<>();
+            for (Monster m : monsters) {
                 if (!m.isAlive()) {
                     if (m.isDecayed(now)) {
                         monsterAOI.onMonsterRemoved(m);
-                        // 名额与击杀冷却都在**死亡时刻**起算 —— 尸体停留时长（decayTime）到此为止，
-                        // 不再顺带决定刷多快（此前两者是同一个 30s 时钟，见 SpawnPoint 字段注释）
                         findSpawnPoint(gameMap, m.getSpawnPointIndex())
                             .ifPresent(sp -> sp.onMonsterDeath(m.getDeathTime(), m.getRespawnTime()));
                         log.info("[Spawn] {}#{} 尸体消失（死亡后 {}ms）",
                             m.getName(), m.getId(), now - m.getDeathTime());
-                        return true;
+                        toRemove.add(m.getId());
                     }
                 } else if (now - m.getLastNearPlayerMs() > AIConstants.NO_PLAYER_REMOVE_MS) {
                     monsterAOI.onMonsterRemoved(m);
-                    // 非死亡的离场：只释放名额，不启动击杀冷却（不是玩家打死的）
                     findSpawnPoint(gameMap, m.getSpawnPointIndex())
                         .ifPresent(SpawnPoint::onMonsterRemoved);
                     log.info("[Spawn] {}#{} removed, no player nearby {}ms", m.getName(), m.getId(),
                         now - m.getLastNearPlayerMs());
-                    return true;
+                    toRemove.add(m.getId());
                 }
-                return false;
-            });
+            }
+            for (Long id : toRemove) {
+                entityRegistry.unregisterMonster(id);
+            }
         }
     }
 
@@ -477,8 +481,7 @@ public class MonsterSpawnService {
     }
 
     private int getAliveMonsterCount(int mapId) {
-        List<Monster> monsters = monstersByMap.get(mapId);
-        if (monsters == null) return 0;
+        List<Monster> monsters = entityRegistry.monstersByMap(mapId);
         int count = 0;
         for (Monster m : monsters) {
             if (m.isAlive()) count++;
@@ -502,40 +505,20 @@ public class MonsterSpawnService {
      * 可见性/可交互一律走 {@link #allMonsterLists()} 或 {@link #findById(long)}（见各自注释）。
      */
     public List<Monster> getMonstersByMap(int mapId) {
-        return monstersByMap.getOrDefault(mapId, List.of());
+        return entityRegistry.monstersByMap(mapId);
     }
 
     /**
-     * **全部**怪物的图分表（只读遍历用，不复制、不分配）。
-     *
-     * 为什么 AOI 要用它而不是 {@link #getMonstersByMap}：地图边界是人为切分的
-     * （用户 2026-09-16 实测："我在村庄门口能看到门外的玩家在战斗，但看不到她在跟谁战斗"）。
-     * 边界两侧各属一张图，按图取就让"就在旁边"的怪凭空消失。原版也是按坐标流的
-     * （ex-machina `srTransPlayData`：`dist = x*x + z*z; if (dist < DIST_TRANSLEVEL_CONNECT)` 逐只判）。
-     * 与 `AOIManager.getNearbyPlayers(坐标)`（玩家早已是坐标口径）对齐。
-     *
-     * 代价：遍历全部怪物（数百只）而不是一张图的。20Hz × 玩家数 × 数百次距离比较 —— 可接受；
-     * 要更省就得给怪物建坐标网格，目前不值（同 `docs` 里"别为切分造设计"的原则）。
+     * **全部**怪物（只读遍历用，不复制）。AOI 用它按**坐标**判可见性 ——
+     * 地图边界是人为切分的，按图取会让"就在旁边"的怪不可见。
      */
-    public java.util.Collection<List<Monster>> allMonsterLists() {
-        return monstersByMap.values();
+    public java.util.Collection<Monster> allMonsters() {
+        return entityRegistry.allMonsters();
     }
 
-    /**
-     * 按**全局唯一 id** 找怪（id 来自 `EntityIdSource`，跨图唯一）。
-     *
-     * 攻击/技能校验用它，配合 `inRange(...)` 的距离判定 —— 真正的门槛是**距离**，不是"哪张图"。
-     * 否则"看得见（AOI 按坐标）却打不到（查找按图）"会成为一个新坑。
-     */
+    /** 按全局唯一 id 找怪（id 跨图唯一）。门槛是调用处的 `inRange(...)` 距离，不是"哪张图"。 */
     public Monster findById(long monsterId) {
-        for (List<Monster> list : monstersByMap.values()) {
-            for (Monster m : list) {
-                if (m.getId() == monsterId) {
-                    return m;
-                }
-            }
-        }
-        return null;
+        return entityRegistry.findMonster(monsterId);
     }
 
     public MonsterList getTemplate(String name) {

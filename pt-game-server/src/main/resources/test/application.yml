@@ -1,4 +1,3 @@
-# RD（Research & Development）环境
 spring:
   datasource:
     dynamic:
@@ -10,9 +9,15 @@ spring:
           username: ${DB_USER:sa}
           password: ${DB_PASSWORD:632514Go}
           driver-class-name: org.postgresql.Driver
-  redis:
-    host: 192.168.31.10
+  data:
+    redis:
+      host: 192.168.31.10
+      port: 6379
 
 pt:
+  game:
+    id: 1
+    name: 伊芙利亚
+    external-ip: 192.168.31.10
   field:
-    smd-root: E:\JPsTale\client
+    smd-root: /data/PristonTale/apps/client

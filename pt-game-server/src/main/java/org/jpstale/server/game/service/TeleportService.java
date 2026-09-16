@@ -7,8 +7,10 @@ import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_PlayerTeleport;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.jpstale.server.common.enums.packets.CharacterRace;
 import org.springframework.stereotype.Service;
@@ -153,7 +155,7 @@ public class TeleportService {
 
         // 一条消息两个受众：本人按 player_id==自己 判定后搬自己；旁观者挪 actor。
         // 自己单独发一份（不依赖"区域广播是否包含自己" —— AOI 落地后那一点可能变）。
-        MessageProto.S2C_PlayerTeleport teleport = MessageProto.S2C_PlayerTeleport.newBuilder()
+        S2C_PlayerTeleport teleport = S2C_PlayerTeleport.newBuilder()
             .setPlayerId(player.getId())
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder()
@@ -161,7 +163,7 @@ public class TeleportService {
             .setAngle((float) entity.getAngle())
             .setReason(reason.code)
             .build();
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder().setPlayerTeleport(teleport).build();
+        ServerMessage msg = ServerMessage.newBuilder().setPlayerTeleport(teleport).build();
         if (session != null) {
             session.send(msg);
         }
@@ -257,7 +259,6 @@ public class TeleportService {
         return null;
     }
 
-    /** 该图中心（无数据 → null）。原版没有"回图心"语义，这是我们自己的兜底档 */
     /**
      * 本族村庄出生点 [x, z]（坦普族=理查登，魔灵族=菲拉）。
      * **必须挑"有可站立地面"的点**：村庄数据里可能有点落在虚空，直接送过去玩家会自由落体
@@ -269,7 +270,6 @@ public class TeleportService {
         if (p != null) {
             return p;
         }
-        // 没有有效出生点 → 明确失败（调用方留痕/拒绝）。**不用图心凑**（见 MapRegionService.center 注释）。
         log.warn("villageStartPoint: map {} 没有有效出生点（请核对 startPoint 数据）", mapId);
         return null;
     }
@@ -279,7 +279,6 @@ public class TeleportService {
      * 策略字符串来自 `ItemDestination.landing`（代码常量表；不查 DB）：
      *   · startpoint-random  —— 原版回城道具语义（`WarpStartField` 随机出生点）
      *   · startpoint-nearest —— 离 (fromX,fromZ) 最近的有效出生点（原版 `GetStartPoint(x,z)`，死亡复活用的那条）
-     *   · center             —— 该图中心（无出生点数据时的兜底）
      *   · fixed              —— 表里写死的 fixedx/fixedz
      *
      * @return null = 该图没有可用落点（调用方必须**可见地**拒绝，别静默把人送进虚空）
@@ -300,8 +299,6 @@ public class TeleportService {
                     p = nearestValidStartPoint(mapId, fromX, fromZ);
                 }
                 if (p == null) {
-                    // 明确失败：**不退化到图心**（用户 2026-09-13 定：不允许任何 fallback）。
-                    // 调用方据 null 给玩家可见提示；这张图的出生点数据需要补。
                     log.warn("TELEPORT map {} 没有可用出生点（startPoint 数据缺失或全部无地面）→ 拒绝传送", mapId);
                 }
                 return p != null ? new double[]{p[0], p[1]} : null;
@@ -436,8 +433,8 @@ public class TeleportService {
      * `C2S_Unstuck`：系统菜单"脱离卡死"按钮的报文入口。
      * 客户端只表达"我想脱困"，不带任何参数 —— 落点由服务端算。
      */
-    @GamePacketHandler(MessageProto.ClientMessage.UNSTUCK_FIELD_NUMBER)
-    public void handleUnstuckPacket(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.UNSTUCK_FIELD_NUMBER)
+    public void handleUnstuckPacket(PlayerSession session, ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }

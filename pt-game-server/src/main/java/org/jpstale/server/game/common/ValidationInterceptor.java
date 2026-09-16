@@ -2,8 +2,8 @@ package org.jpstale.server.game.common;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -39,7 +39,7 @@ public class ValidationInterceptor {
     /**
      * 验证消息
      */
-    public ValidationResult validate(PlayerSession session, MessageProto.ClientMessage message) {
+    public ValidationResult validate(PlayerSession session, ClientMessage message) {
         int messageType = message.getPayloadCase().getNumber();
         InputValidator validator = validators.get(messageType);
 

@@ -1,6 +1,7 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.DamageResult;
@@ -10,8 +11,19 @@ import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.proto.base.AttackSegment;
+import org.jpstale.server.proto.base.C2S_AttackHit;
+import org.springframework.context.annotation.Lazy;
+import org.jpstale.server.proto.base.C2S_AttackStart;
+import org.jpstale.server.proto.base.C2S_UseSkill;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_AttackPlan;
+import org.jpstale.server.proto.base.S2C_AttackResult;
+import org.jpstale.server.proto.base.S2C_AttackStart;
+import org.jpstale.server.proto.base.S2C_PlayerDeath;
+import org.jpstale.server.proto.base.S2C_PlayerRespawn;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -36,10 +48,7 @@ public class CombatService {
     private DamageCalculator damageCalculator;
 
     @Autowired
-    private MonsterSpawnService monsterSpawnService;
-
-    @Autowired
-    private AOIManager aoiManager;
+    private EntityRegistry entityRegistry;
 
     @Autowired
     private GameMessageSender messageSender;
@@ -50,6 +59,7 @@ public class CombatService {
     @Autowired
     private MapRegionService mapRegionService;
 
+    @Lazy
     @Autowired
     private AiEngine aiEngine;
 
@@ -122,8 +132,8 @@ public class CombatService {
     /**
      * 报文入口：玩家起手（挥拳开始）——只做冷却/距离校验并广播，伤害在命中帧结算
      */
-    @GamePacketHandler(MessageProto.ClientMessage.ATTACK_START_FIELD_NUMBER)
-    public void handleAttackStart(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.ATTACK_START_FIELD_NUMBER)
+    public void handleAttackStart(PlayerSession session, ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }
@@ -136,7 +146,7 @@ public class CombatService {
         if (dead != null && dead.isDead()) {
             return;
         }
-        MessageProto.C2S_AttackStart req = message.getAttackStart();
+        C2S_AttackStart req = message.getAttackStart();
         playerAttackStart(player, req.getTargetId(), req.getClientSeq(), req.getSegments(),
             req.getAnimIndex(), req.getAnimClip());
     }
@@ -145,8 +155,8 @@ public class CombatService {
     /**
      * 报文入口：命中帧（每段一次）——距离校验 + 结算该段伤害
      */
-    @GamePacketHandler(MessageProto.ClientMessage.ATTACK_HIT_FIELD_NUMBER)
-    public void handleAttackHit(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.ATTACK_HIT_FIELD_NUMBER)
+    public void handleAttackHit(PlayerSession session, ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }
@@ -158,15 +168,15 @@ public class CombatService {
         if (dead != null && dead.isDead()) {
             return;   // 死亡躺下期间剩余段不再结算
         }
-        MessageProto.C2S_AttackHit hit = message.getAttackHit();
+        C2S_AttackHit hit = message.getAttackHit();
         playerAttackHit(player, hit.getTargetId(), hit.getHitIndex());
     }
 
     /**
      * 报文入口：玩家使用技能（暂按普攻伤害处理，技能表后续接入）
      */
-    @GamePacketHandler(MessageProto.ClientMessage.USE_SKILL_FIELD_NUMBER)
-    public void handleUseSkill(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.USE_SKILL_FIELD_NUMBER)
+    public void handleUseSkill(PlayerSession session, ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }
@@ -174,7 +184,7 @@ public class CombatService {
         if (player == null) {
             return;
         }
-        MessageProto.C2S_UseSkill skill = message.getUseSkill();
+        C2S_UseSkill skill = message.getUseSkill();
         playerAttackMonster(player, skill.getTargetId(), skill.getSkillId());
     }
 
@@ -224,24 +234,24 @@ public class CombatService {
         }
         attackPlans.put(player.getId(), new AttackPlan(clientSeq, monsterId, segs));
         if (session != null) {
-            MessageProto.S2C_AttackPlan.Builder plan = MessageProto.S2C_AttackPlan.newBuilder()
+            S2C_AttackPlan.Builder plan = S2C_AttackPlan.newBuilder()
                 .setClientSeq(clientSeq)
                 .setAttackerId(player.getId())
                 .setTargetId(monsterId);
             for (int i = 0; i < segs.size(); i++) {
                 PlannedSegment seg = segs.get(i);
-                plan.addSegments(MessageProto.AttackSegment.newBuilder()
+                plan.addSegments(AttackSegment.newBuilder()
                     .setIndex(i).setMissed(seg.missed())
                     .setIsCritical(seg.critical()).setDamage(seg.damage()));
             }
-            session.send(MessageProto.ServerMessage.newBuilder().setAttackPlan(plan).build());
+            session.send(ServerMessage.newBuilder().setAttackPlan(plan).build());
             // 同一份计划也发给旁观者：他们要在自己的事件帧播**这一段的正确结果音**
             // （miss 挥空 / 暴击追加）。否则只能等命中帧的 S2C_AttackResult，音效晚一个往返 ——
             // 而自机早已是"事件帧直接播正确音"，两边表现不一致。
             broadcastAttackPlan(attackerEntity, plan.build());
         }
 
-        MessageProto.S2C_AttackStart start = MessageProto.S2C_AttackStart.newBuilder()
+        S2C_AttackStart start = S2C_AttackStart.newBuilder()
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
             .setAttackSpeed(statCalculator.attackSpeed(player))
@@ -333,7 +343,7 @@ public class CombatService {
 
         // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
         // broadcastToArea 已覆盖攻击者本人，无需再单独 sendToPlayer（否则重复扣血/飘字）。
-        MessageProto.S2C_AttackResult.Builder ar = MessageProto.S2C_AttackResult.newBuilder()
+        S2C_AttackResult.Builder ar = S2C_AttackResult.newBuilder()
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
             .setDamage(damage)
@@ -374,7 +384,7 @@ public class CombatService {
      * 既没有伤害数字也没有 MISS（玩家看到的自相矛盾反馈）。
      */
     private void reportWhiff(PlayerEntity attackerEntity, long attackerId, long monsterId, int hitIndex) {
-        MessageProto.S2C_AttackResult ar = MessageProto.S2C_AttackResult.newBuilder()
+        S2C_AttackResult ar = S2C_AttackResult.newBuilder()
             .setAttackerId(attackerId)
             .setTargetId(monsterId)
             .setDamage(0)
@@ -392,11 +402,11 @@ public class CombatService {
         return dx * dx + dz * dz <= range * range;
     }
 
-    private void broadcastAttackStart(PlayerEntity center, MessageProto.S2C_AttackStart start) {
+    private void broadcastAttackStart(PlayerEntity center, S2C_AttackStart start) {
         if (center == null) {
             return;
         }
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
             .setAttackStart(start)
             .build();
         messageSender.broadcastToArea(center.getMapId(),
@@ -407,11 +417,11 @@ public class CombatService {
      * 把攻击计划也广播给旁观者（同一份，含各段 miss/暴击）。
      * 攻击者本人已在前面单独收到过；重复收到无害（客户端按 clientSeq 校验自己那份）。
      */
-    private void broadcastAttackPlan(PlayerEntity center, MessageProto.S2C_AttackPlan plan) {
+    private void broadcastAttackPlan(PlayerEntity center, S2C_AttackPlan plan) {
         if (center == null) {
             return;
         }
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
             .setAttackPlan(plan)
             .build();
         messageSender.broadcastToArea(center.getMapId(),
@@ -449,7 +459,7 @@ public class CombatService {
 
         // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
         // 不再单独 sendToPlayer：broadcastToArea 已覆盖攻击者本人，重复发送会导致客户端重复扣血/飘字。
-        MessageProto.S2C_AttackResult.Builder ar = MessageProto.S2C_AttackResult.newBuilder()
+        S2C_AttackResult.Builder ar = S2C_AttackResult.newBuilder()
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
             .setDamage(result.getFinalDamage())
@@ -486,8 +496,8 @@ public class CombatService {
         }
     }
 
-    private void broadcastAttackResult(PlayerEntity center, MessageProto.S2C_AttackResult ar) {
-        MessageProto.ServerMessage attackMsg = MessageProto.ServerMessage.newBuilder()
+    private void broadcastAttackResult(PlayerEntity center, S2C_AttackResult ar) {
+        ServerMessage attackMsg = ServerMessage.newBuilder()
             .setAttackResult(ar)
             .build();
         if (center == null) {
@@ -633,11 +643,11 @@ public class CombatService {
      * 按**全局唯一 id** 找怪（id 来自 `EntityIdSource`，跨图唯一）。
      *
      * ⚠ 这里**不能**再按 `mapId` 过滤：可见性已统一为坐标口径（怪物 AOI 会用
-     * `allMonsterLists()` 把边界另一侧的怪也推给玩家），若查找还按图，就会出现
+     * `allMonsters()` 把边界另一侧的怪也推给玩家），若查找还按图，就会出现
      * "看得见、够得着，却打不到"的新坑。真正的门槛是调用处的 `inRange(...)` 距离判定。
      */
     private Monster findMonsterById(long monsterId) {
-        return monsterSpawnService.findById(monsterId);
+        return entityRegistry.findMonster(monsterId);
     }
 
     // ==================== 死亡与重生 ====================
@@ -690,22 +700,22 @@ public class CombatService {
         deadPlayers.put(player.getId(), new DeathSpot(
             entity.getMapId(), entity.getX(), entity.getZ(), System.currentTimeMillis()));
 
-        MessageProto.S2C_PlayerDeath death = MessageProto.S2C_PlayerDeath.newBuilder()
+        S2C_PlayerDeath death = S2C_PlayerDeath.newBuilder()
             .setPlayerId(player.getId())
             .setForceRespawnMs((int) RESPAWN_FORCE_MS)
             .build();
         // 广播（含自己）：旁观者也要看到躺下
         messageSender.broadcastToArea(entity.getMapId(), (float) entity.getX(), (float) entity.getZ(),
             AOI_BROADCAST_RANGE,
-            MessageProto.ServerMessage.newBuilder().setPlayerDeath(death).build());
+            ServerMessage.newBuilder().setPlayerDeath(death).build());
         log.info("COMBAT {} 死亡于 map {} ({},{}) —— 等待复活选择（{}s 后强制回村庄）",
             player.getName(), entity.getMapId(), (int) entity.getX(), (int) entity.getZ(),
             RESPAWN_FORCE_MS / 1000);
     }
 
     /** C2S_RespawnChoice 报文入口 */
-    @GamePacketHandler(MessageProto.ClientMessage.RESPAWN_CHOICE_FIELD_NUMBER)
-    public void handleRespawnChoicePacket(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.RESPAWN_CHOICE_FIELD_NUMBER)
+    public void handleRespawnChoicePacket(PlayerSession session, ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }
@@ -826,8 +836,8 @@ public class CombatService {
         if (session != null) {
             // 死亡专属收尾：半血 + 关死亡面板。位置已由 S2C_PlayerTeleport 搬完（同一条广播两个受众），
             // 这里只补死亡语义（hp/max_hp + reason），所以不再重复 S2C_PlayerMove 广播。
-            session.send(MessageProto.ServerMessage.newBuilder()
-                    .setPlayerRespawn(MessageProto.S2C_PlayerRespawn.newBuilder()
+            session.send(ServerMessage.newBuilder()
+                    .setPlayerRespawn(S2C_PlayerRespawn.newBuilder()
                         .setPlayerId(player.getId())
                         .setMapId(mapId)
                         .setPosition(CommonProto.Position.newBuilder()

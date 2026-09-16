@@ -2,7 +2,7 @@ package org.jpstale.server.game.service;
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -31,11 +31,11 @@ public class NpcAoiClearVisibleTest {
     }
 
     /** 展开合批信封（多条会被包成 S2C_Batch） */
-    private static List<MessageProto.ServerMessage> drain(EmbeddedChannel ch) {
-        List<MessageProto.ServerMessage> out = new ArrayList<>();
+    private static List<ServerMessage> drain(EmbeddedChannel ch) {
+        List<ServerMessage> out = new ArrayList<>();
         Object o;
         while ((o = ch.readOutbound()) != null) {
-            MessageProto.ServerMessage m = (MessageProto.ServerMessage) o;
+            ServerMessage m = (ServerMessage) o;
             if (m.hasBatch()) {
                 out.addAll(m.getBatch().getMessagesList());
             } else {
@@ -63,9 +63,9 @@ public class NpcAoiClearVisibleTest {
         assertTrue("清空后可见集必须为空", visible.isEmpty());
 
         session.flushPending();
-        List<MessageProto.ServerMessage> msgs = drain(ch);
+        List<ServerMessage> msgs = drain(ch);
         assertEquals("每个曾可见的 NPC 都要补一条 Disappear", 2, msgs.size());
-        for (MessageProto.ServerMessage m : msgs) {
+        for (ServerMessage m : msgs) {
             assertTrue("必须是 NpcDisappear", m.hasNpcDisappear());
             long eid = m.getNpcDisappear().getEntityId();
             assertTrue("entity_id 必须来自被清的集合", eid == 1001L || eid == 1002L);

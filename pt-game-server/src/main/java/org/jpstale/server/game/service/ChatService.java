@@ -3,11 +3,17 @@ package org.jpstale.server.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
+import org.jpstale.server.game.entity.GroundItem;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.proto.base.C2S_Chat;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Chat;
+import org.jpstale.server.proto.base.S2C_GroundItemAppear;
+import org.jpstale.server.proto.base.S2C_SystemMessage;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -75,16 +81,16 @@ public class ChatService {
     /**
      * 报文入口：聊天
      */
-    @org.jpstale.server.game.network.GamePacketHandler(MessageProto.ClientMessage.CHAT_FIELD_NUMBER)
-    public void handleChat(PlayerSession session, MessageProto.ClientMessage message) {
-        MessageProto.C2S_Chat chatRequest = message.getChat();
+    @org.jpstale.server.game.network.GamePacketHandler(ClientMessage.CHAT_FIELD_NUMBER)
+    public void handleChat(PlayerSession session, ClientMessage message) {
+        C2S_Chat chatRequest = message.getChat();
 
         if (session == null || !session.isPlaying()) {
             return;
         }
 
         String chatMessage = chatRequest.getMessage();
-        if (chatMessage == null || chatMessage.isEmpty() || chatMessage.length() > MAX_CHAT_LEN) {
+        if (chatMessage.isEmpty() || chatMessage.length() > MAX_CHAT_LEN) {
             return;
         }
 
@@ -97,7 +103,7 @@ public class ChatService {
         CommonProto.ChatChannel channel = chatRequest.getChannel();
 
         // 构建聊天消息
-        MessageProto.S2C_Chat chatResponse = MessageProto.S2C_Chat.newBuilder()
+        S2C_Chat chatResponse = S2C_Chat.newBuilder()
             .setChannel(channel)
             .setSenderId(session.getCharacterId())
             .setSenderName(session.getCharacterName() != null ? session.getCharacterName() : "")
@@ -105,7 +111,7 @@ public class ChatService {
             .setTimestamp(System.currentTimeMillis())
             .build();
 
-        MessageProto.ServerMessage serverMessage = MessageProto.ServerMessage.newBuilder()
+        ServerMessage serverMessage = ServerMessage.newBuilder()
             .setChat(chatResponse)
             .build();
 
@@ -238,7 +244,7 @@ public class ChatService {
         double nz = ent.getZ() + Math.sin(ang) * dist;
         double ny = mapRegionService.getHeight(ent.getMapId(), nx, nz); // 落点地形高度，避免沉入地下
 
-        org.jpstale.server.game.item.GroundItemManager.GroundItem gi =
+        GroundItem gi =
                 groundItems.add(fresh, ent.getMapId(), nx, ny, nz, 0, 0);
         if (gi == null) {
             log.info("[GM] /@get token={} : 地图满({}) 掉落被丢弃", parts[1], 1024);
@@ -248,10 +254,10 @@ public class ChatService {
 
         String itemName = fresh.getTemplate().getName();
         String dorp = fresh.getTemplate().getCodeImg1(); // 掉落模型码（dropitem/it{code}.smd）
-        MessageProto.ServerMessage appear = MessageProto.ServerMessage.newBuilder()
-                .setGroundItemAppear(MessageProto.S2C_GroundItemAppear.newBuilder()
+        ServerMessage appear = ServerMessage.newBuilder()
+                .setGroundItemAppear(S2C_GroundItemAppear.newBuilder()
                         .setItem(org.jpstale.server.proto.base.CommonProto.GroundItemProto.newBuilder()
-                                .setGroundItemId(gi.id)
+                                .setGroundItemId(gi.getId())
                                 .setItemId(fresh.getItemCode() == null ? 0 : fresh.getItemCode())
                                 .setQuantity(fresh.getCount())
                                 .setPosition(org.jpstale.server.proto.base.CommonProto.Position.newBuilder()
@@ -271,15 +277,15 @@ public class ChatService {
             }
         }
         log.info("[GM] {} /@get -> groundItem id={} itemListId={} code={} name={} owner={} @({},{},{}) broadcast={}",
-            session.getCharacterName(), gi.id, fresh.getItemListId(), fresh.getItemCode(), itemName,
+            session.getCharacterName(), gi.getId(), fresh.getItemListId(), fresh.getItemCode(), itemName,
             session.getCharacterId(), (float) nx, (float) ny, (float) nz, sent);
-        systemMessage(session, "spawned ground item id=" + gi.id + "  name=" + itemName
+        systemMessage(session, "spawned ground item id=" + gi.getId() + "  name=" + itemName
                 + " code=" + fresh.getItemCode() + " job=" + fresh.getJobCodeMask()
                 + "  @(" + (long) nx + "," + (long) nz + ")");
     }
 
     /** 同地图广播（含发送者自己） */
-    private void broadcastToMap(PlayerSession sender, MessageProto.ServerMessage message) {
+    private void broadcastToMap(PlayerSession sender, ServerMessage message) {
         int mapId = sender.getEntity() != null ? sender.getEntity().getMapId() : -1;
         for (PlayerSession session : sessionManager.getAllSessions()) {
             if (session.isPlaying()
@@ -291,7 +297,7 @@ public class ChatService {
     }
 
     /** 私聊：发给目标 + 发送者（回显 "To> 名字"），对齐原版 WhisperMode 流程 */
-    private void sendPrivate(PlayerSession sender, String targetName, MessageProto.ServerMessage message) {
+    private void sendPrivate(PlayerSession sender, String targetName, ServerMessage message) {
         if (targetName == null || targetName.isEmpty()) {
             return;
         }
@@ -309,8 +315,8 @@ public class ChatService {
     /** 正式提示：minecraft 式翻译 key + 命名参数（客户端按 locale 渲染） */
     private void systemMessageKey(PlayerSession session, String key, Map<String, String> params) {
         if (session == null) return;
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
+                .setSystemMessage(S2C_SystemMessage.newBuilder()
                         .setKey(key)
                         .putAllParams(params)
                         .setTimestamp(System.currentTimeMillis())
@@ -324,8 +330,8 @@ public class ChatService {
 
     /** 调试输出：纯文本直发（/items 等开发者诊断，不走翻译） */
     private void systemMessage(PlayerSession session, String msg) {
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
+                .setSystemMessage(S2C_SystemMessage.newBuilder()
                         .setMessage(msg)
                         .setTimestamp(System.currentTimeMillis())
                         .build())

@@ -6,7 +6,10 @@ import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_AppearanceUpdate;
+import org.jpstale.server.proto.base.S2C_PlayerAppear;
+import org.jpstale.server.proto.base.S2C_PlayerDisappear;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -95,14 +98,14 @@ public class AOIManager {
     /**
      * 构建完整的外观快照 Appear(属性/坐标读 PlayerEntity)。
      */
-    private MessageProto.S2C_PlayerAppear buildAppear(PlayerEntity e) {
+    private S2C_PlayerAppear buildAppear(PlayerEntity e) {
         PlayerSession session = e.getSession();
         Player p = e.getPlayer();
         // 协议面身份**一律 charId**：客户端进图时从 S2C_EnterGame 拿到自己的 characterId，
         // 之后 Appear/Move/Disappear/Damage 的 playerId 全按它匹配。实体的运行时 id 只用于 AOI 世界网格
         // （见类注释）。原先这里在 session==null 时回退成运行时 id ⇒ 同一条消息带两个身份空间的 id，
         // 客户端会留下看不见也删不掉的幽灵玩家（AGENTS #59 追记）。
-        MessageProto.S2C_PlayerAppear.Builder b = MessageProto.S2C_PlayerAppear.newBuilder()
+        S2C_PlayerAppear.Builder b = S2C_PlayerAppear.newBuilder()
             .setPlayerId(e.getCharId())
             .setName(e.getName() != null ? e.getName() : "")
             .setLevel(e.getLevel())
@@ -252,7 +255,7 @@ public class AOIManager {
         Long eid = entity.getId();
         PlayerSession session = entity.getSession();
 
-        MessageProto.S2C_PlayerAppear selfAppear = buildAppear(entity);
+        S2C_PlayerAppear selfAppear = buildAppear(entity);
         Set<Long> visible = visiblePlayers.computeIfAbsent(eid, k -> ConcurrentHashMap.newKeySet());
         visible.clear();
         // 怪物 AOI 的可见集同样要清（用户 2026-09-14 实测：重连后看不到怪、却一直挨打）。
@@ -276,9 +279,9 @@ public class AOIManager {
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ())) {
             if (nearby.getId() == eid) continue;
             // 新玩家:附近已有玩家的外观快照
-            session.send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
+            session.send(ServerMessage.newBuilder().setPlayerAppear(buildAppear(nearby)).build());
             // 附近玩家:新玩家的外观快照
-            nearby.getSession().send(MessageProto.ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
+            nearby.getSession().send(ServerMessage.newBuilder().setPlayerAppear(selfAppear).build());
             visible.add(nearby.getId());
             visiblePlayers.computeIfAbsent(nearby.getId(), k -> ConcurrentHashMap.newKeySet()).add(eid);
             appearLog.append(nearby.getName()).append(",");
@@ -297,14 +300,14 @@ public class AOIManager {
         // 协议面 id 用 **charId**：它是 final 的、永远拿得到，而 session 可能已被摘除。
         // 原先这里 `session == null` 直接 return ⇒ "玩家离开但视野内客户端不知道"，那具模型会永远站着
         // （或更糟：下面别的地方退回运行时 id，客户端按 charId 匹配不上，连 Disappear 都删不掉它）。
-        MessageProto.S2C_PlayerDisappear msg = MessageProto.S2C_PlayerDisappear.newBuilder()
+        S2C_PlayerDisappear msg = S2C_PlayerDisappear.newBuilder()
             .setPlayerId(entity.getCharId())
             .build();
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ(), VIEW_RANGE_DISCONNECT)) {
             if (nearby.getId() == eid) continue;
             PlayerSession ns = nearby.getSession();
             if (ns != null) {
-                ns.send(MessageProto.ServerMessage.newBuilder().setPlayerDisappear(msg).build());
+                ns.send(ServerMessage.newBuilder().setPlayerDisappear(msg).build());
             }
         }
         visiblePlayers.remove(eid);
@@ -327,13 +330,13 @@ public class AOIManager {
         }
         PlayerSession session = entity.getSession();
         long pid = entity.getCharId();   // 协议面 = charId（唯一身份空间，见 buildAppear 注释）
-        MessageProto.S2C_AppearanceUpdate msg = MessageProto.S2C_AppearanceUpdate.newBuilder()
+        S2C_AppearanceUpdate msg = S2C_AppearanceUpdate.newBuilder()
             .setPlayerId(pid)
             .setAppearance(appearance)
             .build();
         // 自己
         if (session != null) {
-            session.send(MessageProto.ServerMessage.newBuilder().setAppearanceUpdate(msg).build());
+            session.send(ServerMessage.newBuilder().setAppearanceUpdate(msg).build());
         }
         // 视野玩家
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ())) {
@@ -342,7 +345,7 @@ public class AOIManager {
             }
             PlayerSession ns = nearby.getSession();
             if (ns != null) {
-                ns.send(MessageProto.ServerMessage.newBuilder().setAppearanceUpdate(msg).build());
+                ns.send(ServerMessage.newBuilder().setAppearanceUpdate(msg).build());
             }
         }
         log.info("[AOI] {} (id={}) appearance updated: body={} weapon={}",
@@ -364,9 +367,9 @@ public class AOIManager {
             long oid = other.getId();
             if (oid == eid) continue;
             if (visible.add(oid)) {
-                moved.getSession().send(MessageProto.ServerMessage.newBuilder()
+                moved.getSession().send(ServerMessage.newBuilder()
                     .setPlayerAppear(buildAppear(other)).build());
-                other.getSession().send(MessageProto.ServerMessage.newBuilder()
+                other.getSession().send(ServerMessage.newBuilder()
                     .setPlayerAppear(buildAppear(moved)).build());
                 visiblePlayers.computeIfAbsent(oid, k -> ConcurrentHashMap.newKeySet()).add(eid);
                 appearLog.append(other.getName()).append(",");
@@ -387,8 +390,8 @@ public class AOIManager {
                 if (other != null) {
                     PlayerSession otherSession = other.getSession();
                     if (otherSession != null) {
-                        otherSession.send(MessageProto.ServerMessage.newBuilder()
-                            .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
+                        otherSession.send(ServerMessage.newBuilder()
+                            .setPlayerDisappear(S2C_PlayerDisappear.newBuilder()
                                 .setPlayerId(other.getCharId()).build())
                             .build());
                     }
@@ -398,8 +401,8 @@ public class AOIManager {
                 PlayerSession self = moved.getSession();
                 if (self != null) {
                     if (other != null) {
-                        self.send(MessageProto.ServerMessage.newBuilder()
-                            .setPlayerDisappear(MessageProto.S2C_PlayerDisappear.newBuilder()
+                        self.send(ServerMessage.newBuilder()
+                            .setPlayerDisappear(S2C_PlayerDisappear.newBuilder()
                                 .setPlayerId(other.getCharId()).build())
                             .build());
                     } else {

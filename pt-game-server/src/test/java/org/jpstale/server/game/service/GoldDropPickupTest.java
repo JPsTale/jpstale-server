@@ -7,6 +7,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.jpstale.dao.gamedb.entity.ItemList;
+import org.jpstale.server.game.entity.GroundItem;
 import org.jpstale.server.game.item.GroundItemManager;
 import org.jpstale.server.game.item.ItemInstance;
 import org.jpstale.server.game.item.ItemRules;
@@ -83,26 +84,26 @@ public class GoldDropPickupTest {
     @Test
     public void groundItemCarriesMoneyAndIsSquashable() {
         GroundItemManager m = new GroundItemManager();
-        GroundItemManager.GroundItem gi = m.add(goldItem(0), 1, 10, 0, 10, 7L, 0, 500);
+        GroundItem gi = m.add(goldItem(0), 1, 10, 0, 10, 7L, 0, 500);
         assertNotNull(gi);
         assertEquals("金额挂在**地面物**上（地面物是内存对象，不进 DB）", 500, gi.money);
         assertEquals("金币是可被覆盖的挤压级（Level 0，原版 sinGG1 语义）", 0, gi.level);
         assertEquals("归属者仅本人可见（dropispublic=0 时）", 7L, gi.ownerId);
 
-        GroundItemManager.GroundItem plain = m.add(goldItem(0), 1, 20, 0, 20, 0L, 0);
+        GroundItem plain = m.add(goldItem(0), 1, 20, 0, 20, 0L, 0);
         assertEquals("普通投放不带金额", 0, plain.money);
     }
 
     @Test
     public void expiredGoldIsSwept() {
         GroundItemManager m = new GroundItemManager();
-        GroundItemManager.GroundItem gi = m.add(goldItem(0), 1, 10, 0, 10, 0L, 1, 100);   // 1ms TTL
+        GroundItem gi = m.add(goldItem(0), 1, 10, 0, 10, 0L, 1, 100);   // 1ms TTL
         try {
             Thread.sleep(5);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        assertNull("过期后取不到（惰性清扫）", m.byId(1, gi.id));
+        assertNull("过期后取不到（惰性清扫）", m.byId(1, gi.getId()));
     }
 
     // ---------------- 入账原语：上限不截断 ----------------

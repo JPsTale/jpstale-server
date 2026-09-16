@@ -5,6 +5,7 @@ import org.jpstale.dao.gamedb.entity.MapNpc;
 import org.jpstale.dao.gamedb.entity.NpcList;
 import org.jpstale.dao.gamedb.mapper.MapNpcMapper;
 import org.jpstale.dao.gamedb.mapper.NpcListMapper;
+import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.model.Npc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -35,11 +36,10 @@ public class NpcSpawnService {
     @Autowired
     private MapNpcMapper mapNpcMapper;
 
-    /** mapId → 该图 NPC 列表 */
-    private final Map<Integer, List<Npc>> npcsByMap = new ConcurrentHashMap<>();
+    /** mapId → 该图 NPC 列表（委托 EntityRegistry） */
 
-    /** 运行时实体 id → NPC（供交互按实体 id 直查；定义 id 不下发客户端） */
-    private final Map<Long, Npc> npcById = new ConcurrentHashMap<>();
+    @Autowired
+    private EntityRegistry entityRegistry;
 
     @PostConstruct
     public void init() {
@@ -75,11 +75,10 @@ public class NpcSpawnService {
             npc.setMapId(mn.getStage() == null ? -1 : mn.getStage());
             npc.setGmOnly(mn.getOnlyGm() != null && mn.getOnlyGm() != 0);
 
-            npcsByMap.computeIfAbsent(npc.getMapId(), k -> new ArrayList<>()).add(npc);
-            npcById.put(npc.getId(), npc);
+            entityRegistry.register(npc);
             count++;
         }
-        log.info("NpcSpawnService initialized: {} npcs on {} maps", count, npcsByMap.size());
+        log.info("NpcSpawnService initialized: {} npcs", count);
     }
 
     /**
@@ -87,25 +86,25 @@ public class NpcSpawnService {
      *
      * ⚠ 可见性不要用它：地图是人为切分的，坐标才是空间真身。
      * 玩家 AOI 走坐标（`AOIManager.getNearbyPlayers`），NPC 也必须一样 ——
-     * 否则站在村庄门口就看不到门外那个 NPC（见 {@link #allNpcLists()}）。
+     * 否则站在村庄门口就看不到门外那个 NPC（见 {@link #allNpcs()}）。
      */
     public List<Npc> getNpcsByMap(int mapId) {
-        return npcsByMap.getOrDefault(mapId, List.of());
+        return entityRegistry.npcsByMap(mapId);
     }
 
     /**
-     * **全部** NPC 的图分表（只读遍历用，不复制、不分配）。
+     * **全部** NPC（只读遍历用，不复制、不分配）。
      *
-     * 与 `MonsterSpawnService.allMonsterLists()` 同一个理由：地图边界是人为切分的，
+     * 与 `MonsterSpawnService.allMonsters()` 同一个理由：地图边界是人为切分的，
      * "谁在我附近"只能按坐标判（用户 2026-09-16 报的正是"跨边界的东西看不见"）。
      */
-    public java.util.Collection<List<Npc>> allNpcLists() {
-        return npcsByMap.values();
+    public java.util.Collection<Npc> allNpcs() {
+        return entityRegistry.allNpcs();
     }
 
     /** 按**运行时实体 id** 取 NPC（不存在返回 null）。交互校验用（定义 id 不下发客户端）。 */
     public Npc findById(long entityId) {
-        return npcById.get(entityId);
+        return entityRegistry.findNpc(entityId);
     }
 
     /**

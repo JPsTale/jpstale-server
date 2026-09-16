@@ -4,17 +4,17 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ServerMessage;
 
 /**
  * Protobuf 编码器
  * 协议格式：4字节长度 + Protobuf字节
  */
 @Slf4j
-public class ProtobufEncoder extends MessageToByteEncoder<MessageProto.ServerMessage> {
+public class ProtobufEncoder extends MessageToByteEncoder<ServerMessage> {
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, MessageProto.ServerMessage msg, ByteBuf out) throws Exception {
+    protected void encode(ChannelHandlerContext ctx, ServerMessage msg, ByteBuf out) throws Exception {
         try {
             // 序列化为字节
             byte[] bytes = msg.toByteArray();

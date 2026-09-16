@@ -6,7 +6,8 @@ import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.network.SessionState;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_MonsterAppear;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -69,11 +70,11 @@ public class MonsterCorpseAoiTest {
     }
 
     /** 展开合批信封（多条会被包成 S2C_Batch） */
-    private static List<MessageProto.ServerMessage> drain(EmbeddedChannel ch) {
-        List<MessageProto.ServerMessage> out = new ArrayList<>();
+    private static List<ServerMessage> drain(EmbeddedChannel ch) {
+        List<ServerMessage> out = new ArrayList<>();
         Object o;
         while ((o = ch.readOutbound()) != null) {
-            MessageProto.ServerMessage m = (MessageProto.ServerMessage) o;
+            ServerMessage m = (ServerMessage) o;
             if (m.hasBatch()) {
                 out.addAll(m.getBatch().getMessagesList());
             } else {
@@ -138,7 +139,7 @@ public class MonsterCorpseAoiTest {
         // 活着时先进入视野
         aoi.syncSessions();
         s.flushPending();   // send() 只是进合批队列，必须 flush 才写进 channel
-        List<MessageProto.ServerMessage> appear = drain(ch);
+        List<ServerMessage> appear = drain(ch);
         assertEquals("首次同步应发一条 Appear", 1, appear.size());
         assertTrue(appear.get(0).hasMonsterAppear());
         assertFalse("活怪不带尸体标记", appear.get(0).getMonsterAppear().getDead());
@@ -147,7 +148,7 @@ public class MonsterCorpseAoiTest {
         m.onDeath();
         aoi.onMonsterDeath(m, PID, 42, 7);
         s.flushPending();
-        List<MessageProto.ServerMessage> onDeath = drain(ch);
+        List<ServerMessage> onDeath = drain(ch);
         assertEquals("击杀者只应收到 Death 一条（不再跟一条 Disappear）", 1, onDeath.size());
         assertTrue("必须是 MonsterDeath", onDeath.get(0).hasMonsterDeath());
         assertEquals("击杀者带 exp", 42, onDeath.get(0).getMonsterDeath().getExp());
@@ -176,10 +177,10 @@ public class MonsterCorpseAoiTest {
 
         aoi.syncSessions();
         s.flushPending();
-        List<MessageProto.ServerMessage> msgs = drain(ch);
+        List<ServerMessage> msgs = drain(ch);
         assertEquals("迟到者应收到 Appear（而不是空场景）", 1, msgs.size());
         assertTrue(msgs.get(0).hasMonsterAppear());
-        MessageProto.S2C_MonsterAppear a = msgs.get(0).getMonsterAppear();
+        S2C_MonsterAppear a = msgs.get(0).getMonsterAppear();
         assertTrue("必须显式带 dead=true —— 客户端靠它把尸体和活怪分开（它收不到 Death）", a.getDead());
         assertEquals("尸体的 hp 为 0", 0, a.getHp());
     }
@@ -204,7 +205,7 @@ public class MonsterCorpseAoiTest {
         // 服务端主循环在 Monster.decayTime 到点后调它（见 MonsterSpawnService 的 removeIf 分支）
         aoi.onMonsterRemoved(m);
         s.flushPending();
-        List<MessageProto.ServerMessage> msgs = drain(ch);
+        List<ServerMessage> msgs = drain(ch);
         assertEquals("尸体消失只发一条 Disappear", 1, msgs.size());
         assertTrue(msgs.get(0).hasMonsterDisappear());
         assertEquals(m.getId(), msgs.get(0).getMonsterDisappear().getMonsterId());

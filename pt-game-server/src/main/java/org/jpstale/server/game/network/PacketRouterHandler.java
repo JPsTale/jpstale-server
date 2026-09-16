@@ -13,8 +13,10 @@ import org.jpstale.server.game.common.ValidationResult;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.GameTokenService;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Error;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -25,7 +27,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @Sharable
-public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProto.ClientMessage> {
+public class PacketRouterHandler extends SimpleChannelInboundHandler<ClientMessage> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -129,7 +131,7 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, MessageProto.ClientMessage msg) throws Exception {
+    protected void channelRead0(ChannelHandlerContext ctx, ClientMessage msg) throws Exception {
         PlayerSession session = sessionManager.getSession(ctx.channel());
 
         // 输入验证
@@ -139,8 +141,8 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<MessageProt
                 log.warn("Validation failed for player {}: {}", 
                     session.getCharacterName(), result.getErrorMessage());
                 
-                session.send(MessageProto.ServerMessage.newBuilder()
-                    .setError(MessageProto.S2C_Error.newBuilder()
+                session.send(ServerMessage.newBuilder()
+                    .setError(S2C_Error.newBuilder()
                         .setErrorCode(result.getErrorCode())
                         .setErrorMessage(result.getErrorMessage())
                         .build())

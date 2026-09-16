@@ -276,4 +276,14 @@ public enum MonsterEffectId {
     public static MonsterEffectId fromValue(int value) {
         return BY_VALUE.getOrDefault(value, NONE);
     }
+
+    /** 按 DB effect 列的名字（如 "MUSHROOM"）查找，大小写不敏感；未找到返回 NONE */
+    public static MonsterEffectId fromName(String name) {
+        if (name == null || name.isBlank()) return NONE;
+        String upper = name.trim().toUpperCase();
+        for (MonsterEffectId e : values()) {
+            if (e.name().equals(upper)) return e;
+        }
+        return NONE;
+    }
 }

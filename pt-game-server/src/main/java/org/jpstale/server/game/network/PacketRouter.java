@@ -1,7 +1,7 @@
 package org.jpstale.server.game.network;
 
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -34,7 +34,7 @@ public class PacketRouter {
     /**
      * 路由消息到对应的处理器
      */
-    public void route(PlayerSession session, MessageProto.ClientMessage message) {
+    public void route(PlayerSession session, ClientMessage message) {
         int messageType = message.getPayloadCase().getNumber();
         HandlerEntry entry = handlers.get(messageType);
 

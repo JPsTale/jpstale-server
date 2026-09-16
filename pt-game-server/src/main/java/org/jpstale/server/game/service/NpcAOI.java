@@ -1,16 +1,18 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Npc;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_NpcAppear;
+import org.jpstale.server.proto.base.S2C_NpcDisappear;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -38,7 +40,7 @@ public class NpcAOI {
     private SessionManager sessionManager;
 
     @Autowired
-    private NpcSpawnService npcSpawnService;
+    private EntityRegistry entityRegistry;
 
     /** 观察者 characterId → 当前可见的 NPC **运行时实体 id** 集合（持久化，双阈值升降级） */
     private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
@@ -87,17 +89,14 @@ public class NpcAOI {
                 continue;
             }
             active.add(pid);
-            // **按坐标**同步，不按图（与怪物 AOI 同一口径）：地图边界是人为切分的，
-            // 只取本图的 NPC 会让"就站在门口外"的 NPC 看不见（用户 2026-09-16）。
-            for (List<Npc> npcs : npcSpawnService.allNpcLists()) {
-                reconcile(e, npcs);
-            }
+            // 按坐标同步，不按图（与怪物 AOI 同一口径）：地图边界是人为切分的。
+            reconcile(e, entityRegistry.allNpcs());
         }
         // 清理已离线/未 playing 会话的残留可见集
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));
     }
 
-    private void reconcile(PlayerEntity player, List<Npc> npcs) {
+    private void reconcile(PlayerEntity player, java.util.Collection<Npc> npcs) {
         PlayerSession session = player.getSession();
         if (session == null) {
             return;
@@ -129,26 +128,10 @@ public class NpcAOI {
                 }
             }
         }
-
-        // 换图兜底：旧图 NPC 已不在当前图列表 → 清出可见集并通知消失
-        if (visible.size() > npcs.size()) {
-            Set<Long> current = new HashSet<>(npcs.size() + 4);
-            for (Npc npc : npcs) {
-                current.add(npc.getId());
-            }
-            Iterator<Long> it = visible.iterator();
-            while (it.hasNext()) {
-                long stale = it.next();
-                if (!current.contains(stale)) {
-                    it.remove();
-                    session.send(buildDisappear(stale));   // 换图清理：客户端按 entity_id 删
-                }
-            }
-        }
     }
 
-    private MessageProto.ServerMessage buildAppear(Npc npc) {
-        MessageProto.S2C_NpcAppear.Builder b = MessageProto.S2C_NpcAppear.newBuilder()
+    private ServerMessage buildAppear(Npc npc) {
+        S2C_NpcAppear.Builder b = S2C_NpcAppear.newBuilder()
             .setEntityId(npc.getId())
             .setNameKey(npc.getNameKey() != null ? npc.getNameKey() : "")
             .setPosition(CommonProto.Position.newBuilder()
@@ -160,12 +143,12 @@ public class NpcAOI {
         if (npc.getModelFile() != null) {
             b.setModelFile(npc.getModelFile());
         }
-        return MessageProto.ServerMessage.newBuilder().setNpcAppear(b.build()).build();
+        return ServerMessage.newBuilder().setNpcAppear(b.build()).build();
     }
 
-    private MessageProto.ServerMessage buildDisappear(long entityId) {
-        return MessageProto.ServerMessage.newBuilder()
-            .setNpcDisappear(MessageProto.S2C_NpcDisappear.newBuilder()
+    private ServerMessage buildDisappear(long entityId) {
+        return ServerMessage.newBuilder()
+            .setNpcDisappear(S2C_NpcDisappear.newBuilder()
                 .setEntityId(entityId)
                 .build())
             .build();

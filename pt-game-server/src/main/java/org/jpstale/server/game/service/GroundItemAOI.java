@@ -1,18 +1,20 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.GroundItem;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.item.GroundItemManager;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_GroundItemAppear;
+import org.jpstale.server.proto.base.S2C_GroundItemDisappear;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -24,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - 进入 CONNECT(1000) → Appear
  *  - 超出 DISCONNECT(1600) → Disappear（1000~1600 是滞回区，见 {@link AOIManager}）
  * 两个距离都在 {@link AOIManager} 里，四类 AOI 共用。
- *  - 过期/被拾取的兜底：物品不再存在时把残留可见项清出并通知
+ *  - 被移除（过期/被拾取/被挤掉）：由 `GroundItemManager.drainRemoved()` 显式通知，见 notifyRemoved
  *
  * 拾取不在本类做：必须由玩家「点击该掉落物」经 C2S_PickupItem 触发
  * （原版：点击道具目标 → Chase 走近 → 到范围拾取），绝不自动吸收路过掉落，
@@ -49,13 +51,8 @@ public class GroundItemAOI {
     private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
 
     /**
-     * 玩家**进入世界/换图**时清空他的地面物品可见集（与 {@link MonsterAOI#clearVisible} 同因）。
-     *
-     * 可见集以 characterId 为 key **跨会话保留**：不清的话，重进（刷新页面）/续传时
-     * `visible.add(id)` 恒 false ⇒ **一条 Appear 都不发**，客户端的清场又把上局的道具清了，
-     * 于是"地上什么都没有"（用户 2026-09-16 实测：刷新后看不到掉落物）。
-     * 换图时客户端**不清场**（`applyTeleport` 不调 `clearWorldActors`），所以必须**逐条补发 Disappear**，
-     * 否则旧图的道具会变成删不掉的幽灵 —— 与 `NpcAOI.clearVisible` 完全同构。
+     * 玩家进入世界/换图时清空他的地面物品可见集，并逐条补发 Disappear（换图时客户端不清场）。
+     * 可见集以 charId 为键跨会话保留：不清则重进时 `add` 恒 false ⇒ 一条 Appear 都不发。
      */
     public void clearVisible(PlayerSession session) {
         if (session == null) {
@@ -94,11 +91,17 @@ public class GroundItemAOI {
             // 只取本图的掉落物会让"就在边界另一侧"的那件东西看不见（用户 2026-09-16）。
             reconcile(e, groundItems.listAll());
         }
+        // 本 tick 被移除的物品（过期/被拾取/被新掉落挤掉）：**显式通知**观察者 Disappear。
+        // 地面物只在 GroundItemManager 里被移除，那边逐条登记（`removedQueue`），这里取走并通知 ——
+        // **谁移除谁登记、AOI 只负责通知**，于是本类不需要任何"猜谁消失了"的兜底逻辑。
+        for (GroundItem gone : groundItems.drainRemoved()) {
+            notifyRemoved(gone.getId());
+        }
         // 清理已离线/未 playing 会话的残留可见集
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));
     }
 
-    private void reconcile(PlayerEntity player, List<GroundItemManager.GroundItem> items) {
+    private void reconcile(PlayerEntity player, List<GroundItem> items) {
         PlayerSession session = player.getSession();
         if (session == null) {
             return;
@@ -113,20 +116,17 @@ public class GroundItemAOI {
         double connectSq = (double) CONNECT * CONNECT;
         double disconnectSq = (double) DISCONNECT * DISCONNECT;
 
-        for (GroundItemManager.GroundItem gi : items) {
-            long id = gi.id;
-            // 私有掉落：**只在私有窗口内**仅 owner 可见；窗口一过就是公共掉落（谁都能看见、谁都能捡）。
-            // 依据与常量出处见 GroundItem.privateUntil / GroundItemManager.PRIVATE_WINDOW_MS。
-            // ⚠ 曾经写成"ownerId != pid 就永久跳过" ⇒ 别人打怪掉的/丢的东西永远看不见
-            //   （用户 2026-09-16 联机实测）。
+        for (GroundItem gi : items) {
+            long id = gi.getId();
+            // 私有战利品只在私有窗口内仅 owner 可见；窗口一过即公共掉落（见 GroundItem.privateUntil）。
             if (gi.isPrivateAt(System.currentTimeMillis()) && gi.ownerId != pid) {
                 if (visible.remove(id)) {
                     session.send(buildDisappear(id));
                 }
                 continue;
             }
-            double dx = sx - gi.x;
-            double dz = sz - gi.z;
+            double dx = sx - gi.getX();
+            double dz = sz - gi.getZ();
             double distSq = dx * dx + dz * dz;
             if (distSq > disconnectSq) {
                 if (visible.remove(id)) {
@@ -138,19 +138,21 @@ public class GroundItemAOI {
                 }
             }
         }
+    }
 
-        // 物品已不存在（过期/被拾取/清场）但仍在本玩家可见集 → 兜底清出并通知
-        if (visible.size() > items.size()) {
-            Set<Long> current = new HashSet<>(items.size() + 4);
-            for (GroundItemManager.GroundItem gi : items) {
-                current.add(gi.id);
-            }
-            java.util.Iterator<Long> it = visible.iterator();
-            while (it.hasNext()) {
-                long stale = it.next();
-                if (!current.contains(stale)) {
-                    it.remove();
-                    session.send(buildDisappear(stale));
+    /**
+     * 物品已从世界移除 → 给仍把它当可见的观察者发 Disappear 并摘出可见集（由 `drainRemoved()` 驱动）。
+     * **不要在 reconcile 里加对账式清理**：那种写法隐含要求候选集完整，按图分次调用会误判成"消失"→ 闪烁。
+     */
+    private void notifyRemoved(long id) {
+        for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
+            Set<Long> visible = e.getValue();
+            synchronized (visible) {
+                if (visible.remove(id)) {
+                    PlayerSession s = sessionManager.getSessionByCharacterId(e.getKey());
+                    if (s != null) {
+                        s.send(buildDisappear(id));
+                    }
                 }
             }
         }
@@ -168,7 +170,7 @@ public class GroundItemAOI {
      * 掉出来全是旗帜，2026-09-15 已修正。数据核对见 AGENTS.md「掉落模型」调查记录）。
      * `codeImg2` 为空时回退 `codeImg1`（防御，DB 全量 1036 行实测无空值）。
      */
-    private MessageProto.ServerMessage buildAppear(GroundItemManager.GroundItem gi) {
+    private ServerMessage buildAppear(GroundItem gi) {
         Integer code = gi.item.getItemCode();
         String name = gi.item.getTemplate() != null && gi.item.getTemplate().getName() != null
             ? gi.item.getTemplate().getName() : "";
@@ -180,15 +182,15 @@ public class GroundItemAOI {
             }
             dorp = pick != null ? pick : "";
         }
-        return MessageProto.ServerMessage.newBuilder()
-            .setGroundItemAppear(MessageProto.S2C_GroundItemAppear.newBuilder()
+        return ServerMessage.newBuilder()
+            .setGroundItemAppear(S2C_GroundItemAppear.newBuilder()
                 .setItem(CommonProto.GroundItemProto.newBuilder()
-                    .setGroundItemId(gi.id)
+                    .setGroundItemId(gi.getId())
                     .setItemId(code == null ? 0 : code)
                     .setQuantity(gi.item.getCount())
                     .setMoney(gi.money)
                     .setPosition(CommonProto.Position.newBuilder()
-                        .setX((float) gi.x).setY((float) gi.y).setZ((float) gi.z).build())
+                        .setX((float) gi.getX()).setY((float) gi.getY()).setZ((float) gi.getZ()).build())
                     .setOwnerId(gi.ownerId)
                     .setExpireTime(gi.expireAt)
                     .setName(name)
@@ -198,9 +200,9 @@ public class GroundItemAOI {
             .build();
     }
 
-    private MessageProto.ServerMessage buildDisappear(long groundItemId) {
-        return MessageProto.ServerMessage.newBuilder()
-            .setGroundItemDisappear(MessageProto.S2C_GroundItemDisappear.newBuilder()
+    private ServerMessage buildDisappear(long groundItemId) {
+        return ServerMessage.newBuilder()
+            .setGroundItemDisappear(S2C_GroundItemDisappear.newBuilder()
                 .setGroundItemId(groundItemId).build())
             .build();
     }

@@ -1,6 +1,7 @@
 package org.jpstale.server.game;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.core.Server;
+import org.jpstale.server.game.item.GroundItemManager;
 import org.jpstale.server.game.service.GroundItemAOI;
 import org.jpstale.server.game.service.MonsterSpawnService;
 import org.jpstale.server.game.service.MovementService;
@@ -36,6 +37,10 @@ public class GameServer implements Server {
     @Autowired
     private GroundItemAOI groundItemAOI;
 
+    /** 地面物：过期清扫（唯一移除点，见 {@link GroundItemManager#expireSweep()}） */
+    @Autowired
+    private GroundItemManager groundItemManager;
+
     @Autowired
     private NpcAOI npcAOI;
 
@@ -61,6 +66,9 @@ public class GameServer implements Server {
         worldService.tick();
         // 死亡躺下的玩家：躺满 1 分钟强制送回村庄（原版"一段时间后强制复活"）
         combatService.tickDeaths(currentTimeMillis);
+        // 地面物过期清扫：**唯一**的过期移除点（查询不再就地删过期项）。
+        // 必须在 AOI 之前：移除会被登记，紧接着 syncSessions 取走并给观察者发 Disappear。
+        groundItemManager.expireSweep();
         // 地面物品 AOI：进场补发 / 走远消失 / 走近出现（与怪物 AOI 同 tick 同口径）
         groundItemAOI.syncSessions();
         // NPC AOI：玩家进图/换图时下发该图所有 NPC

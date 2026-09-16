@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ClientMessage;
 
 import java.util.List;
 
@@ -26,7 +26,7 @@ public class ProtobufDecoder extends ByteToMessageDecoder {
         msg.readBytes(bytes);
 
         try {
-            MessageProto.ClientMessage message = MessageProto.ClientMessage.parseFrom(bytes);
+            ClientMessage message = ClientMessage.parseFrom(bytes);
             out.add(message);
         } catch (Exception e) {
             log.error("Failed to parse ClientMessage", e);

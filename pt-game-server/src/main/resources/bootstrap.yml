@@ -1,17 +1,21 @@
 # 公共配置（所有 profile 共享）
 spring:
+  application:
+    name: pt-game-server
+  profiles:
+    active: @profiles.active@
   main:
     web-application-type: none
     allow-circular-references: true
-  redis:
-    port: 6379
-    database: 0
-    timeout: 10s
-    lettuce:
-      pool:
-        max-active: 8
-        max-idle: 8
-        min-idle: 0
+  data:
+    redis:
+      database: 0
+      timeout: 10s
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 
 sa-token:
   token-name: satoken

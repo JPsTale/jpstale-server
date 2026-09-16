@@ -13,7 +13,8 @@ import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.assets.smd.CollisionMesh;
 import org.jpstale.server.game.collision.CollisionSystem;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_PlayerMove;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -261,8 +262,8 @@ public class MovementService {
         }
         entity.setLastSyncedAnimState(animState);
 
-        MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
-            .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
+        ServerMessage moveMessage = ServerMessage.newBuilder()
+            .setPlayerMove(S2C_PlayerMove.newBuilder()
                 .setPlayerId(session.getCharacterId())
                 .setPosition(CommonProto.Position.newBuilder()
                     .setX((float) entity.getX())

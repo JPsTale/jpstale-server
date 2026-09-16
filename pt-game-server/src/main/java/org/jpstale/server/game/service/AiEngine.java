@@ -9,7 +9,8 @@ import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Damage;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -303,8 +304,8 @@ public class AiEngine {
             battleLogService.monsterMissed(player.getSession(), monster.getName());
             messageSender.broadcastToArea(target.getMapId(),
                 (float) target.getX(), (float) target.getZ(), 50,
-                MessageProto.ServerMessage.newBuilder()
-                    .setDamage(MessageProto.S2C_Damage.newBuilder()
+                ServerMessage.newBuilder()
+                    .setDamage(S2C_Damage.newBuilder()
                         .setTargetId(player.getId())
                         .setDamage(0)
                         .setCurrentHp(player.getHp())
@@ -328,8 +329,8 @@ public class AiEngine {
         // 飘字：怪→玩家伤害广播给附近玩家（S2C_Damage 带权威 currentHp，客户端自机/远端头顶飘红字）
         messageSender.broadcastToArea(target.getMapId(),
             (float) target.getX(), (float) target.getZ(), 50,
-            MessageProto.ServerMessage.newBuilder()
-                .setDamage(MessageProto.S2C_Damage.newBuilder()
+            ServerMessage.newBuilder()
+                .setDamage(S2C_Damage.newBuilder()
                     .setTargetId(player.getId())
                     .setDamage(result.getFinalDamage())
                     .setCurrentHp(newHp)

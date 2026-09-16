@@ -11,7 +11,7 @@ import org.jpstale.server.game.model.Npc;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.network.SessionState;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -51,11 +51,11 @@ public class AoiCoordinateBasisTest {
         f.set(target, value);
     }
 
-    private static List<MessageProto.ServerMessage> drain(EmbeddedChannel ch) {
-        List<MessageProto.ServerMessage> out = new ArrayList<>();
+    private static List<ServerMessage> drain(EmbeddedChannel ch) {
+        List<ServerMessage> out = new ArrayList<>();
         Object o;
         while ((o = ch.readOutbound()) != null) {
-            MessageProto.ServerMessage m = (MessageProto.ServerMessage) o;
+            ServerMessage m = (ServerMessage) o;
             if (m.hasBatch()) {
                 out.addAll(m.getBatch().getMessagesList());
             } else {
@@ -136,8 +136,8 @@ public class AoiCoordinateBasisTest {
 
         aoi.syncSessions();
         s.flushPending();
-        List<MessageProto.ServerMessage> msgs = drain(ch);
-        assertEquals("就在边界另一侧的怪必须出现在我眼前（用户 2026-09-16 报的正是这个）", 1, msgs.size());
+        List<ServerMessage> msgs = drain(ch);
+        assertEquals("就在边界另一侧的怪必须出现在我眼前: " + describe(msgs), 1, msgs.size());
         assertTrue(msgs.get(0).hasMonsterAppear());
         assertEquals(m.getId(), msgs.get(0).getMonsterAppear().getMonsterId());
     }
@@ -172,9 +172,7 @@ public class AoiCoordinateBasisTest {
         npc.setMapId(OTHER_MAP);
 
         NpcSpawnService npcSvc = new NpcSpawnService();
-        @SuppressWarnings("unchecked")
-        Map<Integer, List<Npc>> byMap = (Map<Integer, List<Npc>>) field(NpcSpawnService.class, npcSvc, "npcsByMap");
-        byMap.put(OTHER_MAP, new ArrayList<>(List.of(npc)));
+        registerNpc(npcSvc, npc);
 
         SessionManager sm = new SessionManager();
         EmbeddedChannel ch = new EmbeddedChannel();
@@ -186,8 +184,8 @@ public class AoiCoordinateBasisTest {
 
         aoi.syncSessions();
         s.flushPending();
-        List<MessageProto.ServerMessage> msgs = drain(ch);
-        assertEquals("边界另一侧的 NPC 同样应当可见", 1, msgs.size());
+        List<ServerMessage> msgs = drain(ch);
+        assertEquals("边界另一侧的 NPC 同样应当可见: " + describe(msgs), 1, msgs.size());
         assertTrue(msgs.get(0).hasNpcAppear());
     }
 
@@ -208,9 +206,111 @@ public class AoiCoordinateBasisTest {
 
         aoi.syncSessions();
         s.flushPending();
-        List<MessageProto.ServerMessage> msgs = drain(ch);
-        assertEquals("边界另一侧的掉落物同样应当可见", 1, msgs.size());
+        List<ServerMessage> msgs = drain(ch);
+        assertEquals("边界另一侧的掉落物同样应当可见: " + describe(msgs), 1, msgs.size());
         assertTrue(msgs.get(0).hasGroundItemAppear());
+    }
+
+    // ==================== ④ 闪烁回归：候选集跨多张图时不得每 tick 反复 Disappear/Appear ====================
+
+    /**
+     * **同名 NPC 闪烁**回归（用户 2026-09-16 实测："同名 NPC 现在会一直闪烁"）。
+     *
+     * 机理：可见性改成坐标口径后候选集跨多张图、`NpcAOI.reconcile` 被**按图分次**调用；
+     * 而它末尾那段兜底清理原先要求"参数是完整候选集"（`visible` 里不在 `npcs` 里的就算已消失），
+     * 于是每次调用都把**其它图（含玩家本图）**的 NPC 当已消失 → 发 Disappear，下一次又 Appear
+     * ⇒ 每 tick 一轮 Disappear + Appear。
+     *
+     * 断言方式：连续两次 syncSessions，**第二次必须一条消息都不发**（稳态无抖动）——
+     * 这正是"闪"的定义：每 tick 都有消息。
+     */
+    @Test
+    public void npcsInDifferentMapsDoNotFlickerAcrossTicks() throws Exception {
+        Npc mine = npc(NEAR_X, MY_MAP, "guard");
+        Npc other = npc(NEAR_X + 10, OTHER_MAP, "guard");
+
+        NpcSpawnService npcSvc = new NpcSpawnService();
+        registerNpc(npcSvc, mine);
+        registerNpc(npcSvc, other);
+
+        SessionManager sm = new SessionManager();
+        EmbeddedChannel ch = new EmbeddedChannel();
+        PlayerSession s = observer(sm, ch, MY_X);
+
+        NpcAOI aoi = new NpcAOI();
+        inject(aoi, "sessionManager", sm);
+        inject(aoi, "npcSpawnService", npcSvc);
+
+        aoi.syncSessions();
+        s.flushPending();
+        List<ServerMessage> first = drain(ch);
+        assertEquals("两只 NPC 都该出现（一只本图、一只边界另一侧）: " + describe(first), 2, first.size());
+
+        aoi.syncSessions();
+        s.flushPending();
+        List<ServerMessage> second = drain(ch);
+        assertEquals("稳态不该有任何抖动（发一条 Disappear 就是闪烁）: " + describe(second), 0, second.size());
+    }
+
+    /** 掉落物同一机理的回归：两件物品在不同图、都在视野内 → 稳态零消息 */
+    @Test
+    public void groundItemsInDifferentMapsDoNotFlickerAcrossTicks() throws Exception {
+        GroundItemManager items = new GroundItemManager();
+        items.add(item(), MY_MAP, NEAR_X, 0, 0, 0L, 60_000);
+        items.add(item(), OTHER_MAP, NEAR_X + 10, 0, 0, 0L, 60_000);
+
+        SessionManager sm = new SessionManager();
+        EmbeddedChannel ch = new EmbeddedChannel();
+        PlayerSession s = observer(sm, ch, MY_X);
+
+        GroundItemAOI aoi = new GroundItemAOI();
+        inject(aoi, "sessionManager", sm);
+        inject(aoi, "groundItems", items);
+
+        aoi.syncSessions();
+        s.flushPending();
+        assertEquals(2, drain(ch).size());
+
+        aoi.syncSessions();
+        s.flushPending();
+        List<ServerMessage> second = drain(ch);
+        assertEquals("稳态不该有任何抖动: " + describe(second), 0, second.size());
+    }
+
+    private static String describe(List<ServerMessage> msgs) {
+        StringBuilder b = new StringBuilder();
+        for (ServerMessage m : msgs) {
+            b.append(m.hasNpcAppear() ? "NpcAppear " : m.hasNpcDisappear() ? "NpcDisappear "
+                : m.hasGroundItemAppear() ? "ItemAppear " : m.hasGroundItemDisappear() ? "ItemDisappear "
+                : m.hasMonsterAppear() ? "MobAppear " : m.hasMonsterDisappear() ? "MobDisappear " : "?");
+        }
+        return b.toString();
+    }
+
+    /**
+     * 把 NPC 按**真实 loader 的同一套**登记进两张表（`npcsByMap` + `npcById`）。
+     *
+     * ⚠ 两张表必须一起填：`NpcAOI` 的兜底清理用 `findById(eid)` 判"这实体还在不在世界里"，
+     * 只填图分表会让它把每一只都判成"已消失" → Appear 紧跟 Disappear（测试里先踩过一次）。
+     */
+    private static void registerNpc(NpcSpawnService svc, Npc npc) throws Exception {
+        @SuppressWarnings("unchecked")
+        Map<Integer, List<Npc>> byMap = (Map<Integer, List<Npc>>) field(NpcSpawnService.class, svc, "npcsByMap");
+        byMap.computeIfAbsent(npc.getMapId(), k -> new ArrayList<>()).add(npc);
+        @SuppressWarnings("unchecked")
+        Map<Long, Npc> byId = (Map<Long, Npc>) field(NpcSpawnService.class, svc, "npcById");
+        byId.put(npc.getId(), npc);
+    }
+
+    private static Npc npc(double x, int mapId, String nameKey) {
+        Npc n = new Npc();
+        n.setNameKey(nameKey);
+        n.setModelFile("char/npc/x/x.inx");
+        n.setX(x);
+        n.setY(0);
+        n.setZ(0);
+        n.setMapId(mapId);
+        return n;
     }
 
     /** 反射取字段（只为把测试数据塞进图分表） */

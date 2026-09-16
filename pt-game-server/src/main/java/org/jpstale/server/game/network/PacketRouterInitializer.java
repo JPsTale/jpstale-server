@@ -1,13 +1,13 @@
 package org.jpstale.server.game.network;
 
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
-import java.util.Map;
 
 /**
  * PacketRouter 初始化器
@@ -15,7 +15,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class PacketRouterInitializer {
+public class PacketRouterInitializer implements SmartInitializingSingleton {
 
     @Autowired
     private PacketRouter packetRouter;
@@ -23,21 +23,20 @@ public class PacketRouterInitializer {
     @Autowired
     private ApplicationContext applicationContext;
 
-    @PostConstruct
-    public void init() {
+    @Override
+    public void afterSingletonsInstantiated() {
         registerAnnotatedHandlers();
         log.info("PacketRouter initialized with {} handlers", packetRouter.getHandlerCount());
     }
 
     private void registerAnnotatedHandlers() {
-        // 扫描所有 Bean，找到标注 @GamePacketHandler 的方法
         String[] beanNames = applicationContext.getBeanDefinitionNames();
         for (String beanName : beanNames) {
             Object bean = applicationContext.getBean(beanName);
             Class<?> beanClass = bean.getClass();
 
             for (Method method : beanClass.getMethods()) {
-                GamePacketHandler annotation = method.getAnnotation(GamePacketHandler.class);
+                GamePacketHandler annotation = AnnotationUtils.findAnnotation(method, GamePacketHandler.class);
                 if (annotation != null) {
                     int messageType = annotation.value();
                     packetRouter.register(messageType, bean, method);

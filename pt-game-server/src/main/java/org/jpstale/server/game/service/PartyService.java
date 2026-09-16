@@ -6,7 +6,11 @@ import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Error;
+import org.jpstale.server.proto.base.S2C_PartyInvite;
+import org.jpstale.server.proto.base.S2C_PartyUpdate;
+import org.jpstale.server.proto.base.S2C_SystemMessage;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -60,8 +64,8 @@ public class PartyService {
         }
 
         // 发送邀请
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setPartyInvite(MessageProto.S2C_PartyInvite.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setPartyInvite(S2C_PartyInvite.newBuilder()
                 .setPartyId(inviterPartyId != null ? inviterPartyId : 0)
                 .setInviterId(inviterId)
                 .setInviterName(inviter.getCharacterName())
@@ -138,11 +142,11 @@ public class PartyService {
      * 组队聊天：广播给本队所有成员（含发送者自己）。
      * 未组队时给发送者回系统提示。
      */
-    public void broadcastChat(long playerId, MessageProto.ServerMessage message) {
+    public void broadcastChat(long playerId, ServerMessage message) {
         Long partyId = playerPartyMap.get(playerId);
         if (partyId == null) {
-            MessageProto.ServerMessage err = MessageProto.ServerMessage.newBuilder()
-                .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+            ServerMessage err = ServerMessage.newBuilder()
+                .setSystemMessage(S2C_SystemMessage.newBuilder()
                     .setKey("chat.party.noParty")
                     .setTimestamp(System.currentTimeMillis())
                     .build())
@@ -161,8 +165,8 @@ public class PartyService {
     }
 
     private void broadcastPartyUpdate(Party party) {
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setPartyUpdate(MessageProto.S2C_PartyUpdate.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setPartyUpdate(S2C_PartyUpdate.newBuilder()
                 .setPartyId(0) // TODO: 获取 partyId
                 .setLeaderId(party.getLeaderId())
                 .addAllMemberIds(party.getMemberIds())
@@ -175,8 +179,8 @@ public class PartyService {
     }
 
     private void sendError(long playerId, String key, Map<String, String> params) {
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setError(MessageProto.S2C_Error.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setError(S2C_Error.newBuilder()
                 .setErrorCode(CommonProto.ErrorCode.PARTY_ERROR)
                 .setKey(key)
                 .putAllParams(params)

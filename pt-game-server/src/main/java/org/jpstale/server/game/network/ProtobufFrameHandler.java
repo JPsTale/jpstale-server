@@ -3,7 +3,7 @@ package org.jpstale.server.game.network;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ClientMessage;
 
 public class ProtobufFrameHandler extends SimpleChannelInboundHandler<BinaryWebSocketFrame> {
     @Override
@@ -11,7 +11,7 @@ public class ProtobufFrameHandler extends SimpleChannelInboundHandler<BinaryWebS
         io.netty.buffer.ByteBuf buf = frame.content();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        MessageProto.ClientMessage msg = MessageProto.ClientMessage.parseFrom(bytes);
+        ClientMessage msg = ClientMessage.parseFrom(bytes);
         ctx.fireChannelRead(msg);
     }
 

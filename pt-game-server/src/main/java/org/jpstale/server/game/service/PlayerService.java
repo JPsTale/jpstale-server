@@ -13,8 +13,13 @@ import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionState;
+import org.jpstale.server.proto.base.C2S_AllocateStat;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_CharacterStatus;
+import org.jpstale.server.proto.base.S2C_Error;
+import org.jpstale.server.proto.base.S2C_PlayerState;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -254,7 +259,7 @@ public class PlayerService {
      * 构建 S2C_PlayerState（HUD 低帧状态通道）：
      * hp/mp/sp/level/gold/exp + 位置 + 名字，进图/血量变化时推送。
      */
-    public MessageProto.S2C_PlayerState.Builder buildPlayerState(Player p) {
+    public S2C_PlayerState.Builder buildPlayerState(Player p) {
         PlayerEntity entity = p.getSession() != null ? p.getSession().getEntity() : null;
         float x = 0, y = 0, z = 0;
         int mapId = 0;
@@ -264,7 +269,7 @@ public class PlayerService {
             z = (float) entity.getZ();
             mapId = entity.getMapId();
         }
-        return MessageProto.S2C_PlayerState.newBuilder()
+        return S2C_PlayerState.newBuilder()
             .setPlayerId(p.getId())
             .setMapId(mapId)
             .setPosition(CommonProto.Position.newBuilder().setX(x).setY(y).setZ(z))
@@ -286,10 +291,10 @@ public class PlayerService {
     /**
      * 构建 S2C_CharacterStatus（角色信息面板完整数据），字段与 characterPanel 一致。
      */
-    public MessageProto.S2C_CharacterStatus.Builder buildCharacterStatus(Player p) {
+    public S2C_CharacterStatus.Builder buildCharacterStatus(Player p) {
         int[] base = statCalculator.attackPower(p);
         int[] res = p.getResistances() != null ? p.getResistances() : new int[8];
-        return MessageProto.S2C_CharacterStatus.newBuilder()
+        return S2C_CharacterStatus.newBuilder()
             .setPlayerId(p.getId())
             .setName(p.getName() != null ? p.getName() : "")
             .setJob(p.getJob())
@@ -335,10 +340,10 @@ public class PlayerService {
         if (session == null || !session.isLoggedIn()) {
             return;
         }
-        session.send(MessageProto.ServerMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
             .setPlayerState(buildPlayerState(p))
             .build());
-        session.send(MessageProto.ServerMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
             .setCharacterStatus(buildCharacterStatus(p))
             .build());
     }
@@ -349,8 +354,8 @@ public class PlayerService {
      * 或撤销标记 "undo"（回退最近一次分配）。points>0 分配、points<0 从指定属性撤回
      * |points| 点（供面板快速 −1/−10/−100）。成功后回推 PlayerState+CharacterStatus。
      */
-    @GamePacketHandler(MessageProto.ClientMessage.ALLOCATE_STAT_FIELD_NUMBER)
-    public void handleAllocateStat(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.ALLOCATE_STAT_FIELD_NUMBER)
+    public void handleAllocateStat(PlayerSession session, ClientMessage message) {
         if (session == null || !session.isPlaying() || session.getCharacterId() == null) {
             return;
         }
@@ -358,7 +363,7 @@ public class PlayerService {
         if (p == null) {
             return;
         }
-        MessageProto.C2S_AllocateStat req = message.getAllocateStat();
+        C2S_AllocateStat req = message.getAllocateStat();
         int pts = req.getPoints();
         boolean ok = "undo".equals(req.getStat())
             ? undoStat(p)
@@ -369,8 +374,8 @@ public class PlayerService {
             recalcPanel(p);
             sendPlayerStatus(session, p);
         } else {
-            session.send(MessageProto.ServerMessage.newBuilder()
-                .setError(MessageProto.S2C_Error.newBuilder()
+            session.send(ServerMessage.newBuilder()
+                .setError(S2C_Error.newBuilder()
                     .setErrorCode(CommonProto.ErrorCode.ATTR_ERROR)
                     .setKey("game.attrAssignFailed")
                     .build())

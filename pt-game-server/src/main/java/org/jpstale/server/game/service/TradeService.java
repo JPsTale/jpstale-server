@@ -5,7 +5,12 @@ import org.jpstale.server.game.model.Trade;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Error;
+import org.jpstale.server.proto.base.S2C_TradeComplete;
+import org.jpstale.server.proto.base.S2C_TradeOpen;
+import org.jpstale.server.proto.base.S2C_TradeRequest;
+import org.jpstale.server.proto.base.S2C_TradeUpdate;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -58,8 +63,8 @@ public class TradeService {
         trades.put(tradeId, trade);
 
         // 发送交易请求
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setTradeRequest(MessageProto.S2C_TradeRequest.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setTradeRequest(S2C_TradeRequest.newBuilder()
                 .setTradeId(tradeId)
                 .setRequesterId(requesterId)
                 .setRequesterName(requester.getCharacterName())
@@ -89,8 +94,8 @@ public class TradeService {
         playerTradeMap.put(trade.getAccepterId(), tradeId);
 
         // 发送交易窗口打开
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setTradeOpen(MessageProto.S2C_TradeOpen.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setTradeOpen(S2C_TradeOpen.newBuilder()
                 .setTradeId(tradeId)
                 .build())
             .build();
@@ -120,8 +125,8 @@ public class TradeService {
         }
 
         // 通知双方更新
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setTradeUpdate(MessageProto.S2C_TradeUpdate.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setTradeUpdate(S2C_TradeUpdate.newBuilder()
                 .setTradeId(tradeId)
                 .build())
             .build();
@@ -154,8 +159,8 @@ public class TradeService {
     private void executeTrade(Trade trade) {
         // TODO: 实际物品和金币交换
 
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setTradeComplete(MessageProto.S2C_TradeComplete.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setTradeComplete(S2C_TradeComplete.newBuilder()
                 .setSuccess(true)
                 .setMessage("交易完成")
                 .build())
@@ -172,8 +177,8 @@ public class TradeService {
     }
 
     private void sendError(long playerId, String error) {
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setError(MessageProto.S2C_Error.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setError(S2C_Error.newBuilder()
                 .setErrorMessage(error)
                 .build())
             .build();

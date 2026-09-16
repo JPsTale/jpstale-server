@@ -3,7 +3,10 @@ package org.jpstale.server.game.network;
 import java.util.concurrent.TimeUnit;
 
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.C2S_Ping;
+import org.jpstale.server.proto.base.ClientMessage;
+import org.jpstale.server.proto.base.S2C_Pong;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,17 +31,17 @@ public class PingService {
     /**
      * 报文入口：心跳
      */
-    @GamePacketHandler(MessageProto.ClientMessage.PING_FIELD_NUMBER)
-    public void handlePing(PlayerSession session, MessageProto.ClientMessage message) {
-        MessageProto.C2S_Ping ping = message.getPing();
+    @GamePacketHandler(ClientMessage.PING_FIELD_NUMBER)
+    public void handlePing(PlayerSession session, ClientMessage message) {
+        C2S_Ping ping = message.getPing();
 
         if (session != null) {
             // 回复 Pong：timestamp 填服务器权威时钟（非回显客户端值）
-            MessageProto.S2C_Pong pong = MessageProto.S2C_Pong.newBuilder()
+            S2C_Pong pong = S2C_Pong.newBuilder()
                 .setTimestamp(nowWorldTimeMs())
                 .build();
 
-            session.send(MessageProto.ServerMessage.newBuilder()
+            session.send(ServerMessage.newBuilder()
                 .setPong(pong)
                 .build());
 

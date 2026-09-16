@@ -2,6 +2,10 @@ syntax = "proto3";
 package jpt.base;
 option java_package = "org.jpstale.server.proto.base";
 option java_outer_classname = "MessageProto";
+// 逐条消息各生成一个顶层类（而非全塞进 MessageProto 的嵌套类）：
+// 默认 false 时 95 条消息会生成单个 3.3MB 的 MessageProto.java，超过 IDEA
+// 的 idea.max.intellisense.filesize 阈值（2.5MB）导致整个类在 IDE 里无法解析。
+option java_multiple_files = true;
 
 import "base/common.proto";
 
@@ -531,6 +535,7 @@ message S2C_MonsterAppear {
   // 中途走进视野或重连的观察者拿不到死亡事件，只能靠 Appear 上的这个标记
   // 把"尸体"和"活怪"区分开（否则会看到尸体站着）。
   bool dead = 10;
+  int32 monster_effect_id = 11; // 怪物音效/特效 ID（对应 C++ dwCharSoundCode / EMonsterEffectID）
 }
 
 message S2C_MonsterDisappear {

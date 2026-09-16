@@ -6,7 +6,8 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.jpstale.server.game.entity.PlayerEntity;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Batch;
+import org.jpstale.server.proto.base.ServerMessage;
 
 /**
  * 玩家会话(纯网络/会话层,D11/M3)。
@@ -124,7 +125,7 @@ public class PlayerSession {
      * 用 ConcurrentLinkedQueue：入队可能来自**主循环线程**（AOI/战斗/移动广播），也可能来自
      * **Netty IO 线程**（如玩家击杀怪触发的死亡广播），而 flush 在主循环 —— 必须线程安全。
      */
-    private final java.util.Queue<MessageProto.ServerMessage> pending =
+    private final java.util.Queue<ServerMessage> pending =
         new java.util.concurrent.ConcurrentLinkedQueue<>();
 
     /**
@@ -134,7 +135,7 @@ public class PlayerSession {
      * 玩家的多条消息 → 一个 S2C_Batch → **一次编码、一次 writeAndFlush**。
      * 对延迟敏感的少数消息（见 {@link #isImmediate}）直接发。
      */
-    public void send(MessageProto.ServerMessage message) {
+    public void send(ServerMessage message) {
         if (channel == null || !channel.isActive()) {
             return;
         }
@@ -152,7 +153,7 @@ public class PlayerSession {
      *    那时 tick 未必在跑，入了队可能永远等不到 flush；
      *  - `disconnect`：断开通知，等下一个 tick 没有意义。
      */
-    private static boolean isImmediate(MessageProto.ServerMessage m) {
+    private static boolean isImmediate(ServerMessage m) {
         return m.hasPong() || m.hasLoginResponse() || m.hasCharacterList()
             || m.hasCreateCharacterResult() || m.hasDisconnect();
     }
@@ -166,7 +167,7 @@ public class PlayerSession {
             pending.clear();
             return;
         }
-        MessageProto.ServerMessage first = pending.poll();
+        ServerMessage first = pending.poll();
         if (first == null) {
             return;
         }
@@ -175,13 +176,13 @@ public class PlayerSession {
             channel.writeAndFlush(first);
             return;
         }
-        MessageProto.S2C_Batch.Builder batch = MessageProto.S2C_Batch.newBuilder();
+        S2C_Batch.Builder batch = S2C_Batch.newBuilder();
         batch.addMessages(first);
-        MessageProto.ServerMessage m;
+        ServerMessage m;
         while ((m = pending.poll()) != null) {
             batch.addMessages(m);
         }
-        channel.writeAndFlush(MessageProto.ServerMessage.newBuilder().setBatch(batch).build());
+        channel.writeAndFlush(ServerMessage.newBuilder().setBatch(batch).build());
     }
 
     /**

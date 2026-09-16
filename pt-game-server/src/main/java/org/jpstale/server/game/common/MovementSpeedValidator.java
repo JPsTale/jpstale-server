@@ -4,8 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.common.InputValidator;
 import org.jpstale.server.game.common.ValidationResult;
+import org.jpstale.server.proto.base.C2S_PlayerMove;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,12 +22,12 @@ public class MovementSpeedValidator implements InputValidator {
 
     @Override
     public int getSupportedMessageType() {
-        return MessageProto.ClientMessage.PLAYER_MOVE_FIELD_NUMBER;
+        return ClientMessage.PLAYER_MOVE_FIELD_NUMBER;
     }
 
     @Override
-    public ValidationResult validate(PlayerSession session, MessageProto.ClientMessage message) {
-        MessageProto.C2S_PlayerMove move = message.getPlayerMove();
+    public ValidationResult validate(PlayerSession session, ClientMessage message) {
+        C2S_PlayerMove move = message.getPlayerMove();
 
         // 客户端位置上权威：报文带 position{world float} + angle + mode。
         // 服务端层校验有限性；限速/防瞬移在核心 loop 消费时按 Δt 距离校验。

@@ -1,13 +1,18 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_MonsterAppear;
+import org.jpstale.server.proto.base.S2C_MonsterDeath;
+import org.jpstale.server.proto.base.S2C_MonsterDisappear;
+import org.jpstale.server.proto.base.S2C_MonsterMove;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -49,7 +54,7 @@ public class MonsterAOI {
     private SessionManager sessionManager;
 
     @Autowired
-    private MonsterSpawnService monsterSpawnService;
+    private EntityRegistry entityRegistry;
 
     /** 观察者 playerId → 当前可见的怪物 id 集合（持久化，双阈值升降级状态） */
     private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
@@ -102,21 +107,14 @@ public class MonsterAOI {
                 continue;
             }
             active.add(pid);
-            // **按坐标**同步，不按图：地图边界是人为切分的，"谁在我附近"只能看坐标。
-            // 原来只取 `getMonstersByMap(player.getMapId())` ⇒ 站在村庄门口看不到门外那只正在被砍的怪
-            //（用户 2026-09-16 实测）。玩家 AOI 本就是坐标口径（`AOIManager.getNearbyPlayers`），
-            // 原版也是（ex-machina `srTransPlayData` 逐只算 `dist² < DIST_TRANSLEVEL_CONNECT`）。
-            // 逐张图的列表调 reconcile 与"拼成一个大列表"等价 —— 判定只看每只怪的距离，
-            // 与它来自哪张图无关，且这样不产生额外分配。
-            for (List<Monster> monsters : monsterSpawnService.allMonsterLists()) {
-                reconcile(e, monsters);
-            }
+            // 按坐标同步，不按图（地图边界是人为切分的）：判定只看距离，与来自哪张图无关。
+            reconcile(e, entityRegistry.allMonsters());
         }
         // 清理已离线/未 playing 会话的残留可见集
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));
     }
 
-    private void reconcile(PlayerEntity player, List<Monster> monsters) {
+    private void reconcile(PlayerEntity player, java.util.Collection<Monster> monsters) {
         Long pid = player.getSession() != null ? player.getSession().getCharacterId() : null;
         if (pid == null) {
             return;
@@ -185,8 +183,8 @@ public class MonsterAOI {
         m.setLastBroadcastAngle(m.getAngle());
         m.setLastBroadcastAnim(anim);
 
-        MessageProto.ServerMessage moveMsg = MessageProto.ServerMessage.newBuilder()
-            .setMonsterMove(MessageProto.S2C_MonsterMove.newBuilder()
+        ServerMessage moveMsg = ServerMessage.newBuilder()
+            .setMonsterMove(S2C_MonsterMove.newBuilder()
                 .setMonsterId(m.getId())
                 .setPosition(CommonProto.Position.newBuilder()
                     .setX((float) m.getX())
@@ -253,7 +251,7 @@ public class MonsterAOI {
             log.warn("[AOI] 怪物 {}#{} 发死亡事件时没有死亡负载（未走 CombatService.handleMonsterDeath）"
                 + " → 本次 Death 缺 killer/exp/gold", m.getName(), m.getId());
         }
-        MessageProto.S2C_MonsterDeath.Builder death = MessageProto.S2C_MonsterDeath.newBuilder()
+        S2C_MonsterDeath.Builder death = S2C_MonsterDeath.newBuilder()
             .setMonsterId(m.getId());
         if (di != null) {
             death.setKillerId(di.killerId());
@@ -262,7 +260,7 @@ public class MonsterAOI {
                 death.setGold(di.gold());
             }
         }
-        session.send(MessageProto.ServerMessage.newBuilder().setMonsterDeath(death.build()).build());
+        session.send(ServerMessage.newBuilder().setMonsterDeath(death.build()).build());
     }
 
     /** 怪物被移除（decay 到点 / 无交互清理）：向仍可见的观察者广播 Disappear（这是"尸体消失"那一半） */
@@ -282,7 +280,7 @@ public class MonsterAOI {
     }
 
     private void sendAppear(PlayerSession session, Monster m) {
-        MessageProto.S2C_MonsterAppear.Builder appear = MessageProto.S2C_MonsterAppear.newBuilder()
+        S2C_MonsterAppear.Builder appear = S2C_MonsterAppear.newBuilder()
             .setMonsterId(m.getId())
             .setTemplateId(m.getTemplateId())
             .setName(m.getName() != null ? m.getName() : "")
@@ -302,16 +300,17 @@ public class MonsterAOI {
         // 只能靠这个标记把"尸体"和"活怪"分开（否则会看到一具站着的尸体）。
         // 不要改由客户端从 hp == 0 推 —— 那是隐式信号（见 proto 该字段注释）。
         appear.setDead(!m.isAlive());
-        session.send(MessageProto.ServerMessage.newBuilder().setMonsterAppear(appear.build()).build());
+        appear.setMonsterEffectId(m.getMonsterEffectId());
+        session.send(ServerMessage.newBuilder().setMonsterAppear(appear.build()).build());
     }
 
     private void sendDisappear(PlayerSession session, long monsterId) {
         session.send(buildDisappear(monsterId));
     }
 
-    private MessageProto.ServerMessage buildDisappear(long monsterId) {
-        return MessageProto.ServerMessage.newBuilder()
-            .setMonsterDisappear(MessageProto.S2C_MonsterDisappear.newBuilder()
+    private ServerMessage buildDisappear(long monsterId) {
+        return ServerMessage.newBuilder()
+            .setMonsterDisappear(S2C_MonsterDisappear.newBuilder()
                 .setMonsterId(monsterId)
                 .build())
             .build();

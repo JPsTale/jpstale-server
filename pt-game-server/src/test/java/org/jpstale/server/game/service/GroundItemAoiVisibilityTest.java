@@ -1,6 +1,7 @@
 package org.jpstale.server.game.service;
 
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.jpstale.server.game.entity.GroundItem;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.item.GroundItemManager;
 import org.jpstale.server.game.item.ItemInstance;
@@ -8,7 +9,7 @@ import org.jpstale.server.game.item.ItemRules;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.network.SessionState;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.jpstale.dao.gamedb.entity.ItemList;
 import org.junit.Test;
 
@@ -56,11 +57,11 @@ public class GroundItemAoiVisibilityTest {
         return (ConcurrentHashMap<Long, Set<Long>>) f.get(aoi);
     }
 
-    private static List<MessageProto.ServerMessage> drain(EmbeddedChannel ch) {
-        List<MessageProto.ServerMessage> out = new ArrayList<>();
+    private static List<ServerMessage> drain(EmbeddedChannel ch) {
+        List<ServerMessage> out = new ArrayList<>();
         Object o;
         while ((o = ch.readOutbound()) != null) {
-            MessageProto.ServerMessage m = (MessageProto.ServerMessage) o;
+            ServerMessage m = (ServerMessage) o;
             if (m.hasBatch()) {
                 out.addAll(m.getBatch().getMessagesList());
             } else {
@@ -135,9 +136,9 @@ public class GroundItemAoiVisibilityTest {
 
         assertTrue("清空后才能重新 add → 重发 Appear（这正是'重进看不到掉落物'的修复）", visible.isEmpty());
         s.flushPending();
-        List<MessageProto.ServerMessage> msgs = drain(ch);
+        List<ServerMessage> msgs = drain(ch);
         assertEquals("每个曾可见的地面物都要补一条 Disappear（换图时客户端不清场）", 2, msgs.size());
-        for (MessageProto.ServerMessage m : msgs) {
+        for (ServerMessage m : msgs) {
             assertTrue("必须是 GroundItemDisappear", m.hasGroundItemDisappear());
         }
     }
@@ -170,7 +171,7 @@ public class GroundItemAoiVisibilityTest {
     @Test
     public void privateWindowExpiresAfterFiveSeconds() {
         GroundItemManager items = new GroundItemManager();
-        GroundItemManager.GroundItem gi = items.add(item(ItemRules.CODE_GOLD), MAP, 0, 0, 0, OTHER, 60_000);
+        GroundItem gi = items.add(item(ItemRules.CODE_GOLD), MAP, 0, 0, 0, OTHER, 60_000);
         long now = System.currentTimeMillis();
 
         assertTrue("刚掉落：私有（只有归属者看得见）", gi.isPrivateAt(now));
@@ -185,7 +186,7 @@ public class GroundItemAoiVisibilityTest {
     public void playerDroppedItemIsImmediatelyPublic() {
         GroundItemManager items = new GroundItemManager();
         // 玩家主动丢弃走的是 ownerId = 0（原版那条分支直接 SendStgItemToNearUsers、无 +5000、无归属）
-        GroundItemManager.GroundItem gi = items.add(item(ItemRules.CODE_GOLD), MAP, 0, 0, 0, 0L, 60_000);
+        GroundItem gi = items.add(item(ItemRules.CODE_GOLD), MAP, 0, 0, 0, 0L, 60_000);
         long now = System.currentTimeMillis();
         assertFalse("玩家丢到地上的东西**立即**对所有人可见（用户 2026-09-16 纠正：原版没有 5 秒限制）",
             gi.isPrivateAt(now));
@@ -196,8 +197,47 @@ public class GroundItemAoiVisibilityTest {
     @Test
     public void publicMonsterDropIsNeverPrivate() {
         GroundItemManager items = new GroundItemManager();
-        GroundItemManager.GroundItem gi = items.add(item(ItemRules.CODE_GOLD), MAP, 0, 0, 0, 0L, 60_000);
+        GroundItem gi = items.add(item(ItemRules.CODE_GOLD), MAP, 0, 0, 0, 0L, 60_000);
         assertFalse(gi.isPrivateAt(System.currentTimeMillis()));
+    }
+
+    // ==================== ⑤ 被移除的物品必须**显式**通知观察者 ====================
+
+    /**
+     * 物品被移除（拾取/过期/被挤掉走的是同一条路）→ 观察者必须收到 Disappear。
+     *
+     * 这条过去是靠 AOI 里一段"对账式兜底清理"撑着的（每 tick 比对可见集与候选集，把不在列表里的
+     * 当成已消失）—— 那是兜底，且隐含要求"候选集完整"，改调用方式就炸。现在改成
+     * **谁移除谁登记、AOI 只负责通知**（`GroundItemManager.removedQueue` → `notifyRemoved`），
+     * 本测试钉住这条显式路径：移除之后必须有 Disappear，且之后不再重复发。
+     */
+    @Test
+    public void removedItemNotifiesVisibleObservers() throws Exception {
+        GroundItemManager items = new GroundItemManager();
+        GroundItem gi = items.add(item(ItemRules.CODE_GOLD), MAP, 0, 0, 0, 0L, 60_000);
+
+        SessionManager sm = new SessionManager();
+        EmbeddedChannel ch = new EmbeddedChannel();
+        GroundItemAOI aoi = aoiWith(sm, items);
+        observer(sm, ch, PID, NEAR_X);
+
+        aoi.syncSessions();
+        sm.getSessionByCharacterId(PID).flushPending();
+        assertEquals("先得让它可见", 1, drain(ch).size());
+
+        // 移除（拾取走的就是这一条）：必须登记 → 下一 tick 通知 Disappear
+        items.remove(MAP, gi.getId());
+        aoi.syncSessions();
+        sm.getSessionByCharacterId(PID).flushPending();
+        List<ServerMessage> msgs = drain(ch);
+        assertEquals("移除后必须收到一条 Disappear", 1, msgs.size());
+        assertTrue("必须是 GroundItemDisappear", msgs.get(0).hasGroundItemDisappear());
+        assertEquals(gi.getId(), msgs.get(0).getGroundItemDisappear().getGroundItemId());
+
+        // 再同步一次：不该重复发（通知只发生一次）
+        aoi.syncSessions();
+        sm.getSessionByCharacterId(PID).flushPending();
+        assertTrue("通知只该发生一次，不该每 tick 重发", drain(ch).isEmpty());
     }
 
     // ==================== ④ 视野外不打扰 ====================

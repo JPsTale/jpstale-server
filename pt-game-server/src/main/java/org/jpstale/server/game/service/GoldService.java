@@ -3,7 +3,8 @@ package org.jpstale.server.game.service;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_GoldChange;
+import org.jpstale.server.proto.base.ServerMessage;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -105,8 +106,8 @@ public class GoldService {
         // 离线发放/GM 后台操作是真实情况，不是"降级"）
         if (session != null && session.isLoggedIn()) {
             playerService.sendPlayerStatus(session, p);
-            session.send(MessageProto.ServerMessage.newBuilder()
-                .setGoldChange(MessageProto.S2C_GoldChange.newBuilder()
+            session.send(ServerMessage.newBuilder()
+                .setGoldChange(S2C_GoldChange.newBuilder()
                     .setOldGold(cur).setNewGold(next).setReason(reason == null ? "" : reason).build())
                 .build());
         }

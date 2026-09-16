@@ -1,13 +1,30 @@
 package org.jpstale.server.game.item;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.server.game.entity.GroundItem;
 import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.service.PlayerService;
 import org.jpstale.server.game.service.AOIManager;
+import org.jpstale.server.proto.base.C2S_BagLayout;
+import org.jpstale.server.proto.base.C2S_BagSwap;
+import org.jpstale.server.proto.base.C2S_DropItem;
+import org.jpstale.server.proto.base.C2S_EquipItem;
+import org.jpstale.server.proto.base.C2S_InventoryMove;
+import org.jpstale.server.proto.base.C2S_StackMerge;
+import org.jpstale.server.proto.base.C2S_UnequipItem;
+import org.jpstale.server.proto.base.C2S_UseItem;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Error;
+import org.jpstale.server.proto.base.S2C_GroundItemDisappear;
+import org.jpstale.server.proto.base.S2C_InventorySnapshot;
+import org.jpstale.server.proto.base.S2C_ItemRemove;
+import org.jpstale.server.proto.base.S2C_ItemUpdate;
+import org.jpstale.server.proto.base.S2C_PlayerMove;
+import org.jpstale.server.proto.base.S2C_SystemMessage;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.stereotype.Component;
 
 /**
@@ -87,7 +104,7 @@ public class ItemNetworkHandler {
         if (it == null || it.getTemplate() == null || !ItemClass.isPotion(it.getTemplate().getClassItem())) {
             return;
         }
-        MessageProto.S2C_PlayerMove move = MessageProto.S2C_PlayerMove.newBuilder()
+        S2C_PlayerMove move = S2C_PlayerMove.newBuilder()
                 .setPlayerId(p.getId())
                 .setPosition(org.jpstale.server.proto.base.CommonProto.Position.newBuilder()
                         .setX((float) ent.getX()).setY((float) ent.getY()).setZ((float) ent.getZ()).build())
@@ -96,16 +113,16 @@ public class ItemNetworkHandler {
                 .setTimestamp(System.currentTimeMillis())
                 .build();
         messageSender.broadcastToArea(ent.getMapId(), (float) ent.getX(), (float) ent.getZ(), 50,
-                MessageProto.ServerMessage.newBuilder().setPlayerMove(move).build());
+                ServerMessage.newBuilder().setPlayerMove(move).build());
     }
 
-    @GamePacketHandler(MessageProto.ClientMessage.USE_ITEM_FIELD_NUMBER)
-    public void handleUseItem(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.USE_ITEM_FIELD_NUMBER)
+    public void handleUseItem(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_UseItem req = message.getUseItem();
+        C2S_UseItem req = message.getUseItem();
         // 使用**药水**时把 EAT 动作广播给 AOI（原版 sinActionPotion → CHRMOTION_STATE_EAT）。
         // 收到请求即发：原版是点击瞬间本地切动作，服务端不等效果结算；
         // 旁观者按 anim_state 本地匹配自己那套 EAT 条目（服务端不解释动画数据，只透传状态）。
@@ -233,7 +250,7 @@ public class ItemNetworkHandler {
     // ------------------------------------------------------------------
 
     public void sendInventorySnapshot(PlayerSession session, Player player) {
-        MessageProto.S2C_InventorySnapshot.Builder snap = MessageProto.S2C_InventorySnapshot.newBuilder()
+        S2C_InventorySnapshot.Builder snap = S2C_InventorySnapshot.newBuilder()
                 .setGold(player.getGold());
         PlayerItems items = player.getItems();
         if (items != null) {
@@ -246,26 +263,26 @@ public class ItemNetworkHandler {
                 }
             }
         }
-        session.send(MessageProto.ServerMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
                 .setInventorySnapshot(snap)
                 .build());
     }
 
-    public MessageProto.S2C_ItemUpdate toItemUpdate(ItemInstance it) {
-        return MessageProto.S2C_ItemUpdate.newBuilder()
+    public S2C_ItemUpdate toItemUpdate(ItemInstance it) {
+        return S2C_ItemUpdate.newBuilder()
                 .setItem(toProto(it))
                 .build();
     }
 
     public void pushUpdate(PlayerSession session, ItemInstance it) {
-        session.send(MessageProto.ServerMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
                 .setItemUpdate(toItemUpdate(it))
                 .build());
     }
 
     public void pushRemove(PlayerSession session, long uid) {
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setItemRemove(MessageProto.S2C_ItemRemove.newBuilder().setUid(uid).build())
+        session.send(ServerMessage.newBuilder()
+                .setItemRemove(S2C_ItemRemove.newBuilder().setUid(uid).build())
                 .build());
     }
 
@@ -370,13 +387,13 @@ public class ItemNetworkHandler {
                 && org.jpstale.server.game.item.EquipSlots.isPotionSlot(it.getSlot());
     }
 
-    @GamePacketHandler(MessageProto.ClientMessage.INVENTORY_MOVE_FIELD_NUMBER)
-    public void handleInventoryMove(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.INVENTORY_MOVE_FIELD_NUMBER)
+    public void handleInventoryMove(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_InventoryMove req = message.getInventoryMove();
+        C2S_InventoryMove req = message.getInventoryMove();
         boolean ok = itemService.moveOnCanvas(p, req.getUid(), req.getToLocation(), req.getToSlot());
         if (!ok) {
             sendError(session, "move failed");
@@ -389,13 +406,13 @@ public class ItemNetworkHandler {
     }
 
     /** 背包布局上报（客户端网格权威，全量快照 + seq）：seq<=lastSeq 乱序丢弃；失败不回推旧快照 */
-    @GamePacketHandler(MessageProto.ClientMessage.BAG_LAYOUT_FIELD_NUMBER)
-    public void handleBagLayout(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.BAG_LAYOUT_FIELD_NUMBER)
+    public void handleBagLayout(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_BagLayout req = message.getBagLayout();
+        C2S_BagLayout req = message.getBagLayout();
         int seq = req.getSeq();
         var list = req.getEntriesList();
         if (list.isEmpty() && seq <= p.getItems().lastSeq()) {
@@ -436,13 +453,13 @@ public class ItemNetworkHandler {
     }
 
     /** 药水堆叠合并 */
-    @GamePacketHandler(MessageProto.ClientMessage.STACK_MERGE_FIELD_NUMBER)
-    public void handleStackMerge(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.STACK_MERGE_FIELD_NUMBER)
+    public void handleStackMerge(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_StackMerge req = message.getStackMerge();
+        C2S_StackMerge req = message.getStackMerge();
         ItemInstance dst = itemService.mergeStack(p, req.getSrcUid(), req.getDstUid());
         if (dst == null) {
             // 拒绝：回推双方当前权威态
@@ -464,13 +481,13 @@ public class ItemNetworkHandler {
      * **换手**：手上那件 ↔ 背包/仓库里某件，原子互换（原版 `ChangeInvenItem` 的换手）。
      * 客户端在"拿着 A 点已占格上的 B"时发这条；服务端用两行互换的写库原语落地。
      */
-    @GamePacketHandler(MessageProto.ClientMessage.BAG_SWAP_FIELD_NUMBER)
-    public void handleBagSwap(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.BAG_SWAP_FIELD_NUMBER)
+    public void handleBagSwap(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_BagSwap req = message.getBagSwap();
+        C2S_BagSwap req = message.getBagSwap();
         ItemService.OpResult r = itemService.swapWithHand(p, req.getHandUid(), req.getTargetUid(),
                 req.getToLocation(), req.getToSlot());
         if (r.reason != ItemService.OpReason.OK) {
@@ -494,8 +511,8 @@ public class ItemNetworkHandler {
      * 放下不需要配套消息：放到装备槽/药水槽走 `EquipItem`、放到背包/仓库格走 `BagLayout`、丢地上走 `DropItem`，
      * 这些路径现在都接受"来源 = 鼠标位"。
      */
-    @GamePacketHandler(MessageProto.ClientMessage.TAKE_TO_HAND_FIELD_NUMBER)
-    public void handleTakeToHand(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.TAKE_TO_HAND_FIELD_NUMBER)
+    public void handleTakeToHand(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
@@ -514,13 +531,13 @@ public class ItemNetworkHandler {
     }
 
     /** 穿装备：背包 → 装备槽 */
-    @GamePacketHandler(MessageProto.ClientMessage.EQUIP_ITEM_FIELD_NUMBER)
-    public void handleEquipItem(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.EQUIP_ITEM_FIELD_NUMBER)
+    public void handleEquipItem(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_EquipItem req = message.getEquipItem();
+        C2S_EquipItem req = message.getEquipItem();
         long srcUid = req.getUid();
         ItemService.OpResult r = itemService.equipFromBag(p, srcUid, req.getEquipSlot());
         if (r.reason != ItemService.OpReason.OK) {
@@ -576,13 +593,13 @@ public class ItemNetworkHandler {
     }
 
     /** 脱装备：装备槽 → 背包 */
-    @GamePacketHandler(MessageProto.ClientMessage.UNEQUIP_ITEM_FIELD_NUMBER)
-    public void handleUnequipItem(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.UNEQUIP_ITEM_FIELD_NUMBER)
+    public void handleUnequipItem(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_UnequipItem req = message.getUnequipItem();
+        C2S_UnequipItem req = message.getUnequipItem();
         ItemService.OpReason reason = itemService.unequipToBag(p, req.getEquipSlot());
         if (reason != ItemService.OpReason.OK) {
             sendErrorKey(session, "item.op." + opKeySuffix(reason));
@@ -598,8 +615,8 @@ public class ItemNetworkHandler {
     }
 
     /** 拾取地面物品（C2S_PickupItem）：服务端距离裁决 + 入背包 + 同图消失广播。 */
-    @GamePacketHandler(MessageProto.ClientMessage.PICKUP_ITEM_FIELD_NUMBER)
-    public void handlePickupItem(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.PICKUP_ITEM_FIELD_NUMBER)
+    public void handlePickupItem(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
         if (p == null || ent == null || ent.getMapId() < 0) {
@@ -608,7 +625,7 @@ public class ItemNetworkHandler {
         long gid = message.getPickupItem().getGroundItemId();
         // 按**全局唯一 id** 取（不按图）：可见性已统一为坐标口径，边界另一侧的东西现在看得见，
         // 若查找还按图就会"看得见却捡不到"。真正的门槛是下面的 PICKUP_RANGE 距离判定。
-        GroundItemManager.GroundItem gi = groundItems.byIdAnyMap(gid);
+        GroundItem gi = groundItems.byIdAnyMap(gid);
         if (gi == null) {
             log.info("[Pickup] {} (mapId={}) gid={} : not found/expired", session.getCharacterName(), ent.getMapId(), gid);
             return; // 已消失/过期（幂等）
@@ -624,17 +641,17 @@ public class ItemNetworkHandler {
             log.info("[Pickup] {} gid={} : 私有窗口内非归属者（owner={}）", session.getCharacterName(), gid, gi.ownerId);
             return;
         }
-        double dx = gi.x - ent.getX();
-        double dz = gi.z - ent.getZ();
+        double dx = gi.getX() - ent.getX();
+        double dz = gi.getZ() - ent.getZ();
         if (dx * dx + dz * dz > PICKUP_RANGE * PICKUP_RANGE) {
             log.info("[Pickup] {} gid={} : too far dist={} (range {})",
                 session.getCharacterName(), gid, Math.sqrt(dx * dx + dz * dz), PICKUP_RANGE);
             return; // 距离裁决：太远不拾
         }
         // 高度差裁决（对齐原版 ay ≤ 64·fONE）：不能隔层(屋顶/桥上)拾取
-        if (Math.abs(gi.y - ent.getY()) > PICKUP_HEIGHT_DIFF) {
+        if (Math.abs(gi.getY() - ent.getY()) > PICKUP_HEIGHT_DIFF) {
             log.info("[Pickup] {} gid={} : too high diff={} (limit {})",
-                session.getCharacterName(), gid, Math.abs(gi.y - ent.getY()), PICKUP_HEIGHT_DIFF);
+                session.getCharacterName(), gid, Math.abs(gi.getY() - ent.getY()), PICKUP_HEIGHT_DIFF);
             return;
         }
         // **金币掉落物**：原版 `SetInvenToItemInfo`（`sinInvenTory.cpp:7808`）在金币分支里
@@ -654,7 +671,7 @@ public class ItemNetworkHandler {
                 return;
             }
             groundItems.remove(ent.getMapId(), gid);
-            broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
+            broadcastDisappear(ent.getMapId(), gi.getX(), gi.getZ(), gid);
             log.info("[Pickup] {} 拾取金币 {}（gid={}，不入背包）",
                 session.getCharacterName(), gi.money, gid);
             return;
@@ -702,7 +719,7 @@ public class ItemNetworkHandler {
         // 拾取药水后地上的药水依然显示在地板上"），而残留的 count=0 地面物再点也没有任何反应
         //（"似乎只要第 1 格有药水就会阻止拾取"其实是这个残影造成的错觉）。
         groundItems.remove(ent.getMapId(), gid);
-        broadcastDisappear(ent.getMapId(), gi.x, gi.z, gid);
+        broadcastDisappear(ent.getMapId(), gi.getX(), gi.getZ(), gid);
         if (granted != null) {
             log.info("[Pickup] {} gid={} granted id={} itemListId={} name={} @loc={}/slot={}",
                 session.getCharacterName(), gid, granted.getId(), granted.getItemListId(),
@@ -715,8 +732,8 @@ public class ItemNetworkHandler {
 
     /** 向地面物品所在位置周围玩家广播消失 */
     private void broadcastDisappear(int mapId, double x, double z, long gid) {
-        MessageProto.ServerMessage disappear = MessageProto.ServerMessage.newBuilder()
-                .setGroundItemDisappear(MessageProto.S2C_GroundItemDisappear.newBuilder().setGroundItemId(gid).build())
+        ServerMessage disappear = ServerMessage.newBuilder()
+                .setGroundItemDisappear(S2C_GroundItemDisappear.newBuilder().setGroundItemId(gid).build())
                 .build();
         for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers(x, z, AOIManager.VIEW_RANGE)) {
             if (pe.getSession() != null) {
@@ -744,8 +761,8 @@ public class ItemNetworkHandler {
     private static final double PICKUP_HEIGHT_DIFF = 64.0d;
 
     private void sendErrorKey(PlayerSession session, String key) {
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setError(MessageProto.S2C_Error.newBuilder()
+        session.send(ServerMessage.newBuilder()
+                .setError(S2C_Error.newBuilder()
                         .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
                         .setKey(key)
                         .build())
@@ -753,13 +770,13 @@ public class ItemNetworkHandler {
     }
 
     /** 丢弃（软删） */
-    @GamePacketHandler(MessageProto.ClientMessage.DROP_ITEM_FIELD_NUMBER)
-    public void handleDropItem(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.DROP_ITEM_FIELD_NUMBER)
+    public void handleDropItem(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
         }
-        MessageProto.C2S_DropItem req = message.getDropItem();
+        C2S_DropItem req = message.getDropItem();
         org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
         if (ent == null || ent.getMapId() < 0) {
             sendErrorKey(session, "item.op.failed");
@@ -800,7 +817,7 @@ public class ItemNetworkHandler {
         // 全程**没有** `dwCreateTime += 5000`，也**没有**归属赋值（`STG_ITEMS` 里根本没有 owner 字段）。
         // 那 5 秒私有窗口只属于**怪物掉落**里 `dropispublic = 0` 的那部分（击杀者的战利品）。
         // ⚠ 曾经把两条路统一套上 5 秒窗口（用户 2026-09-16 纠正："玩家丢弃原版是立即看到，没有 5 秒限制"）。
-        GroundItemManager.GroundItem gi = groundItems.add(
+        GroundItem gi = groundItems.add(
             dropped, ent.getMapId(),
             ent.getX() + Math.cos(ang) * dist,
             ent.getY(),
@@ -817,12 +834,12 @@ public class ItemNetworkHandler {
         pushRemove(session, req.getUid());
         refreshPlayerStats(session, p);
         log.info("[DropGround] {} uid={} → groundItem id={} @({},{})",
-            session.getCharacterName(), req.getUid(), gi.id, (float) gi.x, (float) gi.z);
+            session.getCharacterName(), req.getUid(), gi.getId(), (float) gi.getX(), (float) gi.getZ());
     }
 
     /** W 武器切换 */
-    @GamePacketHandler(MessageProto.ClientMessage.SWITCH_WEAPON_FIELD_NUMBER)
-    public void handleSwitchWeapon(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.SWITCH_WEAPON_FIELD_NUMBER)
+    public void handleSwitchWeapon(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
@@ -863,8 +880,8 @@ public class ItemNetworkHandler {
     }
 
     private void sendError(PlayerSession session, String msg) {
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
+                .setSystemMessage(S2C_SystemMessage.newBuilder()
                         .setMessage(msg)
                         .setTimestamp(System.currentTimeMillis())
                         .build())
@@ -875,8 +892,8 @@ public class ItemNetworkHandler {
         if (session == null) {
             return;
         }
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+        session.send(ServerMessage.newBuilder()
+                .setSystemMessage(S2C_SystemMessage.newBuilder()
                         .setKey(key)
                         .setTimestamp(System.currentTimeMillis())
                         .build())

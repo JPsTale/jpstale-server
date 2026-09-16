@@ -13,8 +13,14 @@ import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.service.GoldService;
 import org.jpstale.server.game.service.PlayerService;
 import org.jpstale.server.game.service.NpcShopService;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_Error;
+import org.jpstale.server.proto.base.S2C_ItemRemove;
+import org.jpstale.server.proto.base.S2C_ItemUpdate;
+import org.jpstale.server.proto.base.S2C_ShopOpen;
+import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.proto.base.ShopItemProto;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -77,8 +83,8 @@ public class NpcShopHandler {
     // ① 点击 NPC → 打开商店
     // ------------------------------------------------------------------
 
-    @GamePacketHandler(MessageProto.ClientMessage.NPC_INTERACT_FIELD_NUMBER)
-    public void handleNpcInteract(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.NPC_INTERACT_FIELD_NUMBER)
+    public void handleNpcInteract(PlayerSession session, ClientMessage message) {
         long entityId = message.getNpcInteract().getEntityId();
         Npc npc = resolveInteractableNpc(session, entityId, "shop.outOfRange");
         if (npc == null) {
@@ -92,16 +98,16 @@ public class NpcShopHandler {
             sendErrorKey(session, "shop.noItems");
             return;
         }
-        MessageProto.S2C_ShopOpen.Builder open = MessageProto.S2C_ShopOpen.newBuilder().setEntityId(entityId);
+        S2C_ShopOpen.Builder open = S2C_ShopOpen.newBuilder().setEntityId(entityId);
         for (NpcShopService.Offer o : offers) {
-            open.addItems(MessageProto.ShopItemProto.newBuilder()
+            open.addItems(ShopItemProto.newBuilder()
                     .setItemlistId(o.itemlistId())
                     .setCode(o.code() == null ? "" : o.code())
                     .setName(o.name() == null ? "" : o.name())
                     .setPrice(o.price())
                     .setKind(o.kind()));
         }
-        session.send(MessageProto.ServerMessage.newBuilder().setShopOpen(open).build());
+        session.send(ServerMessage.newBuilder().setShopOpen(open).build());
         log.info("[Shop] {} 打开 npc={}（{} 件商品）", session.getCharacterName(), npcId, offers.size());
     }
 
@@ -109,8 +115,8 @@ public class NpcShopHandler {
     // ② 买入
     // ------------------------------------------------------------------
 
-    @GamePacketHandler(MessageProto.ClientMessage.SHOP_BUY_FIELD_NUMBER)
-    public void handleShopBuy(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.SHOP_BUY_FIELD_NUMBER)
+    public void handleShopBuy(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
@@ -184,8 +190,8 @@ public class NpcShopHandler {
     // ③ 卖出
     // ------------------------------------------------------------------
 
-    @GamePacketHandler(MessageProto.ClientMessage.SHOP_SELL_FIELD_NUMBER)
-    public void handleShopSell(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.SHOP_SELL_FIELD_NUMBER)
+    public void handleShopSell(PlayerSession session, ClientMessage message) {
         Player p = requirePlayer(session);
         if (p == null) {
             return;
@@ -315,22 +321,22 @@ public class NpcShopHandler {
     }
 
     private void pushUpdate(PlayerSession session, ItemInstance it) {
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setItemUpdate(MessageProto.S2C_ItemUpdate.newBuilder()
+        session.send(ServerMessage.newBuilder()
+                .setItemUpdate(S2C_ItemUpdate.newBuilder()
                         .setItem(ItemNetworkHandler.toProto(it))
                         .build())
                 .build());
     }
 
     private void pushRemove(PlayerSession session, long uid) {
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setItemRemove(MessageProto.S2C_ItemRemove.newBuilder().setUid(uid).build())
+        session.send(ServerMessage.newBuilder()
+                .setItemRemove(S2C_ItemRemove.newBuilder().setUid(uid).build())
                 .build());
     }
 
     private void sendErrorKey(PlayerSession session, String key) {
-        session.send(MessageProto.ServerMessage.newBuilder()
-                .setError(MessageProto.S2C_Error.newBuilder()
+        session.send(ServerMessage.newBuilder()
+                .setError(S2C_Error.newBuilder()
                         .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
                         .setKey(key)
                         .build())

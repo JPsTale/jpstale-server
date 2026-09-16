@@ -44,17 +44,8 @@ public class Monster extends BaseEntity {
     private int respawnTime; // 刷新冷却（毫秒）
 
     /**
-     * 尸体停留时长（毫秒）——从死亡时刻起算，到点后服务端发 `S2C_MonsterDisappear` 并移除实体。
-     *
-     * 依据（两个私服来源一致）：服务端 `OnSever.cpp` 的 `FrameCounter > 400` 才 `Close()` +
-     * `DeleteMonTable`；客户端 `character.cpp` 的 `Draw` 里也是 `FrameCounter > 400` 让尸体全黑。
-     * 两侧的 `FrameCounter` 都等价于"70fps 下的帧数" —— 服务端每次 `smCHAR::Main()` 在动作分支里
-     * +3、函数尾部再无条件 +1（`gameserver/Legacy/Game/Character/character.cpp:3530`），而驱动被
-     * `(srAutoPlayCount & 3) == 0` 抽成 1/4，净效果恰好 70/秒 = fps（`OnSever.cpp:9093` 的 `fps = 70`）。
-     * ⇒ 400 帧 ≈ 5.71 秒，取整 **6000ms**。
-     *
-     * 这是**我们定的数**，出处就是上面这条推导 —— 原版没有 `m_dwDieTime` 这类常量，只有裸字面量
-     * 400（另：`AUTO_DEAD_COUNT` 在两棵树里都定义了但从未被引用）。要改尸体躺多久，只改这里。
+     * 尸体停留时长（ms）。**我们定的数**：原版是裸字面量 `FrameCounter > 400`，两侧 FrameCounter
+     * 都等价 70fps 帧数 ⇒ 400 帧 ≈ 5.71s（推导与出处见 docs/怪物死亡与尸体.md）。
      */
     public static final int DEFAULT_DECAY_MS = 6000;
     private int decayTime = DEFAULT_DECAY_MS;
@@ -77,6 +68,9 @@ public class Monster extends BaseEntity {
 
     // 客户端渲染：资产相对路径（如 char/monster/monimp/monimp-a.inx）
     private String modelFile;
+
+    /** 怪物音效/特效 ID（C++ dwCharSoundCode / EMonsterEffectID），从 INI 的 ȿ 字段读出 */
+    private int monsterEffectId;
 
     // 掉落（对齐 monsterlist.dropquantity / dropispublic）
     private int dropQuantity = 1;      // 掉落掷点次数
@@ -139,16 +133,7 @@ public class Monster extends BaseEntity {
         this.respawnTime = 30000; // 30秒
     }
 
-    /**
-     * 致死入口（**唯一**）。`state = DEAD` / `hp = 0` / `deathTime` 只在这里设置 ——
-     * 调用方 `CombatService.handleMonsterDeath` 紧接着会 `setDeathInfo(...)`，
-     * 于是"死"与"死亡负载"总是同时成立（见 `deathInfo` 的不变式）。
-     *
-     * `hp = 0` 是**必须**的，不是冗余：`isAlive()` 读的是 hp，而"尸体"的判据（`Appear.dead`、
-     * AOI 的自检、客户端的红名/血条）全都走 `isAlive()`。若这里不动 hp，就会出现
-     * `state == DEAD` 但 `isAlive() == true` 的怪物 —— 表现为"尸体被当成活怪下发"。
-     * （生产路径上 hp 本来就是 0 才触发致死，这一步是把两个判据**钉成同一个**。）
-     */
+    /** 致死入口（唯一）：`state/hp/deathTime` 只在这里改。hp 必须一并置 0 —— `isAlive()` 读的是 hp。 */
     public void onDeath() {
         state = MonsterState.DEAD;
         hp = 0;
@@ -160,12 +145,7 @@ public class Monster extends BaseEntity {
         return hp > 0;
     }
 
-    /**
-     * 尸体是否已到消失时刻（死亡时刻 + `decayTime`）。
-     *
-     * 尸体在这之前**是正常可见实体**（留在 AOI 可见集里、照样发 Appear），
-     * 所以这个判据的用途只有"何时移除" —— 不要拿它当"是否对玩家可见"用。
-     */
+    /** 死亡时刻 + `decayTime` 已到（只用于"何时移除"，不是"是否可见"）。 */
     public boolean isDecayed(long nowMs) {
         return !isAlive() && nowMs - deathTime >= decayTime;
     }

@@ -6,8 +6,12 @@ import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
+import org.jpstale.server.proto.base.C2S_PlayerMove;
+import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_MapSwitched;
+import org.jpstale.server.proto.base.S2C_PlayerMove;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -91,8 +95,8 @@ public class WorldService {
      * movementService.tickPlayers() 消费，保证位置只在一个线程（核心 loop）上被应用，
      * 与怪物 AI / 跨图判定无数据竞争。
      */
-    @GamePacketHandler(MessageProto.ClientMessage.PLAYER_MOVE_FIELD_NUMBER)
-    public void handleMove(PlayerSession session, MessageProto.ClientMessage message) {
+    @GamePacketHandler(ClientMessage.PLAYER_MOVE_FIELD_NUMBER)
+    public void handleMove(PlayerSession session, ClientMessage message) {
         if (session == null || !session.isPlaying()) {
             return;
         }
@@ -102,7 +106,7 @@ public class WorldService {
         if (dead != null && dead.isDead()) {
             return;
         }
-        MessageProto.C2S_PlayerMove move = message.getPlayerMove();
+        C2S_PlayerMove move = message.getPlayerMove();
         if (!move.hasPosition()) {
             return;
         }
@@ -146,8 +150,8 @@ public class WorldService {
         aoiManager.onPlayerEnter(e);
 
         // 通知客户端切图（protobuf，S2C_MapSwitched）：客户端对齐 currentMapId 并同步区域/音频/姿态
-        session.send(MessageProto.ServerMessage.newBuilder()
-            .setMapSwitched(MessageProto.S2C_MapSwitched.newBuilder()
+        session.send(ServerMessage.newBuilder()
+            .setMapSwitched(S2C_MapSwitched.newBuilder()
                 .setPlayerId(session.getCharacterId())
                 .setFromMapId(oldMapId)
                 .setMapId(newMapId)
@@ -165,8 +169,8 @@ public class WorldService {
      */
     private void broadcastMove(PlayerSession session, PlayerEntity e) {
         int animState = animStateOf(e.getMoveState());
-        MessageProto.ServerMessage moveMessage = MessageProto.ServerMessage.newBuilder()
-            .setPlayerMove(MessageProto.S2C_PlayerMove.newBuilder()
+        ServerMessage moveMessage = ServerMessage.newBuilder()
+            .setPlayerMove(S2C_PlayerMove.newBuilder()
                 .setPlayerId(session.getCharacterId())
                 .setPosition(CommonProto.Position.newBuilder()
                     .setX((float) e.getX())

@@ -9,7 +9,8 @@ import org.jpstale.server.game.model.GameEvent;
 import org.jpstale.server.game.model.EventType;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.service.MapManager;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_SystemMessage;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -84,8 +85,8 @@ public class EventService {
         log.info("Event started: {} on map {}", event.getType().getName(), event.getMapId());
 
         // 通知所有玩家（minecraft 式翻译 key + 参数）
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setSystemMessage(S2C_SystemMessage.newBuilder()
                 .setKey("game.eventStarted")
                 .putParams("name", event.getType().getName())
                 .setTimestamp(System.currentTimeMillis())
@@ -108,8 +109,8 @@ public class EventService {
             event.getKillCount(), event.getKillTarget());
 
         // 通知所有玩家（minecraft 式翻译 key + 参数）
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
-            .setSystemMessage(MessageProto.S2C_SystemMessage.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
+            .setSystemMessage(S2C_SystemMessage.newBuilder()
                 .setKey("game.eventEnded")
                 .putParams("name", event.getType().getName())
                 .setTimestamp(System.currentTimeMillis())

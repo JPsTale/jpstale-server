@@ -1,7 +1,7 @@
 package org.jpstale.server.game.common;
 
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.ClientMessage;
 
 /**
  * 验证器接口
@@ -16,7 +16,7 @@ public interface InputValidator {
      * @param message 客户端消息
      * @return 验证结果
      */
-    ValidationResult validate(PlayerSession session, MessageProto.ClientMessage message);
+    ValidationResult validate(PlayerSession session, ClientMessage message);
 
     /**
      * 获取验证器支持的消息类型字段号

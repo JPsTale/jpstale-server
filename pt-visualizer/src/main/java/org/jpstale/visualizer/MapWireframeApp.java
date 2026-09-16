@@ -98,7 +98,10 @@ public class MapWireframeApp extends SimpleApplication {
         FieldInfo v2 = FieldCatalog.get().get(3);
         SmdMapData d3 = mapData[3];
         java.util.List<int[]> pts = v2.getStartPoints();
-        double[] sp = pts != null && !pts.isEmpty() ? toDouble(pts.get(0)) : toDouble(v2.getCenter());
+        if (pts == null || pts.isEmpty()) {
+            throw new IllegalStateException("pt-visualizer: village-2(field id=3) 在 fields.json 里没有 startPoints");
+        }
+        double[] sp = toDouble(pts.get(0));
         double sx = sp[0], sz = sp[1];
         double sy = groundHeight(d3, (int) sx, (int) sz);
 

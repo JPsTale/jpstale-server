@@ -4,7 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MessageProto;
+import org.jpstale.server.proto.base.S2C_SystemMessage;
+import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -106,14 +107,14 @@ public class BattleLogService {
 
     private void send(PlayerSession session, String key, Map<String, String> params, boolean battle) {
         if (session.getCharacterId() == null) return;
-        MessageProto.S2C_SystemMessage.Builder body = MessageProto.S2C_SystemMessage.newBuilder()
+        S2C_SystemMessage.Builder body = S2C_SystemMessage.newBuilder()
             .setKey(key)
             .putAllParams(params)
             .setTimestamp(System.currentTimeMillis());
         if (battle) {
             body.setChannel(CommonProto.ChatChannel.CHAT_BATTLE);
         }
-        MessageProto.ServerMessage msg = MessageProto.ServerMessage.newBuilder()
+        ServerMessage msg = ServerMessage.newBuilder()
             .setSystemMessage(body.build())
             .build();
         messageSender.sendToPlayer(session.getCharacterId(), msg);
