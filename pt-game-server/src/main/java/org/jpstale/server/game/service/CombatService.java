@@ -198,7 +198,7 @@ public class CombatService {
         if (attackerEntity == null) {
             return;
         }
-        Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
+        Monster monster = findMonsterById(monsterId);
         if (monster == null || !monster.isAlive()) {
             log.info("COMBAT {} 起手 seq={} 目标 {} 不存在或已死 → 这次挥拳没有计划",
                 player.getName(), clientSeq, monsterId);
@@ -273,7 +273,7 @@ public class CombatService {
         if (attackerEntity == null) {
             return;
         }
-        Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
+        Monster monster = findMonsterById(monsterId);
         if (monster == null || !monster.isAlive()) {
             // 目标已消失（被别人打死/离图）→ 这一刀落空。**不许静默**：客户端在事件帧已按计划播过
             // 一声命中音，必须回一条 missed 让它把那一刀的音收掉、改播挥空音（不然玩家只听到打击声、
@@ -431,7 +431,7 @@ public class CombatService {
         if (attackerEntity == null) {
             return;
         }
-        Monster monster = findMonsterById(monsterId, attackerEntity.getMapId());
+        Monster monster = findMonsterById(monsterId);
         if (monster == null || !monster.isAlive()) {
             return;
         }
@@ -629,11 +629,15 @@ public class CombatService {
         return last == null ? -1 : System.currentTimeMillis() - last;
     }
 
-    private Monster findMonsterById(long monsterId, int mapId) {
-        return monsterSpawnService.getMonstersByMap(mapId).stream()
-            .filter(m -> m.getId() == monsterId)
-            .findFirst()
-            .orElse(null);
+    /**
+     * 按**全局唯一 id** 找怪（id 来自 `EntityIdSource`，跨图唯一）。
+     *
+     * ⚠ 这里**不能**再按 `mapId` 过滤：可见性已统一为坐标口径（怪物 AOI 会用
+     * `allMonsterLists()` 把边界另一侧的怪也推给玩家），若查找还按图，就会出现
+     * "看得见、够得着，却打不到"的新坑。真正的门槛是调用处的 `inRange(...)` 距离判定。
+     */
+    private Monster findMonsterById(long monsterId) {
+        return monsterSpawnService.findById(monsterId);
     }
 
     // ==================== 死亡与重生 ====================

@@ -495,8 +495,47 @@ public class MonsterSpawnService {
 
     // ======== 外部接口 ========
 
+    /**
+     * 按图取怪 —— **只给"这张图自己"的逻辑用**（刷怪、地图上限、世界地图）。
+     *
+     * ⚠ 不要拿它当"谁在我附近"的判据：地图是**人为切分**的，坐标才是空间的真身。
+     * 可见性/可交互一律走 {@link #allMonsterLists()} 或 {@link #findById(long)}（见各自注释）。
+     */
     public List<Monster> getMonstersByMap(int mapId) {
         return monstersByMap.getOrDefault(mapId, List.of());
+    }
+
+    /**
+     * **全部**怪物的图分表（只读遍历用，不复制、不分配）。
+     *
+     * 为什么 AOI 要用它而不是 {@link #getMonstersByMap}：地图边界是人为切分的
+     * （用户 2026-09-16 实测："我在村庄门口能看到门外的玩家在战斗，但看不到她在跟谁战斗"）。
+     * 边界两侧各属一张图，按图取就让"就在旁边"的怪凭空消失。原版也是按坐标流的
+     * （ex-machina `srTransPlayData`：`dist = x*x + z*z; if (dist < DIST_TRANSLEVEL_CONNECT)` 逐只判）。
+     * 与 `AOIManager.getNearbyPlayers(坐标)`（玩家早已是坐标口径）对齐。
+     *
+     * 代价：遍历全部怪物（数百只）而不是一张图的。20Hz × 玩家数 × 数百次距离比较 —— 可接受；
+     * 要更省就得给怪物建坐标网格，目前不值（同 `docs` 里"别为切分造设计"的原则）。
+     */
+    public java.util.Collection<List<Monster>> allMonsterLists() {
+        return monstersByMap.values();
+    }
+
+    /**
+     * 按**全局唯一 id** 找怪（id 来自 `EntityIdSource`，跨图唯一）。
+     *
+     * 攻击/技能校验用它，配合 `inRange(...)` 的距离判定 —— 真正的门槛是**距离**，不是"哪张图"。
+     * 否则"看得见（AOI 按坐标）却打不到（查找按图）"会成为一个新坑。
+     */
+    public Monster findById(long monsterId) {
+        for (List<Monster> list : monstersByMap.values()) {
+            for (Monster m : list) {
+                if (m.getId() == monsterId) {
+                    return m;
+                }
+            }
+        }
+        return null;
     }
 
     public MonsterList getTemplate(String name) {

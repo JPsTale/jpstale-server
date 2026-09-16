@@ -606,14 +606,22 @@ public class ItemNetworkHandler {
             return;
         }
         long gid = message.getPickupItem().getGroundItemId();
-        GroundItemManager.GroundItem gi = groundItems.byId(ent.getMapId(), gid);
+        // 按**全局唯一 id** 取（不按图）：可见性已统一为坐标口径，边界另一侧的东西现在看得见，
+        // 若查找还按图就会"看得见却捡不到"。真正的门槛是下面的 PICKUP_RANGE 距离判定。
+        GroundItemManager.GroundItem gi = groundItems.byIdAnyMap(gid);
         if (gi == null) {
             log.info("[Pickup] {} (mapId={}) gid={} : not found/expired", session.getCharacterName(), ent.getMapId(), gid);
             return; // 已消失/过期（幂等）
         }
         Long cid = session.getCharacterId();
-        if (gi.ownerId != 0 && (cid == null || gi.ownerId != cid)) {
-            log.info("[Pickup] {} gid={} : not owner", session.getCharacterName(), gid);
+        // 私有掉落只在**私有窗口内**拦非归属者；窗口一过它就是公共掉落（可见性与拾取同一把尺子，
+        // 见 GroundItem.privateUntil / GroundItemManager.PRIVATE_WINDOW_MS）。
+        //
+        // ⚠ 原版（经典三棵树）拾取端**完全没有归属校验** —— 它的"私有"只靠"不告诉别人物品在哪"
+        // 实现，5 秒后批量补发就变公共。我们这里多留了一道窗口内校验：对正常客户端**等价**
+        // （看不见就点不到），但对"照坐标瞎发包"的客户端更严。这是有意的收紧，不是照抄。
+        if (gi.ownerId != 0 && gi.isPrivateAt(System.currentTimeMillis()) && (cid == null || gi.ownerId != cid)) {
+            log.info("[Pickup] {} gid={} : 私有窗口内非归属者（owner={}）", session.getCharacterName(), gid, gi.ownerId);
             return;
         }
         double dx = gi.x - ent.getX();
@@ -784,12 +792,20 @@ public class ItemNetworkHandler {
         }
         double ang = Math.random() * Math.PI * 2;
         double dist = 0.8 + Math.random() * 1.4;
+        // ownerId = 0：**玩家主动丢到地上的东西立即对所有人可见**，没有私有窗口。
+        //
+        // 依据（原文玩家丢弃分支，ex-machina gameserver/Legacy/Server/OnSever.cpp:18784）：
+        //   `lpStgItem = lpStgArea->AddItem(lpsItem, x, y, z);`
+        //   `if (lpStgItem) lpStgArea->SendStgItemToNearUsers(lpStgItem);`   // 直接广播给视野内所有人
+        // 全程**没有** `dwCreateTime += 5000`，也**没有**归属赋值（`STG_ITEMS` 里根本没有 owner 字段）。
+        // 那 5 秒私有窗口只属于**怪物掉落**里 `dropispublic = 0` 的那部分（击杀者的战利品）。
+        // ⚠ 曾经把两条路统一套上 5 秒窗口（用户 2026-09-16 纠正："玩家丢弃原版是立即看到，没有 5 秒限制"）。
         GroundItemManager.GroundItem gi = groundItems.add(
             dropped, ent.getMapId(),
             ent.getX() + Math.cos(ang) * dist,
             ent.getY(),
             ent.getZ() + Math.sin(ang) * dist,
-            session.getCharacterId(), 0);
+            0L, 0);
         if (gi == null) {
             // 地图已满且无可挤兑（全 Level=1）：原版 return FALSE 亦丢弃 → 背包物品已被取出，无法原地放回，直接告知
             log.warn("[DropGround] {} uid={} 地图满({}) 掉落被丢弃", session.getCharacterName(), req.getUid(), GroundItemManager.STG_ITEM_MAX);

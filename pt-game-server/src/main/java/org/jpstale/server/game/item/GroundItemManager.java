@@ -28,6 +28,19 @@ public class GroundItemManager {
     /** 每地图活跃地面物上限（原版 STG_ITEM_MAX） */
     public static final int STG_ITEM_MAX = 1024;
 
+    /**
+     * **怪物掉落**中"私有战利品"只给归属者看的窗口长度：5 秒。
+     *
+     * 只适用于 `dropispublic = 0` 的怪物掉落（击杀者的战利品）。
+     * **玩家主动丢到地上的东西不走这条路** —— 原版那条分支直接
+     * `SendStgItemToNearUsers`（立即广播给所有人，见 `ItemNetworkHandler.handleDropItem` 注释）。
+     *
+     * 出处见 `GroundItem.privateUntil` —— 经典三棵树与 EU 都在生成时给掉落可见时刻 `+= 5000`，
+     * 此后再靠周期批量补发变成公共掉落。这是**唯一**一处定义
+     *（`GroundItemAOI` 的可见性判定与拾取校验都读它，避免两处各写一个数）。
+     */
+    public static final long PRIVATE_WINDOW_MS = 5000L;
+
     /** 原版 STG_ITEM_WAIT_TIME：Level=1 物品 3 分钟 */
     public static final long TTL_HIGH_MS = 3 * 60 * 1000L;
 
@@ -49,6 +62,25 @@ public class GroundItemManager {
         public final int mapId;
         public final double x, y, z;
         public final long ownerId;
+        /**
+         * **私有窗口截止时刻**（仅"怪物掉落的私有战利品"有意义，即 `ownerId != 0`）：
+         * 在此之前只有归属者看得见/捡得走，之后**对所有人可见、且谁都能捡**。
+         *
+         * 依据（经典三棵树一致）：私有掉落在生成时被 `dwCreateTime += 5000`（J_Server/ex-machina
+         * `OnSever.cpp`、NewSourcePT `:9372`），注释即"5 秒后才对别人可见"；EU 同构
+         * （`unitserver.cpp:1072` 的 `psItemD->dwDropTime += 5000 //for other players`）。
+         * 之后周期性的批量补发（`SendStgItems`；EU `SendStageItem` 每 8 秒）就把该物品发给
+         * 视野内**所有**玩家了。而四棵树在**拾取端都没有归属校验** ⇒ 原版里"私有"只是
+         * "先不告诉你它在哪"，5 秒后它就是公共掉落。
+         *
+         * ⚠ **玩家主动丢到地上的东西不走这条路**：那条分支（ex-machina `OnSever.cpp:18784`）
+         * 直接 `SendStgItemToNearUsers` 且没有 `+5000`、没有归属 ⇒ `ownerId` 传 0，立即公开。
+         * （用户 2026-09-16 纠正："玩家丢弃原版是立即看到，没有 5 秒限制"。）
+         *
+         * ⚠ 我们过去把**所有** `ownerId != 0` 写成"永久只有归属者可见"
+         * （用户 2026-09-16 实测：看不到别人打怪掉的东西）。
+         */
+        public final long privateUntil;
         public final long expireAt;
         /** 挤压级：1=不可覆盖（材料/装备），0=可被新掉落覆盖（金币/药水）。对齐原版 StgItems[].Level */
         public final int level;
@@ -58,7 +90,8 @@ public class GroundItemManager {
          */
         public final int money;
 
-        public GroundItem(long id, ItemInstance item, int mapId, double x, double y, double z, long ownerId, long expireAt, int level, int money) {
+        public GroundItem(long id, ItemInstance item, int mapId, double x, double y, double z, long ownerId,
+                          long privateUntil, long expireAt, int level, int money) {
             this.id = id;
             this.item = item;
             this.mapId = mapId;
@@ -66,9 +99,18 @@ public class GroundItemManager {
             this.y = y;
             this.z = z;
             this.ownerId = ownerId;
+            this.privateUntil = privateUntil;
             this.expireAt = expireAt;
             this.level = level;
             this.money = money;
+        }
+
+        /**
+         * 现在是否仍处于私有窗口（只有归属者能看见/捡）。
+         * `ownerId == 0`（公共掉落）恒 false。
+         */
+        public boolean isPrivateAt(long now) {
+            return ownerId != 0 && now < privateUntil;
         }
 
         public boolean isExpired(long now) {
@@ -144,7 +186,10 @@ public class GroundItemManager {
                 mapId, m.size(), victim.id);
         }
         long id = idSeq.incrementAndGet();
-        GroundItem gi = new GroundItem(id, item, mapId, x, y, z, ownerId, System.currentTimeMillis() + ttl, level, money);
+        long nowMs = System.currentTimeMillis();
+        // 私有窗口：ownerId != 0 时，前 PRIVATE_WINDOW_MS 只发给归属者（见 GroundItem.privateUntil）
+        long privateUntil = ownerId != 0 ? nowMs + PRIVATE_WINDOW_MS : 0L;
+        GroundItem gi = new GroundItem(id, item, mapId, x, y, z, ownerId, privateUntil, nowMs + ttl, level, money);
         m.put(id, gi);
         log.info("[GroundItem] add id={} mapId={} itemListId={} code={} name={} money={} @({},{},{}) owner={} ttl={}ms level={}",
             id, mapId, item.getItemListId(), item.getItemCode(), item.getTemplate() != null ? item.getTemplate().getName() : "?",
@@ -161,6 +206,50 @@ public class GroundItemManager {
      * 某地图当前全部未过期地面物品（供 AOI 每 tick reconcile）。
      * 顺带把过期项就地剔除（地面物 TTL 到期的清扫点之一）。
      */
+    /**
+     * **全部**地图的地面物（顺带剔除过期项）。
+     *
+     * 可见性用它而不是 {@link #listByMap}：地图边界是人为切分的，掉落物就在边界另一侧时
+     * 按图取会"看不见"（用户 2026-09-16 报的跨边界不可见）。玩家 AOI 与怪物/NPC 都已统一到坐标口径。
+     * 与 `listByMap` 相比是**更少**的分配（一个列表 vs 每图一个）。
+     */
+    public java.util.List<GroundItem> listAll() {
+        long now = System.currentTimeMillis();
+        int size = 0;
+        for (Map<Long, GroundItem> m : byMap.values()) {
+            size += m.size();
+        }
+        java.util.List<GroundItem> out = new java.util.ArrayList<>(size);
+        for (Map<Long, GroundItem> m : byMap.values()) {
+            for (java.util.Map.Entry<Long, GroundItem> e : m.entrySet()) {
+                GroundItem gi = e.getValue();
+                if (gi.isExpired(now)) {
+                    m.remove(e.getKey());
+                    continue;
+                }
+                out.add(gi);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 按**全局唯一 id** 取地面物（不按图过滤）。
+     *
+     * 拾取校验用它：真正的门槛是**与玩家的距离**（见 `ItemNetworkHandler` 的 PICKUP_RANGE），
+     * 而物品 id 由本类的 `idSeq` 全局分配、跨图唯一 ⇒ 没必要再拿 mapId 卡一道。
+     * 否则"看得见（AOI 按坐标）却捡不到（查找按图）"会成为一个新坑。
+     */
+    public GroundItem byIdAnyMap(long id) {
+        for (Map<Long, GroundItem> m : byMap.values()) {
+            GroundItem gi = m.get(id);
+            if (gi != null && !gi.isExpired(System.currentTimeMillis())) {
+                return gi;
+            }
+        }
+        return null;
+    }
+
     public java.util.List<GroundItem> listByMap(int mapId) {
         Map<Long, GroundItem> m = byMap.get(mapId);
         if (m == null) {

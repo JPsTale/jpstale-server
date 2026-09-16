@@ -87,7 +87,11 @@ public class NpcAOI {
                 continue;
             }
             active.add(pid);
-            reconcile(e, npcSpawnService.getNpcsByMap(e.getMapId()));
+            // **按坐标**同步，不按图（与怪物 AOI 同一口径）：地图边界是人为切分的，
+            // 只取本图的 NPC 会让"就站在门口外"的 NPC 看不见（用户 2026-09-16）。
+            for (List<Npc> npcs : npcSpawnService.allNpcLists()) {
+                reconcile(e, npcs);
+            }
         }
         // 清理已离线/未 playing 会话的残留可见集
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));

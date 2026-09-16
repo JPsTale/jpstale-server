@@ -85,6 +85,10 @@ public class AOIManager {
     @Autowired
     private NpcAOI npcAOI;
 
+    /** 地面物品 AOI —— 同 {@link #npcAOI}：清空其地面物品可见集（用户 2026-09-16 实测"刷新后看不到掉落物"） */
+    @Autowired
+    private GroundItemAOI groundItemAOI;
+
     /** 公会缓存：charId → [公会名, 图标id]（懒加载一次，玩家离场清缓存） */
     private final ConcurrentHashMap<Long, String[]> clanCache = new ConcurrentHashMap<>();
 
@@ -264,6 +268,10 @@ public class AOIManager {
         // NPC AOI 同样跨会话保留，也曾漏了清空（用户 2026-09-15：刚进图不推 NPC Appear）。
         // 它按 session 清（换图时顺带补发旧图 NPC 的 Disappear —— 客户端传送不清场）。
         npcAOI.clearVisible(session);
+        // 地面物品 AOI 同理（用户 2026-09-16 实测：刷新页面后看不到地上的掉落物）。
+        // 三类 AOI（怪/NPC/掉落）都是"charId 为键、跨会话保留" ⇒ **必须一起清**；
+        // 漏掉任何一个，症状都是"重进后那一类实体一条 Appear 都不发"。
+        groundItemAOI.clearVisible(session);
         StringBuilder appearLog = new StringBuilder();
         for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ())) {
             if (nearby.getId() == eid) continue;

@@ -48,6 +48,35 @@ public class GroundItemAOI {
     /** 观察者 characterId → 当前可见的地面物品 id 集合（持久化，双阈值升降级） */
     private final ConcurrentHashMap<Long, Set<Long>> visibleByPlayer = new ConcurrentHashMap<>();
 
+    /**
+     * 玩家**进入世界/换图**时清空他的地面物品可见集（与 {@link MonsterAOI#clearVisible} 同因）。
+     *
+     * 可见集以 characterId 为 key **跨会话保留**：不清的话，重进（刷新页面）/续传时
+     * `visible.add(id)` 恒 false ⇒ **一条 Appear 都不发**，客户端的清场又把上局的道具清了，
+     * 于是"地上什么都没有"（用户 2026-09-16 实测：刷新后看不到掉落物）。
+     * 换图时客户端**不清场**（`applyTeleport` 不调 `clearWorldActors`），所以必须**逐条补发 Disappear**，
+     * 否则旧图的道具会变成删不掉的幽灵 —— 与 `NpcAOI.clearVisible` 完全同构。
+     */
+    public void clearVisible(PlayerSession session) {
+        if (session == null) {
+            return;
+        }
+        Long pid = session.getCharacterId();
+        if (pid == null) {
+            return;
+        }
+        Set<Long> visible = visibleByPlayer.get(pid);
+        if (visible == null) {
+            return;
+        }
+        synchronized (visible) {
+            for (long gid : visible) {
+                session.send(buildDisappear(gid));
+            }
+            visible.clear();
+        }
+    }
+
     /** 每 tick 由 GameServer.tick() 驱动：同步所有 playing 会话的地面物品可见集 */
     public void syncSessions() {
         Set<Long> active = ConcurrentHashMap.newKeySet();
@@ -61,7 +90,9 @@ public class GroundItemAOI {
                 continue;
             }
             active.add(pid);
-            reconcile(e, groundItems.listByMap(e.getMapId()));
+            // **按坐标**同步，不按图（与怪物/NPC AOI 同一口径）：地图边界是人为切分的，
+            // 只取本图的掉落物会让"就在边界另一侧"的那件东西看不见（用户 2026-09-16）。
+            reconcile(e, groundItems.listAll());
         }
         // 清理已离线/未 playing 会话的残留可见集
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));
@@ -84,8 +115,11 @@ public class GroundItemAOI {
 
         for (GroundItemManager.GroundItem gi : items) {
             long id = gi.id;
-            // 非公共掉落（ownerId != 0）仅 owner 可见（对齐 EU SendItemStageUser）
-            if (gi.ownerId != 0 && gi.ownerId != pid) {
+            // 私有掉落：**只在私有窗口内**仅 owner 可见；窗口一过就是公共掉落（谁都能看见、谁都能捡）。
+            // 依据与常量出处见 GroundItem.privateUntil / GroundItemManager.PRIVATE_WINDOW_MS。
+            // ⚠ 曾经写成"ownerId != pid 就永久跳过" ⇒ 别人打怪掉的/丢的东西永远看不见
+            //   （用户 2026-09-16 联机实测）。
+            if (gi.isPrivateAt(System.currentTimeMillis()) && gi.ownerId != pid) {
                 if (visible.remove(id)) {
                     session.send(buildDisappear(id));
                 }

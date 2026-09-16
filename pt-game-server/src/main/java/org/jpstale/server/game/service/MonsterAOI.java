@@ -102,8 +102,15 @@ public class MonsterAOI {
                 continue;
             }
             active.add(pid);
-            List<Monster> monsters = monsterSpawnService.getMonstersByMap(e.getMapId());
-            reconcile(e, monsters);
+            // **按坐标**同步，不按图：地图边界是人为切分的，"谁在我附近"只能看坐标。
+            // 原来只取 `getMonstersByMap(player.getMapId())` ⇒ 站在村庄门口看不到门外那只正在被砍的怪
+            //（用户 2026-09-16 实测）。玩家 AOI 本就是坐标口径（`AOIManager.getNearbyPlayers`），
+            // 原版也是（ex-machina `srTransPlayData` 逐只算 `dist² < DIST_TRANSLEVEL_CONNECT`）。
+            // 逐张图的列表调 reconcile 与"拼成一个大列表"等价 —— 判定只看每只怪的距离，
+            // 与它来自哪张图无关，且这样不产生额外分配。
+            for (List<Monster> monsters : monsterSpawnService.allMonsterLists()) {
+                reconcile(e, monsters);
+            }
         }
         // 清理已离线/未 playing 会话的残留可见集
         visibleByPlayer.keySet().removeIf(pid -> !active.contains(pid));
