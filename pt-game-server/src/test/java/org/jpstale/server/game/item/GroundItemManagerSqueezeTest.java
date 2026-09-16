@@ -89,7 +89,7 @@ public class GroundItemManagerSqueezeTest {
         // 新掉落 → 挤掉 potion（Level=0）
         GroundItem mat = gm.add(item(material()), 3, 5555, 0, 5555, 0, 0);
         assertNotNull(mat);
-        assertNull("被覆盖的药水应已从表移除", gm.byId(3, potionGi.id));
+        assertNull("被覆盖的药水应已从表移除", gm.byId(3, potionGi.getId()));
         assertEquals(potionIdName, "potion-fill");
     }
 
