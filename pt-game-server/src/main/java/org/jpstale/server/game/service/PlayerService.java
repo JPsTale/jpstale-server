@@ -285,6 +285,9 @@ public class PlayerService {
             .setMoveSpeed(statCalculator.moveSpeedStat(p))
             .setWalkSpeed((int) statCalculator.walkSpeed(p))
             .setRunSpeed((int) statCalculator.runSpeed(p))
+            // 动画速率（服务端查表，客户端直接用；速度值本身仍下发 —— 客户端要它推进本地移动步长）
+            .setAnimWalkRate((float) statCalculator.walkAnimRate(p))
+            .setAnimRunRate((float) statCalculator.runAnimRate(p))
             .setPlayerName(p.getName() != null ? p.getName() : "");
     }
 
@@ -318,6 +321,9 @@ public class PlayerService {
             .setMoveSpeed(statCalculator.moveSpeedStat(p))
             .setWalkSpeed((int) statCalculator.walkSpeed(p))
             .setRunSpeed((int) statCalculator.runSpeed(p))
+            // 动画速率（同上一条状态推送，服务端查表）
+            .setAnimWalkRate((float) statCalculator.walkAnimRate(p))
+            .setAnimRunRate((float) statCalculator.runAnimRate(p))
             .setAttackSpeed(statCalculator.attackSpeed(p))
             .setCritical(statCalculator.criticalHit(p))
             .setBlock(statCalculator.blockChance(p))

@@ -79,6 +79,42 @@ public final class GameConstants {
         return step / 256.0 * CLIENT_FPS;
     }
 
+    // ---------- 档位 → 动画速率表（初始化时算一次，之后只查表） ----------
+    /**
+     * 走/跑**动画速率** = 该档速度 ÷ 1档速度 —— 用来把走/跑动画的播放速度按**实际移速**缩放
+     * （动画是按 1 档基准做的；加速后位移变快、步频得跟着变，否则看起来在滑行）。
+     *
+     * **为什么是表**（用户 2026-09-16 提）：速率**只由档位决定** —— `速度 = f(档位)` 是纯函数、
+     * 1 档速度是常量 ⇒ `rate(档位)` 本身就是**档位的纯函数**，而档位只有
+     * `MOVE_SPEED_MIN..MOVE_SPEED_MAX` 这些取值。所以启动时算一次、使用时一次数组索引，
+     * 不必在每个下发路径上重做除法。
+     *
+     * 附带性质（可断言，见自检）：`WALK_ANIM_RATE[MOVE_SPEED_MIN] == 1.0`（1 档即基准）。
+     */
+    /**
+     * 动画速率基准：**原版 `FrameStep = 80 * MoveSpeed / 300`**（exm `character.cpp:4017`）
+     * ⇒ 播放速率 = `MoveSpeed / 300`，基准落在 **MoveSpeed 300 = 档位 5**（**不是 1 档**）。
+     * 换算：档位 1 → 0.867（略慢于标准）、档位 5 → 1.0、档位 51 → 2.533。
+     *
+     * ⚠ 这条推翻了早先"以 1 档为基准"的实现——那不是原版：51 档时我们算 2.92 而原版 2.53，
+     * 快 15%，表现为"腿跑出残影"（用户实测）。原版帧步**只跟 `MoveSpeed` 有关、走/跑不分** ⇒
+     * 两张表的值相同（proto 仍保留两个字段，留给将来可能的差异）。
+     */
+    public static final int ANIM_RATE_BASE_MOVE_SPEED = 300;
+
+    public static final double[] WALK_ANIM_RATE = buildAnimRateTable();
+    public static final double[] RUN_ANIM_RATE = buildAnimRateTable();
+
+    /** 建表：速率 = `MoveSpeed / 300`（原版公式）。索引越界按 clamp 取值，不抛。 */
+    private static double[] buildAnimRateTable() {
+        final double[] table = new double[MOVE_SPEED_MAX + 1];
+        for (int i = 0; i < table.length; i++) {
+            final int tier = Math.clamp(i, MOVE_SPEED_MIN, MOVE_SPEED_MAX);
+            table[i] = (MOVE_SPEED_BASE + MOVE_SPEED_PER_LEVEL * tier) / (double) ANIM_RATE_BASE_MOVE_SPEED;
+        }
+        return table;
+    }
+
     // ---------- 燃烧/毒 ----------
     /** 燃烧 tick 间隔（毫秒） */
     public static final int BURNING_TICKRATE_MS = 500;

@@ -126,9 +126,11 @@ public class AOIManager {
             if (p.getAppearance() != null) {
                 b.setAppearance(p.getAppearance());
             }
-            // 移动速度：旁观者用它缩放该角色的走/跑动画播放速度（动画按 1 档做的，加速后步频要跟上）
-            b.setWalkSpeed((int) statCalculator.walkSpeed(p));
-            b.setRunSpeed((int) statCalculator.runSpeed(p));
+            // 走/跑**动画速率**（= 该档速度 ÷ 1档速度，服务端查表算好）：
+            // 旁观者拿它缩放该角色的动画播放速度（动画按 1 档做的，加速后步频要跟上）。
+            // ⚠ 只下发**速率**，不再下发速度值 —— 旁观者不需要速度（远端位置是插值的）。
+            b.setAnimWalkRate((float) statCalculator.walkAnimRate(p));
+            b.setAnimRunRate((float) statCalculator.runAnimRate(p));
         }
         String[] clan = clanOf(e);
         if (clan != null) {

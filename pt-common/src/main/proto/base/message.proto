@@ -352,10 +352,13 @@ message S2C_PlayerAppear {
   float angle = 9;                     // 当前朝向（弧度，0=+Z），远端出现即正确显示朝向
   string clan_name = 10;               // 公会名（clandb.ul.clanname），无公会为空串（头顶名牌）
   string clan_mark = 11;               // 公会图标（clandb.clanlist.iconid 转字符串），无公会为空串
-  // 移动速度（游戏单位/秒）—— 旁观者用它缩放该角色的走/跑**动画播放速度**：
-  // 动画是按 1 档基准做的，加速装备/药水让位移变快后步频得跟着变，否则看起来在滑行。
-  int32 walk_speed = 12;
-  int32 run_speed = 13;
+  // ⚠ 12/13 曾是 walk_speed/run_speed —— 在这条消息里它们**只**用来缩放动画播放速度
+  //（旁观者不需要速度值本身：远端位置是插值出来的），现改由服务端直接算成速率下发，故废弃保号。
+  reserved 12, 13;
+  reserved "walk_speed", "run_speed";
+  // 走/跑**动画速率** = 实际速度 ÷ 1档速度（服务端算好；客户端直接用，不再本地换算）
+  float anim_walk_rate = 14;
+  float anim_run_rate = 15;
 }
 
 message S2C_PlayerDisappear {
@@ -407,8 +410,11 @@ message S2C_PlayerState {
   int32 max_sp = 13;
   int64 next_exp = 14; // 升到下一级所需累计经验（HUD EXP 条）
   int32 move_speed = 15; // 移动速度点数(1-9)
-  int32 walk_speed = 16; // 走路速度(游戏单位/秒)
+  int32 walk_speed = 16; // 走路速度(游戏单位/秒) —— 客户端用它推进**本地移动步长**，保留
   int32 run_speed = 17;  // 跑步速度(游戏单位/秒)
+  // 走/跑动画速率 = 实际速度 ÷ 1档速度（服务端算好；客户端不再本地换算）
+  float anim_walk_rate = 19;
+  float anim_run_rate = 20;
   // 当前等级起点的**累计**经验（= expForLevel(level)）。经验是累计值，
   // 所以「本级已获得 / 本级升级所需」= (exp - level_exp) / (next_exp - level_exp)。
   int64 level_exp = 18;
@@ -501,6 +507,9 @@ message S2C_CharacterStatus {
   int32 move_speed = 26;    // 移动速度点数(1-9)
   int32 walk_speed = 27;    // 走路速度(游戏单位/秒)
   int32 run_speed = 28;     // 跑步速度(游戏单位/秒)
+  // 走/跑动画速率 = 实际速度 ÷ 1档速度（服务端算好；客户端不再本地换算）
+  float anim_walk_rate = 45;
+  float anim_run_rate = 46;
   int32 attack_speed = 29;  // 攻击速度(装备累加)
   int32 critical = 30;      // 暴击率(上限50)
   int32 block = 31;         // 格挡率

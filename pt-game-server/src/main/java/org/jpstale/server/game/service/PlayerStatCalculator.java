@@ -107,8 +107,11 @@ public class PlayerStatCalculator {
         public int maxWeight;      // 负重上限
         public int moveSpeed;      // 移动速度档位 1~51（对标 wartale；> exm 25 > 原版 9）
         public int avoid;          // 回避率 = 100 - 命中率（自 vs 自）
-        public double walkSpeed;   // 世界单位/秒
+        public double walkSpeed;   // 世界单位/秒（客户端用它推进**本地移动步长**）
         public double runSpeed;    // 世界单位/秒
+        /** 走/跑**动画速率** = 该档速度 ÷ 1档速度（**查表**，表在 GameConstants 初始化时算好） */
+        public double walkAnimRate;
+        public double runAnimRate;
         public double regenHp;     // 每秒固定值（精确 0.1）
         public double regenMp;
         public double regenStm;
@@ -154,6 +157,10 @@ public class PlayerStatCalculator {
         s.moveSpeed = moveSpeedStatOf(p, e);
         s.walkSpeed = GameConstants.playerWalkSpeedWorldPerSec(s.moveSpeed);
         s.runSpeed = GameConstants.playerRunSpeedWorldPerSec(s.moveSpeed);
+        // 动画速率查表（不是每次重算）：速率只由档位决定，表在 GameConstants 初始化时建好。
+        // 客户端拿到的是**最终倍率**，不再自己拿公式和档位体系去推（那正是漂移的温床）。
+        s.walkAnimRate = GameConstants.WALK_ANIM_RATE[s.moveSpeed];
+        s.runAnimRate = GameConstants.RUN_ANIM_RATE[s.moveSpeed];
         // 每秒恢复（原版 sinSetRegen）：
         //  HP = ((Lv + STR/2 + HEA)/180 + 装备再生 再生Life_Regen)/1.5
         //  MP = (Lv + SPR*1.2 + HEA/2)/115 + 装备再生 Mana_Regen
@@ -464,6 +471,9 @@ public class PlayerStatCalculator {
     public int moveSpeedStat(Player p) { return stats(p).moveSpeed; }
     public double walkSpeed(Player p) { return stats(p).walkSpeed; }
     public double runSpeed(Player p) { return stats(p).runSpeed; }
+    /** 走/跑**动画速率**（= 该档速度 ÷ 1档速度）—— 服务端算好下发，客户端直接用，不再本地换算 */
+    public double walkAnimRate(Player p) { return stats(p).walkAnimRate; }
+    public double runAnimRate(Player p) { return stats(p).runAnimRate; }
     public double regenHp(Player p) { return stats(p).regenHp; }
     public double regenMp(Player p) { return stats(p).regenMp; }
     public double regenStm(Player p) { return stats(p).regenStm; }
