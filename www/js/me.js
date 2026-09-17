@@ -37,27 +37,22 @@
   }
 
   function loadMe() {
-    fetch('/api/user/me', {
+    PT.request('/api/user/me', {
       method: 'GET',
       credentials: 'include'
     })
-      .then(function (res) {
-        if (res.status === 401) {
+      .then(function (r) {
+        if (r.status === 401) {
           redirectToLogin();
-          return null;
+          return;
         }
-        if (!res.ok) {
-          return null;
-        }
-        return res.json();
-      })
-      .then(function (data) {
-        if (!data) {
+        if (!r.ok) {
           if (accountLine) {
             accountLine.textContent = '加载失败，请稍后重试。';
           }
           return;
         }
+        var data = r.data || {};
         var name = data.accountName || '';
         if (userLabel) {
           userLabel.textContent = name + (data.webAdmin ? '（管理员）' : '');
@@ -118,20 +113,19 @@
         .then(function (pair) {
           var oldHash = pair[0];
           var newHash = pair[1];
-          return fetch('/api/user/change-password', {
+          return PT.request('/api/user/change-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ oldPassword: oldHash, newPassword: newHash })
           });
         })
-        .then(function (res) { return res.json(); })
-        .then(function (data) {
-          if (!data || data.success !== true) {
-            showChangePwdMsg((data && data.message) || '修改密码失败', true);
+        .then(function (r) {
+          if (!r.ok) {
+            showChangePwdMsg(PT.msgOf(r.code, '修改密码失败'), true);
             return;
           }
-          showChangePwdMsg(data.message || '密码修改成功', false);
+          showChangePwdMsg('密码修改成功', false);
           changePwdForm.reset();
         })
         .catch(function () {

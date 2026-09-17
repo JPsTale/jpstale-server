@@ -1,11 +1,12 @@
 package org.jpstale.server.web.controller;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
-import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
 import org.jpstale.server.web.clan.ClanService;
 import org.jpstale.server.web.clan.dto.*;
-import org.jpstale.server.web.dto.ApiResponse;
+import org.jpstale.server.web.dto.Result;
+import org.jpstale.server.web.enums.ResultCode;
+import org.jpstale.server.web.exception.BusinessException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,32 +23,37 @@ public class ClanController {
 
     @PostMapping("/detail.json")
     @SaCheckLogin
-    public ApiResponse<ClanDetailResponse> detail(@Valid @RequestBody ClanDetailRequest req) {
-        String charName = StpUtil.getSession().getString("accountName");
-        ClanDetailResponse resp = clanService.getClanDetail(req.getCharName());
-        if (resp == null) return ApiResponse.fail(1, "角色不在公会中");
-        return ApiResponse.ok(resp);
+    public Result<ClanDetailResponse> detail(@Valid @RequestBody ClanDetailRequest req) {
+        return Result.ok(requireClanDetail(req.getCharName()));
     }
 
     @PostMapping("/members.json")
     @SaCheckLogin
-    public ApiResponse<ClanDetailResponse> members(@Valid @RequestBody ClanDetailRequest req) {
-        ClanDetailResponse resp = clanService.getClanDetail(req.getCharName());
-        if (resp == null) return ApiResponse.fail(1, "角色不在公会中");
-        return ApiResponse.ok(resp);
+    public Result<ClanDetailResponse> members(@Valid @RequestBody ClanDetailRequest req) {
+        return Result.ok(requireClanDetail(req.getCharName()));
     }
 
     @PostMapping("/ranking.json")
     @SaCheckLogin
-    public ApiResponse<List<ClanRankDto>> ranking() {
-        return ApiResponse.ok(clanService.getRanking());
+    public Result<List<ClanRankDto>> ranking() {
+        return Result.ok(clanService.getRanking());
     }
 
     @PostMapping("/check-name.json")
     @SaCheckLogin
-    public ApiResponse<Void> checkName(@Valid @RequestBody ClanNameRequest req) {
-        boolean taken = clanService.isClanNameTaken(req.getClanName());
-        if (taken) return ApiResponse.fail(2, "公会名已存在");
-        return ApiResponse.ok("公会名可用", null);
+    public Result<Void> checkName(@Valid @RequestBody ClanNameRequest req) {
+        if (clanService.isClanNameTaken(req.getClanName())) {
+            throw new BusinessException(ResultCode.CLAN_NAME_TAKEN);
+        }
+        // 可用 = 成功（code 200），不再单独回一句"公会名可用"文案
+        return Result.ok();
+    }
+
+    private ClanDetailResponse requireClanDetail(String charName) {
+        ClanDetailResponse resp = clanService.getClanDetail(charName);
+        if (resp == null) {
+            throw new BusinessException(ResultCode.NOT_IN_CLAN);
+        }
+        return resp;
     }
 }

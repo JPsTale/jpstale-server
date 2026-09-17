@@ -69,19 +69,18 @@
 
     var input = account.toUpperCase() + ':' + password;
     sha256Hex(input).then(function (passwordHash) {
-      return fetch('/api/user/register', {
+      return PT.request('/api/user/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account: account, email: email, password: passwordHash })
       });
     })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (data.success) {
-          showMsg(data.message || '注册成功，请使用游戏客户端登录。');
+      .then(function (r) {
+        if (r.ok) {
+          showMsg('注册成功，请使用游戏客户端登录。');
           form.reset();
         } else {
-          showMsg(data.message || '注册失败', true);
+          showMsg(PT.msgOf(r.code, '注册失败'), true);
         }
       })
       .catch(function () {

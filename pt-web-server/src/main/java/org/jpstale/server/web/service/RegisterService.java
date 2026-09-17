@@ -4,7 +4,8 @@ import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.common.enums.account.AccountFlag;
 import org.jpstale.server.common.enums.account.BanStatus;
-import org.jpstale.server.web.dto.RegisterResponse;
+import org.jpstale.server.web.enums.ResultCode;
+import org.jpstale.server.web.exception.BusinessException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -21,23 +22,23 @@ public class RegisterService {
         this.userInfoMapper = userInfoMapper;
     }
 
-    public RegisterResponse register(String account, String email, String passwordHash) {
+    public void register(String account, String email, String passwordHash) {
         String accountName = account.trim();
         String emailTrimmed = email != null ? email.trim() : "";
-        if (accountName.isEmpty()) {
-            return RegisterResponse.fail("账号不能为空");
-        }
-        if (emailTrimmed.isEmpty()) {
-            return RegisterResponse.fail("邮箱不能为空");
-        }
-        if (passwordHash == null || passwordHash.length() != PASSWORD_HEX_LENGTH || !passwordHash.matches("[0-9A-Fa-f]{64}")) {
-            return RegisterResponse.fail("密码格式无效");
+        // 三种"格式不对"合成同一口径：具体是哪个字段由 @Valid 的字段注解（RegisterRequest）负责，
+        // 这里只兜住"能过校验但值不合法"的情况，没必要把中文写进 Service。
+        if (accountName.isEmpty()
+                || emailTrimmed.isEmpty()
+                || passwordHash == null
+                || passwordHash.length() != PASSWORD_HEX_LENGTH
+                || !passwordHash.matches("[0-9A-Fa-f]{64}")) {
+            throw new BusinessException(ResultCode.PARAM_ERROR);
         }
         if (userInfoMapper.selectOneByAccountName(accountName) != null) {
-            return RegisterResponse.fail("账号已存在");
+            throw new BusinessException(ResultCode.ACCOUNT_EXISTS);
         }
         if (userInfoMapper.selectOneByEmail(emailTrimmed) != null) {
-            return RegisterResponse.fail("该邮箱已被注册");
+            throw new BusinessException(ResultCode.EMAIL_EXISTS);
         }
         UserInfo user = new UserInfo();
         user.setAccountName(accountName);
@@ -60,6 +61,5 @@ public class RegisterService {
         user.setUnmuteDate(null);
         user.setWebAdmin(false);
         userInfoMapper.insert(user);
-        return RegisterResponse.ok("注册成功");
     }
 }

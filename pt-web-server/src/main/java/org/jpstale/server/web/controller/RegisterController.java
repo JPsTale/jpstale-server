@@ -2,9 +2,8 @@ package org.jpstale.server.web.controller;
 
 import jakarta.validation.Valid;
 import org.jpstale.server.web.dto.RegisterRequest;
-import org.jpstale.server.web.dto.RegisterResponse;
+import org.jpstale.server.web.dto.Result;
 import org.jpstale.server.web.service.RegisterService;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,12 +23,8 @@ public class RegisterController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
-        RegisterResponse response = registerService.register(
-                request.getAccount(), request.getEmail(), request.getPassword());
-        if (!response.isSuccess()) {
-            return ResponseEntity.badRequest().body(response);
-        }
-        return ResponseEntity.ok(response);
+    public Result<Void> register(@Valid @RequestBody RegisterRequest request) {
+        registerService.register(request.getAccount(), request.getEmail(), request.getPassword());
+        return Result.ok();
     }
 }

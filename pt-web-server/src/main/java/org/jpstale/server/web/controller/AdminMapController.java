@@ -3,8 +3,10 @@ package org.jpstale.server.web.controller;
 import cn.dev33.satoken.annotation.SaCheckRole;
 import cn.dev33.satoken.stp.StpUtil;
 import org.jpstale.server.web.dto.AdminMapSummary;
+import org.jpstale.server.web.dto.Result;
+import org.jpstale.server.web.enums.ResultCode;
+import org.jpstale.server.web.exception.BusinessException;
 import org.jpstale.server.web.service.AdminMapService;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,25 +37,25 @@ public class AdminMapController {
      * 为防止注解失效，这里显式调用 Sa-Token 进行登录与角色校验。
      */
     @GetMapping
-    public ResponseEntity<List<AdminMapSummary>> list() {
+    public Result<List<AdminMapSummary>> list() {
         StpUtil.checkLogin();
         StpUtil.checkRole("admin");
         List<AdminMapSummary> maps = adminMapService.listAll();
-        return ResponseEntity.ok(maps);
+        return Result.ok(maps);
     }
 
     /**
      * 单张地图详情。
      */
     @GetMapping("/{id}")
-    public ResponseEntity<AdminMapSummary> getById(@PathVariable("id") Integer id) {
+    public Result<AdminMapSummary> getById(@PathVariable("id") Integer id) {
         StpUtil.checkLogin();
         StpUtil.checkRole("admin");
         AdminMapSummary map = adminMapService.findById(id);
         if (map == null) {
-            return ResponseEntity.notFound().build();
+            throw new BusinessException(ResultCode.MAP_NOT_FOUND);
         }
-        return ResponseEntity.ok(map);
+        return Result.ok(map);
     }
 }
 

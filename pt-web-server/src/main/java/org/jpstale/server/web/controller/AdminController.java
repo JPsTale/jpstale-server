@@ -1,7 +1,7 @@
 package org.jpstale.server.web.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
-import org.springframework.http.ResponseEntity;
+import org.jpstale.server.web.dto.Result;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,8 +18,8 @@ import java.util.Map;
 public class AdminController {
 
     @GetMapping("/info")
-    public ResponseEntity<Map<String, Object>> info() {
-        return ResponseEntity.ok(Map.of(
+    public Result<Map<String, String>> info() {
+        return Result.ok(Map.of(
                 "app", "pt-web-server",
                 "description", "运维管理（统一 Web）"
         ));

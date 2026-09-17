@@ -5,17 +5,20 @@ import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.server.web.dto.ChangePasswordRequest;
-import org.jpstale.server.web.dto.ChangePasswordResponse;
 import org.jpstale.server.web.dto.LoginRequest;
-import org.jpstale.server.web.dto.LoginResponse;
+import org.jpstale.server.web.dto.Result;
+import org.jpstale.server.web.enums.ResultCode;
+import org.jpstale.server.web.exception.BusinessException;
 import org.jpstale.server.web.service.ChangePasswordService;
 import org.jpstale.server.web.service.LoginService;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Web 登录/登出：校验账号密码后使用 Sa-Token 登录，Session 写入 accountName、webAdmin，供 @SaCheckRole 等鉴权使用。
@@ -33,21 +36,23 @@ public class LoginController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+    public Result<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
         UserInfo user = loginService.validate(request.getAccount(), request.getPassword());
         if (user == null) {
-            return ResponseEntity.badRequest().body(LoginResponse.fail("账号或密码错误"));
+            // 账号不存在 / 密码错误 / 被封禁 / 未激活 一律同一口径，不泄露账号是否存在
+            throw new BusinessException(ResultCode.LOGIN_FAILED);
         }
         StpUtil.login(user.getId());
+        boolean webAdmin = Boolean.TRUE.equals(user.getWebAdmin());
         StpUtil.getSession().set("accountName", user.getAccountName());
-        StpUtil.getSession().set("webAdmin", Boolean.TRUE.equals(user.getWebAdmin()));
-        return ResponseEntity.ok(LoginResponse.ok(Boolean.TRUE.equals(user.getWebAdmin())));
+        StpUtil.getSession().set("webAdmin", webAdmin);
+        return Result.ok(accountBody(user.getAccountName(), webAdmin));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout() {
+    public Result<Void> logout() {
         StpUtil.logout();
-        return ResponseEntity.ok().build();
+        return Result.ok();
     }
 
     /**
@@ -55,13 +60,9 @@ public class LoginController {
      */
     @PostMapping("/change-password")
     @SaCheckLogin
-    public ResponseEntity<ChangePasswordResponse> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
-        ChangePasswordResponse resp = changePasswordService.changePassword(
-                request.getOldPassword(), request.getNewPassword());
-        if (!resp.isSuccess()) {
-            return ResponseEntity.badRequest().body(resp);
-        }
-        return ResponseEntity.ok(resp);
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        changePasswordService.changePassword(request.getOldPassword(), request.getNewPassword());
+        return Result.ok();
     }
 
     /**
@@ -69,14 +70,16 @@ public class LoginController {
      */
     @GetMapping("/me")
     @SaCheckLogin
-    public ResponseEntity<?> me() {
+    public Result<Map<String, Object>> me() {
         String accountName = StpUtil.getSession().getString("accountName");
         Boolean webAdmin = StpUtil.getSession().getModel("webAdmin", Boolean.class);
-        return ResponseEntity.ok(
-                java.util.Map.of(
-                        "accountName", accountName != null ? accountName : "",
-                        "webAdmin", Boolean.TRUE.equals(webAdmin)
-                )
-        );
+        return Result.ok(accountBody(accountName, Boolean.TRUE.equals(webAdmin)));
+    }
+
+    private static Map<String, Object> accountBody(String accountName, boolean webAdmin) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("accountName", accountName != null ? accountName : "");
+        body.put("webAdmin", webAdmin);
+        return body;
     }
 }

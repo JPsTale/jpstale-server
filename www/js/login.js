@@ -51,17 +51,16 @@
     var input = account.toUpperCase() + ':' + password;
     sha256Hex(input)
       .then(function (passwordHash) {
-        return fetch('/api/user/login', {
+        return PT.request('/api/user/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ account: account, password: passwordHash })
         });
       })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (!data || data.success !== true) {
-          showMsg((data && data.message) || '登录失败，请检查账号或密码', true);
+      .then(function (r) {
+        if (!r.ok) {
+          showMsg(PT.msgOf(r.code, '登录失败，请检查账号或密码'), true);
           return;
         }
         showMsg('登录成功，即将进入用户中心。', false);

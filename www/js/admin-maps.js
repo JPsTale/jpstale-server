@@ -80,40 +80,27 @@
 
   function loadMaps() {
     hideError();
-    fetch('/api/admin/maps', {
+    PT.request('/api/admin/maps', {
       method: 'GET',
       credentials: 'include'
     })
-      .then(function (res) {
-        if (res.status === 401) {
+      .then(function (r) {
+        if (r.status === 401) {
           redirectToLogin();
-          return null;
-        }
-        if (res.status === 403) {
-          showError('当前账号无管理员权限，无法访问地图管理。');
-          return null;
-        }
-        if (!res.ok) {
-          showError('加载失败：' + res.status);
-          return null;
-        }
-        return res.json();
-      })
-      .then(function (data) {
-        if (!data) {
           renderTable([]);
           return;
         }
-        if (!Array.isArray(data)) {
-          // 兼容包装结构 { code, data }
-          if (data && Array.isArray(data.data)) {
-            allMaps = data.data;
-          } else {
-            allMaps = [];
-          }
-        } else {
-          allMaps = data;
+        if (r.status === 403) {
+          showError('当前账号无管理员权限，无法访问地图管理。');
+          renderTable([]);
+          return;
         }
+        if (!r.ok) {
+          showError('加载失败：' + r.status);
+          renderTable([]);
+          return;
+        }
+        allMaps = Array.isArray(r.data) ? r.data : [];
         applyFilter();
       })
       .catch(function () {
@@ -127,22 +114,17 @@
       loadMaps();
       return;
     }
-    fetch('/api/user/me', {
+    PT.request('/api/user/me', {
       method: 'GET',
       credentials: 'include'
     })
-      .then(function (res) {
-        if (res.status === 401) {
+      .then(function (r) {
+        if (r.status === 401) {
           redirectToLogin();
-          return null;
+          return;
         }
-        if (!res.ok) {
-          return null;
-        }
-        return res.json();
-      })
-      .then(function (data) {
-        if (data && data.accountName) {
+        var data = r.data || {};
+        if (data.accountName) {
           userLabel.textContent = data.accountName + (data.webAdmin ? '（管理员）' : '');
         }
       })
