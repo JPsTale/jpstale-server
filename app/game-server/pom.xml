@@ -32,9 +32,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
-        <!-- 让 Spring Boot 读取 bootstrap.yml：Boot 默认只加载 application*，
-             bootstrap.yml 需要 Spring Cloud 的 bootstrap 上下文（本 starter 就是那个开关）。
-             没有它，bootstrap.yml 里的 spring.profiles.active / pt.game.* / sa-token.* 全部是死配置。 -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-bootstrap</artifactId>

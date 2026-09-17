@@ -27,8 +27,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        <!-- 让 Spring Boot 读取 bootstrap.yml（server.port / context-path / sa-token.* 都在里面）。
-             没有它，context-path 会静默退回 '/'，nginx 的 /pt/ 转发会 404。 -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-bootstrap</artifactId>
@@ -41,7 +39,6 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
-        <!-- Sa-Token + Redis 登录鉴权（Spring Boot 4 使用 sa-token-spring-boot4-starter，v1.45.0） -->
         <dependency>
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-spring-boot4-starter</artifactId>
@@ -56,7 +53,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
-        <!-- Spring Boot 4 的 Lettuce 需要 commons-pool2 支持 setMaxWait(Duration)，2.13+ 才提供 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
