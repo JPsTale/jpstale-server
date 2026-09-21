@@ -642,6 +642,11 @@ message S2C_AttackResult {
   bool is_critical = 4;
   bool missed = 5;  // 未命中(MISS 飘字)；missed 时 damage=0
   int32 hit_index = 6;  // 段序号（多段攻击的第几段）
+  // 源码 `AttackEffect`（character.cpp:13354 置位 / 消费点 :5166 命中特效 / effectsnd.cpp:1577
+  // 追加暴击音 16 / :17712 SendTransAttack AttackState=2）。
+  // ⚠ 只影响外观与武器音，**不改伤害**（真暴击另有 Power×170%，别复用 is_critical）。
+  // 服务端暂恒 false，等技能接入攻击链路后再填（见任务书 T3）。
+  bool attack_effect = 7;
 }
 
 // 攻击计划（B 方案）：服务端在**收到起手意图时**即裁定各段结果，随本包下发。
@@ -661,6 +666,9 @@ message AttackSegment {
   bool missed = 2;
   bool is_critical = 3;
   int32 damage = 4;
+  // 源码 `AttackEffect`（character.cpp:13354 置位 / 消费点 :5166 命中特效 / :17712 SendTransAttack）。
+  // ⚠ 只影响外观与武器音，**不改伤害**；服务端暂恒 false，等技能接入攻击链路后再填（见任务书 T3）。
+  bool attack_effect = 5;
 }
 
 // 起手广播：旁观者据此立刻播放攻击者挥拳并设定挥拳时长（attack_speed）

@@ -95,7 +95,7 @@ public class CombatService {
     private static final int MAX_ATTACK_SEGMENTS = 4;
 
     /** 单段裁定结果（服务端掷出，随 S2C_AttackPlan 下发，命中帧按段消费） */
-    private record PlannedSegment(boolean missed, boolean critical, int damage) {}
+    private record PlannedSegment(boolean missed, boolean critical, int damage, boolean attackEffect) {}
 
     /** 一次攻击的计划：段结果 + 已结算段（幂等）+ 客户端序号（防错配） */
     private static final class AttackPlan {
@@ -235,7 +235,8 @@ public class CombatService {
         List<PlannedSegment> segs = new ArrayList<>(segCount);
         for (int i = 0; i < segCount; i++) {
             DamageResult roll = damageCalculator.calculatePlayerToMonster(player, monster, 0);
-            segs.add(new PlannedSegment(roll.isMissed(), roll.isCritical(), roll.getFinalDamage()));
+            segs.add(new PlannedSegment(roll.isMissed(), roll.isCritical(), roll.getFinalDamage(),
+                false /* attackEffect：暂恒 false，等技能接入攻击链路后再填（任务书 T3，仅 Jumping Crash 44 → true） */));
         }
         attackPlans.put(player.getId(), new AttackPlan(clientSeq, monsterId, segs));
         if (session != null) {
@@ -247,7 +248,8 @@ public class CombatService {
                 PlannedSegment seg = segs.get(i);
                 plan.addSegments(AttackSegment.newBuilder()
                     .setIndex(i).setMissed(seg.missed())
-                    .setIsCritical(seg.critical()).setDamage(seg.damage()));
+                    .setIsCritical(seg.critical()).setDamage(seg.damage())
+                    .setAttackEffect(seg.attackEffect()));
             }
             session.send(ServerMessage.newBuilder().setAttackPlan(plan).build());
             // 同一份计划也发给旁观者：他们要在自己的事件帧播**这一段的正确结果音**
@@ -353,7 +355,8 @@ public class CombatService {
             .setTargetId(monsterId)
             .setDamage(damage)
             .setIsCritical(critical)
-            .setHitIndex(hitIndex);
+            .setHitIndex(hitIndex)
+            .setAttackEffect(false);  // attackEffect：暂恒 false，等技能接入攻击链路后再填（T3，仅 44 Jumping Crash → true）
         if (missed) {
             log.info("COMBAT {} hit#{} seq={} {}#{} -> MISS", player.getName(), hitIndex,
                 plan != null ? plan.clientSeq : -1, monster.getName(), monsterId);
@@ -469,7 +472,8 @@ public class CombatService {
             .setTargetId(monsterId)
             .setDamage(result.getFinalDamage())
             .setIsCritical(result.isCritical())
-            .setHitIndex(0);
+            .setHitIndex(0)
+            .setAttackEffect(false);  // attackEffect：暂恒 false，等技能接入攻击链路后再填（T3，仅 44 Jumping Crash → true）
         if (result.isMissed()) {
             log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
             battleLogService.playerMissed(player.getSession(), monster.getName());

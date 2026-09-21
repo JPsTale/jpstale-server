@@ -21,14 +21,14 @@
         <!-- 协议 / 编解码 -->
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>common</artifactId>
+            <artifactId>common-model</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <!-- DAO Mapper（无 Spring Boot Starter） -->
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>pt-dao</artifactId>
+            <artifactId>dao</artifactId>
             <version>${project.version}</version>
         </dependency>
 
