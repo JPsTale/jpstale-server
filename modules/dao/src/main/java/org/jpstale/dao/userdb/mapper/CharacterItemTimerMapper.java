@@ -1,7 +1,7 @@
 package org.jpstale.dao.userdb.mapper;
 
-import org.jpstale.dao.userdb.entity.CharacterItemTimer;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.userdb.entity.CharacterItemTimer;
 
 /**
  * <p>

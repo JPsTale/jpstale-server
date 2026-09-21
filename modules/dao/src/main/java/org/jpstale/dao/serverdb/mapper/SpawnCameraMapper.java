@@ -1,7 +1,7 @@
 package org.jpstale.dao.serverdb.mapper;
 
-import org.jpstale.dao.serverdb.entity.SpawnCamera;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.serverdb.entity.SpawnCamera;
 
 /**
  * <p>

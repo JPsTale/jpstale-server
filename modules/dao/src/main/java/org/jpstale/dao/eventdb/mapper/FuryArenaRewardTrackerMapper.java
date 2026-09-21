@@ -1,7 +1,7 @@
 package org.jpstale.dao.eventdb.mapper;
 
-import org.jpstale.dao.eventdb.entity.FuryArenaRewardTracker;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.eventdb.entity.FuryArenaRewardTracker;
 
 /**
  * <p>

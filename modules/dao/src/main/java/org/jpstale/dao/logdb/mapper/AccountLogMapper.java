@@ -1,7 +1,7 @@
 package org.jpstale.dao.logdb.mapper;
 
-import org.jpstale.dao.logdb.entity.AccountLog;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.logdb.entity.AccountLog;
 
 /**
  * <p>

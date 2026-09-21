@@ -285,7 +285,7 @@ public class NetConnection {
 @Component
 public class NetServer {
     private List<NetConnection> connections = new ArrayList<>();
-    private Map<String, String> playerWorldTokens = new ConcurrentHashMap<>();
+    private final Map<String, String> playerWorldTokens = new ConcurrentHashMap<>();
 
     public void init() {
         // 启动时连接所有配置的服务器

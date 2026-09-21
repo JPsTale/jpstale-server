@@ -1,5 +1,6 @@
 package org.jpstale.server.game.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.dao.gamedb.entity.MapNpc;
 import org.jpstale.dao.gamedb.entity.NpcList;
@@ -10,12 +11,9 @@ import org.jpstale.server.game.model.Npc;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * NPC 加载服务（静态站桩）。
@@ -105,6 +103,17 @@ public class NpcSpawnService {
     /** 按**运行时实体 id** 取 NPC（不存在返回 null）。交互校验用（定义 id 不下发客户端）。 */
     public Npc findById(long entityId) {
         return entityRegistry.findNpc(entityId);
+    }
+
+    /**
+     * 按运行时实体 id 取**本图**的 NPC 实例；不在本图/不存在返回 null。
+     *
+     * 客户端只持有实体 id（`S2C_NpcAppear` 下发，定义 id 不下发）；位置以服务端为准，
+     * 客户端报什么都不影响判定。放在这里而不是共享层：它依赖运行时实体 `Npc` 与刷怪状态。
+     */
+    public Npc findInMap(int mapId, long entityId) {
+        Npc n = findById(entityId);
+        return (n != null && n.getMapId() == mapId) ? n : null;
     }
 
     /**

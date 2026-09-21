@@ -1,7 +1,7 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.game.model.Player;
+import org.jpstale.common.service.model.Player;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.S2C_GoldChange;
 import org.jpstale.server.proto.base.ServerMessage;

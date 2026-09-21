@@ -3,7 +3,7 @@
  * 从 idcode 高 16 位提取 weaponType，用于替代精确 sItem 索引匹配。
  * 数据来源：sItem[] idcode 前缀（exm 权威表）
  */
-import { SITEM_CODE_BY_INDEX } from './sitem-weapon-index.js'
+import {SITEM_CODE_BY_INDEX} from './sitem-weapon-index.js'
 
 const CROSSBOW_LOWS = new Set([
   0x0200, 0x0300, 0x0400, 0x0800, 0x0900, 0x0A00, 0x0D00, 0x1100, 0x1400

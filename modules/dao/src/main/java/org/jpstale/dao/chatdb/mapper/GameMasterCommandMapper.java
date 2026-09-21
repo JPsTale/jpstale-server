@@ -1,7 +1,7 @@
 package org.jpstale.dao.chatdb.mapper;
 
-import org.jpstale.dao.chatdb.entity.GameMasterCommand;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.chatdb.entity.GameMasterCommand;
 
 /**
  * <p>

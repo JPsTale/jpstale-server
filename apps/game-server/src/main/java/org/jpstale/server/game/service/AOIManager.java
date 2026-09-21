@@ -1,24 +1,19 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.dao.clandb.mapper.UlMapper;
+import org.jpstale.server.common.model.CharacterAppearance;
 import org.jpstale.server.game.entity.PlayerEntity;
-import org.jpstale.server.game.model.Player;
+import org.jpstale.server.game.network.AppearanceCodec;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_AppearanceUpdate;
-import org.jpstale.server.proto.base.S2C_PlayerAppear;
-import org.jpstale.server.proto.base.S2C_PlayerDisappear;
-import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -124,7 +119,7 @@ public class AOIManager {
         if (p != null) {
             b.setClassId(p.getJob());
             if (p.getAppearance() != null) {
-                b.setAppearance(p.getAppearance());
+                b.setAppearance(AppearanceCodec.toProto(p.getAppearance()));
             }
             // 走/跑**动画速率**（= 该档速度 ÷ 1档速度，服务端查表算好）：
             // 旁观者拿它缩放该角色的动画播放速度（动画按 1 档做的，加速后步频要跟上）。
@@ -333,7 +328,7 @@ public class AOIManager {
      * @param entity 外观变化的玩家实体
      * @param appearance 新外观（调用方已 recalc 并缓存到 Player）
      */
-    public void broadcastAppearance(PlayerEntity entity, CommonProto.CharacterAppearance appearance) {
+    public void broadcastAppearance(PlayerEntity entity, CharacterAppearance appearance) {
         if (entity == null) {
             return;
         }
@@ -341,7 +336,7 @@ public class AOIManager {
         long pid = entity.getCharId();   // 协议面 = charId（唯一身份空间，见 buildAppear 注释）
         S2C_AppearanceUpdate msg = S2C_AppearanceUpdate.newBuilder()
             .setPlayerId(pid)
-            .setAppearance(appearance)
+            .setAppearance(AppearanceCodec.toProto(appearance))
             .build();
         // 自己
         if (session != null) {

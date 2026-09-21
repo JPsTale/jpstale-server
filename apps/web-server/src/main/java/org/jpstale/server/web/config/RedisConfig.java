@@ -1,38 +1,26 @@
 package org.jpstale.server.web.config;
 
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.PropertyAccessor;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import org.jpstale.server.common.redis.RedisMsgDispatcher;
-import org.jpstale.server.common.redis.RedisMsgProducer;
+import org.jpstale.common.mq.RedisMqConfig;
+import org.jpstale.common.mq.RedisMsgDispatcher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+/**
+ * web 侧的 Redis **订阅**装配。
+ *
+ * 通道名、序列化器、`RedisTemplate`、生产者都在 common-service 的 {@link RedisMqConfig} 里
+ * （两端共用，只有一处定义 —— 以前两处各写一份，序列化器一旦漂移就是静默失败）。
+ * 这里只留**只有订阅方需要**的东西：把 {@link RedisMsgDispatcher} 包成监听适配器，挂到血盟通道上。
+ *
+ * 为什么订阅容器不放进共享配置：game-server 是发布方；给它也挂一个容器，同一条消息会被
+ * 两个进程**各收一份**（pub/sub 是广播而非竞争消费），纯属浪费。
+ */
 @Configuration
 public class RedisConfig {
-
-    public static final String CLAN_TOPIC = "pt:clan:topic";
-
-    @Bean
-    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory factory) {
-        RedisTemplate<String, Object> template = new RedisTemplate<>();
-        template.setConnectionFactory(factory);
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(jsonSerializer());
-        template.setHashKeySerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(jsonSerializer());
-        template.afterPropertiesSet();
-        return template;
-    }
 
     @Bean
     public MessageListenerAdapter commonListenerAdapter(RedisMsgDispatcher dispatcher) {
@@ -41,25 +29,10 @@ public class RedisConfig {
 
     @Bean
     public RedisMessageListenerContainer redisContainer(RedisConnectionFactory factory,
-                                                         MessageListenerAdapter adapter) {
+                                                       MessageListenerAdapter adapter) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(factory);
-        container.addMessageListener(adapter, new ChannelTopic(CLAN_TOPIC));
+        container.addMessageListener(adapter, new ChannelTopic(RedisMqConfig.CLAN_TOPIC));
         return container;
-    }
-
-    @Bean
-    public RedisMsgProducer redisMsgProducer(RedisTemplate<String, Object> redisTemplate) {
-        return new RedisMsgProducer(redisTemplate, CLAN_TOPIC);
-    }
-
-    private GenericJackson2JsonRedisSerializer jsonSerializer() {
-        ObjectMapper om = new ObjectMapper();
-        om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        om.activateDefaultTyping(
-                BasicPolymorphicTypeValidator.builder().allowIfBaseType(Object.class).build(),
-                ObjectMapper.DefaultTyping.NON_FINAL);
-        om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return new GenericJackson2JsonRedisSerializer(om);
     }
 }

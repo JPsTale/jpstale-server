@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import org.jpstale.common.mq.GameServerRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,17 +12,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class GameServerRegistration {
 
     private static final Logger log = LoggerFactory.getLogger(GameServerRegistration.class);
-    private static final String KEY_PREFIX = "pt:game:";
-    private static final long TTL_SECONDS = 30;
 
     private final StringRedisTemplate redis;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -48,19 +44,13 @@ public class GameServerRegistration {
         log.info("Game server registered: id={}, name={}:{}", serverId, serverName, externalIp + ":" + externalPort);
     }
 
+    /** 心跳：写入 {@link GameServerRegistry} 契约的 JSON（key 前缀/TTL/字段名都取那一处定义）。 */
     @Scheduled(fixedDelay = 15, timeUnit = TimeUnit.SECONDS)
     public void heartbeat() {
         try {
-            Map<String, Object> info = new LinkedHashMap<>();
-            info.put("id", serverId);
-            info.put("name", serverName);
-            info.put("ip", externalIp);
-            info.put("port", externalPort);
-            info.put("online", true);
-            info.put("ts", Instant.now().toEpochMilli());
-
-            String key = KEY_PREFIX + serverId;
-            redis.opsForValue().set(key, mapper.writeValueAsString(info), TTL_SECONDS, TimeUnit.SECONDS);
+            GameServerRegistry info = GameServerRegistry.online(serverId, serverName, externalIp, externalPort);
+            redis.opsForValue().set(GameServerRegistry.key(serverId), mapper.writeValueAsString(info),
+                    GameServerRegistry.TTL_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.error("Failed to register game server", e);
         }
@@ -77,11 +67,12 @@ public class GameServerRegistration {
     @EventListener(ContextClosedEvent.class)
     public void deregister() {
         try {
-            redis.delete(KEY_PREFIX + serverId);
+            redis.delete(GameServerRegistry.key(serverId));
             log.info("Game server deregistered: id={}", serverId);
         } catch (Exception e) {
             // 关服时 Redis 恰好不可用（先停了 Redis / 断网）不算故障：注册键靠 TTL 自然过期。
-            log.warn("Failed to deregister game server (key expires in {}s): {}", TTL_SECONDS, e.toString());
+            log.warn("Failed to deregister game server (key expires in {}s): {}",
+                    GameServerRegistry.TTL_SECONDS, e.toString());
         }
     }
 

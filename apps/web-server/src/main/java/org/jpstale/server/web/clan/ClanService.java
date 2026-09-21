@@ -2,6 +2,7 @@ package org.jpstale.server.web.clan;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.mq.ClanMessageData;
 import org.jpstale.dao.clandb.entity.Cl;
 import org.jpstale.dao.clandb.entity.ClanList;
 import org.jpstale.dao.clandb.entity.Li;
@@ -11,7 +12,6 @@ import org.jpstale.dao.clandb.mapper.ClanListMapper;
 import org.jpstale.dao.clandb.mapper.LiMapper;
 import org.jpstale.dao.clandb.mapper.UlMapper;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
-import org.jpstale.server.common.redis.ClanMessageData;
 import org.jpstale.server.web.clan.dto.ClanDetailResponse;
 import org.jpstale.server.web.clan.dto.ClanMemberDto;
 import org.jpstale.server.web.clan.dto.ClanRankDto;

@@ -230,7 +230,7 @@ public class LootService {
 
     /** 全局事件额外掉落（可配 0/1/2/3，对应 EU EVENT_EXTRADROPS） */
     @Value("${pt.loot.extra-drops:0}")
-    private int eventExtraDrops = 0;
+    private final int eventExtraDrops = 0;
 
     private volatile Map<Integer, DropTable> tables = Map.of();
 
@@ -414,7 +414,7 @@ git commit -m "feat(premium): PremiumService.getTimeLeft stub"
 
 ```java
     // 掉落（对齐 monsterlist.dropquantity / dropispublic）
-    private int dropQuantity = 1;      // 掉落掷点次数
+    private final int dropQuantity = 1;      // 掉落掷点次数
     private boolean dropIsPublic;      // true=公共可见，false=仅击杀者可见
 ```
 

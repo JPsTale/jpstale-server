@@ -1,29 +1,23 @@
 package org.jpstale.server.game.item;
 
-import java.util.List;
-
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.item.*;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.shop.NpcShopService;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Npc;
-import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.service.GoldService;
+import org.jpstale.server.game.service.NpcSpawnService;
 import org.jpstale.server.game.service.PlayerService;
-import org.jpstale.server.game.service.NpcShopService;
-import org.jpstale.server.proto.base.ClientMessage;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_Error;
-import org.jpstale.server.proto.base.S2C_ItemRemove;
-import org.jpstale.server.proto.base.S2C_ItemUpdate;
-import org.jpstale.server.proto.base.S2C_ShopOpen;
-import org.jpstale.server.proto.base.ServerMessage;
-import org.jpstale.server.proto.base.ShopItemProto;
-
+import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * NPC 商店：打开 / 买入 / 卖出。
@@ -58,6 +52,7 @@ public class NpcShopHandler {
     private static final int MAX_TRADE_COUNT = 1000;
 
     private final NpcShopService shopService;
+    private final NpcSpawnService npcSpawnService;
     private final ItemService itemService;
     private final ItemRollService itemRollService;
     private final ItemStorageService storage;
@@ -66,11 +61,13 @@ public class NpcShopHandler {
     private final PlayerService playerService;
 
     @Autowired
-    public NpcShopHandler(NpcShopService shopService, ItemService itemService,
+    public NpcShopHandler(NpcShopService shopService, NpcSpawnService npcSpawnService,
+                          ItemService itemService,
                           ItemRollService itemRollService, ItemStorageService storage,
                           GoldService goldService, UserInfoMapper userInfoMapper,
                           PlayerService playerService) {
         this.shopService = shopService;
+        this.npcSpawnService = npcSpawnService;
         this.itemService = itemService;
         this.itemRollService = itemRollService;
         this.storage = storage;
@@ -266,7 +263,7 @@ public class NpcShopHandler {
         if (ent == null || ent.getMapId() < 0) {
             return null;
         }
-        Npc npc = shopService.findInstance(ent.getMapId(), entityId);
+        Npc npc = npcSpawnService.findInMap(ent.getMapId(), entityId);
         if (npc == null) {
             // 该实体 id 不在玩家这张图上（伪造 / 已离开视野）——外挂最爱撞的就是这条
             log.warn("[Shop] {} 交互被拒：entity={} 在 mapId={} 上没有实例（可疑）",

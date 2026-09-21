@@ -74,7 +74,7 @@ public class DummyPlayer extends Node {
         float[] verts = {x1, y1, z1, x2, y2, z2};
         m.setBuffer(com.jme3.scene.VertexBuffer.Type.Position, 3, verts);
         m.setBuffer(com.jme3.scene.VertexBuffer.Type.Index, 3,
-            com.jme3.util.BufferUtils.createIntBuffer(new int[]{0, 1}));
+            com.jme3.util.BufferUtils.createIntBuffer(0, 1));
         m.updateBound();
         m.setMode(com.jme3.scene.Mesh.Mode.Lines);
         return m;

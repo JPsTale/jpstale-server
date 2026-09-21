@@ -6,12 +6,7 @@ import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
-import org.jpstale.server.proto.base.C2S_PlayerMove;
-import org.jpstale.server.proto.base.ClientMessage;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_MapSwitched;
-import org.jpstale.server.proto.base.S2C_PlayerMove;
-import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -70,7 +65,7 @@ public class WorldService {
             // 与传送入口（TeleportService）用的是**同一份** `MapManager.canEnter`。
             // 这里**不换图**：客户端位置权威，人已被客户端挡在门口；服务端只做权威侧拒绝 +
             // 节流日志（给玩家的可见提示由客户端出，避免同一句提示发两遍）。
-            org.jpstale.server.game.model.Player p = playerService.getPlayer(session);
+            org.jpstale.common.service.model.Player p = playerService.getPlayer(session);
             if (p != null) {
                 MapManager.EnterDeny deny = mapManager.canEnter(p.getLevel(), targetMap);
                 if (deny != MapManager.EnterDeny.OK) {

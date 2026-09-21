@@ -1,8 +1,8 @@
 package org.jpstale.dao.clandb.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Param;
 import org.jpstale.dao.clandb.entity.Li;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 /**
  * <p>

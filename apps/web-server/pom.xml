@@ -18,9 +18,17 @@
             <artifactId>common-model</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- 共享业务逻辑（含 Redis 消息层 org.jpstale.common.mq）与地图/资产 -->
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>pt-dao-spring-boot-starter</artifactId>
+            <artifactId>common-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- 直接用到的类要显式声明（不靠传递）：org.jpstale.dao.* 的实体与 mapper。
+             数据源栈（mybatis-plus / dynamic-datasource / postgresql）由 dao 传递，这里不重复声明。 -->
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>dao</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

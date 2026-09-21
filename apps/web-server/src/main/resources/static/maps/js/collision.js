@@ -14,7 +14,7 @@
  *         → 成功则移动；ccnt==0 失败时 dist>>=1（距离减半重试）
  *     → 全失败返回 NULL（原地不动）
  */
-import { sdGetSin, sdGetCos } from './sm-sin.js?v=1';
+import {sdGetCos, sdGetSin} from './sm-sin.js?v=1';
 
 const ANGLE_360 = 4096;
 const FLOATNS = 8;

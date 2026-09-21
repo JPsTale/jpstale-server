@@ -1,7 +1,7 @@
 package org.jpstale.dao.serverdb.mapper;
 
-import org.jpstale.dao.serverdb.entity.PostBox;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.serverdb.entity.PostBox;
 
 /**
  * <p>

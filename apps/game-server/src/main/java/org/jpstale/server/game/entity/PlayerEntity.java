@@ -1,6 +1,6 @@
 package org.jpstale.server.game.entity;
 
-import org.jpstale.server.game.model.Player;
+import org.jpstale.common.service.model.Player;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 

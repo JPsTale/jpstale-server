@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { parseSmb } from './smb-parser.js';
+import {parseSmb} from './smb-parser.js';
 
 const EXM_RUN = '/pt/exm-run/';
 const DROPITEM_DIR = 'image/sinimage/items/dropitem/';

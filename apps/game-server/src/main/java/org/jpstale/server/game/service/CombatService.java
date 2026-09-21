@@ -1,38 +1,20 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.model.DamageResult;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.stat.DamageCalculator;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Monster;
-import org.jpstale.server.game.model.DamageResult;
-import org.jpstale.server.game.model.Player;
-import org.jpstale.server.game.network.GameMessageSender;
-import org.jpstale.server.game.network.GamePacketHandler;
-import org.jpstale.server.game.network.PlayerMoveState;
-import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.game.network.SessionManager;
-import org.jpstale.server.proto.base.AttackSegment;
-import org.jpstale.server.proto.base.C2S_AttackHit;
-import org.springframework.context.annotation.Lazy;
-import org.jpstale.server.proto.base.C2S_AttackStart;
-import org.jpstale.server.proto.base.C2S_UseSkill;
-import org.jpstale.server.proto.base.ClientMessage;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_AttackPlan;
-import org.jpstale.server.proto.base.S2C_AttackResult;
-import org.jpstale.server.proto.base.S2C_AttackStart;
-import org.jpstale.server.proto.base.S2C_LevelUpBroadcast;
-import org.jpstale.server.proto.base.S2C_PlayerDeath;
-import org.jpstale.server.proto.base.S2C_PlayerRespawn;
-import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.game.network.*;
+import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -80,10 +62,10 @@ public class CombatService {
     private PlayerStatCalculator statCalculator;
 
     @Autowired
-    private org.jpstale.server.game.item.LootService lootService;
+    private org.jpstale.common.service.item.LootService lootService;
 
     @Autowired
-    private org.jpstale.server.game.item.ItemRollService itemRollService;
+    private org.jpstale.common.service.item.ItemRollService itemRollService;
 
     @Autowired
     private org.jpstale.server.game.item.GroundItemManager groundItems;
@@ -220,7 +202,7 @@ public class CombatService {
             discardStalePlan(player, clientSeq);
             return;
         }
-        PlayerSession session = player.getSession();
+        PlayerSession session = playerService.sessionOf(player);
         PlayerEntity attackerEntity = session != null ? session.getEntity() : null;
         if (attackerEntity == null) {
             return;
@@ -246,7 +228,7 @@ public class CombatService {
         int segCount = Math.max(1, Math.min(MAX_ATTACK_SEGMENTS, declaredSegments));
         List<PlannedSegment> segs = new ArrayList<>(segCount);
         for (int i = 0; i < segCount; i++) {
-            DamageResult roll = damageCalculator.calculatePlayerToMonster(player, monster, 0);
+            DamageResult roll = damageCalculator.calculatePlayerToMonster(player, monster.combatStats(), 0);
             segs.add(new PlannedSegment(roll.isMissed(), roll.isCritical(), roll.getFinalDamage(),
                 false /* attackEffect：暂恒 false，等技能接入攻击链路后再填（任务书 T3，仅 Jumping Crash 44 → true） */));
         }
@@ -297,7 +279,7 @@ public class CombatService {
      * hit_index 仅为段序号（0..3），不映射手（原版无此概念）。
      */
     public void playerAttackHit(Player player, long monsterId, int hitIndex) {
-        PlayerSession session = player.getSession();
+        PlayerSession session = playerService.sessionOf(player);
         PlayerEntity attackerEntity = session != null ? session.getEntity() : null;
         if (attackerEntity == null) {
             return;
@@ -309,7 +291,7 @@ public class CombatService {
             // 怪物头上却连伤害数字和 MISS 都没有）。
             log.info("COMBAT {} hit#{} 目标 {} 已不存在或已死 → 这一刀落空（回 MISS 修正客户端音效）",
                 player.getName(), hitIndex, monsterId);
-            battleLogService.playerWhiffed(player.getSession());
+            battleLogService.playerWhiffed(playerService.sessionOf(player));
             reportWhiff(attackerEntity, player.getId(), monsterId, hitIndex);
             return;
         }
@@ -317,7 +299,7 @@ public class CombatService {
             // 起手时距离就超限（计划照发了），命中帧仍然够不着 → 同样按落空处理
             log.info("COMBAT {} hit#{} 目标 {}#{} 已超出攻击距离 → 这一刀落空（回 MISS 修正客户端音效）",
                 player.getName(), hitIndex, monster.getName(), monsterId);
-            battleLogService.playerWhiffed(player.getSession());
+            battleLogService.playerWhiffed(playerService.sessionOf(player));
             reportWhiff(attackerEntity, player.getId(), monsterId, hitIndex);
             return;
         }
@@ -354,7 +336,7 @@ public class CombatService {
             // 排查起点：往上找同玩家的「起手 … → 这次挥拳没有计划」行，那里写了拒绝原因。
             log.warn("COMBAT {} hit#{} 无攻击计划 → 退回即时裁定（B 方案未覆盖该链路）",
                 player.getName(), hitIndex);
-            DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
+            DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster.combatStats(), 0);
             missed = result.isMissed();
             critical = result.isCritical();
             damage = result.getFinalDamage();
@@ -372,7 +354,7 @@ public class CombatService {
         if (missed) {
             log.info("COMBAT {} hit#{} seq={} {}#{} -> MISS", player.getName(), hitIndex,
                 plan != null ? plan.clientSeq : -1, monster.getName(), monsterId);
-            battleLogService.playerMissed(player.getSession(), monster.getName());
+            battleLogService.playerMissed(playerService.sessionOf(player), monster.getName());
             broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
             return;
         }
@@ -383,7 +365,7 @@ public class CombatService {
         log.info("COMBAT {} hit#{} seq={} {}#{} -> {} dmg (crit={}), hp {}/{}",
             player.getName(), hitIndex, plan != null ? plan.clientSeq : -1,
             monster.getName(), monsterId, damage, critical, monster.getHp(), monster.getMaxHp());
-        battleLogService.playerDealtDamage(player.getSession(), monster.getName(), damage, critical);
+        battleLogService.playerDealtDamage(playerService.sessionOf(player), monster.getName(), damage, critical);
 
         // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）。坐标取实体
         if (monster.getNature() == 0 || monster.getTargetPlayerId() == null) {
@@ -456,7 +438,7 @@ public class CombatService {
             return;
         }
 
-        PlayerSession session = player.getSession();
+        PlayerSession session = playerService.sessionOf(player);
         PlayerEntity attackerEntity = session != null ? session.getEntity() : null;
         if (attackerEntity == null) {
             return;
@@ -475,7 +457,7 @@ public class CombatService {
             return;
         }
 
-        DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster, 0);
+        DamageResult result = damageCalculator.calculatePlayerToMonster(player, monster.combatStats(), 0);
 
         // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。
         // 不再单独 sendToPlayer：broadcastToArea 已覆盖攻击者本人，重复发送会导致客户端重复扣血/飘字。
@@ -488,7 +470,7 @@ public class CombatService {
             .setAttackEffect(SKILL_ATTACK_EFFECT.getOrDefault(skillId, false));  // T3：按显式表填 attackEffect（44 Jumping Crash → true）
         if (result.isMissed()) {
             log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
-            battleLogService.playerMissed(player.getSession(), monster.getName());
+            battleLogService.playerMissed(playerService.sessionOf(player), monster.getName());
             broadcastAttackResult(attackerEntity, ar.setMissed(true).build());
             return;
         }
@@ -500,7 +482,7 @@ public class CombatService {
             player.getName(), monster.getName(), monsterId,
             result.getFinalDamage(), result.getRawDamage(), result.isCritical(),
             monster.getHp(), monster.getMaxHp());
-        battleLogService.playerDealtDamage(player.getSession(), monster.getName(),
+        battleLogService.playerDealtDamage(playerService.sessionOf(player), monster.getName(),
             result.getFinalDamage(), result.isCritical());
 
         // 受击反击：怪物锁定攻击者（Evil 无目标时；Neutral 受击也反击）。坐标取实体
@@ -544,15 +526,15 @@ public class CombatService {
         int gold = 0;
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         for (int i = 0; i < numDrops; i++) {
-            org.jpstale.server.game.item.LootService.DropResult dr = lootService.roll(monster.getTemplateId());
-            if (dr == null || dr.type == org.jpstale.server.game.item.LootService.DropType.AIR) {
+            org.jpstale.common.service.item.LootService.DropResult dr = lootService.roll(monster.getTemplateId());
+            if (dr == null || dr.type == org.jpstale.common.service.item.LootService.DropType.AIR) {
                 continue;
             }
-            if (dr.type == org.jpstale.server.game.item.LootService.DropType.GOLD) {
+            if (dr.type == org.jpstale.common.service.item.LootService.DropType.GOLD) {
                 gold += dr.gold;
                 continue;
             }
-            org.jpstale.server.game.item.ItemInstance item = itemRollService.rollByIdCode(dr.itemCode, null);
+            org.jpstale.common.service.item.ItemInstance item = itemRollService.rollByIdCode(dr.itemCode, null);
             if (item == null) {
                 continue;
             }
@@ -569,12 +551,12 @@ public class CombatService {
             //（原版 `SetInvenToItemInfo` → `sinPlusMoney` + `SIN_SOUND_COIN`，且**不入背包**）。
             // 我们过去直接 `killer.setGold(+gold)` —— 那样既没有拾取过程，也没有金币上限校验。
             // 金额来自该怪 `dropitem` 的 goldmin..goldmax 掷点（每只怪**一枚**，用户 2026-09-14 定）。
-            org.jpstale.server.game.item.ItemInstance coin = itemRollService.rollByIdCode(
-                org.jpstale.server.game.item.ItemRules.CODE_GOLD, null);
+            org.jpstale.common.service.item.ItemInstance coin = itemRollService.rollByIdCode(
+                org.jpstale.common.service.item.ItemRules.CODE_GOLD, null);
             if (coin == null) {
                 // 不静默：数据缺了就说清哪一条缺、丢了多少
                 log.error("[Drop] itemlist 里找不到金币道具（idcode=0x{}）：本次 {} 金币**未掉落**",
-                    Integer.toHexString(org.jpstale.server.game.item.ItemRules.CODE_GOLD), gold);
+                    Integer.toHexString(org.jpstale.common.service.item.ItemRules.CODE_GOLD), gold);
             } else {
                 double ang = rnd.nextDouble() * Math.PI * 2;
                 double dist = 0.3 + rnd.nextDouble() * 1.2;
@@ -590,7 +572,7 @@ public class CombatService {
             monster.getName(), killer.getName(), exp, gold);
 
         // 战斗日志：击杀 + 经验（金币不再于击杀时入账，故记 0 —— 拾取时另有记录）
-        battleLogService.monsterKilled(killer.getSession(), monster.getName(), exp, 0);
+        battleLogService.monsterKilled(playerService.sessionOf(killer), monster.getName(), exp, 0);
 
         // 升级检测：经验反算等级（对齐原版 GetLevelFromExp），每级 +5 自由属性点
         int newLevel = playerService.getLevelFromExp(killer.getExp());
@@ -604,7 +586,7 @@ public class CombatService {
         // 经验/金币/等级变了必须**推给击杀者**：原先这里只写内存+落库，客户端没有任何通知 →
         // HUD 经验条与角色面板"打怪也不变动"（用户 2026-09-12 报）。一次 sendPlayerStatus 同时下发
         // S2C_PlayerState(HUD) + S2C_CharacterStatus(面板)。
-        playerService.sendPlayerStatus(killer.getSession(), killer);
+        playerService.sendPlayerStatus(playerService.sessionOf(killer), killer);
 
         // 通知视野内观察者：击杀者带 exp/gold；其余只收死亡事件。
         // 尸体**保留**：死怪留在 AOI 可见集里，直到 Monster.decayTime 到点后由主循环发 Disappear
@@ -652,11 +634,11 @@ public class CombatService {
         playerService.recalcPanel(killer);
         log.info("{} leveled up {} -> {} (+{} stat points, total {})",
             killer.getName(), newLevel - gained / 5, newLevel, gained, killer.getStatePoint());
-        battleLogService.levelUp(killer.getSession(), newLevel, gained);
+        battleLogService.levelUp(playerService.sessionOf(killer), newLevel, gained);
         killer.setHp(killer.getMaxHp());
         killer.setMp(killer.getMaxMp());
         killer.setSp(killer.getMaxSp());
-        PlayerEntity killerEntity = killer.getSession() != null ? killer.getSession().getEntity() : null;
+        PlayerEntity killerEntity = playerService.entityOf(killer);
         float killerX = killerEntity != null ? (float) killerEntity.getX() : 0f;
         float killerZ = killerEntity != null ? (float) killerEntity.getZ() : 0f;
         int killerMap = killerEntity != null ? killerEntity.getMapId() : 0;
@@ -737,7 +719,7 @@ public class CombatService {
      * 怪物侧无需额外处理：`PlayerEntity.isTargetable()` 变为 false，AI 会自己移出目标并重搜。
      */
     public void enterDeath(Player player) {
-        PlayerSession session = player.getSession();
+        PlayerSession session = playerService.sessionOf(player);
         PlayerEntity entity = session != null ? session.getEntity() : null;
         if (entity == null) {
             return;
@@ -858,7 +840,7 @@ public class CombatService {
      * @param goldPercent 扣金币的百分比
      */
     private void doRespawn(Player player, int mapId, int x, int z, int expPercent, int goldPercent, int reason) {
-        PlayerSession session = player.getSession();
+        PlayerSession session = playerService.sessionOf(player);
         deadPlayers.remove(player.getId());
 
         // ---- 代价：经验（下限 = 本级起点 → 不掉级）与金币 ----

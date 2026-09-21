@@ -8,10 +8,10 @@
  *  - fileread.cpp:smModelDecode — linkFile 递归加载动画数据
  */
 
-import { parseInx } from './inx-parser.js';
-import { parseSmb } from './smb-parser.js';
-import { buildSkinnedMesh, buildSkeleton } from './skinned-builder.js';
-import { JOB_DATA, getHeadInxPath, getBodyInxPath } from './job-data.js';
+import {parseInx} from './inx-parser.js';
+import {parseSmb} from './smb-parser.js';
+import {buildSkeleton, buildSkinnedMesh} from './skinned-builder.js';
+import {getBodyInxPath, getHeadInxPath, JOB_DATA} from './job-data.js';
 
 const EXM_RUN = '/pt/exm-run/';
 

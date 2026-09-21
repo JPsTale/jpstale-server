@@ -1,7 +1,6 @@
 package org.jpstale.server.web.controller;
 
 import org.jpstale.server.web.simulator.ItemDetail;
-import org.jpstale.server.web.simulator.ItemInstance;
 import org.jpstale.server.web.simulator.SimulatorService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,9 +14,12 @@ import java.util.Map;
  * - GET /api/simulator/categories 分类列表
  * - GET /api/simulator/items 分类分页列表
  * - GET /api/simulator/item/{id} 物品详情
- * - POST /api/simulator/roll 随机骰生成装备实例
- * - POST /api/simulator/forge 锻造
- * - POST /api/simulator/craft 合成
+ * - GET /api/simulator/mixes 合成配方
+ * <p>
+ * ⚠ 原先的 {@code POST /api/simulator/roll}（随机骰生成装备实例）**已删除**：
+ * 它的实现与游戏内那份并行且已经分叉（模拟器显示的值与游戏里掷出来的不一致）。
+ * 掷点的唯一实现在 common-service 的
+ * {@link org.jpstale.common.service.item.ItemRollService}；接口待重新设计时直接调它。
  */
 @RestController
 @RequestMapping("/api/simulator")
@@ -60,15 +62,5 @@ public class SimulatorController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(detail);
-    }
-
-    @PostMapping("/roll")
-    public ResponseEntity<ItemInstance> roll(@RequestParam int idCode,
-                                             @RequestParam(required = false) Long jobCodeMask) {
-        ItemInstance instance = simulatorService.roll(idCode, jobCodeMask);
-        if (instance == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(instance);
     }
 }

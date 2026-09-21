@@ -15,7 +15,7 @@
  * smMATRIX 是 int 矩阵（定点 /256），smFMATRIX 是 float 矩阵。
  */
 
-import { readCString } from './utils.js';
+import {readCString} from './utils.js';
 
 /** 读取 smFRAME_POS（16B） */
 function readFramePos(dv, o) {

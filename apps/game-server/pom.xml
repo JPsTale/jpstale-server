@@ -15,12 +15,22 @@
     <dependencies>
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>pt-dao-spring-boot-starter</artifactId>
+            <artifactId>dao</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>pt-server-core</artifactId>
+            <artifactId>common-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>common-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>protocol</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -40,6 +50,11 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
+        <!--
+          注意：Jackson 3（tools.jackson.*）与 spring-data-redis 现在由 common-service 传递带进来
+          —— Redis 消息层的 bean 住在那个模块，依赖就由它的 pom 声明（非 optional，会传递）。
+          这里不再重复声明：踩过的坑正是"同一个依赖在两处各写一份"，那是漂移的来源。
+        -->
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>

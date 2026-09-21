@@ -3,11 +3,17 @@ package org.jpstale.server.web.controller;
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import jakarta.validation.Valid;
 import org.jpstale.server.web.clan.ClanService;
-import org.jpstale.server.web.clan.dto.*;
+import org.jpstale.server.web.clan.dto.ClanDetailRequest;
+import org.jpstale.server.web.clan.dto.ClanDetailResponse;
+import org.jpstale.server.web.clan.dto.ClanNameRequest;
+import org.jpstale.server.web.clan.dto.ClanRankDto;
 import org.jpstale.server.web.dto.Result;
 import org.jpstale.server.web.enums.ResultCode;
 import org.jpstale.server.web.exception.BusinessException;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 

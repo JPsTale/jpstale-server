@@ -1,13 +1,13 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.item.ItemClass;
+import org.jpstale.common.service.item.ItemInstance;
+import org.jpstale.common.service.item.ItemLocations;
+import org.jpstale.common.service.item.PlayerItems;
+import org.jpstale.common.service.model.Player;
 import org.jpstale.dao.gamedb.entity.ItemList;
-import org.jpstale.server.game.item.ItemClass;
-import org.jpstale.server.game.item.ItemInstance;
-import org.jpstale.server.game.item.ItemLocations;
-import org.jpstale.server.game.item.PlayerItems;
-import org.jpstale.server.game.model.Player;
-import org.jpstale.server.proto.base.CommonProto;
+import org.jpstale.server.common.model.CharacterAppearance;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -34,22 +34,26 @@ public class AppearanceService {
 
     /**
      * 从装备条目推导外观（唯一权威实现）。
+     *
+     * 返回的是**纯模型** {@link CharacterAppearance}（不碰 protobuf）；上线前由
+     * `AppearanceCodec.toProto` 转一次。字符串一律归一成空串、数值归一成 0 ——
+     * 与旧版"proto3 未设置字段的默认值"等价，保证 `equals` 判"外观是否真变了"仍然准确。
      */
-    public CommonProto.CharacterAppearance derive(int classId, int head, int rank, List<EquipEntry> equips) {
-        CommonProto.CharacterAppearance.Builder b = CommonProto.CharacterAppearance.newBuilder()
-                .setClassId(classId)
-                .setHead(head)
-                .setRank(rank);
+    public CharacterAppearance derive(int classId, int head, int rank, List<EquipEntry> equips) {
+        CharacterAppearance a = new CharacterAppearance();
+        a.setClassId(classId);
+        a.setHead(head);
+        a.setRank(rank);
 
-        String weaponDorp = null;
-        Integer weaponIdcode = 0;
-        Integer weaponPos = 0;
-        String offDorp = null;
+        String weaponDorp = "";
+        int weaponIdcode = 0;
+        int weaponPos = 0;
+        String offDorp = "";
         int offIdcode = 0;
         int offKind = 0;
         int offPos = 0;
-        String bodyModel = null;
-        Integer bodyIdcode = 0;
+        String bodyModel = "";
+        int bodyIdcode = 0;
 
         if (equips != null) {
             for (EquipEntry e : equips) {
@@ -62,55 +66,50 @@ public class AppearanceService {
 
                 if (slot == ItemLocations.SLOT_MAIN_HAND && c != null && ItemClass.isWeapon(c)) {
                     // 主手(槽1)武器决定主手外观；双手(6)/单手(4)
-                    weaponDorp = def.getCodeImg1();
-                    weaponIdcode = def.getIdCode();
-                    weaponPos = def.getModelPosition();
+                    weaponDorp = nz(def.getCodeImg1());
+                    weaponIdcode = nz(def.getIdCode());
+                    weaponPos = nz(def.getModelPosition());
                 } else if (slot == ItemLocations.SLOT_OFF_HAND) {
                     // 副手(槽2)：盾(Shields)/匕首(Dagger)；念珠/法球等不挂
                     int kind = offHandKind(def);
                     if (kind != 0) {
-                        offDorp = def.getCodeImg1();
-                        offIdcode = def.getIdCode();
+                        offDorp = nz(def.getCodeImg1());
+                        offIdcode = nz(def.getIdCode());
                         offKind = kind;
                         offPos = 2;
                     }
                 } else if (c != null && ItemClass.isTorsoArmor(c)) {
                     // 防具（铠甲/法袍）
-                    bodyModel = def.getCodeImg1();
-                    bodyIdcode = def.getIdCode();
+                    bodyModel = nz(def.getCodeImg1());
+                    bodyIdcode = nz(def.getIdCode());
                 }
             }
         }
 
-        if (bodyModel != null) {
-            b.setBodyModel(bodyModel);
-        }
-        if (bodyIdcode != null && bodyIdcode != 0) {
-            b.setBodyModelIdcode(bodyIdcode);
-        }
-        if (weaponDorp != null) {
-            b.setWeaponDorp(weaponDorp);
-        }
-        if (weaponIdcode != null && weaponIdcode != 0) {
-            b.setWeaponIdcode(weaponIdcode);
-        }
-        b.setWeaponPos(weaponPos != null ? weaponPos : 0);
-        if (offDorp != null) {
-            b.setOffHandDorp(offDorp);
-        }
-        if (offIdcode != 0) {
-            b.setOffHandIdcode(offIdcode);
-        }
-        b.setOffHandKind(offKind);
-        b.setOffHandPos(offPos);
+        a.setBodyModel(bodyModel);
+        a.setBodyModelIdcode(bodyIdcode);
+        a.setWeaponDorp(weaponDorp);
+        a.setWeaponIdcode(weaponIdcode);
+        a.setWeaponPos(weaponPos);
+        a.setOffHandDorp(offDorp);
+        a.setOffHandIdcode(offIdcode);
+        a.setOffHandKind(offKind);
+        a.setOffHandPos(offPos);
+        return a;
+    }
 
-        return b.build();
+    private static String nz(String s) {
+        return s == null ? "" : s;
+    }
+
+    private static int nz(Integer v) {
+        return v == null ? 0 : v;
     }
 
     /**
      * 在线重算外观（装备变化后调用）：从 Player.items 计算并缓存到 Player.appearance。
      */
-    public CommonProto.CharacterAppearance recalc(Player p) {
+    public CharacterAppearance recalc(Player p) {
         List<EquipEntry> equips = new ArrayList<>();
         PlayerItems items = p.getItems();
         if (items != null) {
@@ -126,7 +125,7 @@ public class AppearanceService {
                 equips.add(new EquipEntry(it.getSlot(), def));
             }
         }
-        CommonProto.CharacterAppearance app = derive(p.getJob(), p.getHead(), p.getRank(), equips);
+        CharacterAppearance app = derive(p.getJob(), p.getHead(), p.getRank(), equips);
         p.setAppearance(app);
         return app;
     }

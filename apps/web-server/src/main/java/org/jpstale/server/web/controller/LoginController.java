@@ -11,11 +11,7 @@ import org.jpstale.server.web.enums.ResultCode;
 import org.jpstale.server.web.exception.BusinessException;
 import org.jpstale.server.web.service.ChangePasswordService;
 import org.jpstale.server.web.service.LoginService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

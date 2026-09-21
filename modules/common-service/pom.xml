@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.jpstale.server</groupId>
+        <artifactId>modules</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>common-service</artifactId>
+
+    <description>
+        共享业务逻辑与基础设施：game-server 与 web-server 都要用的纯逻辑 service、Redis 消息队列、
+        地图静态数据与资产加载。铁律见本模块 README.md（动手加类之前先读）。
+    </description>
+
+    <dependencies>
+        <!-- 枚举/常量/纯模型（CommonProto 之外的共享面） -->
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>common-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- 物品/属性逻辑要读物品与怪物定义表（gamedb.itemlist / npclist / dropitem）→ 直接依赖 dao -->
+        <dependency>
+            <groupId>org.jpstale.server</groupId>
+            <artifactId>dao</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- @Service/@Component/@Autowired/@Value/@PostConstruct 等注解与容器接口 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <!-- @Transactional（ItemService / ItemStorageService） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <!--
+          Redis 消息层（org.jpstale.common.mq）：RedisMsgDispatcher 用 spring-data-redis 的
+          GenericJacksonJsonRedisSerializer，它需要 **Jackson 3**（tools.jackson，由 starter-json 提供）。
+          这两个 starter 声明成**非 optional**：bean 住在本模块，依赖就该由本模块带给消费者
+          （此前它们挂在 common-model 上且是 optional，不传递，导致 game-server 启动即崩 —— 见 README）。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
+        <!-- RedisMsgDispatcher 的 @NonNull 注解（JSpecify；spring-core 也传递带进来，但用到了就显式声明） -->
+        <dependency>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <!--
+          地图静态数据 FieldCatalog 用 Jackson **2**（com.fasterxml）读 fields/fields.json；
+          版本由 Spring Boot BOM 管。注意与 Jackson 3（tools.jackson，Spring Data Redis 的序列化器用）
+          是两套并存、包名不同，互不干扰。
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
+</project>

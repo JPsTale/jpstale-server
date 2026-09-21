@@ -1,14 +1,17 @@
 package org.jpstale.server.game.item;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.item.ItemClass;
+import org.jpstale.common.service.item.ItemInstance;
+import org.jpstale.common.service.item.ItemRules;
 import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.GroundItem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 地面物品管理（GM 刷物 / 拾取的基础状态）。

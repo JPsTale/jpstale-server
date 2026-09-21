@@ -1,5 +1,6 @@
 package org.jpstale.server.game.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.dao.gamedb.entity.MapList;
 import org.jpstale.dao.gamedb.entity.MapMonster;
@@ -14,7 +15,6 @@ import org.jpstale.server.game.model.SpawnPoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

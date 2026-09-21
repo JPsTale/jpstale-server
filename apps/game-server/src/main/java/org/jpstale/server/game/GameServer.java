@@ -1,13 +1,9 @@
 package org.jpstale.server.game;
+
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.core.Server;
+import org.jpstale.server.game.core.Server;
 import org.jpstale.server.game.item.GroundItemManager;
-import org.jpstale.server.game.service.GroundItemAOI;
-import org.jpstale.server.game.service.MonsterSpawnService;
-import org.jpstale.server.game.service.MovementService;
-import org.jpstale.server.game.service.NpcAOI;
-import org.jpstale.server.game.service.RegenerationService;
-import org.jpstale.server.game.service.WorldService;
+import org.jpstale.server.game.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

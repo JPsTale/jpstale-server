@@ -1,7 +1,7 @@
 package org.jpstale.dao.serverdb.mapper;
 
-import org.jpstale.dao.serverdb.entity.MessageLogin;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.serverdb.entity.MessageLogin;
 
 /**
  * <p>

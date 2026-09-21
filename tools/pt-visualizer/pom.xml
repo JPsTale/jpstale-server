@@ -26,10 +26,16 @@
     </properties>
 
     <dependencies>
-        <!-- 复用 pt-server-core 的 SmdMapLoader/SmdMapData（raw int 读取，world double 顶点） -->
+        <!--
+          只需要地图/资产库（SmdMapLoader/SmdMapData/CollisionMesh/MapMesh/FieldCatalog/FieldInfo）
+          → 依赖 common-service，**不再依赖 game-server**。
+          为什么必须断掉这条边：game-server 是应用，`spring-boot-maven-plugin:repackage` 会把它的
+          主产物换成可执行胖 jar（类在 BOOT-INF/classes 下），于是"工具依赖应用"在 `mvn package/install`
+          阶段必然编译失败 —— 它过去能跑只是因为 IDE/reactor 直接用了 target/classes。
+        -->
         <dependency>
             <groupId>org.jpstale.server</groupId>
-            <artifactId>game-server</artifactId>
+            <artifactId>common-service</artifactId>
             <version>${project.version}</version>
         </dependency>
 

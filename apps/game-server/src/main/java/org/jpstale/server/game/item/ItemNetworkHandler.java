@@ -1,31 +1,14 @@
 package org.jpstale.server.game.item;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.item.*;
+import org.jpstale.common.service.model.Player;
 import org.jpstale.server.game.entity.GroundItem;
-import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.game.service.PlayerService;
 import org.jpstale.server.game.service.AOIManager;
-import org.jpstale.server.proto.base.C2S_BagLayout;
-import org.jpstale.server.proto.base.C2S_BagSwap;
-import org.jpstale.server.proto.base.C2S_DropItem;
-import org.jpstale.server.proto.base.C2S_EquipItem;
-import org.jpstale.server.proto.base.C2S_InventoryMove;
-import org.jpstale.server.proto.base.C2S_StackMerge;
-import org.jpstale.server.proto.base.C2S_UnequipItem;
-import org.jpstale.server.proto.base.C2S_UseItem;
-import org.jpstale.server.proto.base.ClientMessage;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_Error;
-import org.jpstale.server.proto.base.S2C_GroundItemDisappear;
-import org.jpstale.server.proto.base.S2C_InventorySnapshot;
-import org.jpstale.server.proto.base.S2C_ItemRemove;
-import org.jpstale.server.proto.base.S2C_ItemUpdate;
-import org.jpstale.server.proto.base.S2C_PlayerMove;
-import org.jpstale.server.proto.base.S2C_Recovery;
-import org.jpstale.server.proto.base.S2C_SystemMessage;
-import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.game.service.PlayerService;
+import org.jpstale.server.proto.base.*;
 import org.springframework.stereotype.Component;
 
 /**
@@ -473,7 +456,7 @@ public class ItemNetworkHandler {
             return true;
         }
         return it.getLocation() == ItemLocations.EQUIP
-                && org.jpstale.server.game.item.EquipSlots.isPotionSlot(it.getSlot());
+                && org.jpstale.common.service.item.EquipSlots.isPotionSlot(it.getSlot());
     }
 
     @GamePacketHandler(ClientMessage.INVENTORY_MOVE_FIELD_NUMBER)

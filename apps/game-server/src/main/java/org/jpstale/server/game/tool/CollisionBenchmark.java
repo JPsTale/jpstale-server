@@ -1,9 +1,9 @@
 package org.jpstale.server.game.tool;
 
 import org.jpstale.assets.smd.CollisionMesh;
-import org.jpstale.server.game.model.FieldCatalog;
-import org.jpstale.server.game.model.FieldInfo;
-import org.jpstale.server.game.model.MapMesh;
+import org.jpstale.common.service.map.FieldCatalog;
+import org.jpstale.common.service.map.FieldInfo;
+import org.jpstale.common.service.map.MapMesh;
 
 import java.io.File;
 import java.util.ArrayList;

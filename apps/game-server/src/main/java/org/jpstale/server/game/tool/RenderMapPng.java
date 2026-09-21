@@ -1,14 +1,11 @@
 package org.jpstale.server.game.tool;
 
-import org.jpstale.server.game.model.FieldCatalog;
-import org.jpstale.server.game.model.FieldInfo;
-import org.jpstale.server.game.model.MapMesh;
+import org.jpstale.common.service.map.FieldCatalog;
+import org.jpstale.common.service.map.FieldInfo;
+import org.jpstale.common.service.map.MapMesh;
 
 import javax.imageio.ImageIO;
-import java.awt.AlphaComposite;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.Polygon;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 

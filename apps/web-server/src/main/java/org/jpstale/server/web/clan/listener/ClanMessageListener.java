@@ -1,8 +1,8 @@
 package org.jpstale.server.web.clan.listener;
 
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.common.redis.CommonMsg;
-import org.jpstale.server.common.redis.RedisMsgListener;
+import org.jpstale.common.mq.CommonMsg;
+import org.jpstale.common.mq.RedisMsgListener;
 import org.jpstale.server.web.clan.ClanService;
 
 @Slf4j

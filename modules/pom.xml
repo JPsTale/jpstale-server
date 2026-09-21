@@ -11,9 +11,9 @@
     <packaging>pom</packaging>
     <modules>
         <module>common-model</module>
+        <module>common-service</module>
+        <module>protocol</module>
         <module>dao</module>
-        <module>pt-server-core</module>
-        <module>pt-dao-spring-boot-starter</module>
     </modules>
 
 </project>

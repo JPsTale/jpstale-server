@@ -2,6 +2,10 @@ package org.jpstale.server.game.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.map.FieldCatalog;
+import org.jpstale.common.service.map.FieldInfo;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.dao.gamedb.entity.ItemList;
 import org.jpstale.dao.gamedb.mapper.ItemListMapper;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
@@ -10,27 +14,10 @@ import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.dao.userdb.mapper.ItemMapper;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
+import org.jpstale.server.common.model.CharacterAppearance;
 import org.jpstale.server.game.entity.PlayerEntity;
-import org.jpstale.server.game.model.FieldCatalog;
-import org.jpstale.server.game.model.FieldInfo;
-import org.jpstale.server.game.model.Player;
-import org.jpstale.server.game.network.GamePacketHandler;
-import org.jpstale.server.game.network.PlayerSession;
-import org.jpstale.server.game.network.SessionManager;
-import org.jpstale.server.game.network.SessionState;
-import org.jpstale.server.proto.base.C2S_CreateCharacter;
-import org.jpstale.server.proto.base.C2S_LoginRequest;
-import org.jpstale.server.proto.base.C2S_SelectCharacter;
-import org.jpstale.server.proto.base.ClientMessage;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.MapInfo;
-import org.jpstale.server.proto.base.S2C_CharacterList;
-import org.jpstale.server.proto.base.S2C_CreateCharacterResult;
-import org.jpstale.server.proto.base.S2C_Disconnect;
-import org.jpstale.server.proto.base.S2C_EnterGame;
-import org.jpstale.server.proto.base.S2C_Error;
-import org.jpstale.server.proto.base.S2C_LoginResponse;
-import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.game.network.*;
+import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -85,7 +72,7 @@ public class AccountService {
     private ItemMapper itemMapper;
 
     @Autowired
-    private org.jpstale.server.game.item.ItemStorageService itemStorageService;
+    private org.jpstale.common.service.item.ItemStorageService itemStorageService;
 
     @Autowired
     private ItemListMapper itemListMapper;
@@ -99,7 +86,7 @@ public class AccountService {
     @Autowired
     private GameTokenService gameTokenService;
 
-    private Random random = new Random();
+    private final Random random = new Random();
 
     /**
      * 根据账号名查找用户
@@ -427,7 +414,7 @@ public class AccountService {
                 .setClassId(character.getJobCode() != null ? character.getJobCode() : 0)
                 .setLevel(character.getLevel() != null ? character.getLevel() : 1)
                 .setMapId(character.getLastStage() != null ? character.getLastStage() : 1)
-                .setAppearance(buildAppearance(character))
+                .setAppearance(AppearanceCodec.toProto(buildAppearance(character)))
                 .build());
         }
 
@@ -444,7 +431,7 @@ public class AccountService {
      * <p>
      * ponytail: 每个角色两条查询（N+1），角色选择列表每账号上限 MAX_CHARACTERS 个，量级极小；将来若做世界同步批量出现再改批量 IN 查询。
      */
-    private CommonProto.CharacterAppearance buildAppearance(CharacterInfo character) {
+    private CharacterAppearance buildAppearance(CharacterInfo character) {
         int classId = character.getJobCode() != null ? character.getJobCode() : 0;
         int head = character.getHead() != null ? character.getHead() : 0;
         int rank = character.getRank() != null ? character.getRank() : 0;
@@ -453,7 +440,7 @@ public class AccountService {
         // 一起读进来，derive 按"最后一条胜出"取到已经换掉的那件（用户 2026-09-12 报的 test_fs_40：
         // 选角列表与实际装备不符，按 W / 动背包触发了在线 recalc 才刷新）。
         List<org.jpstale.dao.userdb.entity.Item> items = itemStorageService.loadActiveRows(
-            character.getId().intValue(), org.jpstale.server.game.item.ItemLocations.EQUIP);
+            character.getId().intValue(), org.jpstale.common.service.item.ItemLocations.EQUIP);
 
         // 装备条目（槽位 + 定义）→ 与在线换装共用同一套外观推导（AppearanceService.derive）
         List<AppearanceService.EquipEntry> equips = new ArrayList<>();
@@ -665,7 +652,7 @@ public class AccountService {
 
         // 外观（头/防具/武器）先算好：缓存到在线 Player（onPlayerEnter 的 Appear 广播要用），
         // 再用于下方 EnterGame 自机外观。
-        CommonProto.CharacterAppearance appearance = buildAppearance(character);
+        CharacterAppearance appearance = buildAppearance(character);
         Player cachedPlayer = playerService.getPlayer(session);
         if (cachedPlayer != null) {
             cachedPlayer.setAppearance(appearance);
@@ -685,7 +672,7 @@ public class AccountService {
                 .setX(sx).setY((float) sy).setZ(sz))
             .setRotation(CommonProto.Rotation.newBuilder()
                 .setX(0).setY((float) savedAngle).setZ(0))
-            .setAppearance(appearance);
+            .setAppearance(AppearanceCodec.toProto(appearance));
 
         // 地图安全区表（gamedb.maplist.typemap='Cities'）：客户端本地换图时判定村庄/野外动画姿态
         for (org.jpstale.server.game.model.GameMap gm : mapManager.allMaps()) {
@@ -888,7 +875,7 @@ public class AccountService {
 
     /** 坦普族职业 —— 判据收口在 {@link CharacterRace#isTempskron}（含刺客 9 / 格斗家 11）。 */
     private static boolean isTempscronJob(int jobCode) {
-        return org.jpstale.server.common.enums.packets.CharacterRace.isTempskron(jobCode);
+        return org.jpstale.server.common.enums.character.CharacterRace.isTempskron(jobCode);
     }
 
     private String getAccountName(PlayerSession session) {

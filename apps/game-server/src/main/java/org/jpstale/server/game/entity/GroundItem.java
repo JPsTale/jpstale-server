@@ -1,6 +1,6 @@
 package org.jpstale.server.game.entity;
 
-import org.jpstale.server.game.item.ItemInstance;
+import org.jpstale.common.service.item.ItemInstance;
 
 /**
  * 地面物品（继承 BaseEntity，与其他实体同级）。

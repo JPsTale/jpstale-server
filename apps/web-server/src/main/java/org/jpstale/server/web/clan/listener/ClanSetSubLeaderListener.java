@@ -1,6 +1,6 @@
 package org.jpstale.server.web.clan.listener;
 
-import org.jpstale.server.common.redis.ClanMessageTypes;
+import org.jpstale.common.mq.ClanMessageTypes;
 import org.jpstale.server.web.clan.ClanService;
 import org.springframework.stereotype.Component;
 

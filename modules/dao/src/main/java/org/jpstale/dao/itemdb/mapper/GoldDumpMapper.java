@@ -1,7 +1,7 @@
 package org.jpstale.dao.itemdb.mapper;
 
-import org.jpstale.dao.itemdb.entity.GoldDump;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.itemdb.entity.GoldDump;
 
 /**
  * <p>

@@ -1,7 +1,7 @@
 package org.jpstale.dao.skilldb.mapper;
 
-import org.jpstale.dao.skilldb.entity.SwordBlast;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.skilldb.entity.SwordBlast;
 
 /**
  * <p>

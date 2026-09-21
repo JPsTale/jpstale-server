@@ -1,13 +1,13 @@
 package org.jpstale.server.game.network;
 
-import java.util.concurrent.TimeUnit;
-
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.server.proto.base.C2S_Ping;
 import org.jpstale.server.proto.base.ClientMessage;
 import org.jpstale.server.proto.base.S2C_Pong;
 import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.stereotype.Component;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * Ping 消息处理

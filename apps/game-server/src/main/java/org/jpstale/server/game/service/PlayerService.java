@@ -2,28 +2,22 @@ package org.jpstale.server.game.service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.dao.userdb.entity.CharacterExpDef;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
 import org.jpstale.dao.userdb.mapper.CharacterExpDefMapper;
 import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
-import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.entity.EntityIdSource;
-import org.jpstale.server.game.model.Player;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionState;
-import org.jpstale.server.proto.base.C2S_AllocateStat;
-import org.jpstale.server.proto.base.ClientMessage;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_CharacterStatus;
-import org.jpstale.server.proto.base.S2C_Error;
-import org.jpstale.server.proto.base.S2C_PlayerState;
-import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -46,10 +40,10 @@ public class PlayerService {
     private CharacterExpDefMapper charExpDefMapper;
 
     @Autowired
-    private org.jpstale.server.game.item.ItemStorageService itemStorage;
+    private org.jpstale.common.service.item.ItemStorageService itemStorage;
 
     @Autowired
-    private org.jpstale.server.game.item.ItemRollService itemRoll;
+    private org.jpstale.common.service.item.ItemRollService itemRoll;
 
     @Autowired
     private org.jpstale.server.game.network.SessionManager sessionManager;
@@ -109,6 +103,23 @@ public class PlayerService {
      */
     public Player getOrCreate(PlayerSession session) {
         return players.computeIfAbsent(session.getCharacterId(), id -> load(session));
+    }
+
+    /**
+     * Player → 当前会话（经实体表查）。玩家不在场（没有实体）时返回 null。
+     *
+     * 这是"给这个玩家发消息"的**唯一入口**：Player 不再反向持有会话，
+     * 且实体上挂着的是**当前**会话（顶号/重连后会换新），
+     * 不像旧的反向引用那样可能指向已经失效的那条连接。
+     */
+    public PlayerSession sessionOf(Player p) {
+        PlayerEntity e = entityOf(p);
+        return e != null ? e.getSession() : null;
+    }
+
+    /** Player → 当前场上实体（charId 查表）；不在场返回 null。 */
+    public PlayerEntity entityOf(Player p) {
+        return p == null ? null : entities.get(p.getId());
     }
 
     /**
@@ -260,7 +271,7 @@ public class PlayerService {
      * hp/mp/sp/level/gold/exp + 位置 + 名字，进图/血量变化时推送。
      */
     public S2C_PlayerState.Builder buildPlayerState(Player p) {
-        PlayerEntity entity = p.getSession() != null ? p.getSession().getEntity() : null;
+        PlayerEntity entity = entityOf(p);
         float x = 0, y = 0, z = 0;
         int mapId = 0;
         if (entity != null) {
@@ -397,7 +408,7 @@ public class PlayerService {
         if (info == null) {
             return;
         }
-        info.setExperience((long) player.getExp());
+        info.setExperience(player.getExp());
         info.setGold(player.getGold());
         info.setLevel(player.getLevel());
         info.setStrength(player.getStrength());
@@ -407,7 +418,7 @@ public class PlayerService {
         info.setHealth(player.getHealth());
         info.setStatePoint(player.getStatePoint());
         // 一并落库当前位置/朝向（下次进场从下线坐标恢复，而非固定 startPoint）
-        PlayerEntity ent = player.getSession() != null ? player.getSession().getEntity() : null;
+        PlayerEntity ent = entityOf(player);
         if (ent != null) {
             info.setLastStage(ent.getMapId() > 0 ? ent.getMapId() : info.getLastStage());
             info.setPosX(ent.getX());
@@ -546,7 +557,7 @@ public class PlayerService {
             return null;
         }
 
-        Player p = new Player(session, 0);
+        Player p = new Player(0);
         p.setCharacterId(info.getId().longValue());
         p.setName(info.getName());
         p.setJob(info.getJobCode() != null ? info.getJobCode() : 0);
@@ -590,10 +601,10 @@ public class PlayerService {
         if (rows == null || rows.isEmpty()) {
             return;
         }
-        org.jpstale.server.game.item.PlayerItems items = player.getItems();
+        org.jpstale.common.service.item.PlayerItems items = player.getItems();
         int[] res = new int[8];
         for (org.jpstale.dao.userdb.entity.Item row : rows) {
-            org.jpstale.server.game.item.ItemInstance it = itemStorage.fromRow(row);
+            org.jpstale.common.service.item.ItemInstance it = itemStorage.fromRow(row);
             Integer itemListId = row.getItemListId() != null ? row.getItemListId() : row.getItemCode();
             if (itemListId != null) {
                 org.jpstale.dao.gamedb.entity.ItemList def = itemRoll.itemListById(itemListId);
@@ -602,15 +613,15 @@ public class PlayerService {
             // 哨兵槽残留（`slot < -1`，见 `ItemStorageService.PARKING_SLOT`）= 写库没收尾。
             // 只有事务中间态才会用它，所以出现就说明有 bug：**大声报错 + 捞回背包**（可见、不丢），
             // 而不是让它变成谁也看不见、又占着唯一键的行。
-            if (it.getSlot() < org.jpstale.server.game.item.ItemLocations.HELD_SLOT) {
-                int free = items.canvas(org.jpstale.server.game.item.ItemLocations.BAG_PAGE)
+            if (it.getSlot() < org.jpstale.common.service.item.ItemLocations.HELD_SLOT) {
+                int free = items.canvas(org.jpstale.common.service.item.ItemLocations.BAG_PAGE)
                         .findFreeSlot(it.gridW(), it.gridH());
                 if (free >= 0) {
                     log.error("[SlotConflict] 角色 {} 的 uid={}（{}）槽号停在哨兵值 {}（写库未收尾）→ 捞回背包槽 {}",
                             player.getName(), it.getId(),
                             it.getTemplate() != null ? it.getTemplate().getName() : "?",
                             it.getSlot(), free);
-                    it.setLocation(org.jpstale.server.game.item.ItemLocations.BAG_PAGE);
+                    it.setLocation(org.jpstale.common.service.item.ItemLocations.BAG_PAGE);
                     it.setSlot(free);
                 } else {
                     // 背包满到放不下：不猜、不丢，保留哨兵槽并报错（人工处理）
@@ -624,9 +635,9 @@ public class PlayerService {
             items.index(it);
             // 元素抗性（EElementID: 0生物 1大地 2火 3冰 4雷 5毒 6水 7风）
             // ⚠ 排除鼠标位（slot=-1）：重登时"手上还拿着"的那件不算装备、不加抗性。
-            if (it.getLocation() == org.jpstale.server.game.item.ItemLocations.EQUIP
-                    && !org.jpstale.server.game.item.ItemLocations.isHeld(it)
-                    && org.jpstale.server.game.item.ItemRules.meetsRequirements(player, it)) {
+            if (it.getLocation() == org.jpstale.common.service.item.ItemLocations.EQUIP
+                    && !org.jpstale.common.service.item.ItemLocations.isHeld(it)
+                    && org.jpstale.common.service.item.ItemRules.meetsRequirements(player, it)) {
                 res[0] += it.getResBionic();
                 res[1] += it.getResEarth();
                 res[2] += it.getResFire();

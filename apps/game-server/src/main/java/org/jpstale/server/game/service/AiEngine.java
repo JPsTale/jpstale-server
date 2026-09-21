@@ -1,13 +1,14 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.model.DamageResult;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.stat.DamageCalculator;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.AiContext;
-import org.jpstale.server.game.model.DamageResult;
 import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.model.MonsterAnimData;
 import org.jpstale.server.game.model.MonsterState;
-import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.S2C_Damage;
@@ -316,14 +317,14 @@ public class AiEngine {
         if (player == null) {
             return;
         }
-        DamageResult result = damageCalculator.calculateMonsterToPlayer(monster, player);
+        DamageResult result = damageCalculator.calculateMonsterToPlayer(monster.combatStats(), player);
 
         // 未命中（原版 sinGetMonsterAccuracy）：不扣血、不写战斗日志、不触发受击硬直，
         // 只广播一条 missed 让受害者头顶飘 MISS —— 低等级怪打高等级玩家常常打空，正是靠这条体现。
         if (result.isMissed()) {
             log.info("[MonsterAI] {}#{} ATK {} -> MISS, interval={}ms",
                 monster.getName(), monster.getId(), targetName(target), interval);
-            battleLogService.monsterMissed(player.getSession(), monster.getName());
+            battleLogService.monsterMissed(playerService.sessionOf(player), monster.getName());
             messageSender.broadcastToArea(target.getMapId(),
                 (float) target.getX(), (float) target.getZ(), 50,
                 ServerMessage.newBuilder()
@@ -366,7 +367,7 @@ public class AiEngine {
             result.getFinalDamage(), newHp + result.getFinalDamage(), newHp, interval);
 
         // 战斗日志：玩家受击（进聊天窗"系统"tab）
-        battleLogService.playerHurt(player.getSession(), monster.getName(), result.getFinalDamage());
+        battleLogService.playerHurt(playerService.sessionOf(player), monster.getName(), result.getFinalDamage());
 
         // 飘字：怪→玩家伤害广播给附近玩家（S2C_Damage 带权威 currentHp，客户端自机/远端头顶飘红字）
         messageSender.broadcastToArea(target.getMapId(),
@@ -380,7 +381,7 @@ public class AiEngine {
                 .build());
 
         // 推送玩家最新状态（HUD 血条 + 角色信息面板）：客户端据 S2C_PlayerState/S2C_CharacterStatus 刷新
-        playerService.sendPlayerStatus(player.getSession(), player);
+        playerService.sendPlayerStatus(playerService.sessionOf(player), player);
 
         // 强制下一轮攻击广播重发(客户端每刀都能看到攻击动作)
         monster.setLastBroadcastAnim(-1);

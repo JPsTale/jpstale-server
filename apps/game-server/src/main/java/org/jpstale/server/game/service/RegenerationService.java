@@ -1,7 +1,8 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.game.model.Player;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
 import org.springframework.beans.factory.annotation.Autowired;

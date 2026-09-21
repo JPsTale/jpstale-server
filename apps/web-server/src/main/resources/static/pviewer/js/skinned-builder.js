@@ -16,8 +16,7 @@
  * 因为各对象顶点/boneNames/位移独立。
  */
 import * as THREE from 'three';
-import { loadTexture } from './texture.js';
-import { evalSkeleton } from './animation.js';
+import {evalSkeleton} from './animation.js';
 
 export function buildSkinnedMesh(smd, smb, meshNames, rawMode, sharedSkel) {
   // ===== 1. 骨骼（可复用 sharedSkel 以支持 LOD 多套网格共用一副骨骼） =====

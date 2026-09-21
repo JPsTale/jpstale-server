@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
@@ -18,6 +17,14 @@ import java.util.stream.Collectors;
  * <p>
  * 数据源：gamedb.itemlist（EU 风格 min/max 掷点区间）。
  * 详情展示模板原始范围；Spec/Mix/Age 下拉切换展示对应属性。
+ *
+ * ⚠ **本类不再自己掷点**：原先这里有一份与游戏内并行的掷点实现（`rollFromDef`），
+ * 它已经与游戏侧**分叉**（小数步长 0.01 vs 0.1、缺一组 spec 字段、同 idCode 取行的规则不同）。
+ * 掷点的**唯一实现**是 common-service 的
+ * {@link org.jpstale.common.service.item.ItemRollService}（掷完得到
+ * {@link org.jpstale.common.service.item.ItemInstance}，自带模板引用）。
+ * 那个 {"@code POST /api/simulator/roll"} 接口已随旧实现一起删除，**重做接口时请直接调它，不要再实现一遍** ——
+ * "模拟器显示的值与游戏内不一致"是当初最难查的一类问题。
  */
 @Service
 public class SimulatorService {
@@ -116,187 +123,6 @@ public class SimulatorService {
             return null;
         }
         return toDetail(entity);
-    }
-
-    // ------------------------------------------------------------------
-    // 随机骰（CreateDefItem 规则）
-    // ------------------------------------------------------------------
-
-    /**
-     * 按 CreateDefItem 规则掷点生成装备实例。
-     */
-    public ItemInstance roll(int idCode, Long jobCodeMask) {
-        ItemList def = itemListMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ItemList>()
-                        .eq(ItemList::getIdCode, idCode).last("limit 1"));
-        if (def == null) {
-            return null;
-        }
-        return rollFromDef(def, jobCodeMask);
-    }
-
-    private ItemInstance rollFromDef(ItemList def, Long jobCodeMask) {
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        ItemInstance it = new ItemInstance();
-
-        it.setIdCode(def.getIdCode());
-        it.setName(def.getName());
-        ItemCategory.Category cat = ItemCategory.of(def.getIdCode());
-        if (cat != null) {
-            it.setCategory(cat.getName());
-            it.setGroup(cat.getGroup());
-        }
-
-        // 基础值（来自模板，非掷点）
-        it.setWeight(def.getWeight());
-        it.setPrice(def.getPrice());
-        it.setAttackSpeed(def.getAtkSpeed());
-        it.setRange(def.getRange());
-        it.setCriticalHit(def.getCritical());
-        it.setShootingRange(def.getRange());
-        it.setPotionSpace(def.getPotionSpace());
-
-        // 需求
-        it.setLevel(def.getReqLevel());
-        it.setStrength(def.getReqStrengh());
-        it.setSpirit(def.getReqSpirit());
-        it.setTalent(def.getReqTalent());
-        it.setAgility(def.getReqAgility());
-        it.setHealth(def.getReqHealth());
-
-        // 耐久：max 掷点于 [min,max]，current 掷点于 [max/2, max]
-        Integer dMin = def.getIntegrityMin();
-        Integer dMax = def.getIntegrityMax();
-        if (dMin != null && dMin != 0) {
-            int max = (dMax != null && dMax != 0) ? rndInt(dMin, dMax) : dMin;
-            int min = rndInt(max / 2, max);
-            it.setDurabilityCurrent(min);
-            it.setDurabilityMax(max);
-        }
-
-        // 抗性（5 种）
-        it.setOrganicResistance(resistRoll(def.getOrganicMin(), def.getOrganicMax()));
-        it.setFireResistance(resistRoll(def.getFireMin(), def.getFireMax()));
-        it.setFrostResistance(resistRoll(def.getFrostMin(), def.getFrostMax()));
-        it.setLightningResistance(resistRoll(def.getLightningMin(), def.getLightningMax()));
-        it.setPoisonResistance(resistRoll(def.getPoisonMin(), def.getPoisonMax()));
-
-        // 攻击（EU DB 列语义，用户确认）：
-        // 小攻击区间 = [ATKPow1Min, ATKPow2Min]，大攻击区间 = [ATKPow1Max, ATKPow2Max]
-        if (def.getAtkPow1Max() != null && def.getAtkPow1Max() != 0) {
-            int p1min = def.getAtkPow1Min() == null ? 0 : def.getAtkPow1Min();
-            int p1max = def.getAtkPow1Max() == null ? 0 : def.getAtkPow1Max();
-            int p2min = def.getAtkPow2Min() == null ? 0 : def.getAtkPow2Min();
-            int p2max = def.getAtkPow2Max() == null ? 0 : def.getAtkPow2Max();
-            int dmgMin = rndInt(p1min, p2min);
-            int dmgMax = rndInt(p1max, p2max);
-            it.setDamageMin(dmgMin);
-            it.setDamageMax(dmgMax);
-        }
-        it.setAttackRating(rndIntOr(def.getAtkRatingMin(), def.getAtkRatingMax()));
-        it.setAbsorb(rndFloat(def.getAbsorbMin(), def.getAbsorbMax()));
-        it.setDefence(rndIntOr(def.getDefenseMin(), def.getDefenseMax()));
-        it.setBlockRating(rndFloat(def.getBlockMin(), def.getBlockMax()));
-        it.setSpeed(rndFloat2(def.getRunSpeedMin(), def.getRunSpeedMax()));
-
-        // 回复
-        it.setManaRegen(rndFloat2(def.getRegenerationMpMin(), def.getRegenerationMpMax()));
-        it.setLifeRegen(rndFloat2(def.getRegenerationHpMin(), def.getRegenerationHpMax()));
-        it.setStaminaRegen(rndFloat2(def.getRegenerationStmMin(), def.getRegenerationStmMax()));
-
-        // 增加上限
-        it.setIncreaseLife(floatOfIntRoll(def.getAddHpMin(), def.getAddHpMax()));
-        it.setIncreaseMana(floatOfIntRoll(def.getAddMpMin(), def.getAddMpMax()));
-        it.setIncreaseStamina(floatOfIntRoll(def.getAddStmMin(), def.getAddStmMax()));
-
-        // 职业特效：30% 概率
-        applyJobEffects(def, it, jobCodeMask);
-
-        // 锻造初始状态
-        it.setAgingLevel(0);
-        it.setAgingExp(0);
-        it.setAgingExpMax(0);
-
-        return it;
-    }
-
-    private void applyJobEffects(ItemList def, ItemInstance it, Long jobCodeMask) {
-        List<Long> randomJobs = new ArrayList<>();
-        Integer[] specClasses = {
-                def.getAddSpecClass1(), def.getAddSpecClass2(), def.getAddSpecClass3(),
-                def.getAddSpecClass4(), def.getAddSpecClass5(), def.getAddSpecClass6(),
-                def.getAddSpecClass7(), def.getAddSpecClass8(), def.getAddSpecClass9(),
-                def.getAddSpecClass10(), def.getAddSpecClass11(), def.getAddSpecClass12()
-        };
-        long[] jobBits = {
-                0x00000001L, 0x00000002L, 0x00000004L, 0x00000008L,
-                0x00000010L, 0x00000020L, 0x00000040L, 0x00000080L,
-                0x00000100L, 0x00000200L, 0x00000400L, 0x00000800L
-        };
-        for (int i = 0; i < specClasses.length; i++) {
-            if (specClasses[i] != null && specClasses[i] != 0) {
-                randomJobs.add(jobBits[i]);
-            }
-        }
-        if (randomJobs.isEmpty()) {
-            return;
-        }
-
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        int chance = rnd.nextInt(10);
-        if (chance > 3) {
-            return;
-        }
-
-        Long chosen = null;
-        if (jobCodeMask != null && jobCodeMask != 0) {
-            chosen = jobCodeMask;
-        } else if (randomJobs.size() == 1) {
-            chosen = randomJobs.get(0);
-        } else {
-            chosen = randomJobs.get(rnd.nextInt(randomJobs.size()));
-        }
-
-        it.setJobCodeMask(chosen);
-        it.setJobNames(jobNamesOf(chosen));
-
-        it.setSpecAbsorb(rndFloat(def.getAddSpecAbsorbMin(), def.getAddSpecAbsorbMax()));
-        it.setSpecDefence(rndIntOr(def.getAddSpecDefenseMin(), def.getAddSpecDefenseMax()));
-        it.setSpecSpeed(rndFloat(def.getAddSpecRunSpeedMin(), def.getAddSpecRunSpeedMax()));
-        it.setSpecMagicMastery(null);
-        it.setSpecManaRegen(rndFloat2(def.getAddSpecMpRegenMin(), def.getAddSpecMpRegenMax()));
-        it.setSpecLevAttackRating(rndIntOr(def.getAddSpecAtkRatingMin(), def.getAddSpecAtkRatingMax()));
-
-        // 职业加成：价格 +20%
-        it.setPrice((int) (it.getPrice() + (it.getPrice() * 2L) / 10L));
-    }
-
-    /**
-     * 职业位掩码 → 职业名列表。
-     */
-    public static List<String> jobNamesOf(Long mask) {
-        List<String> names = new ArrayList<>();
-        if (mask == null || mask == 0) {
-            return names;
-        }
-        Map<Long, String> jobs = new LinkedHashMap<>();
-        jobs.put(0x00000001L, "Fighter");       // 1
-        jobs.put(0x00000002L, "Mechanician");   // 2
-        jobs.put(0x00000004L, "Archer");        // 3
-        jobs.put(0x00000008L, "Pikeman");       // 4
-        jobs.put(0x00000010L, "Atalanta");      // 5
-        jobs.put(0x00000020L, "Knight");        // 6
-        jobs.put(0x00000040L, "Magician");      // 7
-        jobs.put(0x00000080L, "Priestess");     // 8
-        jobs.put(0x00000100L, "Assassin");      // 9
-        jobs.put(0x00000200L, "Shaman");        // 10
-        jobs.put(0x00000400L, "MartialArtist"); // 11
-        for (Map.Entry<Long, String> e : jobs.entrySet()) {
-            if ((mask & e.getKey()) != 0) {
-                names.add(e.getValue());
-            }
-        }
-        return names;
     }
 
     // ------------------------------------------------------------------
@@ -552,94 +378,4 @@ public class SimulatorService {
         return d;
     }
 
-    // ------------------------------------------------------------------
-    // 掷点工具
-    // ------------------------------------------------------------------
-
-    private static int rndInt(int min, int max) {
-        if (max < min) {
-            int t = min;
-            min = max;
-            max = t;
-        }
-        int sb = (max + 1) - min;
-        if (sb <= 0) {
-            return max;
-        }
-        return min + ThreadLocalRandom.current().nextInt(sb);
-    }
-
-    private static int rndIntOr(Integer min, Integer max) {
-        if (min == null && max == null) {
-            return 0;
-        }
-        if (min == null) {
-            min = 0;
-        }
-        if (max == null || max == 0) {
-            return min;
-        }
-        return rndInt(min, max);
-    }
-
-    private static int resistRoll(Integer min, Integer max) {
-        if (min == null && max == null) {
-            return 0;
-        }
-        if (min == null) {
-            min = 0;
-        }
-        if (max == null || max == 0) {
-            return min;
-        }
-        return rndInt(min, max);
-    }
-
-    private static Double rndFloat(Double min, Double max) {
-        if (min == null && max == null) {
-            return 0.0;
-        }
-        if (min == null) {
-            min = 0.0;
-        }
-        if (max == null || max == 0.0) {
-            return min;
-        }
-        int sb = (int) ((max - min) * 100.0);
-        if (sb <= 0) {
-            return max;
-        }
-        int rnd = ThreadLocalRandom.current().nextInt(sb + 1);
-        return Math.round((min + rnd / 100.0) * 100.0) / 100.0;
-    }
-
-    private static Double rndFloat2(Double min, Double max) {
-        if (min == null && max == null) {
-            return 0.0;
-        }
-        if (min == null) {
-            min = 0.0;
-        }
-        if (max == null || max == 0.0) {
-            return min;
-        }
-        int sb = (int) ((max - min) * 10.0);
-        if (sb <= 0) {
-            return max;
-        }
-        int rnd = ThreadLocalRandom.current().nextInt(sb + 1);
-        return Math.round((min + rnd / 10.0) * 100.0) / 100.0;
-    }
-
-    private static Double floatOfIntRoll(Integer min, Integer max) {
-        return (double) rndIntOr(min, max);
-    }
-
-    private static Integer add(Integer v, int delta) {
-        return (v == null ? 0 : v) + delta;
-    }
-
-    private static Double add(Double v, double delta) {
-        return (v == null ? 0.0 : v) + delta;
-    }
 }

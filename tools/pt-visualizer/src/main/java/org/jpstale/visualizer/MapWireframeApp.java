@@ -18,10 +18,10 @@ import com.jme3.util.BufferUtils;
 import org.jpstale.assets.smd.CollisionMesh;
 import org.jpstale.assets.smd.SmdMapData;
 import org.jpstale.assets.smd.SmdMapLoader;
-import org.jpstale.server.game.model.FieldCatalog;
-import org.jpstale.server.game.model.FieldInfo;
-import org.jpstale.server.game.model.FieldInfo.FieldGate;
-import org.jpstale.server.game.model.FieldInfo.WarpGate;
+import org.jpstale.common.service.map.FieldCatalog;
+import org.jpstale.common.service.map.FieldInfo;
+import org.jpstale.common.service.map.FieldInfo.FieldGate;
+import org.jpstale.common.service.map.FieldInfo.WarpGate;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -541,10 +541,7 @@ public class MapWireframeApp extends SimpleApplication {
         return n;
     }
 
-    private static class MarkerStyle {
-        final Material mat;
-        final float radius;
-        MarkerStyle(Material mat, float radius) { this.mat = mat; this.radius = radius; }
+    private record MarkerStyle(Material mat, float radius) {
     }
 
     private MarkerStyle marker(ColorRGBA color, float radius) {

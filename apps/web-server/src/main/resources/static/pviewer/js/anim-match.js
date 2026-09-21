@@ -9,9 +9,9 @@
  * 类型匹配用于语义化动画系统验证——解决新武器无精确索引的问题。
  */
 
-import { CLASS_FLAG } from './inx-parser.js';
-import { SITEM_CODE_BY_INDEX } from './sitem-weapon-index.js';
-import { getWeaponTypeFromSItemIndex } from './weapon-type.js';
+import {CLASS_FLAG} from './inx-parser.js';
+import {SITEM_CODE_BY_INDEX} from './sitem-weapon-index.js';
+import {getWeaponTypeFromSItemIndex} from './weapon-type.js';
 
 /**
  * 检查武器 ID 是否在动画条目的白名单中（精确匹配 exm）

@@ -7,13 +7,7 @@ import org.jpstale.server.game.entity.GroundItem;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.network.SessionManager;
-import org.jpstale.server.proto.base.C2S_Chat;
-import org.jpstale.server.proto.base.ClientMessage;
-import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_Chat;
-import org.jpstale.server.proto.base.S2C_GroundItemAppear;
-import org.jpstale.server.proto.base.S2C_SystemMessage;
-import org.jpstale.server.proto.base.ServerMessage;
+import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -52,7 +46,7 @@ public class ChatService {
 
 
     @Autowired
-    private org.jpstale.server.game.item.ItemRollService itemRoll;
+    private org.jpstale.common.service.item.ItemRollService itemRoll;
 
 
     @Autowired
@@ -73,7 +67,7 @@ public class ChatService {
     private org.jpstale.server.game.service.MapRegionService mapRegionService;
 
     @Autowired
-    private org.jpstale.server.game.item.LootService lootService;
+    private org.jpstale.common.service.item.LootService lootService;
 
     @Autowired
     private UserInfoMapper userInfoMapper;
@@ -190,7 +184,7 @@ public class ChatService {
             if (name.equals("items")) {
                 var player = playerService.getOrCreate(session);
                 StringBuilder sb = new StringBuilder("items=").append(player.getItems().byUidCount()).append(" [");
-                for (var it : player.getItems().itemsIn(org.jpstale.server.game.item.ItemLocations.BAG)) {
+                for (var it : player.getItems().itemsIn(org.jpstale.common.service.item.ItemLocations.BAG)) {
                     sb.append("#").append(it.getItemListId())
                       .append("@").append(it.getSlot())
                       .append(" x").append(it.getCount()).append("; ");
@@ -231,7 +225,7 @@ public class ChatService {
         if (ent == null || ent.getMapId() < 0) {
             return; // 尚未进场，无刷物位置
         }
-        org.jpstale.server.game.item.ItemInstance fresh = itemRoll.rollByCode(parts[1], null);
+        org.jpstale.common.service.item.ItemInstance fresh = itemRoll.rollByCode(parts[1], null);
         if (fresh == null || fresh.getTemplate() == null) {
             log.info("[GM] /@get token={} by {} : item not found", parts[1], session.getCharacterName());
             systemMessageKey(session, "chat.cmd.itemNotFound", Map.of("token", parts[1]));

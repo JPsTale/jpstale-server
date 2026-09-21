@@ -1,7 +1,7 @@
 package org.jpstale.server.game.collision;
 
 import org.jpstale.assets.smd.CollisionMesh;
-import org.jpstale.server.game.model.MapMesh;
+import org.jpstale.common.service.map.MapMesh;
 import org.jpstale.server.game.service.MapRegionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

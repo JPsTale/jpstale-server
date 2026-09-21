@@ -1,8 +1,8 @@
 package org.jpstale.dao.userdb.mapper;
 
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Param;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 import java.util.List;
 

@@ -1,7 +1,7 @@
 package org.jpstale.dao.gamedb.mapper;
 
-import org.jpstale.dao.gamedb.entity.RarityChanceMod;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.gamedb.entity.RarityChanceMod;
 
 /**
  * <p>

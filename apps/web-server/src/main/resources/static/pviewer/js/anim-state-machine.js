@@ -13,7 +13,7 @@
  *   Any non-looping state ends → return to STAND
  */
 
-import { findMotions, findMotionsByType, pickMotion, classIdToFlag } from './anim-match.js';
+import {findMotions, findMotionsByType, pickMotion} from './anim-match.js';
 
 const STATE = {
   STAND:    0x0040,

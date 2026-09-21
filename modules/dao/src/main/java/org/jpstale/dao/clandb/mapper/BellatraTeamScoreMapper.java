@@ -1,7 +1,7 @@
 package org.jpstale.dao.clandb.mapper;
 
-import org.jpstale.dao.clandb.entity.BellatraTeamScore;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.clandb.entity.BellatraTeamScore;
 
 /**
  * <p>

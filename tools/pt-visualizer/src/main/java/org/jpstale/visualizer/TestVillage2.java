@@ -1,10 +1,8 @@
 package org.jpstale.visualizer;
 
-import org.jpstale.assets.smd.SmdMapData;
-import org.jpstale.assets.smd.SmdMapLoader;
-import org.jpstale.server.game.model.FieldCatalog;
-import org.jpstale.server.game.model.FieldInfo;
-import org.jpstale.server.game.model.MapMesh;
+import org.jpstale.common.service.map.FieldCatalog;
+import org.jpstale.common.service.map.FieldInfo;
+import org.jpstale.common.service.map.MapMesh;
 
 import java.io.File;
 import java.nio.file.Files;

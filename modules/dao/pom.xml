@@ -17,6 +17,27 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
         </dependency>
+        <!--
+          数据源栈由本模块持有（原 pt-dao-spring-boot-starter 的职责整份搬到这里）：
+          dynamic-datasource 才是 DataSource 的实际提供者（两个 app 的 application.yml 都有
+          spring.datasource.dynamic.*）。挂在 dao 而不是让两个 app 各抄一遍 —— 任何依赖 dao 的
+          消费者零知识成本，且不会出现"一边有、一边没有"。PtDaoAutoConfiguration
+          （@MapperScan("org.jpstale.dao")）也随之下沉到本模块，仍走 AutoConfiguration 机制，
+          故与拆分 starter 之前**行为完全一致**。
+        -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>dynamic-datasource-spring-boot4-starter</artifactId>
+        </dependency>
+        <!-- 编译 @AutoConfiguration 需要；显式声明，不靠传递（pt-server-core 的教训） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

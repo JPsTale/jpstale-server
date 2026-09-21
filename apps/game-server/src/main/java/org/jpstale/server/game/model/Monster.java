@@ -2,6 +2,7 @@ package org.jpstale.server.game.model;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.jpstale.common.service.model.MonsterStats;
 import org.jpstale.server.game.entity.BaseEntity;
 import org.jpstale.server.game.entity.EntityIdSource;
 
@@ -232,5 +233,13 @@ public class Monster extends BaseEntity {
             y += dy * ratio;
             z += dz * ratio;
         }
+    }
+
+    /**
+     * 战斗计算所需的属性快照（共享层 `DamageCalculator` 只认 {@link MonsterStats}，不认本实体）。
+     * 多一项入参就得改这里 + 所有调用点 —— 这是有意的摩擦，防止共享层悄悄依赖实体。
+     */
+    public MonsterStats combatStats() {
+        return new MonsterStats(level, defense, absorption, maxHp, attackRating, atkMin, atkMax);
     }
 }

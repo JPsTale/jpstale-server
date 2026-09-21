@@ -2,10 +2,10 @@ package org.jpstale.server.game.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.common.redis.ClanMessageData;
-import org.jpstale.server.common.redis.ClanMessageTypes;
-import org.jpstale.server.common.redis.CommonMsg;
-import org.jpstale.server.common.redis.RedisMsgProducer;
+import org.jpstale.common.mq.ClanMessageData;
+import org.jpstale.common.mq.ClanMessageTypes;
+import org.jpstale.common.mq.CommonMsg;
+import org.jpstale.common.mq.RedisMsgProducer;
 import org.springframework.stereotype.Service;
 
 @Slf4j

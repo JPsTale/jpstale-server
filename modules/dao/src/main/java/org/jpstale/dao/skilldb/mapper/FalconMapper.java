@@ -1,7 +1,7 @@
 package org.jpstale.dao.skilldb.mapper;
 
-import org.jpstale.dao.skilldb.entity.Falcon;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.skilldb.entity.Falcon;
 
 /**
  * <p>

@@ -1,8 +1,9 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jpstale.common.service.model.Player;
+import org.jpstale.server.common.enums.character.CharacterRace;
 import org.jpstale.server.game.entity.PlayerEntity;
-import org.jpstale.server.game.model.Player;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerMoveState;
@@ -12,7 +13,6 @@ import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.S2C_PlayerTeleport;
 import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.jpstale.server.common.enums.packets.CharacterRace;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -100,8 +100,8 @@ public class TeleportService {
      * @return true = 已搬（并已广播）；false = 目标图不存在或玩家不在场（调用方据此决定回执）
      */
     public boolean teleport(Player player, int mapId, double x, double z, Reason reason) {
-        PlayerSession session = player.getSession();
-        PlayerEntity entity = session != null ? session.getEntity() : null;
+        PlayerEntity entity = playerService.entityOf(player);
+        PlayerSession session = entity != null ? entity.getSession() : null;
         if (entity == null) {
             log.warn("TELEPORT {} 失败：无 PlayerEntity（reason={}）", player.getName(), reason);
             return false;
@@ -194,8 +194,9 @@ public class TeleportService {
      * 判定与 {@link #teleport} 内部用的是同一份（不是又写一遍）。
      */
     public boolean canTeleportTo(Player player, int mapId, Reason reason) {
-        PlayerSession session = player.getSession();
-        if (session == null || session.getEntity() == null || !mapRegionService.isMap(mapId)) {
+        PlayerEntity entity = playerService.entityOf(player);
+        PlayerSession session = entity != null ? entity.getSession() : null;
+        if (session == null || !mapRegionService.isMap(mapId)) {
             return false;
         }
         if (reason == Reason.RESPAWN || reason == Reason.UNSTUCK || reason == Reason.GM) {
@@ -389,8 +390,8 @@ public class TeleportService {
      * 零代价（不动经验/金币/血量），30 秒冷却。
      */
     public UnstuckOutcome unstuck(Player player) {
-        PlayerSession session = player.getSession();
-        PlayerEntity entity = session != null ? session.getEntity() : null;
+        PlayerEntity entity = playerService.entityOf(player);
+        PlayerSession session = entity != null ? entity.getSession() : null;
         if (entity == null) {
             return new UnstuckOutcome(false, 0, 0, 0, 0);
         }

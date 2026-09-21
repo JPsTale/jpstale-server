@@ -2,10 +2,10 @@ package org.jpstale.server.game.service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.game.model.FieldCatalog;
-import org.jpstale.server.game.model.FieldInfo;
-import org.jpstale.server.game.model.FieldInfo.FieldGate;
-import org.jpstale.server.game.model.MapMesh;
+import org.jpstale.common.service.map.FieldCatalog;
+import org.jpstale.common.service.map.FieldInfo;
+import org.jpstale.common.service.map.FieldInfo.FieldGate;
+import org.jpstale.common.service.map.MapMesh;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

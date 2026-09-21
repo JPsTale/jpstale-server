@@ -1,7 +1,7 @@
 package org.jpstale.dao.skilldb.mapper;
 
-import org.jpstale.dao.skilldb.entity.Farina;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.jpstale.dao.skilldb.entity.Farina;
 
 /**
  * <p>

@@ -1,5 +1,5 @@
 package org.jpstale.server.game;
-import org.jpstale.server.core.ServerManager;
+import org.jpstale.server.game.core.ServerManager;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
