@@ -10,6 +10,22 @@ import org.jpstale.dao.gamedb.entity.ItemList;
  */
 final class ItemFixtures {
 
+    /** 把 12 个候选位全部清零（测"只有 primaryspec"那种模板时用）。 */
+    static void clearAddSpecClasses(ItemList def) {
+        def.setAddSpecClass1(0);
+        def.setAddSpecClass2(0);
+        def.setAddSpecClass3(0);
+        def.setAddSpecClass4(0);
+        def.setAddSpecClass5(0);
+        def.setAddSpecClass6(0);
+        def.setAddSpecClass7(0);
+        def.setAddSpecClass8(0);
+        def.setAddSpecClass9(0);
+        def.setAddSpecClass10(0);
+        def.setAddSpecClass11(0);
+        def.setAddSpecClass12(0);
+    }
+
     private ItemFixtures() {
     }
 

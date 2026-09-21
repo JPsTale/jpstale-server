@@ -32,6 +32,7 @@ public enum ResultCode implements ResultError {
     // 资源（104xx）
     USER_NOT_FOUND(10404, 404, "error.web.userNotFound"),
     MAP_NOT_FOUND(10405, 404, "error.web.mapNotFound"),
+    ITEM_NOT_FOUND(10406, 404, "error.web.itemNotFound"),
     ACCOUNT_EXISTS(10409, 409, "error.web.accountExists"),
     EMAIL_EXISTS(10410, 409, "error.web.emailExists"),
 

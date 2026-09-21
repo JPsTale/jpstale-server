@@ -5,6 +5,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Random;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,7 +27,7 @@ class ItemRollServiceTest {
 
     /**
      * 重构前（阶段 0 之前）实测的掷点签名，种子 {@link #SEED}、模板 {@link ItemFixtures#sampleWeapon()}、
-     * 期望职业掩码 0（走"从模板的可选职业里随机挑"分支）。
+     * 期望职业掩码 0（下面那条 ⚠ 说明为什么这个 0 不是"随机挑出来的职业"）。
      *
      * ⚠ 这个种子下**职业特效判定未命中**（30% 命中率的那 70% 一侧）——
      * 即本条签名覆盖的是"基础掷点"路径，`applyJobEffects` 的字段全是 0。
@@ -167,5 +168,106 @@ class ItemRollServiceTest {
             }
         }
         org.junit.jupiter.api.Assertions.fail("40 个种子都没命中职业特效（30% 命中率下概率极低，判据可能坏了）");
+    }
+
+    /**
+     * **候选职业 ≥2 时，命中后写进 `jobCodeMask` 的必须是"职业位"，不能是候选列表的下标。**
+     *
+     * <p>
+     * 背景（2026-09-21 查实处）：原实现在多候选分支写的是 `nextInt(randomJobs.size())` ——
+     * 那是**下标**（0..size-1），而 `jobCodeMask` 是**位掩码**（`EquipSummary.specIfJob` 按
+     * `mask & bit` 判定、`specJobBits` 也返回位）。两者混用的后果：
+     * <ul>
+     *   <li>下标 0 → `mask = 0` ⇒ "无职业限定" ⇒ **特效完全不生效**；</li>
+     *   <li>下标 1/2/4/8 → 落到 Fighter/Mechanician/Archer/Pikeman 上，与真实候选无关。</li>
+     * </ul>
+     * 影响面：全库 1036 件物品里 **578 件有 ≥2 个候选**（只有 1 个候选的 91 件走的是正确的
+     * `randomJobs.get(0)` 分支）。活库 `userdb.item.job_code_mask` 里已能查到 **3/5/6/7/9** 这类
+     * 正确路径**不可能产出**的取值（31 条），是这条 bug 的现场指纹。
+     *
+     * <p>
+     * 本测试用 500 次掷点覆盖随机分支（`jobCodeMask` 传 0 ⇒ 走随机），逐次断言：
+     * **命中（价格 != 基础价）时的掩码必须落在候选位集合里**。修 bug 前这里会看到 `mask=0`。
+     */
+    @Test
+    void 多候选命中时写的是职业位而不是下标() {
+        ItemRollService svc = new ItemRollService(null);
+        ItemRollService.setRngOverride(new Random(20260921L));
+
+        // sampleWeapon 声明了 addSpecClass1 / addSpecClass2 ⇒ 候选位 = {1 Fighter, 2 Mechanician}
+        Set<Integer> candidateBits = Set.of(1, 2);
+        int hits = 0;
+        for (int i = 0; i < 500; i++) {
+            ItemInstance it = svc.roll(ItemFixtures.sampleWeapon(), 0);
+            if (it.getPrice() == 1000) {
+                continue;   // 30% 命中率，未命中的不产生掩码，跳过
+            }
+            hits++;
+            assertTrue(candidateBits.contains(it.getJobCodeMask()),
+                    "第 " + i + " 次命中：掩码必须是候选位之一 " + candidateBits
+                            + "，实得 " + it.getJobCodeMask() + "（0 表示特效会完全不生效）");
+        }
+        assertTrue(hits > 80, "500 次里应命中足够多次才说明覆盖到了随机分支，实得 " + hits);
+    }
+
+    /**
+     * **自身职业（`primaryspec`）必须能掉出来** —— 否则就是用户实测的那类症状（"弓不会掉弓特"）。
+     *
+     * <p>
+     * 现场（2026-09-21 实测全库）：277 件同时有 `primaryspec` 与候选位的物品里，**212 件的自身职业
+     * 不在候选位里**，弓 33/33 件皆是（`primaryspec=Archer`，候选 = {Mechanician, Atalanta}），
+     * 斧亦然（`primaryspec=Fighter`，候选 = {Mechanician, Pikeman}）。修前这些物品**永远**拿不到
+     * 自己职业的特效。
+     *
+     * <p>
+     * 本测试给夹具加上 `primaryspec=3`（Archer → 位 4），候选位仍是 1/2：
+     * 逐次断言掩码只能落在 {4,1,2} 里，并要求 300 个种子里**位 4 确实出现过**（证明它在池里）。
+     */
+    @Test
+    void 自身职业必须在候选池里_弓才可能掉到弓特() {
+        ItemRollService svc = new ItemRollService(null);
+        ItemList def = ItemFixtures.sampleWeapon();
+        def.setPrimarySpec(3);   // Archer → 职业位 1<<2 = 4
+
+        Set<Integer> allowed = Set.of(4, 1, 2);
+        boolean sawPrimary = false;
+        int hits = 0;
+        for (int seed = 0; seed < 300; seed++) {
+            ItemRollService.setRngOverride(new Random(20260921L + seed));
+            ItemInstance it = svc.roll(def, 0);
+            if (it.getPrice() == 1000) {
+                continue;   // 未命中
+            }
+            hits++;
+            int mask = it.getJobCodeMask();
+            assertTrue(allowed.contains(mask),
+                    "掩码必须是自身职业位(4)或候选位(1/2)之一，实得 " + mask);
+            if (mask == 4) {
+                sawPrimary = true;
+            }
+        }
+        assertTrue(hits > 50, "300 个种子里应命中足够多次，实得 " + hits);
+        assertTrue(sawPrimary, "自身职业位(4)必须出现过 —— 它得在候选池里，否则就是「弓掉不到弓特」");
+    }
+
+    /** 只有 `primaryspec`、没有任何候选位时：池大小为 1 ⇒ 命中即恒为该职业（对齐原版"固定专精"）。 */
+    @Test
+    void 只有自身职业时命中即为该职业() {
+        ItemRollService svc = new ItemRollService(null);
+        ItemList def = ItemFixtures.sampleWeapon();
+        def.setPrimarySpec(3);
+        ItemFixtures.clearAddSpecClasses(def);
+
+        int hits = 0;
+        for (int seed = 0; seed < 300; seed++) {
+            ItemRollService.setRngOverride(new Random(20260921L + seed));
+            ItemInstance it = svc.roll(def, 0);
+            if (it.getPrice() == 1000) {
+                continue;
+            }
+            hits++;
+            assertEquals(4, it.getJobCodeMask(), "池里只有自身职业时，命中就只能是它");
+        }
+        assertTrue(hits > 50, "应命中足够多次，实得 " + hits);
     }
 }

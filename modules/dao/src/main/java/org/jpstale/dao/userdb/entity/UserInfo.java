@@ -55,7 +55,18 @@ public class UserInfo {
     private Integer muteCount;
     @TableField("unmutedate")
     private OffsetDateTime unmuteDate;
-    /** Web 系统管理员：true 可访问 /api/admin/** */
+    /**
+     * ⚠ **不是权限判据，也不接数据库**（`exist = false`）。
+     *
+     * <p>
+     * 活库的 `userdb.userinfo` **没有** `web_admin` 这一列（只有仓库里那份 `postgres-init` 的
+     * 另一代 schema `user_info` 才有），`UserInfoMapper.selectOneByAccountName` 的 SQL 与 resultMap
+     * 也都不含它 ⇒ 本字段读出来**恒为 null**。它曾让 `/api/admin/**` 的权限门**静默失效**若干时间。
+     *
+     * <p>
+     * Web 管理员的判据是原版 GM 两列 `gamemastertype` / `gamemasterlevel`，
+     * 唯一实现在 {@code org.jpstale.common.service.account.GameMasterRule}。
+     */
     @TableField(exist = false)
     private Boolean webAdmin;
 }

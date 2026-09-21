@@ -4,6 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import org.jpstale.dao.userdb.entity.UserInfo;
 import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.common.enums.account.BanStatus;
+import org.jpstale.server.web.auth.SessionKeys;
 import org.jpstale.server.web.enums.ResultCode;
 import org.jpstale.server.web.exception.BusinessException;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,7 @@ public class ChangePasswordService {
             throw new BusinessException(ResultCode.NOT_LOGIN);
         }
         // 登录时已在 Session 中写入 accountName，修改密码时以 accountName 为准，避免 loginId 类型差异。
-        String accountName = StpUtil.getSession().getString("accountName");
+        String accountName = StpUtil.getSession().getString(SessionKeys.ACCOUNT_NAME);
         if (accountName == null || accountName.isBlank()) {
             throw new BusinessException(ResultCode.NOT_LOGIN);
         }

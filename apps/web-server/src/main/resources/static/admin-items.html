@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="admin.item.title">物品管理</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="admin-body">
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-logo" data-i18n="admin.common.brand">PristonTale 管理</div>
+      <!-- 菜单由 js/nav.js 按其中的 MENU 定义 + /api/user/me 返回的角色动态渲染 -->
+      <nav class="admin-nav" id="ptNav"></nav>
+    </aside>
+    <main class="admin-main">
+      <header class="admin-header">
+        <h1 data-i18n="admin.item.title">物品管理</h1>
+        <div class="admin-header-actions">
+          <span id="adminUserLabel" class="admin-user-label" data-i18n="admin.common.notLoggedIn">未登录</span>
+          <button id="logoutBtn" class="btn btn-small btn-secondary" style="margin-left: 0.75rem;" data-i18n="admin.common.logout">退出登录</button>
+        </div>
+      </header>
+
+      <section class="admin-card">
+        <!-- 四组固定筛选条件，控件由 admin-items.js 按 FILTERS 定义生成（单一来源，避免手写 24 个输入框写错） -->
+        <div class="item-filters" id="filterBar"></div>
+
+        <div class="admin-toolbar">
+          <button id="searchBtn" class="btn btn-small" data-i18n="admin.common.search">查询</button>
+          <button id="resetBtn" class="btn btn-small btn-secondary" data-i18n="admin.item.resetFilters">重置条件</button>
+          <span class="item-hint" id="hint"></span>
+          <span style="flex:1"></span>
+          <button id="colPickerBtn" class="btn btn-small btn-secondary" data-i18n="admin.item.columnPicker">列显示</button>
+          <button id="refreshBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.refresh">刷新</button>
+        </div>
+
+        <div id="colPicker" class="item-colpicker hidden"></div>
+        <div id="errBox" class="msg error hidden" role="alert"></div>
+
+        <div class="admin-table-wrapper">
+          <table class="admin-table" id="itemsTable">
+            <thead><tr id="tableHead"></tr></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="item-pager">
+          <button id="prevBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.prevPage">上一页</button>
+          <span id="pageInfo" class="item-hint"></span>
+          <button id="nextBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.nextPage">下一页</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 详情浮层：默认只读，点「编辑」才切成可改（设计文档 §6.1） -->
+  <div id="modal" class="item-modal hidden">
+    <div class="item-modal-card">
+      <div class="item-modal-header">
+        <span id="modalTitle" data-i18n="admin.item.detailTitle">物品详情</span>
+        <div class="item-modal-controls">
+          <label>Spec <select id="specSel"></select></label>
+          <label>Age <select id="ageSel"></select></label>
+          <label>Mix <select id="mixSel"></select></label>
+          <button id="editBtn" class="btn btn-small" data-i18n="admin.common.edit">编辑</button>
+          <button id="saveBtn" class="btn btn-small hidden" data-i18n="admin.common.save">保存</button>
+          <button id="cancelBtn" class="btn btn-small btn-secondary hidden" data-i18n="admin.common.cancel">取消</button>
+          <span id="modalClose" class="item-modal-close" data-i18n-title="admin.common.close" title="关闭">X</span>
+        </div>
+      </div>
+      <div id="modalMsg" class="msg hidden" role="alert"></div>
+      <div id="modalBody" class="item-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="./js/i18n.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/nav.js"></script>
+  <script src="./js/item-effects.js"></script>
+  <script src="./js/admin-items.js"></script>
+</body>
+</html>

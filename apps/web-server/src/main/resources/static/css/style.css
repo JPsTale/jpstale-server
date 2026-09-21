@@ -1,0 +1,629 @@
+/* pt-web-server 前端样式 - PristonTale 风格 */
+:root {
+  --bg-dark: #1a1625;
+  --bg-card: #252030;
+  --bg-input: #2d2838;
+  --border: #3d3648;
+  --text: #e8e4ef;
+  --text-muted: #9a94a8;
+  --accent: #c9a227;
+  --accent-hover: #e0b83d;
+  --success: #4a9b6f;
+  --error: #c75c5c;
+  --font-sans: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg-dark);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(201, 162, 39, 0.08) 0%, transparent 50%);
+}
+
+.container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h1 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+.page-header p {
+  color: var(--text-muted);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-group input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.btn {
+  display: inline-block;
+  width: 100%;
+  padding: 0.85rem 1.25rem;
+  background: var(--accent);
+  color: var(--bg-dark);
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn:hover {
+  background: var(--accent-hover);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  margin-top: 0.75rem;
+  text-decoration: none;
+  text-align: center;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-input);
+  color: var(--text);
+}
+
+.msg {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.msg.success {
+  background: rgba(74, 155, 111, 0.2);
+  border: 1px solid var(--success);
+  color: #7bc99a;
+}
+
+.msg.error {
+  background: rgba(199, 92, 92, 0.2);
+  border: 1px solid var(--error);
+  color: #e88a8a;
+}
+
+.msg.hidden {
+  display: none;
+}
+
+/*
+ * 通用「隐藏」工具类。
+ *
+ * 为什么需要它、而且要 !important：原先只有 `.msg.hidden` 一条规则，于是**裸用 `.hidden`
+ * 的元素根本不会被隐藏** —— 旧页面恰好只把 `.hidden` 用在 `.msg` 上，所以这个坑一直没暴露；
+ * 物品管理页用它来收起详情浮层/列选择器/保存按钮时就全部失效（加载后浮层直接摊在页面上）。
+ * 用 !important 是因为页面上有 `.item-modal { display: flex }` 这类单类名规则，
+ * 单类名同权重时后者胜，位置顺序靠不住。
+ */
+.hidden {
+  display: none !important;
+}
+
+.links {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.links a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.links a:hover {
+  text-decoration: underline;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 2rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* 管理后台布局 */
+.admin-body {
+  background: #0f0d17;
+}
+
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.admin-sidebar {
+  width: 220px;
+  background: #15121f;
+  border-right: 1px solid var(--border);
+  padding: 1.25rem 1rem;
+}
+
+.admin-logo {
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.admin-nav-item,
+.admin-nav-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.admin-nav-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.admin-nav-item-active {
+  background: rgba(201, 162, 39, 0.16);
+  color: var(--accent);
+}
+
+.admin-nav-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 0.5rem 0;
+}
+
+.admin-main {
+  flex: 1;
+  padding: 1.5rem 2rem;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.admin-header h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.admin-user-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.admin-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+}
+
+.admin-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-input {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-input);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.admin-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-table th,
+.admin-table td {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+}
+
+.admin-table th {
+  text-align: left;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.btn-small {
+  width: auto;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+/* ==========================================================================
+   物品管理（admin-items.html）
+   ========================================================================== */
+
+/* 四组固定筛选条件 */
+.item-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding: 0.25rem 0 1rem;
+}
+
+.item-filter-group {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  align-items: flex-end;
+}
+
+.item-filter-title {
+  display: block;
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.item-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.item-filters input {
+  width: 8.5rem;
+}
+
+.item-hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+/* 列显示勾选面板 */
+.item-colpicker {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  max-height: 15rem;
+  overflow: auto;
+}
+
+.item-colpicker label {
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.item-colpicker .item-colpicker-section {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 0.3rem;
+}
+
+/* 列表行可点开详情 */
+.admin-table tbody tr {
+  cursor: pointer;
+}
+
+/* 分页 */
+.item-pager {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+/* 详情浮层 */
+.item-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1450;             /* 管理端页面里没有别的层，取个高位即可（不需要和游戏客户端的层级对齐） */
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow: auto;
+}
+
+.item-modal-card {
+  background: #1b1b1b;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: min(70rem, 100%);
+}
+
+.item-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.item-modal-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.item-modal-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.item-modal-close {
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0 0.25rem;
+}
+
+.item-modal-close:hover {
+  color: #f85149;
+}
+
+.item-modal-body {
+  padding: 0.5rem 1rem 1rem;
+}
+
+.item-section-title {
+  margin: 0.9rem 0 0.35rem;
+  color: #9db8d9;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.2rem;
+}
+
+.item-row {
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+  font-size: 0.84rem;
+}
+
+.item-col-name {
+  color: var(--text-muted);
+  font-family: Consolas, Menlo, monospace;
+}
+
+.item-col-value input,
+.item-col-value select {
+  width: 16rem;
+}
+
+/* 编辑态的下拉（枚举列）与勾选（布尔列）：与输入框同一套外观 */
+.item-col-value select {
+  padding: 0.45rem 0.6rem;
+  background: var(--bg-input);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.item-col-value input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/* 区间行（如「攻击力(小) 16 - 19」）在编辑态下两个输入框之间的分隔 */
+.item-col-sep {
+  color: var(--text-muted);
+  margin: 0 0.1rem;
+}
+
+/* 数值来源染色 —— 取值照搬已删除的模拟器页面（内联 <style> 里的原值），不要重新调色 */
+.mod {
+  font-weight: bold;
+}
+
+.mod-mix {
+  color: #c77dff;             /* 紫：被 Mix 合成属性改过 */
+  font-weight: bold;
+}
+
+.mod-age {
+  color: #6ea8ff;             /* 蓝：被 Age 强化倍率改过 */
+  font-weight: bold;
+}
+
+.mod-spec {
+  color: #7cd47c;             /* 绿：职业特效贡献 */
+  font-weight: bold;
+}
+
+.mod-req-up {
+  color: #f85149;             /* 红：该职业的需求更高 */
+  font-weight: bold;
+}
+
+.mod-req-down {
+  color: #7cd47c;             /* 绿：该职业的需求更低 */
+  font-weight: bold;
+}
+
+/* 编辑态下值不合法的输入框（保存会被拒，明确指出是哪一列） */
+.item-input-bad {
+  border-color: #f85149 !important;
+}
+
+/* 掉落特效候选：职业勾选组件（= addspecclass1..12） */
+.item-pool {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.35rem 0 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.item-pool-title {
+  color: #9db8d9;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+}
+
+/* 自身职业（primaryspec）：它也在掉落池里，单独一行写出来 */
+.item-pool-fixed {
+  color: #c3cedd;
+  font-size: 0.8rem;
+  margin-bottom: 0.45rem;
+}
+
+/*
+ * 勾选框：**不用原生控件**。
+ *
+ * 为什么（用户 2026-09-21 反馈"看不清是否勾选"）：深色底上原生 checkbox 本来就细，
+ * 只读态又是 `disabled` —— 浏览器会给它套上灰化/降低对比，于是勾没勾几乎分不出。
+ * 这里用 `appearance: none` 自己画：未勾 = 深底 + 清楚的灰蓝描边；勾选 = 实心绿 + 白对勾；
+ * 并且**只读态不做灰化**（`opacity: 1`）—— 状态本身就是要让人看清的东西。
+ */
+.item-pool-items label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: #d8dee6;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+.item-pool-items input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  flex: 0 0 auto;
+  position: relative;
+  border: 2px solid #71839c;
+  border-radius: 3px;
+  background: #0f141b;
+  cursor: pointer;
+}
+
+.item-pool-items input[type="checkbox"]:checked {
+  border-color: #46b064;
+  background: #2f7d47;
+}
+
+.item-pool-items input[type="checkbox"]:checked::after {
+  content: '✔';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.item-pool-items input[type="checkbox"]:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* 勾选的那一项整块淡绿底 —— 12 项并排时一眼扫出哪些是开的 */
+.item-pool-items label:has(input:checked) {
+  background: rgba(70, 176, 100, 0.14);
+  color: #eaf3ec;
+}
+
+.item-pool-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.6rem;   /* 每项自带内边距（勾选态有淡绿底），间距不必太大 */
+}
+

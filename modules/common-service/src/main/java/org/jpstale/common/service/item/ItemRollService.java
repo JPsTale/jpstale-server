@@ -176,8 +176,8 @@ public class ItemRollService {
         int basePrice = nz(def.getPrice());
         it.setPrice(basePrice);
 
-        // 职业特效：物品无可选职业 → 无
-        List<Integer> jobBits = specJobBits(def);
+        // 职业特效：候选 = 自身职业（primaryspec）∪ 模板候选位（addspecclass*）；两者都无 → 无
+        List<Integer> jobBits = candidateJobBits(def);
         if (!jobBits.isEmpty()) {
             applyJobEffects(def, it, jobCodeMask, jobBits, basePrice);
         }
@@ -200,7 +200,12 @@ public class ItemRollService {
         } else if (randomJobs.size() == 1) {
             chosen = randomJobs.get(0);
         } else {
-            chosen = nextInt(randomJobs.size());
+            // ⚠ 必须 **先取下标、再取候选里的位**：`randomJobs` 里装的是**职业位**（1,2,4,8,…），
+            // 不是可以当掩码用的东西。这里曾写成 `chosen = nextInt(randomJobs.size())` ——
+            // 那写进 jobCodeMask 的是**下标**：下标 0 ⇒ mask 0 ⇒ 特效完全不生效；
+            // 下标 1/2/4/8 ⇒ 挂到 Fighter/Mechanician/Archer/Pikeman 上。
+            // 活库 userdb.item.job_code_mask 里 3/5/6/7/9 这类"正确路径不可能产出"的取值就是它的现场指纹。
+            chosen = randomJobs.get(nextInt(randomJobs.size()));
         }
         it.setJobCodeMask(chosen);
 
@@ -231,6 +236,38 @@ public class ItemRollService {
         it.setSpecBlockRating(def.getAddSpecBlock() == null ? 0 : def.getAddSpecBlock());
         it.setSpecPerLifeRegen(def.getAddSpecHpRegen() == null ? 0 : def.getAddSpecHpRegen());
         it.setSpecPerStaminaRegen(def.getAddSpecStmRegen() == null ? 0 : def.getAddSpecStmRegen());
+    }
+
+    /**
+     * **掉落时可随机到的职业位集合** = 自身职业（`primaryspec`）∪ 模板候选位（`addspecclass1..12`）。
+     *
+     * <p>
+     * 为什么要把 `primaryspec` 并进来：它是这件装备**自己那一行的**职业（原版 `**특화`，例如弓 = Archer），
+     * 而 `addspecclass*`（原版 `**특화랜덤`）**经常不含它** —— 实测全库 277 件同时有两者的物品里，
+     * **212 件的自身职业不在候选位里**，例如：
+     * <ul>
+     *   <li>弓（33/33 件）：`primaryspec=Archer(3)`，候选位 = {Mechanician, Atalanta} ⇒ **掉不到弓特**；</li>
+     *   <li>斧：`primaryspec=Fighter(1)`，候选位 = {Mechanician, Pikeman} ⇒ 同样掉不到斧特。</li>
+     * </ul>
+     * 这正是用户实测到的那类症状。不并进来，`primaryspec` 就只是个没人读的展示字段。
+     *
+     * <p>
+     * 自身职业放在**最前**并去重（否则它会因在列表里出现两次而被加权）。
+     * 若某模板只有 `primaryspec` 而无候选位，则池大小为 1 ⇒ 走"单候选直接取"分支 ⇒ **恒为该职业**，
+     * 与原版"固定专精"的语义一致。
+     */
+    private List<Integer> candidateJobBits(ItemList def) {
+        List<Integer> bits = new ArrayList<>();
+        Integer primary = def.getPrimarySpec();
+        if (primary != null && primary > 0 && primary <= 12) {
+            bits.add(1 << (primary - 1));
+        }
+        for (Integer bit : specJobBits(def)) {
+            if (!bits.contains(bit)) {
+                bits.add(bit);
+            }
+        }
+        return bits;
     }
 
     /** 该模板声明了哪些可选职业（add_spec_class1..12 非 0 → 对应位）。 */

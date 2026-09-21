@@ -4,6 +4,7 @@ import org.jpstale.dao.gamedb.entity.ItemList;
 import org.jpstale.dao.gamedb.entity.MixList;
 import org.jpstale.dao.gamedb.mapper.ItemListMapper;
 import org.jpstale.dao.gamedb.mapper.MixListMapper;
+import org.jpstale.server.web.item.ItemCategory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -25,6 +26,17 @@ import java.util.stream.Collectors;
  * {@link org.jpstale.common.service.item.ItemInstance}，自带模板引用）。
  * 那个 {"@code POST /api/simulator/roll"} 接口已随旧实现一起删除，**重做接口时请直接调它，不要再实现一遍** ——
  * "模拟器显示的值与游戏内不一致"是当初最难查的一类问题。
+ *
+ * <p>
+ * ⚠ **2026-09-21：模拟器页面已删除**，调用本类的
+ * {@link org.jpstale.server.web.controller.SimulatorController} 已整体标 {@code @Deprecated}
+ * （本类未加该注解，以免 javac 的过时告警在调用处层层铺开）。物品的查询与维护改由
+ * {@code /api/admin/items/**} 承担（设计见
+ * {@code docs/plans/2026-09-21-pt-web-admin-items-design.md}）。
+ * <p>
+ * ⚠ **本类不是整块死代码**：{@link #list} 仍被纸娃娃 {@code static/pviewer/index.html}
+ * （第 993、1096 行）经 {@code GET /api/simulator/items} 使用。
+ * 要一并删除本类，先给 pviewer 换接口。
  */
 @Service
 public class SimulatorService {
