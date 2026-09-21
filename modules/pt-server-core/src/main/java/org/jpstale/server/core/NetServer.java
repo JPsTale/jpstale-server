@@ -1,7 +1,5 @@
 package org.jpstale.server.core;
 
-import org.jpstale.server.common.struct.packets.PacketNetPlayerWorldToken;
-
 /**
  * 登录服侧 Net* 包处理接口。
  *

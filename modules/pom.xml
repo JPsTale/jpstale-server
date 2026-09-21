@@ -3,7 +3,7 @@
     <parent>
         <groupId>org.jpstale.server</groupId>
         <artifactId>jpstale-parent</artifactId>
-        <version>${jpstale.version}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -13,6 +13,7 @@
         <module>common-model</module>
         <module>dao</module>
         <module>pt-server-core</module>
+        <module>pt-dao-spring-boot-starter</module>
     </modules>
 
 </project>

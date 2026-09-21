@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.jpstale.server</groupId>
         <artifactId>modules</artifactId>
-        <version>${jpstale.version}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>

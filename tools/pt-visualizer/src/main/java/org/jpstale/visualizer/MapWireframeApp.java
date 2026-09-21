@@ -101,7 +101,7 @@ public class MapWireframeApp extends SimpleApplication {
         if (pts == null || pts.isEmpty()) {
             throw new IllegalStateException("pt-visualizer: village-2(field id=3) 在 fields.json 里没有 startPoints");
         }
-        double[] sp = toDouble(pts.get(0));
+        double[] sp = toDouble(pts.getFirst());
         double sx = sp[0], sz = sp[1];
         double sy = groundHeight(d3, (int) sx, (int) sz);
 

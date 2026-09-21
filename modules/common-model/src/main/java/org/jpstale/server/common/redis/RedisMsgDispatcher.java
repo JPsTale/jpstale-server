@@ -1,11 +1,12 @@
 package org.jpstale.server.common.redis;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -18,13 +19,15 @@ import java.util.Map;
 public class RedisMsgDispatcher implements MessageListener, ApplicationContextAware {
 
     private final Map<String, List<RedisMsgListener>> listenerMap = new HashMap<>();
-    private final GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer();
+
+    private final GenericJacksonJsonRedisSerializer serializer = GenericJacksonJsonRedisSerializer.builder()
+            .build();
 
     @Override
-    public void onMessage(Message message, byte[] pattern) {
+    public void onMessage(@NonNull Message message, byte[] pattern) {
         CommonMsg msg;
         try {
-            msg = (CommonMsg) serializer.deserialize(message.getBody(), CommonMsg.class);
+            msg = serializer.deserialize(message.getBody(), CommonMsg.class);
         } catch (Exception e) {
             log.error("Failed to deserialize Redis message", e);
             return;
