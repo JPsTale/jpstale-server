@@ -94,6 +94,17 @@ public class CombatService {
     /** 每次攻击最多 4 段（原版 `EventFrame[0..3]`） */
     private static final int MAX_ATTACK_SEGMENTS = 4;
 
+    /**
+     * 技能下标 → `attackEffect`（即原版 `AttackEffect`：起手置 TRUE，`character.cpp:13354`；
+     * 消费点 `:5166`（近战 EventAttack 命中特效）与 `:17712`（SendTransAttack → AttackState=2））。
+     * 只影响**命中外观与武器音**（客户端唯一判定 `lookCritOf`），**不改伤害**。
+     * 恰好只有 44 一条：Jumping Crash（= `SKILL_PLAY_JUMPING_CRASH`，技能下标 44，对应任务书
+     * `docs/handoff/2026-09-21-枪兵一转三技能特效-任务书.md` §0.1-4）。
+     * ⚠ Critical Hit **不置** AttackEffect —— 它的表现是 T1 曳光染色，不在这张表里。
+     * 表外一律 false（技能当作普攻即时结算，见 `handleUseSkill` → `playerAttackMonster`）。
+     */
+    private static final Map<Integer, Boolean> SKILL_ATTACK_EFFECT = Map.of(44, true);
+
     /** 单段裁定结果（服务端掷出，随 S2C_AttackPlan 下发，命中帧按段消费） */
     private record PlannedSegment(boolean missed, boolean critical, int damage, boolean attackEffect) {}
 
@@ -473,7 +484,7 @@ public class CombatService {
             .setDamage(result.getFinalDamage())
             .setIsCritical(result.isCritical())
             .setHitIndex(0)
-            .setAttackEffect(false);  // attackEffect：暂恒 false，等技能接入攻击链路后再填（T3，仅 44 Jumping Crash → true）
+            .setAttackEffect(SKILL_ATTACK_EFFECT.getOrDefault(skillId, false));  // T3：按显式表填 attackEffect（44 Jumping Crash → true）
         if (result.isMissed()) {
             log.info("COMBAT {} attacks {}#{} -> MISS", player.getName(), monster.getName(), monsterId);
             battleLogService.playerMissed(player.getSession(), monster.getName());
