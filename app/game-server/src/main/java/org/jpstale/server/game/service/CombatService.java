@@ -21,6 +21,7 @@ import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.S2C_AttackPlan;
 import org.jpstale.server.proto.base.S2C_AttackResult;
 import org.jpstale.server.proto.base.S2C_AttackStart;
+import org.jpstale.server.proto.base.S2C_LevelUpBroadcast;
 import org.jpstale.server.proto.base.S2C_PlayerDeath;
 import org.jpstale.server.proto.base.S2C_PlayerRespawn;
 import org.jpstale.server.proto.base.ServerMessage;
@@ -594,16 +595,7 @@ public class CombatService {
         // 升级检测：经验反算等级（对齐原版 GetLevelFromExp），每级 +5 自由属性点
         int newLevel = playerService.getLevelFromExp(killer.getExp());
         if (newLevel > killer.getLevel()) {
-            int gained = (newLevel - killer.getLevel()) * 5;
-            killer.setLevel(newLevel);
-            killer.setStatePoint(killer.getStatePoint() + gained);
-            playerService.recalcPanel(killer);
-            log.info("{} leveled up {} -> {} (+{} stat points, total {})",
-                killer.getName(), newLevel - gained / 5, newLevel, gained, killer.getStatePoint());
-            battleLogService.levelUp(killer.getSession(), newLevel, gained);
-            // 通知客户端升级（JSON，刷新面板）
-            killer.getSession().sendText("{\"type\":\"game.levelUp\",\"data\":{\"level\":"
-                + newLevel + ",\"statePoint\":" + killer.getStatePoint() + "}}");
+            applyLevelUp(killer, newLevel);
         }
 
         // 权威落库：经验/金币/等级/属性点写回 characterinfo
@@ -640,6 +632,41 @@ public class CombatService {
         }
         attackCooldowns.put(player.getId(), now);
         return true;
+    }
+
+    /**
+     * 应用升级：加属性点 → 重算面板 → **满状态恢复** + 显式升级广播。
+     *
+     * 满状态：原版是客户端轮询补满（sinCharStatus.cpp），我们是服务端权威 HP/MP/SP，
+     * 必须在升级当下由服务端填满（设计文档 §3.1）。recalcPanel 已算出 Max*，读现值即可。
+     *
+     * 广播：取代旧的 JSON game.levelUp 文本；本人（player_id==self）→ 客户端播音+特效，
+     * 观察者 → 播特效。用 broadcastToArea 覆盖本人 + 视野内观察者一次到位。
+     * 坐标在 PlayerEntity（Player 本身无 mapId/x/z）；会话未必还在（死亡瞬间），判空后仍广播本人。
+     * 位置以实体为准（服务端权威），mapId=0 / xz=0 只是缺会话时的占位，广播路径仍会送达本人。
+     */
+    void applyLevelUp(Player killer, int newLevel) {
+        int gained = (newLevel - killer.getLevel()) * 5;
+        killer.setLevel(newLevel);
+        killer.setStatePoint(killer.getStatePoint() + gained);
+        playerService.recalcPanel(killer);
+        log.info("{} leveled up {} -> {} (+{} stat points, total {})",
+            killer.getName(), newLevel - gained / 5, newLevel, gained, killer.getStatePoint());
+        battleLogService.levelUp(killer.getSession(), newLevel, gained);
+        killer.setHp(killer.getMaxHp());
+        killer.setMp(killer.getMaxMp());
+        killer.setSp(killer.getMaxSp());
+        PlayerEntity killerEntity = killer.getSession() != null ? killer.getSession().getEntity() : null;
+        float killerX = killerEntity != null ? (float) killerEntity.getX() : 0f;
+        float killerZ = killerEntity != null ? (float) killerEntity.getZ() : 0f;
+        int killerMap = killerEntity != null ? killerEntity.getMapId() : 0;
+        messageSender.broadcastToArea(killerMap, killerX, killerZ, AOIManager.VIEW_RANGE,
+            ServerMessage.newBuilder()
+                .setLevelUpBroadcast(S2C_LevelUpBroadcast.newBuilder()
+                    .setPlayerId(killer.getId())
+                    .setLevel(newLevel)
+                    .build())
+                .build());
     }
 
     /**

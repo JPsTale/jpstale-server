@@ -153,7 +153,7 @@ public class NpcShopService {
         if (normal.isEmpty()) {
             // 同码全是任务物品：**不上架**（宁可少一件，也不能把任务武器卖给玩家）
             log.error("[Shop] 商品码 '{}' 只匹配到任务物品（questid 非空，如 id={}）—— 不上架",
-                    code, rows.get(0).getId());
+                    code, rows.getFirst().getId());
             return null;
         }
         if (normal.size() > 1) {
@@ -162,7 +162,7 @@ public class NpcShopService {
                     code, normal.size(), normal.stream().map(ItemList::getId).toList(), pick.getId());
             return pick;
         }
-        return normal.get(0);
+        return normal.getFirst();
     }
 
     /** 买入价（EU：无稀有度数据 ⇒ 就是 `price`；特化 ×1.2 待有该数据再补）。 */
