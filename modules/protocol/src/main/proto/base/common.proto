@@ -146,8 +146,11 @@ message ItemProto {
   int32 res_earth = 36;     // 自然
   int32 res_water = 37;
   int32 res_wind = 38;
-  // 药水恢复区间（原版 P_Rec_* / MP/HP/STM Recovery）
-  int32 mana_regen = 39;    // - 语义按原版：恢复灵力区间 Min
+  // 装备的**每秒回复**（实例值，0.1 精度：15 = 1.5/秒）。
+  // ⚠ 不是药水恢复：药水恢复是**模板**列 `itemlist.recovery*`，服务端使用时才读
+  // （客户端显示走 `potion-effects.generated.json`）。这里三个是 `userdb.item` 的掷点实例列，
+  // 由 `EquipSummary.regenHp/Mp/Stm` 累加、`PlayerStatCalculator` 计入面板每秒回复。
+  int32 mana_regen = 39;
   int32 life_regen = 40;
   int32 stamina_regen = 41;
   // ---- 职业特效（sITEM_SPECIAL / userdb.item.spec_*，0.1 精度同前缀规则）----

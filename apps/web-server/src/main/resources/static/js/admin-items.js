@@ -35,8 +35,8 @@
     {
       groupKey: 'admin.item.groupThreshold', fields: [
         { key: 'reqlevel', labelKey: 'itemtip.reqLv', range: true },
-        { key: 'price', labelKey: 'admin.item.price', range: true },
-        { key: 'weight', labelKey: 'admin.item.weight', range: true }
+        { key: 'price', labelKey: 'itemtip.price', range: true },
+        { key: 'weight', labelKey: 'itemtip.weight', range: true }
       ]
     },
     {
@@ -173,7 +173,7 @@
       stats.appendChild(cat);
       if (row.price !== null && row.price !== undefined) {
         var price = document.createElement('span');
-        price.textContent = T('admin.item.price') + ' ' + PTAdmin.fmt(row.price);
+        price.textContent = T('itemtip.price') + ' ' + PTAdmin.fmt(row.price);
         stats.appendChild(price);
       }
       card.appendChild(stats);
