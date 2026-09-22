@@ -14,16 +14,9 @@
   }
 
   // 与登录一致：SHA256(UPPERCASE(account)+":"+明文密码) 十六进制大写，前端计算后传后端存库
+  // 用 js-sha256（纯 JS）而非 crypto.subtle —— 后者只在安全上下文（https/localhost）可用
   function sha256Hex(str) {
-    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
-      .then(function (buf) {
-        var arr = new Uint8Array(buf);
-        var hex = '';
-        for (var i = 0; i < arr.length; i++) {
-          hex += ('0' + arr[i].toString(16)).slice(-2).toUpperCase();
-        }
-        return hex;
-      });
+    return Promise.resolve(sha256(str).toUpperCase());
   }
 
   form.addEventListener('submit', function (e) {
