@@ -15,9 +15,6 @@
   var ITEM_SEARCH_API = '/api/admin/items/search';
   var T = window.PTi18n.t;
 
-  var PALETTE = ['#5b6ee1', '#8e6ee1', '#e15b8e', '#e1875b', '#e1c15b', '#7fc45b',
-    '#4bb8a9', '#4b8fb8', '#9a7fd0', '#c05b5b', '#6b8f5b', '#b58b3b'];
-
   var state = {
     spawn: null, spawnLoaded: false, spawnFailed: false,
     drops: null, dropsLoaded: false, dropsFailed: false,
@@ -152,7 +149,6 @@
     }
     (state.drops.warnings || []).forEach(function (w) { box.appendChild(note(w, true)); });
 
-    box.appendChild(dropChart(rows));
     rows.forEach(function (d) { box.appendChild(dropRow(d)); });
     return box;
   }
@@ -200,89 +196,43 @@
     return name;
   }
 
+  /** 只读掉落行 → 卡片（左 = 物品名，右 = 概率独立对齐，见 docs/design-webadmin.md §7 D5）。 */
   function dropRow(d) {
-    var row = document.createElement('div');
-    row.className = 'item-row';
-    row.appendChild(dropNameCell(d));
+    var card = document.createElement('div');
+    card.className = 'drop-card';
 
-    var val = document.createElement('div');
-    val.className = 'item-col-value';
-    var parts = [T('admin.monster.dropColumnChance') + ' ' + PTAdmin.fmt(d.chance)];
-    if (d.percent !== null && d.percent !== undefined) {
-      parts.push(PTAdmin.fmt(d.percent) + '%');
-    }
-    if (d.kind === 'GOLD') {
-      parts.push(T('admin.monster.dropColumnGold') + ' ' + PTAdmin.fmt(d.goldMin) + ' - ' + PTAdmin.fmt(d.goldMax));
-    }
-    val.textContent = parts.join(' · ');
+    var left = document.createElement('div');
+    left.className = 'drop-card-name';
+    var nameCell = dropNameCell(d);
+    nameCell.className = '';   // 卡片布局里不再用 item-col-name 的等宽样式
+    left.appendChild(nameCell);
     if (d.skipped) {
-      var warn = document.createElement('span');
-      warn.className = 'item-warn';
-      warn.textContent = '  ' + T('admin.monster.dropSkipped')
+      var warn = document.createElement('div');
+      warn.className = 'drop-card-warn';
+      warn.textContent = T('admin.monster.dropSkipped')
         + '：' + T(d.skipReason === 'chanceZero'
           ? 'admin.monster.dropSkipChanceZero' : 'admin.monster.dropSkipUnknownItem');
-      val.appendChild(warn);
+      left.appendChild(warn);
     }
-    row.appendChild(val);
-    return row;
+    card.appendChild(left);
+
+    var right = document.createElement('div');
+    right.className = 'drop-card-chance';
+    if (d.kind === 'GOLD') {
+      right.appendChild(document.createTextNode(
+        T('admin.monster.dropColumnGold') + ' ' + PTAdmin.fmt(d.goldMin) + ' - ' + PTAdmin.fmt(d.goldMax)));
+    }
+    var pill = document.createElement('span');
+    pill.className = 'drop-chance-pill';
+    pill.textContent = (d.percent !== null && d.percent !== undefined)
+      ? PTAdmin.fmt(d.percent) + '%'
+      : PTAdmin.fmt(d.chance);
+    pill.title = T('admin.monster.dropColumnChance') + ' ' + PTAdmin.fmt(d.chance);
+    right.appendChild(pill);
+    card.appendChild(right);
+    return card;
   }
 
-  /** 概率分布：甜甜圈 + 图例（手写 SVG，不引第三方库）。 */
-  function dropChart(rows) {
-    var box = document.createElement('div');
-    box.className = 'item-donut';
-    var slices = [];
-    rows.forEach(function (d, i) {
-      if (d.percent === null || d.percent === undefined || d.percent <= 0) return;
-      slices.push({ label: dropRowLabel(d), percent: d.percent, color: PALETTE[i % PALETTE.length] });
-    });
-    if (!slices.length) {
-      box.appendChild(note(T('admin.monster.dropChartEmpty')));
-      return box;
-    }
-    box.appendChild(note(T('admin.monster.dropChartTitle')));
-    var sum = slices.reduce(function (s, x) { return s + x.percent; }, 0);
-    var size = 132;
-    var r = 50;
-    var c = 2 * Math.PI * r;
-    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', String(size));
-    svg.setAttribute('height', String(size));
-    svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
-    svg.setAttribute('style', 'transform: rotate(-90deg)');
-    var acc = 0;
-    slices.forEach(function (x) {
-      var frac = x.percent / sum;
-      var arc = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      arc.setAttribute('cx', String(size / 2));
-      arc.setAttribute('cy', String(size / 2));
-      arc.setAttribute('r', String(r));
-      arc.setAttribute('fill', 'none');
-      arc.setAttribute('stroke', x.color);
-      arc.setAttribute('stroke-width', '20');
-      arc.setAttribute('stroke-dasharray', (frac * c) + ' ' + (c - frac * c));
-      arc.setAttribute('stroke-dashoffset', String(-acc * c));
-      svg.appendChild(arc);
-      acc += frac;
-    });
-    box.appendChild(svg);
-
-    var legend = document.createElement('div');
-    legend.className = 'item-donut-legend';
-    slices.forEach(function (x) {
-      var line = document.createElement('div');
-      var sw = document.createElement('span');
-      sw.className = 'item-donut-swatch';
-      sw.style.background = x.color;
-      line.appendChild(sw);
-      var text = document.createElement('span');
-      text.textContent = x.label + '  ' + x.percent + '%';
-      line.appendChild(text);
-      legend.appendChild(line);
-    });
-    box.appendChild(legend);
-    return box;
-  }
 
   // ------------------------------------------------------------------
   // 掉落：编辑（整表替换；物品用搜索选择；百分比随输入实时算）

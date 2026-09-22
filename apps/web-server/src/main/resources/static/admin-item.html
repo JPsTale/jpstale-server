@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title data-i18n="admin.item.detailTitle">物品详情</title>
   <link rel="stylesheet" href="./css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="admin-body">
   <div class="admin-layout">
@@ -23,8 +26,9 @@
       </header>
 
       <section class="admin-card">
-        <div class="item-filters">
+        <div class="action-bar">
           <a id="backLink" class="item-ref" href="./admin/items" data-i18n="admin.common.backToList">返回列表</a>
+          <span class="dirty-badge hidden" id="dirtyBadge"></span>
           <span style="flex:1"></span>
           <button id="editBtn" class="btn btn-small" data-i18n="admin.common.edit">编辑</button>
           <button id="saveBtn" class="btn btn-small hidden" data-i18n="admin.common.save">保存</button>

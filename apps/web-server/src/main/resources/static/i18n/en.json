@@ -195,7 +195,14 @@
       "searchEmpty": "No matching items",
       "empty": "No data",
       "disabled": "disabled",
-      "onlyGm": "GM only"
+      "onlyGm": "GM only",
+      "filterToggle": "Filters",
+      "open": "Open",
+      "openTitle": "Open details",
+      "pageJump": "Jump to",
+      "dirtyCount": "{n} changed",
+      "quickSearchPlaceholder": "Search…",
+      "filterHide": "Collapse"
     },
     "monster": {
       "title": "Monsters",
@@ -260,9 +267,7 @@
       "dropSkippedEdit": "will be skipped (weight ≤ 0 or no items)",
       "dropNeedNumber": "Row {n}: weight is not a valid number",
       "dropNeedItems": "Row {n}: item row has no items",
-      "dropSavedCounts": "Saved: added {a}, updated {u}, removed {r}",
-      "dropChartTitle": "Chance distribution (weight / this monster total)",
-      "dropChartEmpty": "Nothing to chart (all rows are skipped)"
+      "dropSavedCounts": "Saved: added {a}, updated {u}, removed {r}"
     },
     "map": {
       "detailTitle": "Map detail",
@@ -367,7 +372,32 @@
         "Event": "Event & quest",
         "Shop": "Shop"
       },
-      "matchedByName": "matched {n} by localized name"
+      "matchedByName": "matched {n} by localized name",
+      "eventtype0": "Idle",
+      "eventtype4": "Trainer",
+      "eventtype8": "Defense shop",
+      "eventtype9": "Weapon shop",
+      "eventtype13": "Teleporter",
+      "eventtype14": "Merchant",
+      "eventtype30": "Warehouse",
+      "teleport1": "5-destination teleport",
+      "teleport2": "Castle teleport",
+      "teleport2Note": "fee = level × 500 + tax",
+      "teleport3": "Endless Tower teleport",
+      "teleport3Note": "free, Endless 1F",
+      "tpMushroom": "Mushroom",
+      "tpBeehive": "Beehive",
+      "tpPrison": "Prison",
+      "tpRailway": "Railway",
+      "tpPerum": "Perum",
+      "tpGate": "level gate",
+      "placesEditBtn": "Edit placements",
+      "placesEditHint": "Edit x/angle/enabled inline; save does whole-map replace (POST /maps/{id}/npcs).",
+      "placesSave": "Save placements",
+      "placesExit": "Exit edit",
+      "placesSaveHint": "Whole-map replace: all placements on the target map are overwritten by this list.",
+      "placesSaved": "Placements saved",
+      "placesSaveBtn": "Save placements"
     }
   },
   "monster": {

@@ -60,7 +60,8 @@
     visible: DEFAULT_COLUMNS.slice(),
     rows: [], page: 1, size: 50, total: 0, totalPages: 1,
     view: 'table',
-    bossNames: {}
+    bossNames: {},
+    sort: null, order: 'asc'
   };
 
   function el(id) { return document.getElementById(id); }
@@ -95,7 +96,9 @@
 
   function load() {
     hideErr();
-    var q = PTAdmin.collectFilters(FILTERS).concat(['page=' + state.page, 'size=' + state.size]).join('&');
+    var parts = PTAdmin.collectFilters(FILTERS);
+    if (state.sort) { parts.push('sort=' + encodeURIComponent(state.sort), 'order=' + state.order); }
+    var q = parts.concat(['page=' + state.page, 'size=' + state.size]).join('&');
     return call(API + '?' + q).then(function (data) {
       if (!data) return;
       state.rows = data.items || [];
@@ -111,12 +114,18 @@
   }
 
   function renderHead() {
-    var tr = el('tableHead');
-    tr.innerHTML = '';
-    state.visible.forEach(function (c) {
-      var th = document.createElement('th');
-      th.textContent = c;
-      tr.appendChild(th);
+    PTAdmin.buildHead(el('tableHead'), state.visible, state.byName, T, {
+      sort: state.sort, order: state.order,
+      onSort: function (c) {
+        if (state.sort === c) {
+          state.order = state.order === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sort = c;
+          state.order = 'asc';
+        }
+        state.page = 1;
+        load();
+      }
     });
   }
 
@@ -125,6 +134,7 @@
     tb.innerHTML = '';
     state.rows.forEach(function (row) {
       var tr = document.createElement('tr');
+      PTAdmin.appendViewCell(tr, './admin/monster/' + row.id, T('admin.common.open'));
       state.visible.forEach(function (c) {
         var td = document.createElement('td');
         var col = state.byName[c];
@@ -230,6 +240,7 @@
       page: state.page, pages: state.totalPages, total: state.total, size: state.size });
     el('prevBtn').disabled = state.page <= 1;
     el('nextBtn').disabled = state.page >= state.totalPages;
+    if (state.pagerJump) { state.pagerJump.sync(state.page, state.totalPages); }
   }
 
   function onColToggle(column, checked) {
@@ -254,7 +265,10 @@
   }
 
   function buildFilterBar() {
-    PTAdmin.buildFilterBar(el('filterBar'), FILTERS, state.byName, T);
+    PTAdmin.buildFilterBar(el('filterBar'), FILTERS, state.byName, T, {
+      mainKey: 'name_like',
+      onInput: function () { state.page = 1; load(); }
+    });
   }
 
   // ------------------------------------------------------------------
@@ -262,7 +276,6 @@
   // ------------------------------------------------------------------
 
   function bind() {
-    el('searchBtn').addEventListener('click', function () { state.page = 1; load(); });
     el('resetBtn').addEventListener('click', function () { PTAdmin.resetFilters(FILTERS); load(); });
     el('refreshBtn').addEventListener('click', function () { load(); });
     el('prevBtn').addEventListener('click', function () { if (state.page > 1) { state.page--; load(); } });
@@ -270,6 +283,12 @@
     el('colPickerBtn').addEventListener('click', function () { el('colPicker').classList.toggle('hidden'); });
     el('tableBtn').addEventListener('click', function () { setView('table'); });
     el('cardBtn').addEventListener('click', function () { setView('card'); });
+
+    state.pagerJump = PTAdmin.buildPagerJump(document.querySelector('.item-pager'), T, function (n) {
+      var max = state.totalPages || 1;
+      var p = Math.min(Math.max(n, 1), max);
+      if (p !== state.page) { state.page = p; load(); }
+    });
 
     el('logoutBtn').addEventListener('click', function () {
       fetch(PT.apiUrl('/api/user/logout'), { method: 'POST', credentials: 'include' })

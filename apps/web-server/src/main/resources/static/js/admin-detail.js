@@ -91,7 +91,7 @@
         val.appendChild(sep);
       }
       val.appendChild(PTAdmin.editControl(col, ctx.row[col.column], function (column, value) {
-        PTAdmin.markDirty(ctx.dirties, ctx.row, column, value);
+        ctx.markDirty(column, value);
       }, T));
     });
     row.appendChild(PTAdmin.rowNameEl(r));
@@ -128,9 +128,12 @@
       if (hooks && hooks.beforeSection) {
         hooks.beforeSection(sec, container, ctx);
       }
+      var rowsBox = document.createElement('div');
+      rowsBox.className = 'item-rows';
       rows.forEach(function (r) {
-        container.appendChild(ctx.editing ? editRow(r, ctx) : viewRow(r, ctx, decorate));
+        rowsBox.appendChild(ctx.editing ? editRow(r, ctx) : viewRow(r, ctx, decorate));
       });
+      container.appendChild(rowsBox);
     });
   }
 
@@ -145,6 +148,19 @@
    */
   function boot(cfg) {
     var state = { columns: [], byName: {}, row: null, editing: false, dirties: {} };
+
+    /** 动作条脏计数：编辑中且有未保存改动时显示，否则隐藏。 */
+    function syncDirtyBadge() {
+      var b = el('dirtyBadge');
+      if (!b) { return; }
+      var n = Object.keys(state.dirties).length;
+      if (state.editing && n > 0) {
+        b.textContent = T('admin.common.dirtyCount', { n: n });
+        b.classList.remove('hidden');
+      } else {
+        b.classList.add('hidden');
+      }
+    }
 
     function render() {
       el('pageTitle').textContent = cfg.title(state.row);
@@ -161,13 +177,27 @@
         // 各页可给自己的"编辑中"提示（物品页要额外说明 Spec/Age/Mix 只是预览）
         showMsg(T(cfg.editingHint || 'admin.common.editingHint'), false);
       }
+      syncDirtyBadge();
     }
 
     function save() {
       var changes;
       try {
         changes = PTAdmin.coerceChanges(state.dirties, state.byName, T);
-      } catch (e) { showMsg(e.message, true); return; }
+      } catch (e) {
+        showMsg(e.message, true);
+        // 指向第一个不合法的输入框：标红是 coerceChanges 干的，这里负责把它滚进视野
+        var bad = document.querySelector('.item-input-bad');
+        if (bad) {
+          try {
+            bad.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            bad.focus({ preventScroll: true });
+          } catch (ignore) {
+            /* 老浏览器不支持 options 参数也能跑 */
+          }
+        }
+        return;
+      }
       if (!Object.keys(changes).length) { showMsg(T('admin.common.noChanges'), false); return; }
       PT.request(cfg.api + '/' + state.row.id, {
         method: 'POST',
@@ -195,6 +225,11 @@
       button: button,
       rerender: render,
       save: save,
+      /** 记脏（与库中原值相同即清除）+ 实时刷新动作条计数。 */
+      markDirty: function (column, value) {
+        PTAdmin.markDirty(state.dirties, state.row, column, value);
+        syncDirtyBadge();
+      },
       /** 切换列编辑态（丢掉未保存的改动）。掉落编辑与列编辑互斥，靠它退出。 */
       setEditing: function (editing) {
         state.editing = editing;

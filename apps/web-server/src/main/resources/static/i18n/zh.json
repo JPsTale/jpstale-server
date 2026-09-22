@@ -195,7 +195,14 @@
       "searchEmpty": "没有匹配的物品",
       "empty": "暂无数据",
       "disabled": "未启用",
-      "onlyGm": "仅 GM"
+      "onlyGm": "仅 GM",
+      "filterToggle": "筛选",
+      "open": "打开",
+      "openTitle": "打开详情",
+      "pageJump": "跳至第",
+      "dirtyCount": "已改 {n} 项",
+      "quickSearchPlaceholder": "搜索…",
+      "filterHide": "收起"
     },
     "monster": {
       "title": "怪物管理",
@@ -260,9 +267,7 @@
       "dropSkippedEdit": "保存后会被跳过（权重 ≤ 0 或没有物品）",
       "dropNeedNumber": "第 {n} 条的权重不是合法数字",
       "dropNeedItems": "第 {n} 条是物品行，但一个物品都没有",
-      "dropSavedCounts": "已保存：新增 {a} 改 {u} 删 {r}",
-      "dropChartTitle": "概率分布（权重 / 本怪权重总和）",
-      "dropChartEmpty": "没有可画的概率（所有行都会被跳过）"
+      "dropSavedCounts": "已保存：新增 {a} 改 {u} 删 {r}"
     },
     "map": {
       "detailTitle": "地图详情",
@@ -367,7 +372,32 @@
         "Event": "事件与任务",
         "Shop": "商店"
       },
-      "matchedByName": "按本地化名匹配到 {n} 个"
+      "matchedByName": "按本地化名匹配到 {n} 个",
+      "eventtype0": "站桩",
+      "eventtype4": "教官",
+      "eventtype8": "防具店",
+      "eventtype9": "武器店",
+      "eventtype13": "传送",
+      "eventtype14": "商人",
+      "eventtype30": "仓库",
+      "teleport1": "五地点传送",
+      "teleport2": "城堡传送",
+      "teleport2Note": "费用 = 等级×500 + 税",
+      "teleport3": "无尽塔传送",
+      "teleport3Note": "免费、无尽层 1F",
+      "tpMushroom": "蘑菇村",
+      "tpBeehive": "蜂窝",
+      "tpPrison": "监狱",
+      "tpRailway": "铁路",
+      "tpPerum": "佩鲁姆",
+      "tpGate": "等级门槛",
+      "placesEditBtn": "编辑摆放",
+      "placesEditHint": "行内改坐标/角度/启用；保存走整图替换写（POST /地图/{id}/npcs）。",
+      "placesSave": "保存摆放",
+      "placesExit": "退出编辑",
+      "placesSaveHint": "整图替换：目标地图全部摆放将被本次清单覆盖。",
+      "placesSaved": "摆放已保存",
+      "placesSaveBtn": "保存摆放"
     }
   },
   "monster": {

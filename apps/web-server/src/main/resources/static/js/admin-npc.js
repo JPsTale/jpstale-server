@@ -259,8 +259,11 @@
     stats: function (row) {
       return [
         T('npc.gamefile') + ' ' + PTAdmin.fmt(row.gamefile),
-        T('npc.eventType') + ' ' + PTAdmin.fmt(row.eventtype),
-        PTAdmin.fmt(row.teleportid) ? T('npc.teleportId') + ' ' + PTAdmin.fmt(row.teleportid) : null
+        // §5.1 eventtype 语义标签：收录码→可读名（站桩/商人/仓库/教官/商店/传送），未收录→原数字
+        T('npc.eventType') + ' ' + PTAdmin.eventTypeSem(row.eventtype).label,
+        // §5.2 teleportid 目的地语义（teleportid=0=无传送 → 不显示该行）
+        (row.teleportid && PTAdmin.teleportSem(row.teleportid)) ?
+          T('npc.teleportId') + ' ' + PTAdmin.teleportSem(row.teleportid).label : null
       ].filter(Boolean).join(' · ');
     },
     render: function (row, ctx, body) {

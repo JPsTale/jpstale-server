@@ -73,6 +73,75 @@
   }
 
   // ------------------------------------------------------------------
+  // 列头文案：rowLabelKey → 常用列名直查 → 大小写扫描 → 原列名
+  // ------------------------------------------------------------------
+
+  /** 常用列名的手工映射（命名空间扫描覆盖不到的少数明确列）。 */
+  var COLUMN_LABEL_OVERRIDES = {
+    id: 'ID',
+    reqlevel: 'itemtip.reqLv',
+    levelreq: 'itemtip.reqLv',
+    hp: 'monster.hp',
+    exp: 'monster.exp'
+  };
+
+  /** 大小写不敏感索引：列名 → 文案 key（每语言一份，惰性建一次）。 */
+  var lowerIndex = null;
+  var lowerIndexLocale = null;
+  function labelIndex() {
+    var loc = window.PTi18n.getLocale();
+    if (lowerIndex && lowerIndexLocale === loc) {
+      return lowerIndex;
+    }
+    lowerIndex = {};
+    lowerIndexLocale = loc;
+    // 只扫这些"可能含列名"的命名空间（段名/操作类 key 不在此列，避免误伤）
+    ['itemtip', 'monster', 'map', 'npc', 'admin.item', 'admin.monster', 'admin.npc', 'admin.map']
+      .forEach(function (ns) {
+        window.PTi18n.keys(ns).forEach(function (k) {
+          var low = String(k).toLowerCase();
+          if (lowerIndex[low] === undefined) {
+            lowerIndex[low] = ns + '.' + k;
+          }
+        });
+      });
+    return lowerIndex;
+  }
+
+  /**
+   * 表头显示的列名：
+   *   ① 有 `rowLabelKey`（语义行名，最准确）用它；
+   *   ② 否则查文案表（手工映射 → 精确 key → 大小写扫描）；
+   *   ③ 兜底显示数据库列名（title 始终是原始列名，方便对接入库）。
+   * 不依赖 `T()` 的兜底，因为查不到时 `T()` 会 console.warn 刷屏。
+   */
+  function columnLabel(col, T) {
+    if (!col) {
+      return '';
+    }
+    var Tfn = T || window.PTi18n.t;
+    if (col.rowLabelKey && window.PTi18n.has(col.rowLabelKey)) {
+      return Tfn(col.rowLabelKey);
+    }
+    var c = col.column;
+    if (COLUMN_LABEL_OVERRIDES[c]) {
+      return Tfn(COLUMN_LABEL_OVERRIDES[c]);
+    }
+    var exact = ['itemtip', 'monster', 'map', 'npc',
+      'admin.item', 'admin.monster', 'admin.npc', 'admin.map'];
+    for (var i = 0; i < exact.length; i++) {
+      if (window.PTi18n.has(exact[i] + '.' + c)) {
+        return Tfn(exact[i] + '.' + c);
+      }
+    }
+    var hit = labelIndex()[String(c).toLowerCase()];
+    if (hit) {
+      return Tfn(hit);
+    }
+    return c;
+  }
+
+  // ------------------------------------------------------------------
   // 区间行：按 rowLabelKey 把列配成一行
   // ------------------------------------------------------------------
 
@@ -237,26 +306,85 @@
    *
    * 控件类型优先按**该列的语义**定（`byName[key].kind === 'ENUM'` → 下拉），
    * 于是 `weaponclass=2` 这种"手填数字"就不存在了 —— 与详情页/列表用同一份 `options`。
+   *
+   * opts（重设计 v0.2 引入，见 docs/design-webadmin.md §4）：
+   *   - `mainKey`：主搜索框绑定的筛选键（如 `name_like`），高级面板里同名控件不重复渲染；
+   *   - `onInput`：任意筛选控件变更后的回调（防抖 300ms，页面里负责 `page=1` + 重查）。
+   * 不给 opts 时退回旧行为（平铺全部条件，无搜索框/折叠）——目前没有调用方走这条，只保兼容。
    */
-  function buildFilterBar(barEl, filters, byName, T) {
+  function buildFilterBar(barEl, filters, byName, T, opts) {
     barEl.innerHTML = '';
-    filters.forEach(function (g) {
-      var box = document.createElement('div');
-      box.className = 'item-filter-group';
-      var title = document.createElement('span');
-      title.className = 'item-filter-title';
-      title.textContent = T(g.groupKey);
-      box.appendChild(title);
-      g.fields.forEach(function (f) {
-        if (f.range) {
-          box.appendChild(filterField(f.key + '_min', T('admin.common.atLeast', { label: T(f.labelKey) }), f, byName, T));
-          box.appendChild(filterField(f.key + '_max', T('admin.common.atMost', { label: T(f.labelKey) }), f, byName, T));
-        } else {
-          box.appendChild(filterField(f.key, T(f.labelKey), f, byName, T));
-        }
-      });
-      barEl.appendChild(box);
+    var isMain = function (f) {
+      if (!opts || !opts.mainKey) { return false; }
+      return f.range
+        ? (f.key + '_min' === opts.mainKey || f.key + '_max' === opts.mainKey)
+        : f.key === opts.mainKey;
+    };
+
+    if (!opts) {
+      filters.forEach(function (g) { barEl.appendChild(filterGroupEl(g, byName, T, null)); });
+      return;
+    }
+
+    // 顶行：主搜索框（= mainKey 字段）＋「筛选」开关
+    var quick = document.createElement('div');
+    quick.className = 'filter-quick';
+    if (opts.mainKey) {
+      var q = document.createElement('input');
+      q.id = 'f_' + opts.mainKey;
+      q.className = 'admin-input';
+      q.setAttribute('placeholder', T('admin.common.quickSearchPlaceholder'));
+      q.setAttribute('aria-label', T('admin.common.quickSearchPlaceholder'));
+      quick.appendChild(q);
+    }
+
+    var adv = document.createElement('div');
+    adv.className = 'filter-advanced hidden';
+    filters.forEach(function (g) { adv.appendChild(filterGroupEl(g, byName, T, isMain)); });
+
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'btn btn-small btn-secondary filter-toggle';
+    toggle.textContent = T('admin.common.filterToggle');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.addEventListener('click', function () {
+      var open = adv.classList.toggle('hidden') === false;
+      toggle.classList.toggle('on', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.textContent = T(open ? 'admin.common.filterHide' : 'admin.common.filterToggle');
     });
+    quick.appendChild(toggle);
+    barEl.appendChild(quick);
+    barEl.appendChild(adv);
+
+    // 即时搜索：所有控件的 input/change 都防抖触发 onInput（事件冒泡，无需逐个绑定）
+    var timer = null;
+    function schedule() {
+      if (!opts.onInput) { return; }
+      if (timer) { clearTimeout(timer); }
+      timer = setTimeout(opts.onInput, 300);
+    }
+    barEl.addEventListener('input', schedule);
+    barEl.addEventListener('change', schedule);
+  }
+
+  function filterGroupEl(g, byName, T, isMain) {
+    var box = document.createElement('div');
+    box.className = 'item-filter-group';
+    var title = document.createElement('span');
+    title.className = 'item-filter-title';
+    title.textContent = T(g.groupKey);
+    box.appendChild(title);
+    g.fields.forEach(function (f) {
+      if (isMain && isMain(f)) { return; }
+      if (f.range) {
+        box.appendChild(filterField(f.key + '_min', T('admin.common.atLeast', { label: T(f.labelKey) }), f, byName, T));
+        box.appendChild(filterField(f.key + '_max', T('admin.common.atMost', { label: T(f.labelKey) }), f, byName, T));
+      } else {
+        box.appendChild(filterField(f.key, T(f.labelKey), f, byName, T));
+      }
+    });
+    return box;
   }
 
   function filterField(id, label, spec, byName, T) {
@@ -374,6 +502,104 @@
     });
   }
 
+
+  // ------------------------------------------------------------------
+  // 表格骨架：语义化可排序表头 / 行「查看」入口 / 页码跳转
+  // ------------------------------------------------------------------
+
+  /**
+   * 渲染表头（4 个列表页共用）：
+   *   ① 首列空槽 —— 放每行的「查看」按钮（与表体首列对齐，见 appendViewCell）；
+   *   ② 每列表头 = semanticLabel（见 columnLabel），title 保留原始列名；
+   *   ③ 全部可排序（后端 sort= 对列注册表白名单校验，所有列都能排）：
+   *      点击 = 升→降循环，当前排序列加箭头 + aria-sort。
+   *
+   * opts：`{ sort, order, onSort(col) }`；不给 onSort 就只显示标签、不可点。
+   */
+  function buildHead(tr, columns, byName, T, opts) {
+    tr.innerHTML = '';
+    var slot = document.createElement('th');
+    slot.className = 'view-th';
+    slot.setAttribute('aria-label', T('admin.common.open'));
+    tr.appendChild(slot);
+    columns.forEach(function (c) {
+      var col = byName[c];
+      var th = document.createElement('th');
+      th.textContent = col ? columnLabel(col, T) : c;
+      th.title = c;   // 原始列名始终可见（hover）
+      if (opts && opts.onSort) {
+        th.classList.add('sortable');
+        if (opts.sort === c) {
+          th.classList.add(opts.order === 'asc' ? 'sort-asc' : 'sort-desc');
+          th.setAttribute('aria-sort', opts.order === 'asc' ? 'ascending' : 'descending');
+        } else {
+          th.setAttribute('aria-sort', 'none');
+        }
+        (function (colName) {
+          th.addEventListener('click', function () { opts.onSort(colName); });
+        })(c);
+      }
+      tr.appendChild(th);
+    });
+  }
+
+  /**
+   * 表体首列：可点「查看」链接（键盘可达）。点它只跳详情，不触发整行点击。
+   * 行本身还保留整行点击跳转（页面自己挂）。
+   */
+  function appendViewCell(tr, href, label) {
+    var td = document.createElement('td');
+    td.className = 'view-cell';
+    var a = document.createElement('a');
+    a.className = 'row-view-btn';
+    a.href = href;
+    a.tabIndex = 0;
+    a.textContent = label;
+    a.addEventListener('click', function (ev) { ev.stopPropagation(); });
+    td.appendChild(a);
+    tr.appendChild(td);
+    return td;
+  }
+
+  /**
+   * 分页区的「跳至第 N 页」直达框（输入数字回车/失焦即跳，越界自动夹取）。
+   * 返回 `sync(page, totalPages)`：每次加载后调它同步 max/当前值（正在输入时不打扰）。
+   */
+  function buildPagerJump(pagerEl, T, onGo) {
+    var sep = document.createElement('span');
+    sep.className = 'item-hint';
+    sep.textContent = T('admin.common.pageJump');
+    var inp = document.createElement('input');
+    inp.type = 'number';
+    inp.min = '1';
+    inp.step = '1';
+    inp.className = 'page-jump';
+    inp.setAttribute('aria-label', T('admin.common.pageJump'));
+
+    function go() {
+      var n = parseInt(inp.value, 10);
+      if (isNaN(n)) {
+        inp.value = inp.last || '';
+        return;
+      }
+      onGo(n);
+    }
+    inp.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === 'Escape') { go(); }
+    });
+    inp.addEventListener('change', go);
+
+    pagerEl.appendChild(sep);
+    pagerEl.appendChild(inp);
+    return {
+      sync: function (page, totalPages) {
+        inp.max = totalPages || 1;
+        if (document.activeElement !== inp) {
+          inp.value = page;
+        }
+      }
+    };
+  }
 
   // ------------------------------------------------------------------
   // 物品 chip 与选择器（怪物掉落行、NPC 商店列共用 —— 同一种交互只写一份）
@@ -504,6 +730,60 @@
   }
 
   /**
+   * **eventtype 语义表**（静态，来自分析文档 §5.1 已确证分布）：
+   * `npc.Column` eventtype 是裸数字码，前端补可读语义；未收录码不臆造，保底显示原数字。
+   * 0=站桩 14=商人 30=仓库 4=教官 9=武器店 8=防具店 13=传送。
+   */
+  var EVENT_TYPE_SEMANTICS = {
+    0: 'admin.npc.eventtype0',
+    14: 'admin.npc.eventtype14',
+    30: 'admin.npc.eventtype30',
+    4: 'admin.npc.eventtype4',
+    9: 'admin.npc.eventtype9',
+    8: 'admin.npc.eventtype8',
+    13: 'admin.npc.eventtype13'
+  };
+
+  /**
+   * **teleportid 目的地语义**（静态，来自分析文档 §5.2）：
+   * 1=5 目的地传送（费用 100/100/500/1000+税，Lv84 门槛）
+   * 2=城堡传送（费用 = Lv×500 + 税）  3=无尽塔传送（免费、无尽 1F）
+   * 其余码不臆造，保底显示「传送码 {id}」。
+   */
+  var TELEPORT_SEMANTICS = {
+    1: { dests: ['admin.npc.tpMushroom', 'admin.npc.tpBeehive', 'admin.npc.tpPrison', 'admin.npc.tpRailway', 'admin.npc.tpPerum'],
+         costs: ['100', '100', '500', '1000'], gate: 'admin.npc.tpGate', label: 'admin.npc.teleport1' },
+    2: { label: 'admin.npc.teleport2' },
+    3: { label: 'admin.npc.teleport3' }
+  };
+
+  /** eventtype 语义标签：已收录码 → 可读名，未收录 → 原数字。返回 { label, value }。 */
+  function eventTypeSem(value) {
+    var v = (value === null || value === undefined) ? '' : String(value);
+    var key = EVENT_TYPE_SEMANTICS[v];
+    return key ? { label: T(key), value: v } : { label: v, value: v };
+  }
+
+  /** teleportid 目的地语义：返回 { label, dests, costs, gate, note } 或 null（=0，无传送）。 */
+  function teleportSem(id) {
+    var v = (id === null || id === undefined) ? 0 : Number(id);
+    if (!v) { return null; }
+    var def = TELEPORT_SEMANTICS[v];
+    if (!def) { return { label: 'admin.npc.tpUnknown', code: String(v), note: null }; }
+    var out = { label: def.label, code: String(v), note: null };
+    if (def.dests) {
+      out.dests = def.dests.map(function (k) { return T(k); });
+      out.costs = def.costs;
+      out.gate = T(def.gate);
+    } else if (def.label === 'admin.npc.teleport2') {
+      out.note = T('admin.npc.teleport2Note');
+    } else if (def.label === 'admin.npc.teleport3') {
+      out.note = T('admin.npc.teleport3Note');
+    }
+    return out;
+  }
+
+  /**
    * **本地化名 → 内名称**（NPC）：界面显示的是本地化名（`npcName.*`，键是内名称），
    * 而服务端只认 `npclist.name` —— 搜索/选择器都先在这里反查，再把内名称交给服务端
    *（列表用 `names=` 筛选，选择器同理）。查不到返回空数组，调用方自行回退。
@@ -537,10 +817,16 @@
     collectFilters: collectFilters,
     resetFilters: resetFilters,
     buildColumnPicker: buildColumnPicker,
+    columnLabel: columnLabel,
+    buildHead: buildHead,
+    appendViewCell: appendViewCell,
+    buildPagerJump: buildPagerJump,
     renderItemChips: renderItemChips,
     itemPicker: itemPicker,
     searchPicker: searchPicker,
     resolveNpcNames: resolveNpcNames,
-    npcName: npcName
+    npcName: npcName,
+    eventTypeSem: eventTypeSem,
+    teleportSem: teleportSem
   };
 })();

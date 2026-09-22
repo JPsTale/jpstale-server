@@ -42,7 +42,8 @@
   var state = {
     columns: [], byName: {},
     visible: DEFAULT_COLUMNS.slice(),
-    rows: [], page: 1, size: 50, total: 0, totalPages: 1
+    rows: [], page: 1, size: 50, total: 0, totalPages: 1,
+    sort: null, order: 'asc'
   };
 
   function el(id) { return document.getElementById(id); }
@@ -85,6 +86,7 @@
     } else {
       el('hint').textContent = '';
     }
+    if (state.sort) { parts.push('sort=' + encodeURIComponent(state.sort), 'order=' + state.order); }
     var q = parts.concat(['page=' + state.page, 'size=' + state.size]).join('&');
     return call(API + '?' + q).then(function (data) {
       if (!data) return;
@@ -100,12 +102,18 @@
   }
 
   function renderHead() {
-    var tr = el('tableHead');
-    tr.innerHTML = '';
-    state.visible.forEach(function (c) {
-      var th = document.createElement('th');
-      th.textContent = c;
-      tr.appendChild(th);
+    PTAdmin.buildHead(el('tableHead'), state.visible, state.byName, T, {
+      sort: state.sort, order: state.order,
+      onSort: function (c) {
+        if (state.sort === c) {
+          state.order = state.order === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sort = c;
+          state.order = 'asc';
+        }
+        state.page = 1;
+        load();
+      }
     });
   }
 
@@ -114,6 +122,7 @@
     tb.innerHTML = '';
     state.rows.forEach(function (row) {
       var tr = document.createElement('tr');
+      PTAdmin.appendViewCell(tr, './admin/npc/' + row.id, T('admin.common.open'));
       state.visible.forEach(function (c) {
         var td = document.createElement('td');
         var col = state.byName[c];
@@ -121,6 +130,47 @@
           // 显示**本地化名**（`npclist.name` 是内部键），内名称放 title 便于追溯
           td.textContent = PTAdmin.npcName(row.name);
           td.title = row.name;
+        } else if (c === 'eventtype') {
+          // §5.1 eventtype 语义标签：裸数字 → 可读语义（站桩/商人/仓库/教官/武器店…），原数字放 title
+          var ev = PTAdmin.eventTypeSem(row[c]);
+          td.textContent = ev.label;
+          td.title = T('admin.npc.eventtypeCode', { code: ev.value });
+        } else if (c === 'teleportid' && (row[c] === 0 || row[c] === null || row[c] === undefined)) {
+          // §5.2 teleportid=0 = 无传送，直接画破折号，不显示裸 0
+          td.textContent = '\u2014';
+        } else if (c === 'teleportid') {
+          // §5.2 传送目的地语义：静态表 → 目的地名，原码放 title
+          var tp = PTAdmin.teleportSem(row[c]);
+          td.textContent = tp ? tp.label : PTAdmin.fmt(row[c]);
+          td.title = T('admin.npc.teleportCode', { code: row[c] });
+        } else if (c === 'eventtype') {
+          // §5.1 eventtype 语义标签：裸数字 → 可读语义（站桩/商人/仓库/教官/武器店/防具店/传送），原数字放 title
+          var ev = PTAdmin.eventTypeSem(row[c]);
+          td.textContent = ev.label;
+          td.title = T('admin.npc.eventtypeCode', { code: ev.value });
+        } else if (c === 'teleportid') {
+          // §5.2 teleportid 目的地语义：>0 但要按目的地读（1=5目的地 / 2=城堡 / 3=无尽塔），0=无传送画破折号
+          if (row[c] === 0 || row[c] === null || row[c] === undefined) {
+            td.textContent = '\u2014';
+          } else {
+            var tp = PTAdmin.teleportSem(row[c]);
+            td.textContent = tp ? tp.label : PTAdmin.fmt(row[c]);
+            td.title = T('admin.npc.teleportidCode', { code: row[c] });
+          }
+        } else if (c === 'eventtype') {
+          // §5.1 eventtype 语义标签：可读语义名显示，原数字进 title
+          var ev = PTAdmin.eventTypeSem(row[c]);
+          td.textContent = ev.label;
+          td.title = T('admin.npc.eventtypeCode', { code: ev.value });
+        } else if (c === 'teleportid') {
+          // §5.2 teleportid 目的地语义：teleportid=0=无传送画破折号；其余显示目的地语义标签
+          if (row[c] === 0 || row[c] === null || row[c] === undefined) {
+            td.textContent = '\u2014';
+          } else {
+            var tp = PTAdmin.teleportSem(row[c]);
+            td.textContent = tp ? tp.label : PTAdmin.fmt(row[c]);
+            td.title = T('admin.npc.teleportidCode', { code: row[c] });
+          }
         } else {
           var label = col ? PTAdmin.optionLabel(col, row[c], T) : null;
           td.textContent = label !== null ? label : PTAdmin.fmt(row[c]);
@@ -137,6 +187,7 @@
       page: state.page, pages: state.totalPages, total: state.total, size: state.size });
     el('prevBtn').disabled = state.page <= 1;
     el('nextBtn').disabled = state.page >= state.totalPages;
+    if (state.pagerJump) { state.pagerJump.sync(state.page, state.totalPages); }
   }
 
   function onColToggle(column, checked) {
@@ -148,7 +199,10 @@
   }
 
   function buildFilterBar() {
-    PTAdmin.buildFilterBar(el('filterBar'), FILTERS, state.byName, T);
+    PTAdmin.buildFilterBar(el('filterBar'), FILTERS, state.byName, T, {
+      mainKey: 'name_like',
+      onInput: function () { state.page = 1; load(); }
+    });
   }
 
   /** 三个 select 型筛选的候选：地图、是否商人、事件类型（都由 /facets 给）。 */
@@ -166,12 +220,18 @@
   }
 
   function bind() {
-    el('searchBtn').addEventListener('click', function () { state.page = 1; load(); });
     el('resetBtn').addEventListener('click', function () { PTAdmin.resetFilters(FILTERS); load(); });
     el('refreshBtn').addEventListener('click', function () { load(); });
     el('prevBtn').addEventListener('click', function () { if (state.page > 1) { state.page--; load(); } });
     el('nextBtn').addEventListener('click', function () { if (state.page < state.totalPages) { state.page++; load(); } });
     el('colPickerBtn').addEventListener('click', function () { el('colPicker').classList.toggle('hidden'); });
+
+    state.pagerJump = PTAdmin.buildPagerJump(document.querySelector('.item-pager'), T, function (n) {
+      var max = state.totalPages || 1;
+      var p = Math.min(Math.max(n, 1), max);
+      if (p !== state.page) { state.page = p; load(); }
+    });
+
     el('logoutBtn').addEventListener('click', function () {
       fetch(PT.apiUrl('/api/user/logout'), { method: 'POST', credentials: 'include' })
         .finally(function () { redirectToLogin(); });

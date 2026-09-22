@@ -358,8 +358,56 @@
   }
 
   // ------------------------------------------------------------------
-  // ③ NPC（只读）
+  // ③ NPC（只读）—— 汇总面板：名字 + 徽标 + 朝向，坐标移入 title；悬停行点亮画布标记
   // ------------------------------------------------------------------
+
+  function chip(text, kind) {
+    var s = document.createElement('span');
+    s.className = 'badge badge-' + (kind || 'warn');
+    s.textContent = text;
+    return s;
+  }
+
+  /** 汇总行悬停 ↔ 画布标记联动（`setSelected` 就是画布的高亮环）。 */
+  function hoverLink(row, markerId) {
+    row.addEventListener('mouseenter', function () {
+      if (viewCanvas) { viewCanvas.setSelected(markerId); }
+    });
+    row.addEventListener('mouseleave', function () {
+      if (viewCanvas) { viewCanvas.setSelected(null); }
+    });
+  }
+
+  function npcSummaryRow(n) {
+    var row = document.createElement('div');
+    row.className = 'map-summary-row';
+    var name = document.createElement('span');
+    name.className = 'map-summary-name';
+    if (n.npcId) {
+      var a = document.createElement('a');
+      a.className = 'item-ref';
+      a.href = './admin/npc/' + n.npcId;      // 主键路由
+      a.textContent = PTAdmin.npcName(n.npcName);
+      name.appendChild(a);
+    } else {
+      name.textContent = PTAdmin.fmt(n.npcName);
+    }
+    row.appendChild(name);
+
+    var tags = document.createElement('span');
+    tags.className = 'map-summary-tags';
+    if (!n.enabled) { tags.appendChild(chip(T('admin.common.disabled'), 'warn')); }
+    if (n.onlyGm) { tags.appendChild(chip(T('admin.common.onlyGm'), 'gm')); }
+    row.appendChild(tags);
+
+    var coord = document.createElement('span');
+    coord.className = 'map-summary-coord';
+    coord.textContent = '◤ angle ' + PTAdmin.fmt(n.angle);
+    row.appendChild(coord);
+    row.title = 'mapnpc.id=' + n.placeId + '  (' + PTAdmin.fmt(n.x) + ', ' + PTAdmin.fmt(n.z) + ')';
+    hoverLink(row, 'npc:' + n.placeId);
+    return row;
+  }
 
   function npcBlock() {
     var box = document.createElement('div');
@@ -375,39 +423,32 @@
       box.appendChild(note(T('admin.map.noNpc')));
       return box;
     }
-    state.npcs.npcs.forEach(function (n) {
-      var name = document.createElement('span');
-      if (n.npcId) {
-        var a = document.createElement('a');
-        a.className = 'item-ref';
-        a.href = './admin/npc/' + n.npcId;      // 主键路由
-        a.textContent = PTAdmin.npcName(n.npcName);
-        name.appendChild(a);
-      } else {
-        name.textContent = PTAdmin.fmt(n.npcName);
-      }
-      var r = row(name, '(' + PTAdmin.fmt(n.x) + ', ' + PTAdmin.fmt(n.z) + ')  angle=' + PTAdmin.fmt(n.angle),
-        'mapnpc.id=' + n.placeId);
-      if (!n.enabled) {
-        var d = document.createElement('span');
-        d.className = 'item-warn';
-        d.textContent = '  ' + T('admin.common.disabled');
-        r.lastChild.appendChild(d);
-      }
-      if (n.onlyGm) {
-        var g = document.createElement('span');
-        g.className = 'item-warn';
-        g.textContent = '  ' + T('admin.common.onlyGm');
-        r.lastChild.appendChild(g);
-      }
-      box.appendChild(r);
-    });
+    var list = document.createElement('div');
+    list.className = 'map-summary';
+    state.npcs.npcs.forEach(function (n) { list.appendChild(npcSummaryRow(n)); });
+    box.appendChild(list);
     return box;
   }
 
   // ------------------------------------------------------------------
-  // ④ 怪物刷新点（只读）
+  // ④ 怪物刷新点（只读）—— 汇总面板：描述 + 坐标（小字），行悬停点亮画布
   // ------------------------------------------------------------------
+
+  function pointSummaryRow(p) {
+    var row = document.createElement('div');
+    row.className = 'map-summary-row';
+    var name = document.createElement('span');
+    name.className = 'map-summary-name';
+    name.textContent = p.description ? PTAdmin.fmt(p.description) : '#' + PTAdmin.fmt(p.pointId);
+    row.appendChild(name);
+    var coord = document.createElement('span');
+    coord.className = 'map-summary-coord';
+    coord.textContent = '(' + PTAdmin.fmt(p.x) + ', ' + PTAdmin.fmt(p.z) + ')';
+    row.appendChild(coord);
+    row.title = 'mapspawnpoint.id=' + p.pointId;
+    hoverLink(row, 'point:' + p.pointId);
+    return row;
+  }
 
   function pointsBlock() {
     var box = document.createElement('div');
@@ -424,10 +465,10 @@
       return box;
     }
     box.appendChild(note(T('admin.map.pointsCount', { n: state.points.count })));
-    state.points.points.forEach(function (p) {
-      box.appendChild(row(null, '(' + PTAdmin.fmt(p.x) + ', ' + PTAdmin.fmt(p.z) + ')'
-        + (p.description ? '  ' + p.description : ''), 'mapspawnpoint.id=' + p.pointId));
-    });
+    var list = document.createElement('div');
+    list.className = 'map-summary';
+    state.points.points.forEach(function (p) { list.appendChild(pointSummaryRow(p)); });
+    box.appendChild(list);
     return box;
   }
 
@@ -447,6 +488,21 @@
     }, true));
     bar.appendChild(note(T('admin.map.viewHint')));
     box.appendChild(bar);
+    // 图例（颜色与画布一致：NPC 青绿点 / 刷新点红点）
+    var legend = document.createElement('div');
+    legend.className = 'map-legend';
+    [['#8bf08b', T('admin.map.legendNpc')], ['#ff5252', T('admin.map.legendPoint')]]
+      .forEach(function (pair) {
+        var item = document.createElement('span');
+        item.className = 'map-legend-item';
+        var sw = document.createElement('span');
+        sw.className = 'map-legend-swatch';
+        sw.style.background = pair[0];
+        item.appendChild(sw);
+        item.appendChild(document.createTextNode(pair[1]));
+        legend.appendChild(item);
+      });
+    box.appendChild(legend);
     var host = document.createElement('div');
     host.className = 'map-view';
     host.id = 'mapViewHost';
