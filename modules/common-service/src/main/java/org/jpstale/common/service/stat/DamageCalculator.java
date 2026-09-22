@@ -100,7 +100,7 @@ public class DamageCalculator {
      * 计算玩家基础攻击力（对齐原版 sinInvenTory.cpp）
      * <p>
      * 徒手：按 DamageMelee 系数用属性公式；有武器时按武器伤害 * 属性系数。
-     * 武器伤害用掷点实例值（EquipSummary.weaponDamageMin/Max），非模板区间。
+     * 武器伤害用掷点实例值（`EquipSummary.damageMin/Max` = 每件装备 Damage 之和），非模板区间。
      */
     private int calculatePlayerAttack(Player player) {
         // 与面板同源：含武器伤害的攻击力区间（statCalculator.attackPower）

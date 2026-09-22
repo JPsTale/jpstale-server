@@ -119,6 +119,15 @@ public class PlayerStatCalculator {
         public EquipSummary equip = new EquipSummary();
         /** 负重上限（STR*2 + HEA*1.5 + LV*3 + 60） */
         public int maxWeightBase;
+        /**
+         * 元素抗性 8 元素（顺序 = 原版 EElementID：0生物 1大地 2火 3冰 4雷 5毒 6水 7风）。
+         * 由 {@link EquipSummary#res} 一次算好（装备基础 + 职业特效含 Lv 档）——
+         * 曾经 `PlayerService.loadItems` 与 `ItemNetworkHandler.refreshPlayerStats` **各写一份**，
+         * 且两处门槛不同（前者带需求校验、后者没有），属"同一判定两份实现"。
+         */
+        public int[] res = new int[8];
+        /** 魔法精通（装备/特效 `fMagic_Mastery`；目前尚无消费方，先落进 Stats 供后续技能系统用） */
+        public int magicMastery;
     }
 
     /** 读取（失败时惰性重算）。事件失效点：recalcPanel / 属性分配 / 装备装载 */
@@ -141,12 +150,15 @@ public class PlayerStatCalculator {
         Stats s = new Stats();
         s.equip = EquipSummary.of(p);
         EquipSummary e = s.equip;
-        s.maxHp = maxHpOf(p) + e.increaseLife;
-        s.maxMp = maxMpOf(p) + e.increaseMana;
+        // 特效「等级档」（`Lev_*` = 等级/v）只加在读数上，不混进 increaseLife 之类的整数值里
+        s.maxHp = maxHpOf(p) + e.increaseLife + e.specLevLife;
+        s.maxMp = maxMpOf(p) + e.increaseMana + e.specLevMana;
         s.maxSp = maxSpOf(p) + e.increaseStamina;
-        s.attackRating = attackRatingOf(p) + equipAttackRating(p, e);
+        s.attackRating = attackRatingOf(p) + e.attackRating + e.specLevAttackRating;
         s.defense = defenseOf(p) + e.defense;
-        s.absorption = absorptionOf(p) + (int) e.absorb;   // 明文减伤点数（非百分比，见 absorptionOf）
+        // `+ 1e-6`：吸收是 0.1 的累加（每件已按原版截到一位小数），二进制表示可能落在 5.999999…
+        // 这样的值上，直接 (int) 会少 1 点。原版同样加了这一下（`sinTempAbsorption2 += 0.000001f`）。
+        s.absorption = absorptionOf(p) + (int) (e.absorb + 1e-6);   // 明文减伤点数（非百分比，见 absorptionOf）
         s.baseAttack = baseAttackOf(p);
         s.attackSpeed = attackSpeedOf(p, e);
         s.critical = Math.min(50, criticalOf(p, e));
@@ -155,6 +167,8 @@ public class PlayerStatCalculator {
         s.maxWeightBase = maxWeightOf(p);
         s.maxWeight = s.maxWeightBase;
         s.moveSpeed = moveSpeedStatOf(p, e);
+        System.arraycopy(e.res, 0, s.res, 0, 8);
+        s.magicMastery = e.magicMastery;
         s.walkSpeed = GameConstants.playerWalkSpeedWorldPerSec(s.moveSpeed);
         s.runSpeed = GameConstants.playerRunSpeedWorldPerSec(s.moveSpeed);
         // 动画速率查表（不是每次重算）：速率只由档位决定，表在 GameConstants 初始化时建好。
@@ -248,26 +262,6 @@ public class PlayerStatCalculator {
         return new int[]{min + 1, max + 1};
     }
 
-    /** 装备命中加成：主手武器/部分装备 attack_rating 掷点值（面板用） */
-    private int equipAttackRating(Player p, EquipSummary e) {
-        int sum = 0;
-        org.jpstale.common.service.item.PlayerItems items = p.getItems();
-        if (items == null) {
-            return 0;
-        }
-        for (ItemInstance it : items.equippedItems()) {   // 排除鼠标位：手上那件不提供装备属性
-            if (it.isDeleted()) {
-                continue;
-            }
-            // 同上：需求不满足的装备连抗性也不加（原版 SetItemToChar 的 continue）
-            if (!org.jpstale.common.service.item.ItemRules.meetsRequirements(p, it)) {
-                continue;
-            }
-            sum += it.getAttackRating();
-        }
-        return sum;
-    }
-
     /** 攻击速度（装备累加） */
     private int attackSpeedOf(Player p, EquipSummary e) {
         return e.attackSpeed;
@@ -278,9 +272,10 @@ public class PlayerStatCalculator {
         return e.critical;
     }
 
-    /** 格挡率（装备累加，对齐原版 Chance_Block） */
+    /** 格挡率（装备累加 + 特效 `Add_fBlock_Rating`，对齐原版 Chance_Block）。 */
     private int blockOf(Player p, EquipSummary e) {
-        return (int) e.block;
+        // `+ 1e-6` 同吸收：抵挡率是 0.1 的累加，整数结果可能落在 17.999999… 上
+        return (int) (e.block + 1e-6);
     }
 
     /** 近战武器攻击距离：单手 30 / 双手 60（用户 2026-09-14 定）。 */
@@ -331,12 +326,13 @@ public class PlayerStatCalculator {
 
     /**
      * 移动速度档位（对齐 exm sinInvenTory.cpp:5478-5482）
-     * 公式：int((TAL+HEA+LV+60)/150.0 - weightRatio + bootsSpeed) + 1，范围 1~51（对标 wartale）
+     * 公式：int((TAL+HEA+LV+60)/150.0 - weightRatio + 移速加成) + 1，范围 1~51（对标 wartale）
+     * 移速加成 = 每件装备的掷点 speed + 职业特效 spec_speed（原版 `sinMoveSpeed += fSpeed`，不限靴子）。
      */
     private int moveSpeedStatOf(Player p, EquipSummary e) {
         double weightRatio = 0.0; // 负重系统未实现（背包负重暂无结算）
         int ms = (int) ((p.getTalent() + p.getHealth() + p.getLevel() + 60) / 150.0
-                - weightRatio + e.bootsSpeed) + 1;
+                - weightRatio + e.moveSpeedBonus) + 1;
         return Math.clamp(ms, GameConstants.MOVE_SPEED_MIN, GameConstants.MOVE_SPEED_MAX);
     }
 
@@ -444,9 +440,12 @@ public class PlayerStatCalculator {
     public int[] baseAttack(Player p) { return stats(p).baseAttack; }
 
     /**
-     * 攻击力区间（面板显示 + 伤害掷点共用）：含主手武器伤害。
-     * 徒手用 baseAttack；有武器：min=1 + wMin*(STR+F)/F + (TAL+AGI)/40，max=3 + wMax*(STR+F)/F + (TAL+AGI)/40
+     * 攻击力区间（面板显示 + 伤害掷点共用）：含装备伤害之和（原版 `sinAttack_Damage[0/1] += Damage[0/1]`）。
+     * 徒手用 baseAttack；有武器：min=1 + dMin*(STR+F)/F + (TAL+AGI)/40，max=3 + dMax*(STR+F)/F + (TAL+AGI)/40
      * （对齐原版 sinInvenTory.cpp；F=meleeDamageFactor）。
+     * 另加特效「攻击力 Lv/v」= `e.specLevDamage` —— 原版 `sinLev_Damage[1]` **只进上限**
+     * （`sinInvenTory.cpp:8415` 徒手 / `:8429` 持械两处都只加在下限公式之外的上限项；
+     * 下限用的 `sinLev_Damage[0]` 特效侧从不赋值），故这里也只加到 max。
      */
     public int[] attackPower(Player p) {
         EquipSummary e = stats(p).equip;
@@ -457,9 +456,10 @@ public class PlayerStatCalculator {
             int str = p.getStrength();
             int dmg = meleeDamageFactor(p.getJob());
             int talAgi = p.getTalent() + p.getAgility();
-            min = 1 + e.weaponDamageMin * (str + dmg) / dmg + talAgi / 40;
-            max = 3 + e.weaponDamageMax * (str + dmg) / dmg + talAgi / 40;
+            min = 1 + e.damageMin * (str + dmg) / dmg + talAgi / 40;
+            max = 3 + e.damageMax * (str + dmg) / dmg + talAgi / 40;
         }
+        max += e.specLevDamage;
         return new int[]{min, max};
     }
 
@@ -477,6 +477,14 @@ public class PlayerStatCalculator {
     public double regenHp(Player p) { return stats(p).regenHp; }
     public double regenMp(Player p) { return stats(p).regenMp; }
     public double regenStm(Player p) { return stats(p).regenStm; }
+    /**
+     * 元素抗性 8 元素（0生物 1大地 2火 3冰 4雷 5毒 6水 7风）= 装备基础 + 职业特效（含 `Lev_*` 的 等级/v）。
+     * **唯一实现**：`EquipSummary.res`（此前 `PlayerService.loadItems` 与
+     * `ItemNetworkHandler.refreshPlayerStats` 各有一份、门槛还不同 —— 已删）。
+     */
+    public int[] resistances(Player p) { return stats(p).res; }
+    /** 魔法精通（装备/特效 `fMagic_Mastery`；当前无消费方） */
+    public int magicMastery(Player p) { return stats(p).magicMastery; }
     public int avoidChance(Player p) { return stats(p).avoid; }
 
     /**

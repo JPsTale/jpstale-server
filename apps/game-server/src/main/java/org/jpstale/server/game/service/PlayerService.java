@@ -257,7 +257,7 @@ public class PlayerService {
         m.put("maxWeight", statCalculator.maxWeight(p));
         m.put("totalStatPoints", PlayerStatCalculator.totalStatPoints(p.getLevel()));
         // 元素抗性（面板显示 5 个：生物/毒/火/雷/冰，exm 显示顺序 [0][5][2][4][3]）
-        int[] res = p.getResistances() != null ? p.getResistances() : new int[8];
+        int[] res = statCalculator.resistances(p);
         m.put("resBionic", res[0]);
         m.put("resPoison", res[5]);
         m.put("resFire", res[2]);
@@ -307,7 +307,7 @@ public class PlayerService {
      */
     public S2C_CharacterStatus.Builder buildCharacterStatus(Player p) {
         int[] base = statCalculator.attackPower(p);
-        int[] res = p.getResistances() != null ? p.getResistances() : new int[8];
+        int[] res = statCalculator.resistances(p);
         return S2C_CharacterStatus.newBuilder()
             .setPlayerId(p.getId())
             .setName(p.getName() != null ? p.getName() : "")
@@ -602,7 +602,6 @@ public class PlayerService {
             return;
         }
         org.jpstale.common.service.item.PlayerItems items = player.getItems();
-        int[] res = new int[8];
         for (org.jpstale.dao.userdb.entity.Item row : rows) {
             org.jpstale.common.service.item.ItemInstance it = itemStorage.fromRow(row);
             Integer itemListId = row.getItemListId() != null ? row.getItemListId() : row.getItemCode();
@@ -633,24 +632,12 @@ public class PlayerService {
                 itemStorage.update(it);
             }
             items.index(it);
-            // 元素抗性（EElementID: 0生物 1大地 2火 3冰 4雷 5毒 6水 7风）
-            // ⚠ 排除鼠标位（slot=-1）：重登时"手上还拿着"的那件不算装备、不加抗性。
-            if (it.getLocation() == org.jpstale.common.service.item.ItemLocations.EQUIP
-                    && !org.jpstale.common.service.item.ItemLocations.isHeld(it)
-                    && org.jpstale.common.service.item.ItemRules.meetsRequirements(player, it)) {
-                res[0] += it.getResBionic();
-                res[1] += it.getResEarth();
-                res[2] += it.getResFire();
-                res[3] += it.getResIce();
-                res[4] += it.getResLighting();
-                res[5] += it.getResPoison();
-                res[6] += it.getResWater();
-                res[7] += it.getResWind();
-            }
         }
         items.rebuildBitmaps();
-        player.setResistances(res);
         items.markClean();
+        // 元素抗性不在这里汇总：它是**装备属性的一种**，与其它读数同源（`EquipSummary.res`
+        // → `PlayerStatCalculator.resistances`）。此处曾另写一份求和，门槛还与聚合层不同
+        // （这里带需求校验、`refreshPlayerStats` 那份没有）—— 已删（用户 2026-09-22）。
         log.info("Player {} items loaded: {} rows", player.getName(), rows.size());
     }
 }

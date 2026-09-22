@@ -48,8 +48,9 @@ public class Player {
     /** 完整外观（头/防具/时装/武器），进场时由 AccountService 计算一次缓存；AOI Appear 下发用 */
     private CharacterAppearance appearance;
 
-    /** 元素抗性 [8]：0生物 1大地 2火 3冰 4雷 5毒 6水 7风（来自装备实例） */
-    private int[] resistances = new int[8];
+    // 元素抗性**不在这里**：它是装备属性的一种，与其它读数同源（`EquipSummary.res`
+    // → `PlayerStatCalculator.resistances(p)`，含装备基础 + 职业特效 + `Lev_*` 的等级档）。
+    // 曾经这里有 `int[] resistances` 字段、由两处各自求和写回，两处门槛还不一致 —— 已删（2026-09-22）。
 
     /**
      * **死亡态**（躺下等复活选择）—— 角色级状态，与 `hp` **解耦**。

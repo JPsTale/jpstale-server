@@ -45,7 +45,10 @@
     "specRange": "Spec. RNG",
     "specRegenLife": "HP Recovery",
     "specRegenMana": "MP Recovery",
-    "specRegenStm": "STM Recovery"
+    "specRegenStm": "STM Recovery",
+    "weight": "Weight",
+    "potionSpace": "Potion Storage",
+    "price": "Price"
   },
   "job": {
     "1": "Fighter",
@@ -139,8 +142,6 @@
       "categoryPlaceholder": "exact value",
       "categoryHint": "Category is an exact match",
       "categoryHintFailed": "Failed to load category options; type an exact value instead",
-      "price": "Price",
-      "weight": "Weight",
       "defense": "Defense",
       "mixLoadFailed": "Failed to load Mix recipes; the Mix dropdown is unavailable",
       "poolTitle": "Drop spec candidates",
@@ -150,7 +151,6 @@
       "noMix": "No Mix",
       "noMixNone": "No Mix",
       "detailTitle": "Item detail",
-      "potionSpace": "Potion Storage",
       "potionCount": "Potion Count",
       "viewTable": "Table",
       "viewGrid": "Grid",

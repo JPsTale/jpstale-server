@@ -45,7 +45,10 @@
     "specRange": "射程",
     "specRegenLife": "生命再生",
     "specRegenMana": "灵力再生",
-    "specRegenStm": "耐力再生"
+    "specRegenStm": "耐力再生",
+    "weight": "重量",
+    "potionSpace": "药水存放数量",
+    "price": "价格"
   },
   "job": {
     "1": "武士",
@@ -139,8 +142,6 @@
       "categoryPlaceholder": "精确值",
       "categoryHint": "分类为精确匹配",
       "categoryHintFailed": "分类候选取值加载失败，可直接手输精确值",
-      "price": "价格",
-      "weight": "重量",
       "defense": "防御",
       "mixLoadFailed": "Mix 配方加载失败，Mix 下拉不可用",
       "poolTitle": "掉落特效候选",
@@ -150,7 +151,6 @@
       "noMix": "No Mix",
       "noMixNone": "No Mix",
       "detailTitle": "物品详情",
-      "potionSpace": "药水存放数量",
       "potionCount": "药水数量",
       "viewTable": "表格",
       "viewGrid": "网格",

@@ -230,7 +230,11 @@ public class ItemRollService {
         it.setSpecPerManaRegen(rndFloat(def.getAddSpecMpRegenMin(), def.getAddSpecMpRegenMax()));
         it.setSpecLevAttackRating(rndIntOr(def.getAddSpecAtkRatingMin(), def.getAddSpecAtkRatingMax()));
         it.setSpecLevDamageMax(rndIntOr(def.getAddSpecAtkPowerMin(), def.getAddSpecAtkPowerMax()));
-        // 模板单值特效（非随机）
+        // 模板单值特效（**不掷点**）。
+        // ⚠ "灵力再生是区间、生命/耐力再生是单值"**不是笔误、不要去统一**：原版物品定义文本里
+        // `**付唱犁积`（灵力）读两个 token 进 `fSpecial_Mana_Regen[0]/[1]`，而 `**扼捞橇犁积`（生命）与
+        // `**胶抛固唱犁积`（耐力）各只读一个 token（`SrcGame/src/fileread.cpp:3223-3246`）。
+        // 用户 2026-09-22 明确："如果原版是单值，那我也不坚持搞随机了"。
         it.setSpecAttackSpeed(nz(def.getAddSpecAtkSpeed()));
         it.setSpecCritical(nz(def.getAddSpecCritical()));
         it.setSpecShootingRange(nz(def.getAddSpecRange()));

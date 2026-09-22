@@ -200,7 +200,7 @@
         T('admin.item.idcode') + ' ' + PTAdmin.fmt(row.idcode),
         PTAdmin.fmt(row.category),
         T('itemtip.reqLv') + ' ' + PTAdmin.fmt(row.reqlevel),
-        T('admin.item.price') + ' ' + PTAdmin.fmt(row.price)
+        T('itemtip.price') + ' ' + PTAdmin.fmt(row.price)
       ].join(' · ');
     },
     render: function (row, ctx, body) {

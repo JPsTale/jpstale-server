@@ -129,9 +129,9 @@ public final class ItemColumnSemantics {
         BY_COLUMN.put("range", named("itemtip.range"));
         // 单值列：客户端串表里**没有**这几项，用用户 2026-09-21 提供的日服汉化补
         //（`sinAbilityName` 的"药水存放数量"；重量/价格/药水数量 由用户给出用词）
-        BY_COLUMN.put("weight", named("admin.item.weight"));
-        BY_COLUMN.put("price", named("admin.item.price"));
-        BY_COLUMN.put("potionspace", named("admin.item.potionSpace"));
+        BY_COLUMN.put("weight", named("itemtip.weight"));
+        BY_COLUMN.put("price", named("itemtip.price"));
+        BY_COLUMN.put("potionspace", named("itemtip.potionSpace"));
         BY_COLUMN.put("potioncount", named("admin.item.potionCount"));
         // 需求六项
         BY_COLUMN.put("reqlevel", named("itemtip.reqLv"));
