@@ -761,7 +761,7 @@
   function eventTypeSem(value) {
     var v = (value === null || value === undefined) ? '' : String(value);
     var key = EVENT_TYPE_SEMANTICS[v];
-    return key ? { label: T(key), value: v } : { label: v, value: v };
+    return key ? { label: window.PTi18n.t(key), value: v } : { label: v, value: v };
   }
 
   /** teleportid 目的地语义：返回 { label, dests, costs, gate, note } 或 null（=0，无传送）。 */
@@ -772,13 +772,13 @@
     if (!def) { return { label: 'admin.npc.tpUnknown', code: String(v), note: null }; }
     var out = { label: def.label, code: String(v), note: null };
     if (def.dests) {
-      out.dests = def.dests.map(function (k) { return T(k); });
+      out.dests = def.dests.map(function (k) { return window.PTi18n.t(k); });
       out.costs = def.costs;
-      out.gate = T(def.gate);
+      out.gate = window.PTi18n.t(def.gate);
     } else if (def.label === 'admin.npc.teleport2') {
-      out.note = T('admin.npc.teleport2Note');
+      out.note = window.PTi18n.t('admin.npc.teleport2Note');
     } else if (def.label === 'admin.npc.teleport3') {
-      out.note = T('admin.npc.teleport3Note');
+      out.note = window.PTi18n.t('admin.npc.teleport3Note');
     }
     return out;
   }
