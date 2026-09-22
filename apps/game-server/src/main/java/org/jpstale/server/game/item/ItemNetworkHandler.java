@@ -929,20 +929,10 @@ public class ItemNetworkHandler {
 
     private void refreshPlayerStats(PlayerSession session, Player p) {
         playerService.recalcPanel(p);
+        // 属性重算后就地推状态：抗性也走同一条链（`EquipSummary.res` → `PlayerStatCalculator.resistances`）。
+        // 这里曾另写一份求和，且**没有**需求校验门槛（与 `PlayerService.loadItems` 那份口径不同）——
+        // 已删（用户 2026-09-22：一个判定只留一份实现）。
         playerService.sendPlayerStatus(session, p);
-        // 抗性重算：遍历当前装备
-        int[] res = new int[8];
-        for (ItemInstance it : p.getItems().equippedItems()) {   // 排除鼠标位（推送装备槽变化，不该推手上那件）
-            res[0] += it.getResBionic();
-            res[1] += it.getResEarth();
-            res[2] += it.getResFire();
-            res[3] += it.getResIce();
-            res[4] += it.getResLighting();
-            res[5] += it.getResPoison();
-            res[6] += it.getResWater();
-            res[7] += it.getResWind();
-        }
-        p.setResistances(res);
         // 外观重算 + 广播（自机 + 视野玩家），驱动 3D 换装。
         // ⚠ **只在真的变了才推**：本方法被 8 个入口调用（含整理背包/拿起/拾取/丢弃），
         // 无条件推的话客户端每次都会重建模型 + `reselectForCurrentState()` 重选动画

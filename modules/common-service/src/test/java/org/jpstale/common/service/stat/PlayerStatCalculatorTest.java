@@ -213,4 +213,84 @@ class PlayerStatCalculatorTest {
         }
         assertEquals(99, sum, "1 级初始属性总和固定为 99");
     }
+
+    /**
+     * 用户 2026-09-22 实测的那套装（`tanknight`，18 级骑士 job=6，DEX24/TAL39）——
+     * 修复前：面板躲避 121、抵挡率 13%（盾的 46 躲避与全部特效都没算）。
+     *
+     * 手算（可直接复算）：
+     *   基础 `defenseOf` = 24/2 + 39/4 + 18*1.4 = 12 + 9.75 + 25.2 = 46.95 → **46**
+     *   装备躲避 = 盾 46 + 臂环 5 + 甲 28 + 护手 32 + 靴 15 = **126**（修复前只算躯干三件 = 75）
+     *   特效躲避（掩码 32 = 骑士位，含本职业）= **7**
+     *   ⇒ 面板躲避 = 46 + 126 + 7 = **179**（修复前 121）
+     *   抵挡率 = 13.6（盾）+ 4（特效）= **17**（`(int)` 截断；修复前 13）
+     *   攻速档 = 1（剑）+ 1（特效）= **2**；伤害上限 = 3 + 0*(...) + (39+24)/40 + 18/5 = 3 + 1 + 3 = **7**
+     */
+    @Test
+    void 用户实测的骑士盾牌套装_躲避与特效都计入() {
+        Player p = new Player(0);
+        p.setCharacterId(1L);
+        p.setJob(6);
+        p.setLevel(18);
+        p.setStrength(78);
+        p.setSpirit(14);
+        p.setTalent(39);
+        p.setAgility(24);
+        p.setHealth(24);
+
+        p.getItems().byUidPut(worn(301, ItemLocations.SLOT_MAIN_HAND, ItemClass.ONE_HAND_WEAPON, 30, it -> {
+            it.setAttackSpeed(1);
+            it.setSpecAttackSpeed(1);        // 特效攻速 1
+            it.setSpecLevDamageMax(5);       // 特效攻击力 Lv/5
+            it.setJobCodeMask(1 << (6 - 1));
+        }));
+        p.getItems().byUidPut(worn(302, ItemLocations.SLOT_OFF_HAND, ItemClass.OFF_HAND, 40, it -> {
+            it.setDefence(46);
+            it.setBlockRating(13.6);
+            it.setAbsorb(2.0);
+            it.setSpecDefence(7);
+            it.setSpecBlockRating(4.0);
+            it.setSpecAbsorb(0.4);
+            it.setJobCodeMask(1 << (6 - 1));
+        }));
+        p.getItems().byUidPut(worn(303, ItemLocations.SLOT_ARMOR, ItemClass.ARMOR, 120, it -> it.setDefence(28)));
+        p.getItems().byUidPut(worn(304, ItemLocations.SLOT_ARMLET, ItemClass.ARMLET, 5, it -> it.setDefence(5)));
+        p.getItems().byUidPut(worn(305, ItemLocations.SLOT_GLOVES, ItemClass.GLOVES, 30, it -> it.setDefence(32)));
+        p.getItems().byUidPut(worn(306, ItemLocations.SLOT_BOOTS, ItemClass.BOOTS, 20, it -> it.setDefence(15)));
+
+        PlayerStatCalculator.Stats s = calc.stats(p);
+        assertEquals(179, s.defense, "46 基础 + 126 装备（含盾 46 与臂环 5）+ 7 特效");
+        assertEquals(17, s.block, "13.6 + 特效 4 → 17（修复前 13）");
+        assertEquals(2, s.attackSpeed, "剑 1 + 特效 1");
+        // 吸收 = absorptionOf(4) + 装备 2.4 → 6；absorptionOf = Def/100(0) + LV/10(1) + (STR+TAL)/40(2) + 1
+        assertEquals(6, s.absorption, "盾吸收 2.0 + 特效 0.4 → 2，加基数 4");
+        assertEquals(7, calc.attackPower(p)[1],
+                "伤害上限 = 3 + 0*(...) + (TAL+AGI)/40 + 特效 Lv/5 = 3 + 1 + 18/5 = 7");
+    }
+
+    /** 造一件已装备的实例；模板只用于 classitem/weight/需求。 */
+    private static ItemInstance worn(long uid, int slot, int classItem, int weight,
+                                     java.util.function.Consumer<ItemInstance> tune) {
+        ItemList def = new ItemList();
+        def.setId((int) uid);
+        def.setIdCode(0x01010100 + (int) uid);
+        def.setName("it" + uid);
+        def.setClassItem(classItem);
+        def.setWeight(weight);
+        def.setReqLevel(1);
+        def.setReqStrengh(1);
+        def.setReqSpirit(1);
+        def.setReqTalent(1);
+        def.setReqAgility(1);
+        def.setReqHealth(1);
+
+        ItemInstance it = new ItemInstance();
+        it.setId(uid);
+        it.setItemListId((int) uid);
+        it.setLocation(ItemLocations.EQUIP);
+        it.setSlot(slot);
+        it.setTemplate(def);
+        tune.accept(it);
+        return it;
+    }
 }
