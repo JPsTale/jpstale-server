@@ -3,6 +3,11 @@ package org.jpstale.server.web.item;
 import org.jpstale.common.service.item.ItemClass;
 import org.jpstale.server.common.enums.character.CharacterJob;
 import org.jpstale.server.common.enums.item.WeaponClass;
+import org.jpstale.server.web.admin.ColumnSemantics;
+import org.jpstale.server.web.admin.ColumnSemantics.Bit;
+import org.jpstale.server.web.admin.ColumnSemantics.Kind;
+import org.jpstale.server.web.admin.ColumnSemantics.Option;
+import org.jpstale.server.web.admin.ColumnSemantics.Semantics;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -12,6 +17,10 @@ import java.util.Set;
 
 /**
  * 列的**取值语义**（枚举 / 布尔 / 位掩码 / 成对区间）—— 让接口给出"值是哪个语义"，而不是把裸数字丢给使用者。
+ *
+ * <p>
+ * ⚠ 语义的**类型**（{@link Kind} / {@link Option} / {@link Bit} / {@link Semantics}）定义在共用层
+ * {@link ColumnSemantics} —— 物品与怪物只需各登记自己的**取值表**；本类就是物品那张表。
  *
  * <p>
  * 用户 2026-09-21：① 页面上一片裸数字（`primaryspec=6`、`classitem=6`…）看不懂；
@@ -38,47 +47,11 @@ import java.util.Set;
  */
 public final class ItemColumnSemantics {
 
-    /** 值的种类：界面据此决定显示与编辑控件。 */
-    public enum Kind {
-        /** 数字（默认） */
-        NUMBER,
-        /** 文本 */
-        TEXT,
-        /** 0/1 布尔 */
-        BOOL,
-        /** 有限取值集合：显示翻名字、编辑给下拉 */
-        ENUM
-    }
-
-    /**
-     * 一个候选值。
-     *
-     * @param value    数据库原值
-     * @param labelKey 文案 key（客户端翻译）；**永不**是文案本身
-     */
-    public record Option(int value, String labelKey) {
-    }
-
-    /** 位掩码的一位：`bit` 值 + 文案 key（客户端用它拼出任意组合值）。 */
-    public record Bit(int value, String labelKey) {
-    }
-
-    /** 一列的语义。`rowLabelKey`/`rowPart` 见"成对区间"；无行名的列为 (null, 0)。 */
-    public record Semantics(Kind kind, List<Option> options, List<Bit> bits,
-                            String rowLabelKey, int rowPart, String unit) {
-        static Semantics plain(Kind kind) {
-            return new Semantics(kind, List.of(), List.of(), null, 0, null);
-        }
-
-        /** 复制一份并加上单位（单位是**数据**、不是文案，故不涉及 i18n）。 */
-        Semantics withUnit(String u) {
-            return new Semantics(kind, options, bits, rowLabelKey, rowPart, u);
-        }
-    }
-
-    private static final Semantics NUMBER = Semantics.plain(Kind.NUMBER);
+    /** BY_COLUMN 的默认值：无任何语义的数字列（语义**类型**定义在共用层，见类注释）。 */
+    private static final Semantics NUMBER = ColumnSemantics.NUMBER;
 
     private static final Map<String, Semantics> BY_COLUMN = new LinkedHashMap<>();
+
 
     static {
         // ---- 职业：primaryspec（单值）与 addspecclass1..12（布尔位）----
@@ -88,7 +61,7 @@ public final class ItemColumnSemantics {
             jobOptions.add(new Option(job.getNumber(), "job." + job.getNumber()));
         }
         jobOptions.add(new Option(CharacterJob.SPEC_SLOT_COUNT, "admin.item.slot12"));
-        BY_COLUMN.put("primaryspec", new Semantics(Kind.ENUM, List.copyOf(jobOptions), List.of(),
+        BY_COLUMN.put("primaryspec", new Semantics(Kind.ENUM, List.copyOf(jobOptions), List.of(), List.of(),
                 "admin.item.primarySpec", 0, null));
         for (int i = 1; i <= CharacterJob.SPEC_SLOT_COUNT; i++) {
             BY_COLUMN.put("addspecclass" + i, Semantics.plain(Kind.BOOL));
@@ -99,17 +72,17 @@ public final class ItemColumnSemantics {
         for (WeaponClass wc : WeaponClass.values()) {
             weaponClasses.add(new Option(wc.getValue(), "enum.weaponClass." + wc.getValue()));
         }
-        BY_COLUMN.put("weaponclass", new Semantics(Kind.ENUM, List.copyOf(weaponClasses), List.of(), null, 0, null));
+        BY_COLUMN.put("weaponclass", new Semantics(Kind.ENUM, List.copyOf(weaponClasses), List.of(), List.of(), null, 0, null));
 
         // ---- classitem（槽位位掩码）：候选值 + 位表 ----
-        BY_COLUMN.put("classitem", new Semantics(Kind.ENUM, classItemOptions(), classItemBits(), null, 0, null));
+        BY_COLUMN.put("classitem", new Semantics(Kind.ENUM, classItemOptions(), List.of(), classItemBits(), null, 0, null));
 
         // ---- modelposition ----
         List<Option> positions = new ArrayList<>();
         for (int v : new int[]{0, 2, 4, 8}) {
             positions.add(new Option(v, "enum.modelPosition." + v));
         }
-        BY_COLUMN.put("modelposition", new Semantics(Kind.ENUM, List.copyOf(positions), List.of(), null, 0, null));
+        BY_COLUMN.put("modelposition", new Semantics(Kind.ENUM, List.copyOf(positions), List.of(), List.of(), null, 0, null));
 
         BY_COLUMN.put("cannotdrop", Semantics.plain(Kind.BOOL));
 
@@ -205,7 +178,7 @@ public final class ItemColumnSemantics {
     // ------------------------------------------------------------------
 
     private static Semantics named(String rowLabelKey) {
-        return new Semantics(Kind.NUMBER, List.of(), List.of(), rowLabelKey, 0, null);
+        return new Semantics(Kind.NUMBER, List.of(), List.of(), List.of(), rowLabelKey, 0, null);
     }
 
     /** 登记一对「本列 min / 本列 max」的同名区间行（行内第 1、2 个）。 */
@@ -217,7 +190,7 @@ public final class ItemColumnSemantics {
     /** 登记一列的"行名 key + 行内位置"。保留该列已有的 kind/options/bits。 */
     private static void namedRow(String column, String rowLabelKey, int rowPart) {
         Semantics old = BY_COLUMN.getOrDefault(column, NUMBER);
-        BY_COLUMN.put(column, new Semantics(old.kind(), old.options(), old.bits(), rowLabelKey, rowPart, old.unit()));
+        BY_COLUMN.put(column, old.withRow(rowLabelKey, rowPart));
     }
 
     // ------------------------------------------------------------------

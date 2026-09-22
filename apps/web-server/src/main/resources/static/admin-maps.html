@@ -2,54 +2,61 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
+  <!--PT_BASE-->
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>地图管理 - PristonTale 管理后台</title>
+  <title data-i18n="admin.map.title">地图管理</title>
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body class="admin-body">
   <div class="admin-layout">
     <aside class="admin-sidebar">
-      <div class="admin-logo">PristonTale 管理</div>
-      <!-- 菜单由 js/nav.js 按其中的 MENU 定义 + /api/user/me 返回的角色动态渲染；改菜单只改那一处 -->
+      <div class="admin-logo" data-i18n="admin.common.brand">PristonTale 管理</div>
       <nav class="admin-nav" id="ptNav"></nav>
     </aside>
     <main class="admin-main">
       <header class="admin-header">
-        <h1>地图管理</h1>
+        <h1 data-i18n="admin.map.title">地图管理</h1>
         <div class="admin-header-actions">
-          <span id="adminUserLabel" class="admin-user-label">未登录</span>
-          <button id="logoutBtn" class="btn btn-small btn-secondary" style="margin-left: 0.75rem;">退出登录</button>
+          <span id="adminUserLabel" class="admin-user-label" data-i18n="admin.common.notLoggedIn">未登录</span>
+          <button id="logoutBtn" class="btn btn-small btn-secondary" style="margin-left: 0.75rem;" data-i18n="admin.common.logout">退出登录</button>
         </div>
       </header>
 
       <section class="admin-card">
+        <div class="item-filters" id="filterBar"></div>
+
         <div class="admin-toolbar">
-          <input id="searchInput" type="text" class="admin-input" placeholder="按名称 / shortName 搜索">
-          <button id="refreshBtn" class="btn btn-small">刷新</button>
+          <button id="searchBtn" class="btn btn-small" data-i18n="admin.common.search">查询</button>
+          <button id="resetBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.resetFilters">重置条件</button>
+          <span class="item-hint" id="hint"></span>
+          <span style="flex:1"></span>
+          <button id="colPickerBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.columnPicker">列显示</button>
+          <button id="refreshBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.refresh">刷新</button>
         </div>
-        <div id="errorBox" class="msg error hidden" role="alert"></div>
-        <div class="admin-table-wrapper">
-          <table class="admin-table" aria-label="地图列表">
-            <thead>
-            <tr>
-              <th>ID</th>
-              <th>名称</th>
-              <th>shortName</th>
-              <th>类型</th>
-              <th>推荐等级</th>
-            </tr>
-            </thead>
-            <tbody id="mapsTableBody">
-            <!-- JS 渲染 -->
-            </tbody>
+
+        <div id="colPicker" class="item-colpicker hidden"></div>
+        <div id="errBox" class="msg error hidden" role="alert"></div>
+
+        <div class="admin-table-wrapper" id="tableWrapper">
+          <table class="admin-table" id="mapsTable">
+            <thead><tr id="tableHead"></tr></thead>
+            <tbody id="tableBody"></tbody>
           </table>
+        </div>
+
+        <div class="item-pager">
+          <button id="prevBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.prevPage">上一页</button>
+          <span id="pageInfo" class="item-hint"></span>
+          <button id="nextBtn" class="btn btn-small btn-secondary" data-i18n="admin.common.nextPage">下一页</button>
         </div>
       </section>
     </main>
   </div>
+
+  <script src="./js/i18n.js"></script>
   <script src="./js/api.js"></script>
   <script src="./js/nav.js"></script>
+  <script src="./js/admin-common.js"></script>
   <script src="./js/admin-maps.js"></script>
 </body>
 </html>
-

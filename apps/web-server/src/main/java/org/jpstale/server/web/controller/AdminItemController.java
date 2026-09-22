@@ -3,7 +3,7 @@ package org.jpstale.server.web.controller;
 import cn.dev33.satoken.annotation.SaCheckRole;
 import cn.dev33.satoken.stp.StpUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.server.web.dto.AdminItemColumn;
+import org.jpstale.server.web.dto.AdminColumn;
 import org.jpstale.server.web.dto.Result;
 import org.jpstale.server.web.enums.ResultCode;
 import org.jpstale.server.web.exception.BusinessException;
@@ -48,7 +48,7 @@ public class AdminItemController {
 
     /** 列清单：列名 / 类型 / 所属段 / 是否可改 / 是否可筛。反射生成，不查库。 */
     @GetMapping("/columns")
-    public Result<List<AdminItemColumn>> columns() {
+    public Result<List<AdminColumn>> columns() {
         requireAdmin();
         return Result.ok(adminItemService.columns());
     }
@@ -88,6 +88,23 @@ public class AdminItemController {
             throw new BusinessException(ResultCode.PARAM_ERROR);
         }
         return Result.ok(adminItemService.list(query));
+    }
+
+    /**
+     * 物品搜索（供**物品选择器**用：怪物掉落编辑，将来 NPC 商店编辑复用同一个）。
+     *
+     * <p>
+     * ⚠ 路径 `/search` 是字面量片段，Spring 会优先于 `/{id}` 匹配它
+     * （否则 "search" 会被当成 id 解析失败 → 400）。
+     *
+     * @param q     按 `codeimg1` 或名字的不区分大小写子串；空则给前 N 条
+     * @param limit 上限 50
+     */
+    @GetMapping("/search")
+    public Result<List<Map<String, Object>>> search(@RequestParam(name = "q", required = false) String q,
+                                                   @RequestParam(name = "limit", defaultValue = "20") int limit) {
+        requireAdmin();
+        return Result.ok(adminItemService.search(q, limit));
     }
 
     /** 单行全部列。 */

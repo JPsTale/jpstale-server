@@ -33,6 +33,8 @@ public enum ResultCode implements ResultError {
     USER_NOT_FOUND(10404, 404, "error.web.userNotFound"),
     MAP_NOT_FOUND(10405, 404, "error.web.mapNotFound"),
     ITEM_NOT_FOUND(10406, 404, "error.web.itemNotFound"),
+    MONSTER_NOT_FOUND(10407, 404, "error.web.monsterNotFound"),
+    NPC_NOT_FOUND(10408, 404, "error.web.npcNotFound"),
     ACCOUNT_EXISTS(10409, 409, "error.web.accountExists"),
     EMAIL_EXISTS(10410, 409, "error.web.emailExists"),
 

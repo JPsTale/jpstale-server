@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!--PT_BASE-->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="admin.item.detailTitle">物品详情</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="admin-body">
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-logo" data-i18n="admin.common.brand">PristonTale 管理</div>
+      <!-- 菜单由 js/nav.js 按其中的 MENU 定义 + /api/user/me 返回的角色动态渲染 -->
+      <nav class="admin-nav" id="ptNav"></nav>
+    </aside>
+    <main class="admin-main">
+      <header class="admin-header">
+        <div class="admin-header-actions">
+          <span id="adminUserLabel" class="admin-user-label" data-i18n="admin.common.notLoggedIn">未登录</span>
+          <button id="logoutBtn" class="btn btn-small btn-secondary" style="margin-left: 0.75rem;" data-i18n="admin.common.logout">退出登录</button>
+        </div>
+      </header>
+
+      <section class="admin-card">
+        <div class="item-filters">
+          <a id="backLink" class="item-ref" href="./admin/items" data-i18n="admin.common.backToList">返回列表</a>
+          <span style="flex:1"></span>
+          <button id="editBtn" class="btn btn-small" data-i18n="admin.common.edit">编辑</button>
+          <button id="saveBtn" class="btn btn-small hidden" data-i18n="admin.common.save">保存</button>
+          <button id="cancelBtn" class="btn btn-small btn-secondary hidden" data-i18n="admin.common.cancel">取消</button>
+        </div>
+
+        <h1 id="pageTitle" class="detail-title"></h1>
+        <div id="pageStats" class="item-hint"></div>
+        <!-- 物品特有的三个预览选择器（Spec / Age / Mix）：只影响显示，不会被写回库 -->
+        <div class="item-modal-controls" style="margin: 0.5rem 0;">
+          <label>Spec <select id="specSel"></select></label>
+          <label>Age <select id="ageSel"></select></label>
+          <label>Mix <select id="mixSel"></select></label>
+        </div>
+
+        <div id="msgBox" class="msg hidden" role="alert"></div>
+        <div id="detailBody" class="item-modal-body"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./js/i18n.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/nav.js"></script>
+  <script src="./js/admin-common.js"></script>
+  <script src="./js/item-effects.js"></script>
+  <script src="./js/admin-detail.js"></script>
+  <script src="./js/admin-item.js"></script>
+</body>
+</html>

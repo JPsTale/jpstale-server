@@ -1,160 +1,192 @@
+/*
+ * 地图管理页（admin-maps.html）—— **纯列表**：筛选 / 表格 / 列显示 / 分页。
+ *
+ * 详情（四表汇聚点 + 列编辑 + **刷怪配置编辑**）在 `/admin/map/{maplist.id}`（admin-map.html）。
+ *
+ * 五组固定筛选：名字（同时搜 name 与 shortname）· 地形类型 · 等级要求区间 · PvP · **是否有刷怪配置**。
+ * ⚠ 后两组里，"是否有刷怪配置"不是本表的列 —— 它是"`mapmonster` 里有没有这张图的行"（48/63 张有），
+ * 判据与详情页的 `spawn.configured` 同源。
+ */
 (function () {
-  var tbody = document.getElementById('mapsTableBody');
-  var searchInput = document.getElementById('searchInput');
-  var refreshBtn = document.getElementById('refreshBtn');
-  var errorBox = document.getElementById('errorBox');
-  var userLabel = document.getElementById('adminUserLabel');
-  var logoutBtn = document.getElementById('logoutBtn');
+  var API = '/api/admin/maps';
+  var T = window.PTi18n.t;
 
-  var allMaps = [];
+  /** 只有 7 列，默认就把它们都摆出来。 */
+  var DEFAULT_COLUMNS = ['id', 'name', 'shortname', 'typemap', 'levelreq', 'pvp', 'stagefile'];
 
-  function showError(text) {
-    if (!errorBox) return;
-    errorBox.textContent = text;
-    errorBox.classList.remove('hidden');
+  /** 键名必须与后端 `MapQueryParams.parse` 的白名单完全一致。 */
+  var FILTERS = [
+    {
+      groupKey: 'admin.map.groupIdentity', fields: [
+        { key: 'name_like', labelKey: 'admin.map.name', type: 'text',
+          placeholderKey: 'admin.map.namePlaceholder' }
+      ]
+    },
+    {
+      groupKey: 'admin.map.groupRules', fields: [
+        { key: 'typemap', labelKey: 'map.typeMap', type: 'select' },
+        { key: 'levelreq', labelKey: 'itemtip.reqLv', range: true }
+      ]
+    },
+    {
+      groupKey: 'admin.map.groupFlags', fields: [
+        { key: 'pvp', labelKey: 'admin.map.pvp', type: 'select' },
+        { key: 'has_spawn', labelKey: 'admin.map.hasSpawn', type: 'select' }
+      ]
+    }
+  ];
+
+  var state = {
+    columns: [], byName: {},
+    visible: DEFAULT_COLUMNS.slice(),
+    rows: [], page: 1, size: 50, total: 0, totalPages: 1
+  };
+
+  function el(id) { return document.getElementById(id); }
+
+  function showErr(text) {
+    var box = el('errBox');
+    box.textContent = text;
+    box.className = 'msg error';
+  }
+  function hideErr() { el('errBox').classList.add('hidden'); }
+
+  function redirectToLogin() { window.location.href = './login.html'; }
+
+  function call(path, opts) {
+    return PT.request(path, opts).then(function (r) {
+      if (r.status === 401) { redirectToLogin(); return null; }
+      if (r.status === 403) { throw new Error(T('admin.common.notAdmin')); }
+      if (!r.ok) { throw new Error(PT.msgOf(r.code, T('admin.common.requestFailed', { status: r.status }))); }
+      return r.data;
+    });
   }
 
-  function hideError() {
-    if (!errorBox) return;
-    errorBox.classList.add('hidden');
+  /** 详情页（路径式路由 + 主键）。 */
+  function openDetail(id) { window.location.href = './admin/map/' + id; }
+
+  function load() {
+    hideErr();
+    var q = PTAdmin.collectFilters(FILTERS).concat(['page=' + state.page, 'size=' + state.size]).join('&');
+    return call(API + '?' + q).then(function (data) {
+      if (!data) return;
+      state.rows = data.items || [];
+      state.total = data.total;
+      state.totalPages = data.totalPages;
+      state.page = data.page;
+      state.size = data.size;
+      renderHead();
+      renderTable();
+      renderPager();
+    }).catch(function (e) { showErr(e.message); });
   }
 
-  function renderTable(list) {
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    if (!list || list.length === 0) {
+  function renderHead() {
+    var tr = el('tableHead');
+    tr.innerHTML = '';
+    state.visible.forEach(function (c) {
+      var th = document.createElement('th');
+      th.textContent = c;
+      tr.appendChild(th);
+    });
+  }
+
+  function renderTable() {
+    var tb = el('tableBody');
+    tb.innerHTML = '';
+    state.rows.forEach(function (row) {
       var tr = document.createElement('tr');
-      var td = document.createElement('td');
-      td.colSpan = 5;
-      td.textContent = '暂无数据';
-      td.style.textAlign = 'center';
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-      return;
-    }
-
-    list.forEach(function (m) {
-      var tr = document.createElement('tr');
-
-      var tdId = document.createElement('td');
-      tdId.textContent = m.id;
-      tr.appendChild(tdId);
-
-      var tdName = document.createElement('td');
-      tdName.textContent = m.name || '';
-      tr.appendChild(tdName);
-
-      var tdShort = document.createElement('td');
-      tdShort.textContent = m.shortName || '';
-      tr.appendChild(tdShort);
-
-      var tdType = document.createElement('td');
-      tdType.textContent = m.typeMap || '';
-      tr.appendChild(tdType);
-
-      var tdLevel = document.createElement('td');
-      tdLevel.textContent = m.levelReq != null ? m.levelReq : '';
-      tr.appendChild(tdLevel);
-
-      tbody.appendChild(tr);
-    });
-  }
-
-  function applyFilter() {
-    var keyword = (searchInput && searchInput.value || '').trim().toLowerCase();
-    if (!keyword) {
-      renderTable(allMaps);
-      return;
-    }
-    var filtered = allMaps.filter(function (m) {
-      var name = (m.name || '').toLowerCase();
-      var shortName = (m.shortName || '').toLowerCase();
-      return name.indexOf(keyword) !== -1 || shortName.indexOf(keyword) !== -1;
-    });
-    renderTable(filtered);
-  }
-
-  function redirectToLogin() {
-    window.location.href = './login.html';
-  }
-
-  function loadMaps() {
-    hideError();
-    PT.request('/api/admin/maps', {
-      method: 'GET',
-      credentials: 'include'
-    })
-      .then(function (r) {
-        if (r.status === 401) {
-          redirectToLogin();
-          renderTable([]);
-          return;
-        }
-        if (r.status === 403) {
-          showError('当前账号无管理员权限，无法访问地图管理。');
-          renderTable([]);
-          return;
-        }
-        if (!r.ok) {
-          showError('加载失败：' + r.status);
-          renderTable([]);
-          return;
-        }
-        allMaps = Array.isArray(r.data) ? r.data : [];
-        applyFilter();
-      })
-      .catch(function () {
-        showError('加载失败，请稍后重试');
-        renderTable([]);
+      state.visible.forEach(function (c) {
+        var td = document.createElement('td');
+        var col = state.byName[c];
+        var label = col ? PTAdmin.optionLabel(col, row[c], T) : null;
+        // null 显示空、0 显示 0（levelreq/pvp 都有真实的 0）
+        td.textContent = label !== null ? label : PTAdmin.fmt(row[c]);
+        tr.appendChild(td);
       });
+      tr.addEventListener('click', function () { openDetail(row.id); });
+      tb.appendChild(tr);
+    });
   }
 
-  function loadCurrentUser() {
-    if (!userLabel) {
-      loadMaps();
-      return;
-    }
-    PT.request('/api/user/me', {
-      method: 'GET',
-      credentials: 'include'
-    })
-      .then(function (r) {
-        if (r.status === 401) {
-          redirectToLogin();
-          return;
+  function renderPager() {
+    el('pageInfo').textContent = T('admin.common.pager', {
+      page: state.page, pages: state.totalPages, total: state.total, size: state.size });
+    el('prevBtn').disabled = state.page <= 1;
+    el('nextBtn').disabled = state.page >= state.totalPages;
+  }
+
+  function onColToggle(column, checked) {
+    var i = state.visible.indexOf(column);
+    if (checked && i === -1) { state.visible.push(column); }
+    if (!checked && i !== -1) { state.visible.splice(i, 1); }
+    renderHead();
+    renderTable();
+  }
+
+  function buildFilterBar() {
+    PTAdmin.buildFilterBar(el('filterBar'), FILTERS, state.byName, T);
+  }
+
+  /** 三个 select 的候选：地形类型（原文+计数）、PvP（0/1）、是否有刷怪配置（true/false）。 */
+  function fillSelects(f) {
+    PTAdmin.fillSelect('typemap', (f.typeMaps || []).map(function (t) {
+      return { value: t.value, label: PTAdmin.fmt(t.value) + '（' + t.count + '）' };
+    }));
+    PTAdmin.fillSelect('pvp', [
+      { value: '0', label: T('admin.common.no') },
+      { value: '1', label: T('admin.common.yes') }
+    ]);
+    PTAdmin.fillSelect('has_spawn', [
+      { value: 'true', label: T('admin.common.yes') },
+      { value: 'false', label: T('admin.common.no') }
+    ]);
+  }
+
+  function bind() {
+    el('searchBtn').addEventListener('click', function () { state.page = 1; load(); });
+    el('resetBtn').addEventListener('click', function () { PTAdmin.resetFilters(FILTERS); load(); });
+    el('refreshBtn').addEventListener('click', function () { load(); });
+    el('prevBtn').addEventListener('click', function () { if (state.page > 1) { state.page--; load(); } });
+    el('nextBtn').addEventListener('click', function () { if (state.page < state.totalPages) { state.page++; load(); } });
+    el('colPickerBtn').addEventListener('click', function () { el('colPicker').classList.toggle('hidden'); });
+    el('logoutBtn').addEventListener('click', function () {
+      fetch(PT.apiUrl('/api/user/logout'), { method: 'POST', credentials: 'include' })
+        .finally(function () { redirectToLogin(); });
+    });
+  }
+
+  function start() {
+    return window.PTi18n.load().then(function () {
+      buildFilterBar();
+      bind();
+
+      PTNav.me().then(function (r) {
+        if (r.status === 401) { redirectToLogin(); return; }
+        if (r.ok && r.data && r.data.accountName) {
+          el('adminUserLabel').textContent = r.data.accountName
+            + (r.data.webAdmin ? T('admin.common.adminSuffix') : '');
         }
-        var data = r.data || {};
-        if (data.accountName) {
-          userLabel.textContent = data.accountName + (data.webAdmin ? '（管理员）' : '');
-        }
-      })
-      .finally(function () {
-        loadMaps();
       });
-  }
 
-  if (searchInput) {
-    searchInput.addEventListener('input', function () {
-      applyFilter();
+      return Promise.all([
+        call(API + '/columns').then(function (cols) {
+          if (!cols) return;
+          state.columns = cols;
+          cols.forEach(function (c) { state.byName[c.column] = c; });
+          PTAdmin.buildColumnPicker(el('colPicker'), state.columns, state.visible, onColToggle, T);
+          renderHead();
+          buildFilterBar();
+        }),
+        call(API + '/facets').then(function (f) {
+          if (!f) return;
+          fillSelects(f);
+        }).catch(function () {
+          el('hint').textContent = T('admin.common.loadFailed');
+        })
+      ]).then(load);
     });
   }
 
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', function () {
-      loadMaps();
-    });
-  }
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', function () {
-      fetch(PT.apiUrl('/api/user/logout'), {
-        method: 'POST',
-        credentials: 'include'
-      }).finally(function () {
-        redirectToLogin();
-      });
-    });
-  }
-
-  loadCurrentUser();
+  start();
 })();

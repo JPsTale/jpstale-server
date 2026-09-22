@@ -112,5 +112,29 @@
     });
   }
 
-  window.PTi18n = { t: t, apply: apply, load: load, getLocale: function () { return locale; } };
+  /**
+   * 取某个命名空间下的所有 key（当前语言）。
+   * 用途：把"本地化名"反查回"内名称"这类场景（NPC 名就是以**内名称为键**的 `npcName.*`）。
+   */
+  function keys(namespace) {
+    var node = tables[locale];
+    if (!node) {
+      return [];
+    }
+    var parts = String(namespace).split('.');
+    for (var i = 0; i < parts.length && node; i++) {
+      node = node[parts[i]];
+    }
+    return (node && typeof node === 'object') ? Object.keys(node) : [];
+  }
+
+  /** 该 key 在当前语言下有没有文案（没有 = t() 会原样回退成 key）。 */
+  function has(key) {
+    return lookup(key) !== null;
+  }
+
+  window.PTi18n = {
+    t: t, apply: apply, load: load, keys: keys, has: has,
+    getLocale: function () { return locale; }
+  };
 })();

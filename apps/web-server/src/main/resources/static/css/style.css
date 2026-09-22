@@ -627,3 +627,106 @@ body {
   gap: 0.3rem 0.6rem;   /* 每项自带内边距（勾选态有淡绿底），间距不必太大 */
 }
 
+
+/* 管理端：一行的"游戏会跳过/认不出"等告警标记（怪物掉落表用；红字，不改行内其余文本的颜色） */
+.item-warn {
+  color: #c62828;
+}
+
+/* ------------------------------------------------------------------
+ * 管理端：卡片视图（怪物列表 / 物品网格）、掉落编辑器的零件、分布图
+ * ------------------------------------------------------------------ */
+
+/* 卡片墙：自适应列数，窄屏自动降列 */
+.item-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.6rem;
+}
+.item-card {
+  border: 1px solid #e2e6ee;
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  background: #fff;
+  cursor: pointer;
+}
+.item-card:hover { border-color: #9aabbd; box-shadow: 0 1px 4px rgba(0, 0, 0, .08); }
+.item-card-head { display: flex; align-items: center; gap: 0.4rem; justify-content: space-between; }
+.item-card-name { font-weight: 600; }
+.item-card-badge {
+  font-size: 0.7rem; padding: 0 0.3rem; border-radius: 4px;
+  background: #fde8e8; color: #c62828; border: 1px solid #f5c2c2; white-space: nowrap;
+}
+.item-card-stats { margin-top: 0.35rem; font-size: 0.8rem; color: #555; display: flex; gap: 0.9rem; flex-wrap: wrap; }
+.item-card-sub { margin-top: 0.2rem; font-size: 0.78rem; color: #77808d; }
+
+/* 等级分段标题 */
+.item-band {
+  margin: 0.9rem 0 0.45rem; font-weight: 600; color: #333;
+  border-bottom: 1px solid #e8ecf3; padding-bottom: 0.2rem;
+}
+
+/* 分布图（甜甜圈 + 图例）：SVG 手写，无第三方库 */
+.item-donut { display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap; margin: 0.4rem 0; }
+.item-donut-legend { font-size: 0.85rem; min-width: 12rem; }
+.item-donut-legend > div { display: flex; align-items: center; gap: 0.4rem; padding: 0.05rem 0; }
+.item-donut-swatch { width: 0.7rem; height: 0.7rem; border-radius: 2px; display: inline-block; flex: 0 0 auto; }
+
+/* 掉落编辑器 */
+.item-drop-row { border: 1px solid #e6eaf2; border-radius: 6px; padding: 0.5rem 0.6rem; margin: 0.4rem 0; }
+.item-drop-head { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.item-drop-head select, .item-drop-head input { max-width: 11rem; }
+.item-chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  border: 1px solid #dfe5ee; border-radius: 4px; padding: 0 0.35rem;
+  margin: 0.12rem 0.25rem 0.12rem 0; font-size: 0.82rem; background: #fafbfe;
+}
+.item-chip button { border: 0; background: transparent; color: #c62828; cursor: pointer; padding: 0 0.1rem; }
+.item-picker { position: relative; }
+.item-picker-results {
+  position: absolute; z-index: 5; left: 0; right: 0; background: #fff;
+  border: 1px solid #ccd4e2; border-radius: 6px; max-height: 190px; overflow: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .12);
+}
+.item-picker-results button {
+  display: block; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 0.28rem 0.45rem; cursor: pointer; font-size: 0.85rem;
+}
+.item-picker-results button:hover { background: #f2f6ff; }
+.item-picker-results .item-hint { padding: 0.3rem 0.45rem; }
+
+/* 跨表引用（掉落里的物品名、刷怪地图名 —— 点得进去） */
+a.item-ref { color: #1565c0; text-decoration: none; }
+a.item-ref:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------------
+ * 地图可视化（管理端自己实现，复现客户端 WorldMap 的画法）
+ * ------------------------------------------------------------------ */
+
+/* 画布本体：尺寸由 JS 按设备像素比设置，这里只管显示 */
+.map-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+
+/* 详情页里的只读可视化块 */
+.map-view { height: 60vh; min-height: 320px; border: 1px solid #e2e6ee; border-radius: 8px; overflow: hidden; }
+
+/* 编辑页三栏：工具 | 画布 | 属性面板 */
+.map-edit-body {
+  display: grid; grid-template-columns: 220px minmax(0, 1fr) 280px; gap: 0.75rem; align-items: start;
+}
+.map-edit-tools, .map-edit-panel {
+  border: 1px solid #e2e6ee; border-radius: 8px; padding: 0.6rem 0.7rem; background: #fff;
+}
+.map-edit-tools .btn, .map-edit-panel .btn { display: block; width: 100%; margin-bottom: 0.35rem; }
+.map-edit-tools .item-picker { margin: 0.3rem 0; }
+.map-edit-canvas {
+  height: 72vh; min-height: 360px; border: 1px solid #e2e6ee; border-radius: 8px; overflow: hidden;
+}
+.map-edit-panel label { display: block; margin: 0.35rem 0 0.1rem; font-size: 0.82rem; color: #555; }
+.map-edit-panel input { width: 100%; }
+.map-tool-active { outline: 2px solid #ffd479; outline-offset: -2px; }
+.map-dirty { color: #c62828; font-weight: 600; }
+
+@media (max-width: 1100px) {
+  .map-edit-body { grid-template-columns: 1fr; }
+  .map-edit-canvas { height: 50vh; }
+}

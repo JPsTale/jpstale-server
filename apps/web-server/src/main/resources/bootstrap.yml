@@ -7,6 +7,13 @@ server:
 spring:
   application:
     name: pt-web-server
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          # 静态页的 JS/CSS 每次都让浏览器回来校验（304 很便宜）——
+          # 否则改了脚本但浏览器拿缓存，症状是"改了没生效"，很像服务端没重新编译。
+          no-cache: true
   data:
     redis:
       port: 6379
@@ -17,6 +24,13 @@ spring:
           max-active: 8
           max-idle: 8
           min-idle: 0
+
+# 客户端资产根（平面图 / 图标 / 模型都从这里取）。
+# ⚠ 两个用途：`/res/**`（客户端 WorldMap 用的虚拟路径，devAssets 的镜像）与 `/exm-run/**`。
+#   默认是服务器上的路径；本地跑（PC）用环境变量指到 E:\JPsTale\client。
+pt:
+  assets:
+    root: ${PT_ASSET_ROOT:/data/PristonTale/apps/client/}
 
 sa-token:
   token-name: satoken

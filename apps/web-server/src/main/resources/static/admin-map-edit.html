@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!--PT_BASE-->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="admin.map.editTitle">地图可视化编辑</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body class="admin-body">
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-logo" data-i18n="admin.common.brand">PristonTale 管理</div>
+      <nav class="admin-nav" id="ptNav"></nav>
+    </aside>
+    <main class="admin-main">
+      <header class="admin-header">
+        <div class="admin-header-actions">
+          <span id="adminUserLabel" class="admin-user-label" data-i18n="admin.common.notLoggedIn">未登录</span>
+          <button id="logoutBtn" class="btn btn-small btn-secondary" style="margin-left: 0.75rem;" data-i18n="admin.common.logout">退出登录</button>
+        </div>
+      </header>
+
+      <section class="admin-card">
+        <div class="item-filters">
+          <a id="backLink" class="item-ref" href="./admin/maps" data-i18n="admin.common.backToList">返回列表</a>
+          <span id="mapLabel" class="item-card-name"></span>
+          <span style="flex:1"></span>
+          <span id="cursorReadout" class="item-hint"></span>
+          <button id="fitBtn" class="btn btn-small btn-secondary" data-i18n="admin.map.fit">适应窗口</button>
+          <span id="dirtyBadge" class="item-hint"></span>
+          <button id="revertBtn" class="btn btn-small btn-secondary" data-i18n="admin.map.revert">放弃改动</button>
+          <button id="saveBtn" class="btn btn-small" data-i18n="admin.map.savePlacements">保存</button>
+        </div>
+
+        <div id="msgBox" class="msg hidden" role="alert"></div>
+
+        <div class="map-edit-body">
+          <div class="map-edit-tools">
+            <div class="item-section-title" data-i18n="admin.map.tools">工具</div>
+            <button id="toolSelect" class="btn btn-small btn-secondary" data-i18n="admin.map.toolSelect">选择 / 拖动</button>
+            <button id="toolNpc" class="btn btn-small btn-secondary" data-i18n="admin.map.toolNpc">放置 NPC</button>
+            <button id="toolPoint" class="btn btn-small btn-secondary" data-i18n="admin.map.toolPoint">放置刷新点</button>
+            <button id="toolDelete" class="btn btn-small btn-secondary" data-i18n="admin.map.toolDelete">删除</button>
+
+            <!-- 放置 NPC：先选一个 NPC，再点地图 -->
+            <div id="placePanel" class="hidden">
+              <div class="item-hint" data-i18n="admin.map.placeHint">先选 NPC，再点地图放置</div>
+              <div id="npcPickHost"></div>
+              <div id="npcChosen" class="item-hint"></div>
+            </div>
+
+            <div class="item-section-title" data-i18n="admin.map.legend">图例</div>
+            <div class="item-hint" data-i18n="admin.map.legendNpc">NPC（三角 = 朝向）</div>
+            <div class="item-hint" data-i18n="admin.map.legendPoint">刷新点</div>
+            <div class="item-hint" data-i18n="admin.map.dragHint">拖空白 = 平移 · 滚轮 = 缩放 · 拖标记 = 移动</div>
+          </div>
+
+          <div id="mapHost" class="map-edit-canvas"></div>
+
+          <div class="map-edit-panel">
+            <div id="panelBody"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./js/i18n.js"></script>
+  <script src="./js/api.js"></script>
+  <script src="./js/nav.js"></script>
+  <script src="./js/admin-common.js"></script>
+  <script src="./js/map-canvas.js"></script>
+  <script src="./js/admin-map-edit.js"></script>
+</body>
+</html>

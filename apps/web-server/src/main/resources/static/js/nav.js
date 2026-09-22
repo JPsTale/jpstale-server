@@ -39,9 +39,13 @@
       group: '管理功能',
       adminOnly: true,
       items: [
-        { label: '地图管理', href: './admin-maps.html' },
-        { label: '物品管理', href: './admin-items.html' }
-        // 预留：NPC / 怪物模板等，加在这里
+        // 路径式路由（服务端 AdminPageController 映射到静态页并注入 <base>）：
+        // 列表 `/admin/items`，详情 `/admin/item/{主键id}`
+        { label: '地图管理', href: './admin/maps' },
+        { label: '物品管理', href: './admin/items' },
+        { label: '怪物管理', href: './admin/monsters' },
+        { label: 'NPC 管理', href: './admin/npcs' }
+        // 预留：NPC / 任务等，加在这里
       ]
     }
   ];
@@ -69,28 +73,48 @@
     return tail || 'index.html';
   }
 
+  /**
+   * 当前页是否属于这个菜单项 —— **详情页要把它对应的列表项点亮**
+   *（`/admin/item/123` → `/admin/items`；`/admin/monster/10` → `/admin/monsters`）。
+   * 只按"最后一段相等"会漏掉这种情况，所以这里先比完整路径，再按 `/admin/{entity}/` 前缀配对。
+   */
+  function isActive(href) {
+    var here = window.location.pathname.replace(/\/+$/, '');
+    // ⚠ 必须用 document.baseURI（= 服务端注入的 <base>）解析：
+    //   用 location.href 会按**当前目录**算（/admin/item/123 下会得到
+    //   /pt/admin/item/admin/items），而页面里的 <a href="./admin/items"> 是按 base 解析的 —— 两边不一致就点不亮。
+    var target = new URL(href, document.baseURI).pathname.replace(/\/+$/, '');
+    if (here === target) {
+      return true;
+    }
+    var m = /^(.*\/admin\/)([a-z]+)s$/.exec(target);
+    if (m) {
+      return here.indexOf(m[1] + m[2] + '/') === 0;
+    }
+    return basename(here) === basename(target);
+  }
+
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
   }
 
-  function renderItem(it, here) {
-    var active = basename(it.href) === here;
+  function renderItem(it) {
+    var active = isActive(it.href);
     return '<a href="' + it.href + '" class="admin-nav-item'
       + (active ? ' admin-nav-item-active' : '') + '">' + esc(it.label) + '</a>';
   }
 
   function render(navEl, account) {
     var isAdmin = !!(account && account.webAdmin);
-    var here = basename(window.location.pathname);
     var html = '';
     MENU.forEach(function (entry) {
       if (entry.adminOnly && !isAdmin) {
         return;
       }
       if (entry.href) {
-        html += renderItem(entry, here);
+        html += renderItem(entry);
         return;
       }
       html += '<span class="admin-nav-separator"></span>';
@@ -99,7 +123,7 @@
         if (it.adminOnly && !isAdmin) {
           return;
         }
-        html += renderItem(it, here);
+        html += renderItem(it);
       });
     });
     navEl.innerHTML = html;
