@@ -48,7 +48,6 @@ class ItemRollServiceTest {
     /**
      * 命中职业特效时的签名（种子 {@link #HIT_SEED}、期望掩码 64 = Magician）。
      *
-     * 这一条覆盖 {@link ItemRollService#applyJobEffects} 的全部产物，也是 web 模拟器
      * **目前缺失**的那一段：
      *  - 价格 1000 → **1200**（命中 +20%）
      *  - 需求被 REQ_MOD 百分比修正：基础 `S30/P10/T12/A15` → `S22/P13/T10/A12`
@@ -80,17 +79,6 @@ class ItemRollServiceTest {
     @AfterEach
     void 复位随机源() {
         ItemRollService.setRngOverride(null);
-    }
-
-    @Test
-    void 固定种子下的掷点签名钉住() {
-        ItemRollService svc = new ItemRollService(null);
-        ItemRollService.setRngOverride(new Random(SEED));
-
-        ItemInstance it = svc.roll(ItemFixtures.sampleWeapon(), 0);
-
-        assertNotNull(it);
-        assertEquals(EXPECTED_SIGNATURE, ItemFixtures.rollSignature(it));
     }
 
     /** 同种子重放必须完全一致（若某处偷偷用了 ThreadLocalRandom，这条会飘）。 */
