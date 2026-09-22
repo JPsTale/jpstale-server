@@ -110,6 +110,9 @@ public class ItemStorageService {
         r.setAgingNum2((short) it.getAgingNum2());
         r.setAgingExp(it.getAgingExp());
         r.setAgingExpMax(it.getAgingExpMax());
+        r.setCraftMask(it.getCraftMask());
+        r.setKindCode((short) it.getKindCode());
+        r.setAgingProtect(it.getAgingProtect());
         return r;
     }
 
@@ -195,6 +198,9 @@ public class ItemStorageService {
         it.setAgingNum2(r.getAgingNum2() == null ? 0 : r.getAgingNum2());
         it.setAgingExp(nz(r.getAgingExp()));
         it.setAgingExpMax(nz(r.getAgingExpMax()));
+        it.setCraftMask(r.getCraftMask() == null ? 0 : r.getCraftMask());
+        it.setKindCode(r.getKindCode() == null ? 0 : r.getKindCode());
+        it.setAgingProtect(r.getAgingProtect() == null ? 0 : r.getAgingProtect());
         it.setDeleted(r.getDeleteTime() != null);
         return it;
     }

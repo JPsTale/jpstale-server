@@ -44,6 +44,14 @@ public class AiEngine {
     @Autowired
     private DamageCalculator damageCalculator;
 
+    /** 锻造：战斗养熟练度（格挡喂盾、被击喂五件防具）—— 照 EU `character.cpp:10619/10876`。 */
+    @Autowired
+    private org.jpstale.common.service.item.AgeService ageService;
+
+    /** 锻造升级的广播（原版 `smCOMMNAD_USER_AGINGUP`） */
+    @Autowired
+    private AgeEffectBroadcaster ageEffectBroadcaster;
+
     @Autowired
     private PlayerService playerService;
 
@@ -356,11 +364,16 @@ public class AiEngine {
                         .build())
                     .build());
             monster.setLastBroadcastAnim(-1);   // 下一刀仍广播攻击动作
+            // 锻造：格挡成功 → 喂盾/法球（原版 `sinCheckAgingLevel(SIN_AGING_BLOCK)`；等级差门槛由 AgeService 之外不判，
+            // 这里只在"同级差"时才有意义 —— 门槛 `AGING_SUB_LEVEL=10` 见 docs/锻造与合成-源码分析.md §3.10）
+            ageEffectBroadcaster.wrapUpBattleAging(player, ageService.onBlock(player));
             return;
         }
 
         int newHp = Math.max(0, player.getHp() - result.getFinalDamage());
         player.setHp(newHp);
+        // 锻造：被击受伤 → 一次性喂五件防具（原版 `character.cpp:10876-10882` 的五个 DEFENSE_* 调用）
+        ageEffectBroadcaster.wrapUpBattleAging(player, ageService.onDamaged(player));
 
         log.info("[MonsterAI] {}#{} ATK {} dmg={} ({}->{}), interval={}ms",
             monster.getName(), monster.getId(), targetName(target),

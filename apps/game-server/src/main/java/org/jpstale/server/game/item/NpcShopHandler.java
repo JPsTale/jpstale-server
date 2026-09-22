@@ -89,23 +89,38 @@ public class NpcShopHandler {
         }
         int npcId = npc.getNpcId();   // 定义 id（仅服务端内部用；不下发客户端）
         List<NpcShopService.Offer> offers = shopService.offers(npcId);
-        if (offers.isEmpty()) {
-            // 走到这里说明 npclist 说它是商家但清单解析不出（resolveCode 已 log.error 报过具体码）
-            log.error("[Shop] npc={} 是商家但商品清单为空（数据问题）", npcId);
+        // 打造服务（合成/锻造/力量石）：**按 NPC id 定表**，依据是原版 NPC 脚本的韩文关键字，
+        // 不能按名字或模型推（同一模型上坐着不同服务的 NPC）。见 `NpcCraftTable`。
+        NpcCraftTable.Mode craft = NpcCraftTable.modeOfEventType(npc.getEventType());
+        if (offers.isEmpty() && craft == null) {
+            // 走到这里说明这个 NPC 既没有商品清单、也不在打造服务表里（数据问题或未登记）
+            log.error("[Npc] npc={} 既无商品清单也无打造服务（数据问题或未登记）", npcId);
             sendErrorKey(session, "shop.noItems");
             return;
         }
-        S2C_ShopOpen.Builder open = S2C_ShopOpen.newBuilder().setEntityId(entityId);
-        for (NpcShopService.Offer o : offers) {
-            open.addItems(ShopItemProto.newBuilder()
-                    .setItemlistId(o.itemlistId())
-                    .setCode(o.code() == null ? "" : o.code())
-                    .setName(o.name() == null ? "" : o.name())
-                    .setPrice(o.price())
-                    .setKind(o.kind()));
+        // 两个标志在原版里**互相独立**（`Svr_Damge.cpp`：商店与打造窗口各判各的、各发各的），
+        // 所以两个分支都判都发 —— 我们的数据现在是一 NPC 一种服务，但结构不假设这一点。
+        if (!offers.isEmpty()) {
+            S2C_ShopOpen.Builder open = S2C_ShopOpen.newBuilder().setEntityId(entityId);
+            for (NpcShopService.Offer o : offers) {
+                open.addItems(ShopItemProto.newBuilder()
+                        .setItemlistId(o.itemlistId())
+                        .setCode(o.code() == null ? "" : o.code())
+                        .setName(o.name() == null ? "" : o.name())
+                        .setPrice(o.price())
+                        .setKind(o.kind()));
+            }
+            session.send(ServerMessage.newBuilder().setShopOpen(open).build());
+            log.info("[Shop] {} 打开 npc={}（{} 件商品）", session.getCharacterName(), npcId, offers.size());
         }
-        session.send(ServerMessage.newBuilder().setShopOpen(open).build());
-        log.info("[Shop] {} 打开 npc={}（{} 件商品）", session.getCharacterName(), npcId, offers.size());
+        if (craft != null) {
+            session.send(ServerMessage.newBuilder()
+                    .setCraftOpen(S2C_CraftOpen.newBuilder()
+                            .setEntityId(entityId)
+                            .addModes(craft.wire))
+                    .build());
+            log.info("[Craft] {} 打开 npc={}（{}）", session.getCharacterName(), npcId, craft);
+        }
     }
 
     // ------------------------------------------------------------------

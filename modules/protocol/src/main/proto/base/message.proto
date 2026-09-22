@@ -40,6 +40,10 @@ message ClientMessage {
     C2S_NpcInteract npc_interact = 215;   // 点击 NPC（开对话/开商店）；服务端按 npc_id 找**本图最近的那个实例**做距离校验
     C2S_ShopBuy shop_buy = 216;           // 买入（服务端权威：校验距离/金币/背包，全部通过才扣钱发货）
     C2S_ShopSell shop_sell = 217;         // 卖出（原版是"点 Sell 后点自己背包里的物品"，不是拖拽）
+    C2S_MixItem mix_item = 218;           // 合成：目标装备 + 材料石（服务端匹配 gamedb.mixlist 配方）
+    C2S_AgeItem age_item = 219;           // 锻造投石：目标装备 + 一颗材料石（"一键拉满"走 use_item，不经此消息）
+    C2S_ForceOrbItem force_orb_item = 220;
+  C2S_MixPreview mix_preview = 221; // 力量大师转化：材料石 → 同档力量石
     
     // 战斗 (300-399)
     C2S_Attack attack = 300;
@@ -96,6 +100,10 @@ message ServerMessage {
     S2C_NpcAppear npc_appear = 350;
     S2C_NpcDisappear npc_disappear = 351;
     S2C_ShopOpen shop_open = 352;         // 打开商店：商品清单（含价格）；买/卖结果复用既有的 ItemUpdate/GoldChange 推送
+    S2C_BuffState buff_state = 911;
+  S2C_CraftOpen craft_open = 912;
+  S2C_MixPreview mix_preview = 913;
+  S2C_AgeUpBroadcast age_up_broadcast = 914;      // 生效中的 buff（力量石…）：服务端权威，客户端只显示倒计时
     
     // 战斗 (400-499)
     S2C_AttackResult attack_result = 400;
@@ -932,4 +940,86 @@ message S2C_ShopOpen {
   int64 entity_id = 1;
   int32 kind = 2;
   repeated ShopItemProto items = 3;
+}
+
+// ============================================================================
+// 锻造 / 合成 / 力量石（2026-09-22）
+// 依据见 docs/锻造与合成-源码分析.md（EU = 我们数据的血脉）与 docs/锻造与合成-我们的实现方案.md
+// ============================================================================
+
+// 合成（Mix）：把材料石投进装备，服务端按 gamedb.mixlist 匹配配方并一次性加属性
+message C2S_MixItem {
+  int64 target_uid = 1;                 // 目标装备（必须在背包里）
+  repeated int64 stone_uids = 2;        // 投入的材料石（OS 族 14 颗，按档位计数）
+}
+
+// 锻造投石：1 颗材料石 = 1 次判定（"一键拉满"那颗走 use_item，由服务端自己找目标 —— 见 AgeService）
+message C2S_AgeItem {
+  int64 target_uid = 1;                 // 被锻造的装备（必须在背包里）
+  int64 stone_uid = 2;                  // 材料石（Aging Stone 必成功 / Copper Ore 失败不破坏 / 其它普通石有破坏风险）
+}
+
+// 力量大师：材料石 → 力量石（我们定的规则：每颗换同档一颗）
+message C2S_ForceOrbItem {
+  repeated int64 stone_uids = 1;
+}
+
+// 一条生效中的 buff。目前只有力量石，将来药水/卷轴可复用。
+message BuffStateProto {
+  int32 item_code = 1;                  // 触发物品的原版码（力量石 = sinFO1|tier<<8）
+  int32 itemlist_id = 2;                // 图标来源：客户端按它查 ItemDef（**不新增图标资产**，用物品自己的图标）
+  int64 remaining_ms = 3;               // 剩余毫秒（服务端权威；客户端只做倒计时显示）
+  int64 total_ms = 4;                   // 本次 buff 的总时长 —— 圆环按 remaining/total 画，缺它画不出比例
+  int32 stack = 5;                      // 层数（原版可叠 buff 用；力量石恒 1，留着不猜）
+}
+
+// 生效中的 buff 列表（服务端在 buff 生效/刷新/到期时推）
+message S2C_BuffState {
+  repeated BuffStateProto buffs = 1;
+}
+
+// NPC 的合成窗口（合成 / 锻造 / 力量石 三选一，由服务端按 NPC 定表决定提供哪几种）。
+// ⚠ modes 的取值与依据见服务端 `NpcCraftTable`（1=合成 MIX / 2=锻造 AGING / 3=力量石 FORCE，
+// 判据是原版 NPC 脚本里的韩文关键字 `*아이템조합` / `*아이템에이징` / `*아이템연금`，
+// **不是** NPC 名字 —— 名字当协议信号会在改名时静默失效，见 AGENTS #24）。
+message S2C_CraftOpen {
+  int64 entity_id = 1;     // NPC 实体 id（回给服务端做距离/身份校验用）
+  repeated int32 modes = 2;
+}
+
+// 合成**预览**：客户端把当前投入的 uid 列表报上来，服务端匹配配方后把"会得到什么"发下去。
+// ⚠ 客户端**不持有配方表、不做算术**（服务端算好 before/after 再下发）—— 否则就是两份匹配实现，
+// 迟早出现"窗口显示 +15、物品实际 +12"这种两边都不报错的分叉。
+message C2S_MixPreview {
+  int64 target_uid = 1;
+  repeated int64 stone_uids = 2;
+}
+
+message MixPreviewEffect {
+  int32 bit = 1;          // 效果位（SIN_ADD_* / MIXEFFECT_*，三仓库一致）
+  string key = 2;         // 文案 key（`mixe.*`）—— 服务端只发 key，文案在客户端 locales
+  double value = 3;       // 配方里的值
+  bool flat = 4;          // true = 数值直加；false = 按**当前值**百分比
+  double before = 5;      // 作用前（服务端算）
+  double after = 6;       // 作用后（服务端算）
+  bool int_field = 7;     // 该字段是整数（客户端显示时不补小数位）
+}
+
+message S2C_MixPreview {
+  bool matched = 1;
+  string reason_key = 2;  // 未命中时的原因 key（`item.op.mix.*`）
+  string recipe_name = 3; // 命中的配方名（客户端不查表）
+  repeated MixPreviewEffect effects = 4;
+}
+
+// 锻造成功（战斗养满 或 投石）→ **附近的人都播**原版的 aging 特效 + 升级音。
+// 依据：原版 `smCOMMNAD_USER_AGINGUP`（ex-machina `netplay.cpp:7290-7298`）：
+//   `StartEffect(lpChar->pX,pY,pZ, EFFECT_AGING); esPlaySound(7, GetDistVolume(...), 1600);`
+// 其中 `EFFECT_AGING`(5001) = `SetDynLight(255,255,255,255,200,1)` + `g_NewParticleMgr.Start("aging", pos)`
+// 且 `pos.y += 10000`（`HoEffect.cpp:5979`）；音效编号 7 = 与升级同一记音，按距离衰减。
+// ⚠ 只有**升级**（levelDelta > 0）才播 —— 降级/破坏在源码里没有这条命令。
+message S2C_AgeUpBroadcast {
+  int64 player_id = 1;   // 谁的装备锻造成功了（客户端按它找单位位置）
+  int64 uid = 2;         // 哪件装备（诊断用）
+  int32 level = 3;       // 成功后的等级（+N）
 }

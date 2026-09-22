@@ -66,6 +66,18 @@ public class Player {
      */
     private boolean dead;
 
+    // ---- 力量石（Force Orb）buff：一段限时攻击力加成 ----
+    // 依据 EU：`itemserver.cpp:8868-8869` 把 `ForceDamageTable[档]`/`ForceDamagePercentTable[档]` 写到玩家身上，
+    // 时长 `ForceDurationTable[档]`；伤害应用见 `HNSSkill.cpp:1775-1784`（百分比以基础攻击力为基数、flat 最后加）。
+    /** 生效中的力量石 idcode（0 = 无）。 */
+    private int forceOrbCode;
+    /** buff 到期时刻（**绝对毫秒时间戳**；0 = 无）。 */
+    private long forceOrbUntil;
+    /** 固定攻击力加成（`ForceDamageTable[档]`）。 */
+    private int forceOrbFlat;
+    /** 百分比攻击力加成（`ForceDamagePercentTable[档]`）。 */
+    private int forceOrbPercent;
+
     /**
      * 是否处于死亡态 —— **角色"死没死"的唯一判据**。
      *

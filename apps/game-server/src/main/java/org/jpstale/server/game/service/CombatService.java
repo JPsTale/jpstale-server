@@ -30,6 +30,14 @@ public class CombatService {
     @Autowired
     private DamageCalculator damageCalculator;
 
+    /** 锻造：攻击命中养主手武器（原版 `character.cpp:4192-4204`：暴击/普攻各喂一条曲线）。 */
+    @Autowired
+    private org.jpstale.common.service.item.AgeService ageService;
+
+    /** 锻造升级的广播（原版 `smCOMMNAD_USER_AGINGUP`：附近的人都播 aging 特效 + 升级音） */
+    @Autowired
+    private AgeEffectBroadcaster ageEffectBroadcaster;
+
     @Autowired
     private EntityRegistry entityRegistry;
 
@@ -231,6 +239,14 @@ public class CombatService {
             DamageResult roll = damageCalculator.calculatePlayerToMonster(player, monster.combatStats(), 0);
             segs.add(new PlannedSegment(roll.isMissed(), roll.isCritical(), roll.getFinalDamage(),
                 false /* attackEffect：暂恒 false，等技能接入攻击链路后再填（任务书 T3，仅 Jumping Crash 44 → true） */));
+            // 锻造：**每次攻击只养一次**（原版在攻击的**事件帧**调用 `sinCheckAgingLevel` 一次，
+            // 不是每段一次 —— 我此前放在段循环里 ⇒ 3 段攻击 = 3 点进度，比原版快 3 倍）。
+            // 是否暴击取整次攻击的"有任意一段暴击"（原版用的是攻击级的 `AttackCritcal`）。
+        }
+        // 锻造：整次攻击喂一次（有任意一段命中且暴击⇒走 Critical 组；见 AgeService.onAttack）
+        if (segs.stream().anyMatch((s) -> !s.missed())) {
+            ageEffectBroadcaster.wrapUpBattleAging(player,
+                    ageService.onAttack(player, segs.stream().anyMatch(PlannedSegment::critical)));
         }
         attackPlans.put(player.getId(), new AttackPlan(clientSeq, monsterId, segs));
         if (session != null) {
@@ -340,6 +356,9 @@ public class CombatService {
             missed = result.isMissed();
             critical = result.isCritical();
             damage = result.getFinalDamage();
+            if (!missed) {
+                ageEffectBroadcaster.wrapUpBattleAging(player, ageService.onAttack(player, critical));
+            }
         }
 
         // 攻击结果（伤害/MISS 同一条广播，视野内全体可见 → 客户端飘字）。

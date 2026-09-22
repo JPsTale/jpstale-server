@@ -173,7 +173,7 @@ public final class ItemRules {
         if (it == null) {
             return false;
         }
-        return player.getLevel() >= it.getReqLevel()
+        return player.getLevel() >= AgeService.effectiveReqLevel(it)
                 && player.getStrength() >= it.getReqStrength()
                 && player.getSpirit() >= it.getReqSpirit()
                 && player.getTalent() >= it.getReqTalent()

@@ -48,6 +48,10 @@ public class PlayerService {
     @Autowired
     private org.jpstale.server.game.network.SessionManager sessionManager;
 
+    /** buff 状态的唯一生产者（见 `BuffStateService` 注释：生效/刷新/到期三处共用一份拼装） */
+    @Autowired
+    private BuffStateService buffStateService;
+
     /** 等级 → 升到该级所需总经验（characterexpdef / ExpLevelTable） */
     private final Map<Integer, Long> expTable = new ConcurrentHashMap<>();
 
@@ -363,6 +367,38 @@ public class PlayerService {
         session.send(ServerMessage.newBuilder()
             .setCharacterStatus(buildCharacterStatus(p))
             .build());
+        // buff 状态与状态推送同频：进图 / 断线重连 / 升级 / 回血都会走到这里，
+        // 于是客户端左上角那排图标不必自己维护生命周期（漏推就自愈，不留幽灵图标）。
+        buffStateService.push(session, p);
+    }
+
+    /**
+     * 到期清理：把**已经过期**的力量石 buff 显式清空并推送给客户端。
+     *
+     * <p>为什么必须有这一步（不是纯 UI 问题）：{@code ForceOrbService.active()}` 只看截止时间，
+     * 时间一到"效果"本就消失了，但 ① 攻击力面板不会自己回落（没人重算/重推）、
+     * ② 客户端的圆环归零后仍需要一次权威确认。清理后 `until=0` 不再满足 `>0`，
+     * 所以每个 buff 只会被清一次、推一次，不需要额外的"上次是否生效"状态。
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 1000)
+    public void sweepExpiredBuffs() {
+        long now = System.currentTimeMillis();
+        for (PlayerSession s : sessionManager.getAllSessions()) {
+            if (s == null || !s.isPlaying() || s.getCharacterId() == null) {
+                continue;
+            }
+            Player p = players.get(s.getCharacterId());
+            if (p == null || p.getForceOrbUntil() <= 0 || p.getForceOrbUntil() > now) {
+                continue;
+            }
+            log.info("[Buff] {} 的力量石 buff 到期（-{} 与 -{}%），清除并回推面板",
+                    p.getName(), p.getForceOrbFlat(), p.getForceOrbPercent());
+            p.setForceOrbUntil(0);
+            p.setForceOrbCode(0);
+            p.setForceOrbFlat(0);
+            p.setForceOrbPercent(0);
+            sendPlayerStatus(s, p);   // 攻击力回落 + buff 条清空，一次推完
+        }
     }
 
     /**

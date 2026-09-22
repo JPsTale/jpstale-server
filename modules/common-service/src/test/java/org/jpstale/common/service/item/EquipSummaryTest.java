@@ -157,18 +157,17 @@ class EquipSummaryTest {
     }
 
     /**
-     * 需求不满足的装备：`EquipSummary` **整件跳过**（连它的 weight 字段也不加），
-     * 但**真实负重照算** —— 这是两条不同的路径，别混。
+     * 需求不满足的装备：**属性**整件跳过，但**负重照算**（两条都是用户 2026-09-22 定的口径）。
      *
-     * - `EquipSummary.of` 在第一行循环里就 `continue`（对齐原版 `SetItemToChar` 的 `if NotUseFlag continue`）。
-     * - 真实负重走 `PlayerStatCalculator.currentWeight` → `weightOf(BAG_PAGE + EQUIP)`，
-     *   它按模板 weight 求和、**不看需求**，所以"属性不生效但负重照算"成立。
+     * - 属性：`EquipSummary.of` 里 `continue`（对齐原版 `SetItemToChar` 的 `if NotUseFlag continue`）；
+     * - 负重：**不看需求门槛** —— 原版 `CheckWeight` 求的是"身上所有物品"，
+     *   `PlayerStatCalculator.currentWeight`（`itemsIn(BAG_PAGE + EQUIP)`）同口径。
      *
-     * ⚠ 顺带记录：`EquipSummary.weight` 全仓**没有任何读取点**（只有赋值），
-     * 它不是负重权威 —— 本用例把这条语义差别固定下来，免得后来人误用它。
+     * ⚠ 2026-09-22 修正：本条原本断言"连 weight 字段也不加"，理由是"`EquipSummary.weight` 没人读"。
+     * 用户指出**负重是应该加的**（"如果测试没加那就是测试的 bug"）⇒ 代码与断言一起改成照算。
      */
     @Test
-    void 需求不满足的装备在聚合里整件跳过但真实负重照算() {
+    void 需求不满足的装备属性全跳过但负重照算() {
         Player p = player(1, 10);
         ItemInstance tooHigh = item(110, ItemLocations.SLOT_ARMOR, ItemClass.ARMOR, 50, 120);
         tooHigh.setDefence(40);
@@ -178,7 +177,7 @@ class EquipSummaryTest {
         EquipSummary s = EquipSummary.of(p);
         assertEquals(0, s.defense, "等级不够 → 防御不生效");
         assertEquals(0.0, s.absorb);
-        assertEquals(0, s.weight, "聚合里整件跳过，连 weight 字段也不加");
+        assertEquals(120, s.weight, "⚠ 负重照算（用户 2026-09-22 定：负重是应该加的，与需求门槛无关）");
 
         assertEquals(120, new PlayerStatCalculator().currentWeight(p),
                 "真实负重不看需求：属性不生效、负重照算");
@@ -316,5 +315,37 @@ class EquipSummaryTest {
         p.getItems().byUidPut(b);
 
         assertArrayEquals(new int[]{1, 2, 13, 4, 5, 6, 7, 8}, EquipSummary.of(p).res);
+    }
+    /**
+     * **锻造把需求等级顶上去 ⇒ 这件装备的加成整体失效**（用户 2026-09-22 指出的连带效应）。
+     *
+     * <p>锻造每 2 级让物品等级（需求等级）+1（EU `GetLevelItemEachAge`）。战斗养打的是**装备中**的装备，
+     * 所以完全可能出现"升着升着，玩家等级不够了" —— 此时原版 `SetItemToChar` 的
+     * `if (NotUseFlag) continue;`（`sinInvenTory.cpp:7355`）会让这一件**一分属性都不算**，
+     * 玩家属性随之下降（由 `PlayerService.recalcPanel` 重算并夹住血/蓝/耐）。
+     *
+     * <p>这条能成立的前提正是"属性在读时按 N 算"：装备本身的字段没被任何代码改过，
+     * 变的只是需求等级与玩家的匹配关系。
+     */
+    @Test
+    void 锻造升到穿不上时该件不再贡献属性() {
+        // 角色 30 级，装备需求正好 30 → 能穿（躲避/防御都算）
+        Player p = player(6, 30);
+        ItemInstance armour = item(1L, ItemLocations.SLOT_ARMOR, ItemClass.ARMOR, 30, 10);
+        armour.setDefence(60);
+        armour.setAbsorb(3.0);
+        p.getItems().byUidPut(armour);
+        EquipSummary before = EquipSummary.of(p);
+        assertTrue(before.defense > 0, "需求满足时计入躲避：" + before.defense);
+
+        // 模拟"锻造 +2 使需求等级 +1"（`AgeService.apply` 里那一步）→ 角色 30 级不再满足需求 31
+        armour.setReqLevel(31);
+        EquipSummary after = EquipSummary.of(p);
+        assertEquals(0, after.defense, "需求不满足 ⇒ 这件装备整体不贡献（躲避归零）");
+        assertEquals(0.0, after.absorb, 1e-9, "吸收同样归零");
+        // ⚠ 聚合里的 `weight` 字段**也**会跳过（既有测试《需求不满足的装备在聚合里整件跳过但真实负重照算》
+        //   把这条钉成有意行为）；真正权威的负重是 `PlayerStatCalculator.currentWeight`（走 `itemsIn(EQUIP)`，
+        //   不看需求门槛）⇒ 玩法上不会因为"穿不上"而变轻。
+        assertEquals(before.weight, after.weight, "⚠ 负重照算（用户 2026-09-22：负重是应该加的）");
     }
 }

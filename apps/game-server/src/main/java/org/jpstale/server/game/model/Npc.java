@@ -20,6 +20,12 @@ import org.jpstale.server.game.entity.EntityIdSource;
 public class Npc extends BaseEntity {
 
     private int npcId;        // npclist.id（定义 id）
+    /**
+     * `npclist.eventtype` —— **NPC 提供哪种服务的判据**（用户 2026-09-22 确认）：
+     * `4` 力量大师 / `6` 锻造大师 / `11` 合成大师 / `9` 传送（不是打造）。
+     * ⚠ 我先前按 NPC **id** 硬编码服务 ✗（那是我用另一条血统的脚本名/模型猜出来的），已改为按本字段判。
+     */
+    private int eventType;
     private String nameKey;   // 本地化 slug（npclist.name）
     private String modelFile; // 规范化模型路径（char/npc/xxx/xxx.inx）
     /**
@@ -30,5 +36,13 @@ public class Npc extends BaseEntity {
 
     public Npc() {
         super(EntityIdSource.nextId());
+    }
+
+    public int getEventType() {
+        return eventType;
+    }
+
+    public void setEventType(int eventType) {
+        this.eventType = eventType;
     }
 }

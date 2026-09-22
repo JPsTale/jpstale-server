@@ -8,6 +8,7 @@ import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.PlayerService;
+import org.jpstale.common.service.item.ItemStat;
 import org.jpstale.server.proto.base.*;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,17 @@ public class ItemNetworkHandler {
     private final GroundItemManager groundItems;
     private final org.jpstale.server.game.service.TeleportService teleportService;
     private final org.jpstale.server.game.service.MapManager mapManager;
+    /** 锻造：投石判定 + 一键拉满（熟练度道具走**使用道具**这条链，目标由服务端自己找）。 */
+    private final org.jpstale.common.service.item.AgeService ageService;
+    /** 力量石：吃 buff（走 USE）+ 力量大师转化。 */
+    private final org.jpstale.common.service.item.ForceOrbService forceOrbService;
+    /** 合成：配方匹配 + 效果应用（走 C2S_MixItem）。 */
+    private final org.jpstale.common.service.item.MixService mixService;
+    /** buff 状态的唯一生产者（见 `BuffStateService`）。 */
+    private final org.jpstale.server.game.service.BuffStateService buffStateService;
+    /** 锻造升级的广播（原版 `smCOMMNAD_USER_AGINGUP`） */
+    private final org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster;
+
 
     public ItemNetworkHandler(ItemService itemService, PlayerService playerService,
                               org.jpstale.server.game.service.AppearanceService appearanceService,
@@ -39,7 +51,12 @@ public class ItemNetworkHandler {
                               org.jpstale.server.game.service.TeleportService teleportService,
                               org.jpstale.server.game.service.MapManager mapManager,
                               org.jpstale.server.game.network.MessageSender messageSender,
-                              org.jpstale.server.game.service.GoldService goldService) {
+                              org.jpstale.server.game.service.GoldService goldService,
+                              org.jpstale.common.service.item.AgeService ageService,
+                              org.jpstale.common.service.item.ForceOrbService forceOrbService,
+                              org.jpstale.common.service.item.MixService mixService,
+                              org.jpstale.server.game.service.BuffStateService buffStateService,
+                              org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
@@ -49,6 +66,11 @@ public class ItemNetworkHandler {
         this.mapManager = mapManager;
         this.messageSender = messageSender;
         this.goldService = goldService;
+        this.ageService = ageService;
+        this.forceOrbService = forceOrbService;
+        this.mixService = mixService;
+        this.buffStateService = buffStateService;
+        this.ageEffectBroadcaster = ageEffectBroadcaster;
     }
 
     // ------------------------------------------------------------------
@@ -147,6 +169,35 @@ public class ItemNetworkHandler {
         // 后者就是"按数字键 1/2/3 吃药"的链路（docs/pt-core-gameplay.md 19 节）。
         if (it == null || it.isDeleted() || !isUsableLocation(it)) {
             sendErrorKey(session, "chat.cmd.useItemNotInBag");
+            return;
+        }
+        // 锻造"熟练度道具"（一键拉满）：**走使用道具这条链**，目标由**服务端自己判断**（该类别的已装备件）——
+        // 照原版 `UsePremiumItem(73/74/75)` → `UseAgingMaster(k)` → `sinCheckAgingLevel(kind, true)`，
+        // 判据在服务端（`sinInvenTory.cpp:3296-3330`），客户端不需要传目标 uid。
+        if (org.jpstale.common.service.item.AgeService.maxAgeKindOf(it.getItemCode()) >= 0) {
+            var aged = ageService.useMaxAgeStone(p, req.getUid());
+            ageEffectBroadcaster.broadcastAgingUp(p, aged);
+            if (!aged.ok()) {
+                sendErrorKey(session, aged.reason.key());
+                return;
+            }
+            pushRemove(session, req.getUid());          // 石头被消耗
+            if (aged.target != null) {
+                pushUpdate(session, aged.target);       // 目标等级/属性变了
+            }
+            refreshPlayerStats(session, p);
+            return;
+        }
+        // 力量石：**吃 buff** —— 同样走 USE、由服务端判断（EU `netplay.cpp:2233` 的物品使用分支）
+        if (org.jpstale.common.service.item.ForceOrb.tierIndexOf(it.getItemCode()) >= 0) {
+            var orb = forceOrbService.activate(p, req.getUid());
+            if (!orb.ok()) {
+                sendErrorKey(session, orb.reason.key());
+                return;
+            }
+            pushRemove(session, req.getUid());          // 力量石被消耗
+            buffStateService.push(session, p);                  // buff 图标 UI 的数据来源（服务端权威）
+            refreshPlayerStats(session, p);             // 攻击力面板/伤害立刻变（buff 已生效）
             return;
         }
         int qty = Math.max(1, req.getQuantity());
@@ -363,80 +414,8 @@ public class ItemNetworkHandler {
     // ------------------------------------------------------------------
 
     public static CommonProto.ItemProto toProto(ItemInstance it) {
-        CommonProto.ItemProto.Builder b = CommonProto.ItemProto.newBuilder()
-                .setUid(it.getId() == null ? 0 : it.getId())
-                .setItemlistId(it.getItemListId() == null ? 0 : it.getItemListId())
-                .setItemCode(it.getItemCode() == null ? 0 : it.getItemCode())
-                .setLocation(it.getLocation())
-                .setSlot(it.getSlot())
-                .setCount(it.getCount())
-                .setDurability(it.getDurability())
-                .setDurabilityMax(it.getDurabilityMax())
-                .setDamageMin(it.getDamageMin())
-                .setDamageMax(it.getDamageMax())
-                .setAttackRating(it.getAttackRating())
-                .setDefence(it.getDefence())
-                .setBlockRating((int) Math.round(it.getBlockRating() * 10))
-                .setAbsorb((int) Math.round(it.getAbsorb() * 10))
-                .setSpeed((int) Math.round(it.getSpeed() * 10))
-                .setResBionic(it.getResBionic())
-                .setResFire(it.getResFire())
-                .setResIce(it.getResIce())
-                .setResLighting(it.getResLighting())
-                .setResPoison(it.getResPoison())
-                .setResEarth(it.getResEarth())
-                .setResWater(it.getResWater())
-                .setResWind(it.getResWind())
-                .setIncreaseLife((int) Math.round(it.getIncreaseLife()))
-                .setIncreaseMana((int) Math.round(it.getIncreaseMana()))
-                .setIncreaseStamina((int) Math.round(it.getIncreaseStamina()))
-                .setReqLevel(it.getReqLevel())
-                .setReqStrength(it.getReqStrength())
-                .setReqSpirit(it.getReqSpirit())
-                .setReqTalent(it.getReqTalent())
-                .setReqAgility(it.getReqAgility())
-                .setReqHealth(it.getReqHealth())
-                .setPrice(it.getPrice())
-                .setJobCodeMask(it.getJobCodeMask())
-                .setAgingLevel(it.getAgingNum())
-                .setCritical(it.getCritical())
-                .setRange(it.getShootingRange())
-                .setAttackSpeed(it.getAttackSpeed())
-                .setManaRegen((int) Math.round(it.getManaRegen() * 10))
-                .setLifeRegen((int) Math.round(it.getLifeRegen() * 10))
-                .setStaminaRegen((int) Math.round(it.getStaminaRegen() * 10))
-                .setSpecAbsorb((int) Math.round(it.getSpecAbsorb() * 10))
-                .setSpecDefence(it.getSpecDefence())
-                .setSpecSpeed((int) Math.round(it.getSpecSpeed() * 10))
-                .setSpecBlockRating((int) Math.round(it.getSpecBlockRating() * 10))
-                .setSpecAttackSpeed(it.getSpecAttackSpeed())
-                .setSpecCritical(it.getSpecCritical())
-                .setSpecShootingRange(it.getSpecShootingRange())
-                .setSpecMagicMastery((int) Math.round(it.getSpecMagicMastery() * 10))
-                .setSpecResBionic(it.getSpecResBionic())
-                .setSpecResEarth(it.getSpecResEarth())
-                .setSpecResFire(it.getSpecResFire())
-                .setSpecResIce(it.getSpecResIce())
-                .setSpecResLighting(it.getSpecResLighting())
-                .setSpecResPoison(it.getSpecResPoison())
-                .setSpecResWater(it.getSpecResWater())
-                .setSpecResWind(it.getSpecResWind())
-                .setSpecLevMana(it.getSpecLevMana())
-                .setSpecLevLife(it.getSpecLevLife())
-                .setSpecLevAttackRating(it.getSpecLevAttackRating())
-                .setSpecLevDamageMax(it.getSpecLevDamageMax())
-                .setSpecLevResBionic(it.getSpecLevResBionic())
-                .setSpecLevResEarth(it.getSpecLevResEarth())
-                .setSpecLevResFire(it.getSpecLevResFire())
-                .setSpecLevResIce(it.getSpecLevResIce())
-                .setSpecLevResLighting(it.getSpecLevResLighting())
-                .setSpecLevResPoison(it.getSpecLevResPoison())
-                .setSpecLevResWater(it.getSpecLevResWater())
-                .setSpecLevResWind(it.getSpecLevResWind())
-                .setSpecPerManaRegen((int) Math.round(it.getSpecPerManaRegen() * 100))
-                .setSpecPerLifeRegen((int) Math.round(it.getSpecPerLifeRegen() * 100))
-                .setSpecPerStaminaRegen((int) Math.round(it.getSpecPerStaminaRegen() * 100));
-        return b.build();
+        return ItemProtos.toProto(it);
+
     }
 
     // ------------------------------------------------------------------
@@ -965,5 +944,137 @@ public class ItemNetworkHandler {
                         .setTimestamp(System.currentTimeMillis())
                         .build())
                 .build());
+    }
+
+    // ==================================================================
+    // 锻造 / 合成 / 力量石（2026-09-22）
+    // 三个窗口的"确定"各发一条消息；**"一键拉满"与"吃力量石"走 use_item**（见 handleUseItem）
+    // 依据：docs/锻造与合成-源码分析.md（EU）与 docs/合成配方全表.md
+    // ==================================================================
+
+    /** 合成（Mix）：目标装备 + 材料石 → 服务端按 gamedb.mixlist 匹配配方并一次性加属性。 */
+    @GamePacketHandler(ClientMessage.MIX_ITEM_FIELD_NUMBER)
+    public void handleMixItem(PlayerSession session, ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        C2S_MixItem req = message.getMixItem();
+        org.jpstale.common.service.item.MixService.Result r =
+                mixService.mix(p, req.getTargetUid(), req.getStoneUidsList());
+        if (!r.ok()) {
+            sendErrorKey(session, r.reason.key());
+            return;
+        }
+        for (long uid : r.consumedStoneUids) {
+            pushRemove(session, uid);            // 石头被消耗
+        }
+        pushUpdate(session, r.target);           // 目标属性变了
+        refreshPlayerStats(session, p);
+    }
+
+    /** 锻造投石：目标装备 + 一颗材料石（"一键拉满"那颗不走这里，走 use_item）。 */
+    @GamePacketHandler(ClientMessage.AGE_ITEM_FIELD_NUMBER)
+    public void handleAgeItem(PlayerSession session, ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        C2S_AgeItem req = message.getAgeItem();
+        // ★ **先收金币**（EU `ItemServer::GetItemAgingPrice` = round(售价 × (等级+1) / 2)）——
+        //   原版是"投进去就没了"，所以**掷点之前**扣、失败/破坏都不退；钱不够则整体拒绝（石头不动）。
+        org.jpstale.common.service.item.ItemInstance target =
+                p.getItems() == null ? null : p.getItems().byUid(req.getTargetUid());
+        if (target != null) {
+            int price = org.jpstale.common.service.item.AgeService.agingGoldPrice(target);
+            if (price > 0) {
+                if (p.getGold() < price) {
+                    sendErrorKey(session, "item.op.age.noGold");
+                    return;
+                }
+                var paid = goldService.add(session, p, -price, "aging");
+                if (paid != org.jpstale.server.game.service.GoldService.Result.OK) {
+                    sendErrorKey(session, "item.op.age.noGold");
+                    return;
+                }
+                log.info("[Age] {} 交养成费 {} 金币（uid={}，+{} 级）", p.getName(), price,
+                        target.getId(), target.getAgingNum());
+            }
+        }
+        org.jpstale.common.service.item.AgeService.Result r =
+                ageService.ageWithStone(p, req.getTargetUid(), req.getStoneUid());
+        ageEffectBroadcaster.broadcastAgingUp(p, r);   // ageNum 上升 → 同一记粒子（满即升级那条规则）
+        if (!r.ok()) {
+            sendErrorKey(session, r.reason.key());
+            return;
+        }
+        pushRemove(session, req.getStoneUid());  // 石头投进去就没了（原版亦然）
+        if (r.broke) {
+            pushRemove(session, req.getTargetUid());   // 破坏：目标销毁
+            // 原版是全服播报（`SendChatAllEx "X broke 'item' going to +N!"`）——
+            // 我们暂时只写日志 + 给本人一条系统提示，全服播报等聊天频道的"全服"档位接上再开。
+            log.warn("[Age] {} 的 {} 投石破坏（掷点={} 目标uid={}）", p.getName(),
+                    r.target == null ? "?" : r.target.name(), r.roll, req.getTargetUid());
+        } else {
+            pushUpdate(session, r.target);
+        }
+        refreshPlayerStats(session, p);
+    }
+
+    /** 力量大师：材料石 → 力量石（我们定的规则：每颗换同档一颗）。 */
+    @GamePacketHandler(ClientMessage.FORCE_ORB_ITEM_FIELD_NUMBER)
+    public void handleForceOrbItem(PlayerSession session, ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        C2S_ForceOrbItem req = message.getForceOrbItem();
+        java.util.List<org.jpstale.common.service.item.ItemInstance> created =
+                forceOrbService.convert(p, req.getStoneUidsList());
+        if (created.isEmpty()) {
+            sendErrorKey(session, org.jpstale.common.service.item.ForceOrbService.Reason.NO_STONES.key());
+            return;
+        }
+        for (long uid : req.getStoneUidsList()) {
+            pushRemove(session, uid);            // 石头被消耗
+        }
+        for (org.jpstale.common.service.item.ItemInstance it : created) {
+            pushUpdate(session, it);             // 新生成的力量石（pushUpdate 对新件也成立）
+        }
+        refreshPlayerStats(session, p);
+    }
+    /**
+     * **合成预览**：客户端报当前投入的 uid 列表，服务端匹配配方后把"会得到什么"发下去。
+     *
+     * <p>客户端不持有配方、不做算术 —— 预览与真合成共用 `MixService.match()` 与同一张
+     * `applyEffect` switch（干跑），所以窗口上的数**就是**真加的数。
+     * 这是唯一能避免"显示 +15、实际 +12"那种两边都不报错的分叉的做法。
+     */
+    @GamePacketHandler(ClientMessage.MIX_PREVIEW_FIELD_NUMBER)
+    public void handleMixPreview(PlayerSession session, ClientMessage message) {
+        Player p = requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        C2S_MixPreview req = message.getMixPreview();
+        org.jpstale.common.service.item.MixService.Preview pv =
+                mixService.preview(p, req.getTargetUid(), req.getStoneUidsList());
+        S2C_MixPreview.Builder b = S2C_MixPreview.newBuilder().setMatched(pv.ok());
+        if (!pv.ok()) {
+            b.setReasonKey(pv.reason.key());
+        } else {
+            b.setRecipeName(pv.recipeName == null ? "" : pv.recipeName);
+            for (org.jpstale.common.service.item.MixEffect.Applied a : pv.effects) {
+                b.addEffects(MixPreviewEffect.newBuilder()
+                        .setBit(a.bit())
+                        .setKey(a.key())
+                        .setValue(a.value())
+                        .setFlat(a.flat())
+                        .setBefore(a.before())
+                        .setAfter(a.after())
+                        .setIntField(a.intField()));
+            }
+        }
+        session.send(ServerMessage.newBuilder().setMixPreview(b.build()).build());
     }
 }

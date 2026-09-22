@@ -59,6 +59,7 @@ public class NpcSpawnService {
 
             Npc npc = new Npc();
             npc.setNpcId(def.getId());
+            npc.setEventType(def.getEventType() == null ? 0 : def.getEventType());   // 服务判据（见 NpcCraftTable）
             npc.setNameKey(def.getName());
             npc.setModelFile(normalizeModelPath(def.getGameFile()));
             npc.setX(mn.getX() == null ? 0 : mn.getX());

@@ -188,6 +188,29 @@ message ItemProto {
   int32 spec_per_mana_regen = 70;    // 0.01 精度
   int32 spec_per_life_regen = 71;
   int32 spec_per_stamina_regen = 72;
+
+  // ---- 锻造 / 合成状态（原版 ItemKindCode / ItemKindMask / ItemAgingNum[1] / ItemAgingProtect[0]）----
+  // 依据：PristonTale-EU `Server/server/MixHandler.cpp` / `AgeHandler.cpp`，见
+  // docs/锻造与合成-源码分析.md §3.13 与 docs/锻造与合成-我们的实现方案.md §2。
+  //   1 = ITEM_KIND_CRAFT（合成物）、2 = ITEM_KIND_AGING…（0 = 普通物品）
+  int32 kind_code = 73;
+  // 效果**位掩码**（原版 `eMixEffect` / `ItemKindMask`）：合成时"效果类型值就是掩码位"，
+  // 客户端据此给"被强化过的那几行"上色（管理端 `mod-mix` 紫）。
+  int32 craft_mask = 74;
+  // 合成**配方 id**（`gamedb.mixlist.mixuniqueid`；原版记在 `sMixUniqueID1`）。
+  // 我们的库没有那一列，借用 `userdb.item.aging_num2` 存（见实现方案 §2.2）——
+  // 用途：客户端显示配方名/配色；服务端反查配方数值（如"药水槽容量"那位实例没有字段）。
+  int32 mix_unique_id = 75;
+  // 合成/锻造的**校验和**（原版 `ItemAgingProtect[0]`，反外挂比对用；客户端只读不写）
+  int32 aging_protect = 76;
+  // 锻造**熟练度进度**（原版 `ItemAgingCount[0]/[1]`，EU 里叫 `sMatureBar` 的 cur/max）——
+  // 客户端信息框用它画进度条（原版 `AgingBarLenght = 125 * cur/max`，见 `sinItem.cpp:2226-2239`）
+  int32 aging_exp = 77;
+  int32 aging_exp_max = 78;
+  // 合成配方的**效果清单**（位对应的文案 key + 配方值 + 是不是直加）——
+  // **只发数据不发文案**（用户 2026-09-22："合成配方名理应支持 i18n，后端下发名字不合适"）：
+  // 客户端用 `t(key)` 查自己的 `mixe.*` 词条拼出显示名，zh/en 自动。
+  repeated MixEffectProto mix_effects = 79;
 }
 
 // 地面物品
@@ -258,4 +281,11 @@ message PlayerAppearInfo {
   int32 state             = 7;
   int32 hp = 8;
   int32 max_hp = 9;
+}
+
+// 合成配方里的一条效果（用于客户端拼配方显示名；key 形如 `mixe.defence`）
+message MixEffectProto {
+  string key = 1;      // 文案 key（服务端 `MixEffect.keyOf(bit)`）
+  double value = 2;    // 配方里的值（与实例同单位）
+  bool flat = 3;       // true=数值直加 / false=按当前值百分比
 }

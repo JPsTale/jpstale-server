@@ -460,6 +460,19 @@ public class PlayerStatCalculator {
             max = 3 + e.damageMax * (str + dmg) / dmg + talAgi / 40;
         }
         max += e.specLevDamage;
+        // 力量石 buff（EU `HNSSkill.cpp:1775-1784` 的顺序，注释逐字）：
+        //   "as we want to take the base attack power when doing computations
+        //    the flat addition is added at the end."
+        // ⇒ **百分比以"基础攻击力"为基数**（= 上面算出的 min/max，未含 flat），**flat 最后加**。
+        // 顺序颠倒（flat 先进再乘百分比）会在高等级滚雪球 —— 用户 2026-09-22 担心的正是这个。
+        int orbPercent = org.jpstale.common.service.item.ForceOrbService.percentBonus(p);
+        int orbFlat = org.jpstale.common.service.item.ForceOrbService.flatBonus(p);
+        if (orbPercent > 0) {
+            min += min * orbPercent / 100;
+            max += max * orbPercent / 100;
+        }
+        min += orbFlat;
+        max += orbFlat;
         return new int[]{min, max};
     }
 

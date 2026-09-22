@@ -81,6 +81,12 @@ public final class EquipSummary {
             if (it.isDeleted()) {
                 continue;
             }
+            // 负重**对所有已装备的物品照算**，不看需求门槛（用户 2026-09-22 明确："负重是应该加的"）——
+            // 与真实负重 `PlayerStatCalculator.currentWeight`（走 `itemsIn(EQUIP)`）同一口径。
+            if (it.getTemplate() != null && it.getTemplate().getWeight() != null) {
+                s.weight += it.getTemplate().getWeight();
+            }
+
             // **需求不满足的装备不算数**：原版 `SetItemToChar` 里
             // `if (InvenItem[i].sItemInfo.NotUseFlag) continue;`（sinInvenTory.cpp:7355）——
             // 洗点/降级后属性掉下来的装备**属性不生效**（外观照旧、负重照算；客户端会把它标红）。
@@ -90,28 +96,28 @@ public final class EquipSummary {
             ItemList def = it.getTemplate();
 
             // ---- 基础掷点值：对每一件装备无条件累加（原版 sinInvenTory.cpp:7388-7430）----
-            s.attackRating += it.getAttackRating();
-            s.damageMin += it.getDamageMin();
-            s.damageMax += it.getDamageMax();
-            s.critical += it.getCritical();
-            s.defense += it.getDefence();
-            s.block += it.getBlockRating();
-            s.moveSpeedBonus += it.getSpeed();
+            s.attackRating += it.effectiveInt(ItemStat.ATTACK_RATING);
+            s.damageMin += it.effectiveInt(ItemStat.DAMAGE_MIN);
+            s.damageMax += it.effectiveInt(ItemStat.DAMAGE_MAX);
+            s.critical += it.effectiveInt(ItemStat.CRITICAL);
+            s.defense += it.effectiveInt(ItemStat.DEFENCE);
+            s.block += it.effective(ItemStat.BLOCK_RATING);
+            s.moveSpeedBonus += it.effective(ItemStat.SPEED);
             s.attackSpeed += it.getAttackSpeed();
             s.range += it.getShootingRange();
-            s.absorb += truncTenth(it.getAbsorb());
-            s.regenHp += it.getLifeRegen();
-            s.regenMp += it.getManaRegen();
-            s.regenStm += it.getStaminaRegen();
-            s.increaseLife += (int) it.getIncreaseLife();
-            s.increaseMana += (int) it.getIncreaseMana();
-            s.increaseStamina += (int) it.getIncreaseStamina();
-            s.res[0] += it.getResBionic();
+            s.absorb += truncTenth(it.effective(ItemStat.ABSORB));
+            s.regenHp += it.effective(ItemStat.LIFE_REGEN);
+            s.regenMp += it.effective(ItemStat.MANA_REGEN);
+            s.regenStm += it.effective(ItemStat.STAMINA_REGEN);
+            s.increaseLife += (int) it.effective(ItemStat.INCREASE_LIFE);
+            s.increaseMana += (int) it.effective(ItemStat.INCREASE_MANA);
+            s.increaseStamina += (int) it.effective(ItemStat.INCREASE_STAMINA);
+            s.res[0] += it.effectiveInt(ItemStat.RES_BIONIC);
             s.res[1] += it.getResEarth();
-            s.res[2] += it.getResFire();
-            s.res[3] += it.getResIce();
-            s.res[4] += it.getResLighting();
-            s.res[5] += it.getResPoison();
+            s.res[2] += it.effectiveInt(ItemStat.RES_FIRE);
+            s.res[3] += it.effectiveInt(ItemStat.RES_ICE);
+            s.res[4] += it.effectiveInt(ItemStat.RES_LIGHTING);
+            s.res[5] += it.effectiveInt(ItemStat.RES_POISON);
             s.res[6] += it.getResWater();
             s.res[7] += it.getResWind();
 
@@ -122,11 +128,6 @@ public final class EquipSummary {
                     s.weaponClassItem = def.getClassItem();
                 }
             }
-            // 负重（聚合值仅供引用；真实负重走 PlayerStatCalculator.currentWeight）
-            if (def != null && def.getWeight() != null) {
-                s.weight += def.getWeight();
-            }
-
             // ---- 职业特效：门 = 装备掩码含本职业位（原版 `if (sinChar->JobBitMask & JobCodeMask)`）----
             if (!specActive(job, it.getJobCodeMask())) {
                 continue;
