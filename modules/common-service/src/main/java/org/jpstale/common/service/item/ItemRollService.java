@@ -1,5 +1,6 @@
 package org.jpstale.common.service.item;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.jpstale.dao.gamedb.entity.ItemList;
 import org.jpstale.dao.gamedb.mapper.ItemListMapper;
 import org.springframework.stereotype.Service;
@@ -106,7 +107,7 @@ public class ItemRollService {
             return null;
         }
         return itemListMapper.selectOne(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ItemList>()
+                new LambdaQueryWrapper<ItemList>()
                         .apply("lower(codeimg1) = {0}", itemCode.trim().toLowerCase())
                         .orderByAsc(ItemList::getId)
                         .last("limit 1"));
@@ -168,9 +169,9 @@ public class ItemRollService {
         it.setStaminaRegen(rndFloat(def.getRegenerationStmMin(), def.getRegenerationStmMax()));
 
         // 增加上限
-        it.setIncreaseLife((double) rndIntOr(def.getAddHpMin(), def.getAddHpMax()));
-        it.setIncreaseMana((double) rndIntOr(def.getAddMpMin(), def.getAddMpMax()));
-        it.setIncreaseStamina((double) rndIntOr(def.getAddStmMin(), def.getAddStmMax()));
+        it.setIncreaseLife(rndIntOr(def.getAddHpMin(), def.getAddHpMax()));
+        it.setIncreaseMana(rndIntOr(def.getAddMpMin(), def.getAddMpMax()));
+        it.setIncreaseStamina(rndIntOr(def.getAddStmMin(), def.getAddStmMax()));
 
         // 价格（含职业特效命中 +20%，见下）
         int basePrice = nz(def.getPrice());
@@ -186,19 +187,19 @@ public class ItemRollService {
     }
 
     /**
-     * 职业特效：30% 概率命中；命中则 price +20%，并对属性需求做职业百分比修正
+     * 职业特效：70% 概率命中；命中则 price +20%，并对属性需求做职业百分比修正
      * （REQ_MOD，引用 EU saItemRequeriments / CheckAndAdjustItemRequirements）。
      */
     private void applyJobEffects(ItemList def, ItemInstance it, Integer jobCodeMask,
                                  List<Integer> randomJobs, int basePrice) {
-        if (nextInt(10) > 3) {
-            return; // 70% 未命中
+        if (nextInt(10) > 7) {
+            return; // 30% 未命中
         }
         int chosen;
         if (jobCodeMask != null && jobCodeMask != 0) {
             chosen = jobCodeMask;
         } else if (randomJobs.size() == 1) {
-            chosen = randomJobs.get(0);
+            chosen = randomJobs.getFirst();
         } else {
             // ⚠ 必须 **先取下标、再取候选里的位**：`randomJobs` 里装的是**职业位**（1,2,4,8,…），
             // 不是可以当掩码用的东西。这里曾写成 `chosen = nextInt(randomJobs.size())` ——
@@ -259,7 +260,7 @@ public class ItemRollService {
     private List<Integer> candidateJobBits(ItemList def) {
         List<Integer> bits = new ArrayList<>();
         Integer primary = def.getPrimarySpec();
-        if (primary != null && primary > 0 && primary <= 12) {
+        if (primary != null && primary > 0 && primary <= 11) {
             bits.add(1 << (primary - 1));
         }
         for (Integer bit : specJobBits(def)) {

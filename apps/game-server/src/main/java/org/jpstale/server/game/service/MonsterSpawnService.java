@@ -443,16 +443,14 @@ public class MonsterSpawnService {
                         monsterAOI.onMonsterRemoved(m);
                         findSpawnPoint(gameMap, m.getSpawnPointIndex())
                             .ifPresent(sp -> sp.onMonsterDeath(m.getDeathTime(), m.getRespawnTime()));
-                        log.info("[Spawn] {}#{} 尸体消失（死亡后 {}ms）",
-                            m.getName(), m.getId(), now - m.getDeathTime());
+                        log.debug("[Spawn] {}#{} 尸体消失", m.getName(), m.getId());
                         toRemove.add(m.getId());
                     }
                 } else if (now - m.getLastNearPlayerMs() > AIConstants.NO_PLAYER_REMOVE_MS) {
                     monsterAOI.onMonsterRemoved(m);
                     findSpawnPoint(gameMap, m.getSpawnPointIndex())
                         .ifPresent(SpawnPoint::onMonsterRemoved);
-                    log.info("[Spawn] {}#{} removed, no player nearby {}ms", m.getName(), m.getId(),
-                        now - m.getLastNearPlayerMs());
+                    log.debug("[Spawn] {}#{} removed, no player nearby", m.getName(), m.getId());
                     toRemove.add(m.getId());
                 }
             }
