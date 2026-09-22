@@ -15,6 +15,10 @@ import org.jpstale.server.game.entity.EntityIdSource;
 @Setter
 public class Monster extends BaseEntity {
 
+    /**
+     * 掉落表键 = `monsterlist.monsterid`（业务 id，**不是**主键 id；见
+     * {@code MonsterSpawnService.createMonster}）。同时作为 `appear.templateId` 下发（客户端忽略）。
+     */
     private int templateId;
     private String name;
     private int level;

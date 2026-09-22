@@ -310,8 +310,15 @@ public class MonsterSpawnService {
         monster.setAttackSpeed(template.getAttackSpeed() != null ? template.getAttackSpeed() : 6);
         // 击杀经验：monsterlist.exp（单值数字字符串）
         monster.setExp(parseExp(template.getExp()));
-        // 掉落：dropid == monsterlist.id；金币改由 dropitem 的 Gold 行决定（见 CombatService）
-        monster.setTemplateId(template.getId());
+        // 掉落表键：`dropitem.dropid` == **monsterlist.monsterid**（业务 id，**不是**主键 id）。
+        // 实测依据（2026-09-21，全库 dropitem 2268 行 / 304 个 dropid）：
+        //   按 monsterid 命中 2203 行、300 只怪有掉落表；按主键 id 只命中 347 行、52 只怪。
+        // 语义旁证：Mushroom Ghost（id=10 / monsterid=1010）在 1010 名下是 `wa101 wh101 wp101…`
+        //   （一级武器，配 5 级怪完全合理），而 10 名下是 `da112 wa110…`（110 段高阶装备）。
+        // ⚠ 此前传的是 `template.getId()` ⇒ 怪取到的是 null 或**别人的**掉落表（掉落长期是坏的）。
+        // 该字段同时下发给客户端的 appear.templateId，客户端忽略它（WorldView 的 `_templateId`）。
+        // 金币改由 dropitem 的 Gold 行决定（见 CombatService）。
+        monster.setTemplateId(template.getMonsterId());
         monster.setDropQuantity(template.getDropQuantity() == null ? 1 : template.getDropQuantity());
         monster.setDropIsPublic(template.getDropIsPublic() != null && template.getDropIsPublic() != 0);
         // 音效/特效 ID：DB effect 列存名字（如 "MUSHROOM"），转成数字编码下发客户端

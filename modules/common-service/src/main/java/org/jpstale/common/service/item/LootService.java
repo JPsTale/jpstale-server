@@ -20,7 +20,9 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 怪物掉落表（对齐 PristonTale-EU lootserver.cpp）。
- * dropid == monsterlist.id；dropitem.items 为候选 itemlist.codeimg1 列表（空格分隔）或 Gold/Air。
+ * dropid == **monsterlist.monsterid**（业务 id，**不是**主键 id —— 数据实测 2203/2268 行按 monsterid 命中，
+ * 依据详见 {@code MonsterSpawnService.createMonster} 的注释）；dropitem.items 为候选 itemlist.codeimg1
+ * 列表（空格分隔）或 Gold/Air；`chance` 是**权重**，某 dropid 内某行的概率 = 该行权重 / 权重总和。
  *
  * ⚠ `@Lazy`：本模块的 bean 会在**两个进程**里被实例化（两个 app 都 scanBasePackages="org.jpstale"），
  * 而本类的 `@PostConstruct` 要全表扫 itemlist + dropitem —— web-server 那边一次都用不到，
