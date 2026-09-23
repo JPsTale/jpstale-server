@@ -167,7 +167,9 @@ public class SummonService {
 
         // —— 寿命与按主人等级加血（原版 `OnSever.cpp:3785-3795`）——
         int level = ownerPlayer != null ? ownerPlayer.getLevel() : 0;
-        summon.setSummonExpireMs(System.currentTimeMillis() + lifeMsOf(level));
+        long lifeMs = lifeMsOf(level);
+        summon.setSummonLifeTotalMs(lifeMs);                                  // 总量：客户端画倒计时条要按比例
+        summon.setSummonExpireMs(System.currentTimeMillis() + lifeMs);
         if (level > 0 && level < SUMMON_LEVEL_BONUS_MAX_LEVEL) {
             summon.setMaxHp(summon.getMaxHp() + level * SUMMON_HP_PER_OWNER_LEVEL);
             summon.setHp(summon.getMaxHp());

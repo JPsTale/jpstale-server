@@ -95,6 +95,17 @@ public class Monster extends BaseEntity {
     /** 到期时刻（ms）；0 = 不超时。原版 = `dwUpdateCharInfoTime`（4 分钟 + 主人等级×2 秒）。 */
     private long summonExpireMs;
 
+    /**
+     * 召唤物的**总寿命**（毫秒，= `4 分钟 + 主人等级×2 秒`）。
+     *
+     * <p>
+     * 为什么要额外存一份"总量"：客户端要在头顶画一条**按比例**收缩的倒计时条
+     * （用户 2026-09-23 要求），那就需要"当前剩余 / 一开始有多少"。只发剩余量的话，
+     * 客户端要么把寿命公式抄一份（= 服务端规则出现第二份实现），要么在"走出视野再走回来"
+     * 收到新的 Appear 时把进度条重置成满格（错）。两个数都由服务端给，客户端只做除法。
+     */
+    private long summonLifeTotalMs;
+
     /** 是不是玩家的召唤物（有主人）。原版判据是 `smCharInfo.Brood == smCHAR_MONSTER_USER`。 */
     public boolean isSummon() {
         return ownerCharId > 0;

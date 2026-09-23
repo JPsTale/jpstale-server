@@ -174,25 +174,12 @@ public class AgeService {
         }
         ItemInstance target = items.byUid(targetUid);
         if (target == null || target.isDeleted() || !isEquipment(target)) {
-            log.info("[Age] 战斗养跳过：uid={} 找不到或不是可养装备（null={} deleted={}）",
-                    targetUid, target == null, target != null && target.isDeleted());
             return null;
         }
-        // ★ **只有"已经锻造过"的装备才靠战斗养**（原版 `sinSubMain.cpp:2174`：
-        //   `if (!pItem || pItem->sItemInfo.ItemKindCode != ITEM_KIND_AGING) return FALSE;`）。
-        //   ⇒ 纯合成的盾牌（kind=CRAFT）与没锻造过的装备（kind=NORMAL）**都不参与**熟练度累积
-        //   （用户 2026-09-22 指出："盾牌我们用的是合成配方，它本来就没有进行锻造，因此不可能也不应该参与"）。
         if (target.getKindCode() != ItemKind.AGING) {
-            log.info("[Age] 战斗养跳过：uid={}（{}）kind={} ≠ AGING（只有锻造过的装备才养熟练度）",
-                    target.getId(), target.name(), target.getKindCode());
             return null;
         }
-        // ★ **没交过费就不涨**：`aging_exp_max == 0` = 这件装备**没有在养成中**
-        //   （用户在 NPC 处交了宝石+金币才开始一轮 → 那时才把 max 设成本级阈值）。
-        //   原版对应 `ItemAgingCount[1] == 0`（工具提示 `AgingGageFlag` 也是按它分的两态）。
         if (target.getAgingExpMax() <= 0) {
-            log.info("[Age] 战斗养跳过：uid={}（{}）未在养成中（请先在锻造 NPC 交宝石+金币开始养成）",
-                    target.getId(), target.name());
             return null;
         }
 

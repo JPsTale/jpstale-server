@@ -308,6 +308,12 @@ public class MonsterAOI {
             if (m.getOwnerName() != null) {
                 appear.setOwnerName(m.getOwnerName());
             }
+            // 剩余寿命（头顶倒计时条）：**总量 + 剩余**都给 —— 客户端只做除法，不抄寿命公式。
+            // 客户端以"收到 Appear 的时刻"为锚点本地倒数；服务端到点照旧自己收场（见
+            // `MonsterSpawnService.summonShouldDie`），所以本地倒数只是显示，漂了也不影响判定。
+            // 走出视野再回来会收到新的 Appear（AOI 重新同步）⇒ 进度条自动校正。
+            appear.setSummonLifeTotalMs((int) Math.max(0, m.getSummonLifeTotalMs()));
+            appear.setSummonLifeRemainingMs((int) Math.max(0, m.getSummonExpireMs() - System.currentTimeMillis()));
         }
         session.send(ServerMessage.newBuilder().setMonsterAppear(appear.build()).build());
     }

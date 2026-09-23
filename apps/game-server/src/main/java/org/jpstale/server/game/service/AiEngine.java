@@ -461,6 +461,25 @@ public class AiEngine {
     // ======== 召唤物（怪物水晶） ========
 
     /**
+     * 召唤物"无目标"时该用哪个状态去执行。
+     *
+     * <p>
+     * `decide()` 会给出 `RETURN`（超出 leash）或 `IDLE`；**`RETURN` 要换成 `CHASE`**，
+     * 因为 `RETURN` 的位移是**写死的走路**（`MONSTER_WALK_STEP`，语义是"野怪溜达回出生点"，
+     * `MonsterAOI.animOf` 也把 RETURN 映射成 0x0050 WALK），而原版跟随主人那条是
+     * `if (!SetMotionFromCode(RUN)) SetMotionFromCode(WALK)` —— **能跑就跑**
+     * （`character.cpp:5820-5828`）。
+     *
+     * <p>
+     * 抽成一个可测的纯函数，是因为这条判据**写错过一次**：最初把跟随接到 `RETURN`（出生锚就是
+     * 主人，位移目标正好对上），于是召唤物打怪时跑、跟人时走 —— 用户 2026-09-23 实测点破
+     * "跟随只有走路，但打怪却会跑"。`AiEngineTest` 把这个映射钉住，防止有人"顺手简化"回 RETURN。
+     */
+    static MonsterState summonNoTargetState(MonsterState decided) {
+        return decided == MonsterState.RETURN ? MonsterState.CHASE : decided;
+    }
+
+    /**
      * 召唤物的每 tick 决策。与原版 `character.cpp:5780-5830` 同一套：
      * 先把主人拴住（太远瞬移），再找怪打，最后才是归位/待机。
      *
@@ -511,13 +530,18 @@ public class AiEngine {
         }
 
         if (next == MonsterState.RETURN) {
-            if (summon.getState() != MonsterState.RETURN) {
-                // RETURN 的位移目标是 `spawnX/spawnZ`，而召唤物的出生锚**就是主人**
-                // （`tetherToOwner` 每 tick 把它更新成主人当前位置）⇒ 不需要动 MovementService
-                logState(summon, prevState, MonsterState.RETURN,
-                    "back to owner, dist=" + (int) homeDistOf(summon));
-                summon.setState(MonsterState.RETURN);
+            // "跟上主人" —— **必须走 CHASE，不能走 RETURN**：RETURN 的位移是写死的走路，
+            // 而原版跟随主人是"能跑就跑"。为什么、以及为什么不改 RETURN 本身，
+            // 见 `summonNoTargetState` 的注释（这条判据错过的现场就在那里）。
+            MonsterState followState = summonNoTargetState(next);
+            if (summon.getState() != followState) {
+                logState(summon, prevState, followState,
+                    "follow owner, dist=" + (int) homeDistOf(summon));
+                summon.setState(followState);
             }
+            context.setTargetX(owner.getX());
+            context.setTargetY(owner.getY());
+            context.setTargetZ(owner.getZ());
         } else if (summon.getState() != MonsterState.IDLE) {
             logState(summon, prevState, MonsterState.IDLE, "stand");
             summon.setState(MonsterState.IDLE);
@@ -530,8 +554,9 @@ public class AiEngine {
      * <p>
      * 两件事：
      * <ol>
-     *   <li>**出生锚跟随主人** —— 让 `homeDistOf`/`leashOf`/RETURN 这三样现成的东西
-     *       全部自动变成"以主人为家"。这是"不新增状态机取值"的关键一步；</li>
+     *   <li>**出生锚跟随主人** —— 让 `homeDistOf`/`leashOf` 这两样现成的东西自动变成
+     *       "以主人为家"（用于判定"该不该跟"）。⚠ 归位**位移**并不走 RETURN：见
+     *       `updateSummon` 里那段注释（RETURN 写死走路，跟人必须能跑就跑）；</li>
      *   <li>距离 ≥ {@link #SUMMON_TELEPORT_DIST} 时瞬移到主人脚下并清目标（原版就是这样，
      *       顺带解释了为什么玩家跑远了召唤物也会跟上来）。</li>
      * </ol>
