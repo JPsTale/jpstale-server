@@ -35,6 +35,11 @@ public final class AppearanceCodec {
                 .setOffHandIdcode(a.getOffHandIdcode())
                 .setOffHandKind(a.getOffHandKind())
                 .setOffHandPos(a.getOffHandPos())
+                // 呼吸发光的输入（原版 ItemKindCode / ItemAgingNum[0]）—— 客户端据此查色表
+                .setWeaponKindCode(a.getWeaponKindCode())
+                .setWeaponAgingLevel(a.getWeaponAgingLevel())
+                .setOffHandKindCode(a.getOffHandKindCode())
+                .setOffHandAgingLevel(a.getOffHandAgingLevel())
                 .build();
     }
 }

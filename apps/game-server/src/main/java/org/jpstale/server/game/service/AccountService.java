@@ -449,7 +449,11 @@ public class AccountService {
             if (def == null) {
                 continue;
             }
-            equips.add(new AppearanceService.EquipEntry(item.getSlot() != null ? item.getSlot() : 0, def));
+            equips.add(new AppearanceService.EquipEntry(
+                item.getSlot() != null ? item.getSlot() : 0, def,
+                // 发光输入取自**实例行**（userdb.item）：锻造等级/合成标记是每件物品各自的
+                item.getKindCode() != null ? item.getKindCode() : 0,
+                item.getAgingNum() != null ? item.getAgingNum() : 0));
         }
         return appearanceService.derive(classId, head, rank, equips);
     }

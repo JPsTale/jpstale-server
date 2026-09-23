@@ -8,6 +8,8 @@ import org.jpstale.common.service.item.PlayerItems;
 import org.jpstale.common.service.model.Player;
 import org.jpstale.dao.gamedb.entity.ItemList;
 import org.jpstale.server.common.model.CharacterAppearance;
+import org.jpstale.server.game.entity.PlayerEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,8 +30,24 @@ import java.util.List;
 @Service
 public class AppearanceService {
 
-    /** 装备条目：装备槽号 + 物品定义（登录读 DB / 在线读内存共用）。 */
-    public record EquipEntry(int slot, ItemList def) {
+    /**
+     * 取玩家实体（广播要）。**字段注入**，不进构造函数：`derive` 是纯函数（只吃槽位+定义），
+     * 单测可以 `new AppearanceService()` 直接调（见 `AppearanceServiceTest`）；
+     * 把这两个依赖塞进构造函数会让每个调用方（登录链路/物品处理器）都多一个必须就绪的前置。
+     */
+    @Autowired
+    private PlayerService playerService;
+
+    @Autowired
+    private AOIManager aoiManager;
+
+    /**
+     * 装备条目：装备槽号 + 物品定义 + **实例上的两列发光输入**（登录读 DB / 在线读内存共用）。
+     *
+     * <p>{@code kindCode}/{@code agingNum} 来自物品**实例**（`userdb.item.kind_code` / `aging_num`）
+     * 而不是 `gamedb.itemlist` —— 锻造等级是每件物品各自的（`ItemKindCode`/`ItemAgingNum[0]`）。
+     */
+    public record EquipEntry(int slot, ItemList def, int kindCode, int agingNum) {
     }
 
     /**
@@ -48,10 +66,14 @@ public class AppearanceService {
         String weaponDorp = "";
         int weaponIdcode = 0;
         int weaponPos = 0;
+        int weaponKind = 0;
+        int weaponAging = 0;
         String offDorp = "";
         int offIdcode = 0;
         int offKind = 0;
         int offPos = 0;
+        int offItemKind = 0;
+        int offAging = 0;
         String bodyModel = "";
         int bodyIdcode = 0;
 
@@ -69,6 +91,8 @@ public class AppearanceService {
                     weaponDorp = nz(def.getCodeImg1());
                     weaponIdcode = nz(def.getIdCode());
                     weaponPos = nz(def.getModelPosition());
+                    weaponKind = e.kindCode();
+                    weaponAging = e.agingNum();
                 } else if (slot == ItemLocations.SLOT_OFF_HAND) {
                     // 副手(槽2)：盾(Shields)/匕首(Dagger)；念珠/法球等不挂
                     int kind = offHandKind(def);
@@ -77,6 +101,9 @@ public class AppearanceService {
                         offIdcode = nz(def.getIdCode());
                         offKind = kind;
                         offPos = 2;
+                        // 发光输入只在**真的挂了模型**时才带（与客户端"没模型就不发光"一致）
+                        offItemKind = e.kindCode();
+                        offAging = e.agingNum();
                     }
                 } else if (c != null && ItemClass.isTorsoArmor(c)) {
                     // 防具（铠甲/法袍）
@@ -91,10 +118,14 @@ public class AppearanceService {
         a.setWeaponDorp(weaponDorp);
         a.setWeaponIdcode(weaponIdcode);
         a.setWeaponPos(weaponPos);
+        a.setWeaponKindCode(weaponKind);
+        a.setWeaponAgingLevel(weaponAging);
         a.setOffHandDorp(offDorp);
         a.setOffHandIdcode(offIdcode);
         a.setOffHandKind(offKind);
         a.setOffHandPos(offPos);
+        a.setOffHandKindCode(offItemKind);
+        a.setOffHandAgingLevel(offAging);
         return a;
     }
 
@@ -122,12 +153,39 @@ public class AppearanceService {
                 if (def == null) {
                     continue;
                 }
-                equips.add(new EquipEntry(it.getSlot(), def));
+                equips.add(new EquipEntry(it.getSlot(), def, it.getKindCode(), it.getAgingNum()));
             }
         }
         CharacterAppearance app = derive(p.getJob(), p.getHead(), p.getRank(), equips);
         p.setAppearance(app);
         return app;
+    }
+
+    /**
+     * 外观重算 + **只在真的变了才**广播（自机一份 + 视野内玩家各一份）—— **唯一实现**。
+     *
+     * <p>为什么要收成一处：判据"什么算变了"是 {@link CharacterAppearance#equals}（逐字段值比较），
+     * 而 {@link #recalc} 会被十来个物品入口调用（含整理背包/拿起/拾取/丢弃）—— 无条件广播会让
+     * 客户端每次都重建模型并重播动画（用户 2026-09-16 实测"整理背包角色动画重播"）。
+     * 锻造升级/合成完成也走这里：**呼吸发光的四个输入（kindCode/agingNum × 主手/副手）是外观的一部分**，
+     * 所以它们变了就同样会广播（在那之前，外观比不出差异 ⇒ 旁观者只能等本人再动一次背包才看到）。
+     *
+     * <p>⚠ 调用点的口径：**装备/锻造/合成三条链路**都调它，别在各自的处理器里另写一份判空。
+     *
+     * @return 是否真的广播了（调用方一般无需关心；返回它是为了日志与测试能断言）
+     */
+    public boolean recalcAndBroadcast(Player p) {
+        if (p == null || p.getItems() == null) {
+            return false;
+        }
+        CharacterAppearance before = p.getAppearance();
+        CharacterAppearance app = recalc(p);
+        PlayerEntity entity = playerService == null ? null : playerService.entityOf(p);
+        if (entity == null || app.equals(before)) {
+            return false;
+        }
+        aoiManager.broadcastAppearance(entity, app);
+        return true;
     }
 
     /**

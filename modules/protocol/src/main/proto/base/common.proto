@@ -268,6 +268,13 @@ message CharacterAppearance {
   int32 off_hand_idcode = 11; // 副手 idcode
   int32 off_hand_kind = 12;  // 副手类型：0=无 1=盾 2=匕首/武器
   int32 off_hand_pos  = 13;  // 副手挂点（2=左）
+  // ── 锻造/合成呼吸发光的输入（原版 `sinSetCharItem` 用的那两列）──
+  // 客户端据此查色表（`src/game/agingBlink.ts`：等级 → 行 → 呼吸光颜色 + 第二通道叠加贴图）。
+  // **服务端不持有色表**（只在客户端一份），这里只发原始事实：
+  int32 weapon_kind_code      = 14; // 主手原版 ItemKindCode：1=合成物 2=锻造物（0=普通/不发光）
+  int32 weapon_aging_level    = 15; // 主手原版 ItemAgingNum[0]：锻造等级（合成物则是"材料槽+1"）
+  int32 off_hand_kind_code    = 16; // 副手同上（没有副手件时为 0）
+  int32 off_hand_aging_level  = 17; // 副手同上
 }
 
 // 玩家出现：外观 + 身份 + 位置 + 朝向 + 状态（对应 PT smTRNAS_PLAYERINFO）

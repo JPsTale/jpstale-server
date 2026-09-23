@@ -912,17 +912,14 @@ public class ItemNetworkHandler {
         // 这里曾另写一份求和，且**没有**需求校验门槛（与 `PlayerService.loadItems` 那份口径不同）——
         // 已删（用户 2026-09-22：一个判定只留一份实现）。
         playerService.sendPlayerStatus(session, p);
-        // 外观重算 + 广播（自机 + 视野玩家），驱动 3D 换装。
+        // 外观重算 + 广播（自机 + 视野玩家），驱动 3D 换装与锻造/合成呼吸发光。
         // ⚠ **只在真的变了才推**：本方法被 8 个入口调用（含整理背包/拿起/拾取/丢弃），
         // 无条件推的话客户端每次都会重建模型 + `reselectForCurrentState()` 重选动画
         // ⇒ "随便整理一下背包，角色动画就重播一次"（用户 2026-09-16 实测）。
-        // 外观只由主手武器 / 副手 / 躯干甲决定（`AppearanceService.derive`），其余槽位不推。
-        var before = p.getAppearance();
-        var app = appearanceService.recalc(p);
-        org.jpstale.server.game.entity.PlayerEntity entity = session != null ? session.getEntity() : null;
-        if (entity != null && !app.equals(before)) {
-            aoiManager.broadcastAppearance(entity, app);
-        }
+        // 判据（`CharacterAppearance.equals` 逐字段比较）与广播一起收在
+        // `AppearanceService.recalcAndBroadcast` —— 锻造那条链路（`AgeEffectBroadcaster`）
+        // 用的是同一条判据，别在这里再写一份（AGENTS #15）。
+        appearanceService.recalcAndBroadcast(p);
     }
 
     private void sendError(PlayerSession session, String msg) {

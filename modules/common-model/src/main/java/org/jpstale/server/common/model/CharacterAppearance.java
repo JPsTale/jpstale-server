@@ -51,4 +51,25 @@ public class CharacterAppearance {
     private int offHandKind;
     /** 副手挂点（2=左） */
     private int offHandPos;
+
+    /**
+     * **锻造/合成呼吸发光的输入** —— 原版 `sinSetCharItem`（`playsub.cpp:834-866`）用的那两列，
+     * 客户端据此查色表（`agingBlink.ts`：等级 → 行 → 呼吸光颜色 + 第二通道叠加贴图）。
+     *
+     * <p>为什么放进外观：原版这段就在 `sinSetCharItem`（与"挂哪个模型"同一个函数）里算，
+     * 且**只有外观这条链路会把别人的装备信息发给旁观者** —— 客户端没有别人的物品表。
+     *
+     * <p>服务端**只发原始事实、不持有色表**：色表只在客户端一份（`src/game/data/aging-blink.generated.json`），
+     * 免得同一张表两边各存一份、改一边就漂移。取值语义：
+     * <ul>
+     *   <li>{@code weaponKindCode} = 原版 `ItemKindCode`：1=合成物、2=锻造物（0=普通 ⇒ 不发光）</li>
+     *   <li>{@code weaponAgingLevel} = 原版 `ItemAgingNum[0]`：锻造等级；**合成物则是"材料槽+1"**
+     *       （原版如此，见 `sinTrade.cpp:5008`）—— 故合成物通常为 0，对应色表行 0</li>
+     * </ul>
+     * 副手同理（盾/匕首；没有副手件时保持 0）。
+     */
+    private int weaponKindCode;
+    private int weaponAgingLevel;
+    private int offHandKindCode;
+    private int offHandAgingLevel;
 }

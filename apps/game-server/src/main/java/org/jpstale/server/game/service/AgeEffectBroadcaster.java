@@ -43,6 +43,10 @@ public class AgeEffectBroadcaster {
     @Autowired
     private PlayerService playerService;
 
+    /** 外观重算 + 广播（呼吸发光的色表行随锻造等级变，见 `broadcastAgingUp` 的说明） */
+    @Autowired
+    private AppearanceService appearanceService;
+
     /**
      * 若这次锻造**升了级**，就广播特效；否则什么都不做（不静默吞异常，只是没有事件可播）。
      *
@@ -54,6 +58,11 @@ public class AgeEffectBroadcaster {
         if (p == null || r == null || !r.ok() || r.broke || r.roll == null || r.roll.levelDelta() <= 0) {
             return;
         }
+        // ★ **呼吸发光也是外观的一部分**（色表行由 `kindCode`/`agingNum` 定，见
+        //   `AppearanceService.derive` 的四个字段）⇒ 升级后重算并广播，否则旁观者要等
+        //   本人再动一次背包才看到光换了颜色（原版是随装备数据立刻反映）。
+        //   判据与广播都在那一个方法里（`CharacterAppearance.equals`），别在这里另写。
+        appearanceService.recalcAndBroadcast(p);
         long uid = r.target == null ? 0L : r.target.getId();
         PlayerEntity ent = playerService.entityOf(p);
         if (ent == null) {
