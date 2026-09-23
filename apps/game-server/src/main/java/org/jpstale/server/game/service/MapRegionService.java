@@ -133,6 +133,18 @@ public class MapRegionService {
     }
 
     /**
+     * 同 {@link #getHeight}，但**没有地面时返回 {@code null}**（连图不存在也返回 null）。
+     *
+     * <p>`getHeight` 把"没有地面"折成 0，调用方无法区分"没有地面"与"地面正好在 y=0"。
+     * 需要这个区分的两处都源自原版：怪物水晶的**落点挑选**（`GetFloorHeight == CLIP_OUT`
+     * 就换个方向）、召唤物的**牵引**（`GetHeight(...) < 0` ⇒ 召唤物死亡）。
+     */
+    public Double getFloorHeightOrNull(int mapId, double x, double z) {
+        MapMesh m = mesh(mapId);
+        return m == null ? null : m.getFloorHeight(x, z);
+    }
+
+    /**
      * 当前图 + 相邻图（由 fieldGates 门目标推导），供前端绘制 mesh 背景。
      */
     public int[] getNeighborMaps(int mapId) {

@@ -63,10 +63,42 @@ public class Monster extends BaseEntity {
         this.attackAnimFrames = entry == null ? 0 : entry.frames();
     }
     private MonsterState state;
-    private Long targetPlayerId; // 当前仇恨目标
+    private Long targetPlayerId; // 当前仇恨目标（玩家）
+    /**
+     * 当前仇恨目标（**怪物**）—— 只在"召唤物 ↔ 怪"这条链上用。
+     *
+     * <p>
+     * 为什么是两个字段而不是一个泛型目标：目标的两条链在**结算方式**上完全不同
+     * （对玩家走 `calculateMonsterToPlayer` + 格挡/受击硬直，对怪走
+     * `calculateMonsterToMonster` + 百分比吸收），把它们塞进一个类型只会让
+     * {@code tryAttack} 里出现一层没有语义的强制转换。位移侧已经解耦
+     * （`MovementService` 读 `AiContext.targetX/targetZ`），所以这里多一个字段不会扩散。
+     */
+    private Long targetMonsterId;
     private long lastMoveTime;
     private long lastAttackTime;
     private long deathTime;
+
+    // ======== 召唤物归属（怪物水晶） ========
+    //
+    // 对应原版的三件套：`lpMasterPlayInfo`（主人指针）+ `smCharInfo.Next_Exp`（**借字段**存主人
+    // serial）+ `smCharInfo.szModelName2+1`（**借字段**存主人名字）—— 见
+    // `docs/召唤物系统-源码分析.md` §3.5。原版是字段复用，我们**全部显式化**（该文 §10.1 #2）：
+    // 复用字段的代价是任何读那个字段的代码都得知道这个约定，而且会与字段本意打架。
+
+    /** 主人角色 id（`PlayerCharacter.id`）；0 = 不是召唤物。判定"主人还在不在"用它。 */
+    private long ownerCharId;
+    /** 主人**运行时实体 id**（`PlayerEntity.getId()`）。下发给客户端，供它认"这是我自己的召唤物"。 */
+    private long ownerEntityId;
+    /** 主人角色名 —— 客户端在名牌第二行画 `(名字)`（原版 `Winmain.cpp:4010-4019`）。 */
+    private String ownerName;
+    /** 到期时刻（ms）；0 = 不超时。原版 = `dwUpdateCharInfoTime`（4 分钟 + 主人等级×2 秒）。 */
+    private long summonExpireMs;
+
+    /** 是不是玩家的召唤物（有主人）。原版判据是 `smCharInfo.Brood == smCHAR_MONSTER_USER`。 */
+    public boolean isSummon() {
+        return ownerCharId > 0;
+    }
     /**
      * 死亡后的刷新冷却（毫秒）——由**出生点**消费（`SpawnPoint.onMonsterDeath`），
      * 表达"这个刷新位被击杀后要等多久才补下一只"。
@@ -169,6 +201,7 @@ public class Monster extends BaseEntity {
         hp = 0;
         deathTime = System.currentTimeMillis();
         targetPlayerId = null;
+        targetMonsterId = null;
     }
 
     public boolean isAlive() {

@@ -75,6 +75,17 @@ public class MapMesh {
         return h == null ? 0.0 : h;
     }
 
+    /**
+     * 地形高度，**没有地面时返回 {@code null}**。
+     *
+     * <p>{@link #getHeight} 把"没有地面"折成了 0（与"地面正好在 y=0"不可区分）。需要对这一区别
+     * 下判断的调用方用这个：怪物水晶的**落点挑选**（原版 `GetFloorHeight == CLIP_OUT` 就换个方向）
+     * 与召唤物的**牵引**（原版 `GetHeight(...) < 0` ⇒ 主人所在处无处可站，召唤物死亡）。
+     */
+    public Double getFloorHeight(double x, double z) {
+        return collision.getFloorHeight(x, z, Double.MAX_VALUE);
+    }
+
     /** world 碰撞面顶点（x,y,z 每顶点 3 double） */
     public double[] getVertices() {
         return data.vertsWorldDouble();

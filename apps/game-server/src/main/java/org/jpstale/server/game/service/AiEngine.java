@@ -64,7 +64,28 @@ public class AiEngine {
     @Autowired
     private GameMessageSender messageSender;
 
+    @Autowired
+    private org.jpstale.server.game.entity.EntityRegistry entityRegistry;
+
+    @Autowired
+    private org.jpstale.server.game.network.SessionManager sessionManager;
+
+    @Autowired
+    private MapRegionService mapRegionService;
+
     private final Map<Long, AiContext> monsterContexts = new ConcurrentHashMap<>();
+
+    // ======== 召唤物（怪物水晶）的牵引 ========
+    //
+    // 逐条照抄原版 `character.cpp:5780-5830`。原版在这里做三件事：把距离换算成"格"
+    // （`>> FLOATNS`）再比三个半径、太远就瞬移到主人脚下、没地面就直接死。
+    // 单位可以直接用：我们的协议明确"world 坐标（服务端已 /256）"，即我们的 1 单位 = 原版 1 格。
+    //
+    //   ≥ 500 —— 瞬移到主人脚下（原版还有一支：主人所在处**没有地面**（掉出世界）→ 召唤物死，
+    //            靠 `lpStage->GetHeight(...) < 0` 判定；我们用
+    //            `MapRegionService.getFloorHeightOrNull` 表达同一件事 —— 这也是它存在的理由）
+    //   ≥ 300（我们另加"无目标时 ≥ leash"，见下）—— 跑回主人身边并清目标
+    private static final double SUMMON_TELEPORT_DIST = 500.0;
 
     public void init() {
         log.info("[MonsterAI] init done");
@@ -76,17 +97,28 @@ public class AiEngine {
             return;
         }
         AiContext context = monsterContexts.computeIfAbsent(monster.getId(), k -> new AiContext());
+
+        // 召唤物走**另一条链**：目标是怪而不是玩家，牵引基准是主人而不是出生锚。
+        // 判定只有一处 —— `Monster.isSummon()`（原版对应 `Brood == smCHAR_MONSTER_USER`）。
+        // 为什么要分叉而不是把目标泛型化：两条链的**结算方式**不同（对玩家有格挡/受击硬直/
+        // 死亡流程，对怪是百分比吸收），共用的部分已经抽出来了 —— 目标校验的"该不该丢"
+        // 与出刀节奏在下面共用，位移与坐标在 AiContext 里共用。
+        if (monster.isSummon()) {
+            updateSummon(monster, context);
+            return;
+        }
+
         MonsterState prevState = monster.getState();
 
-        PlayerEntity target = validateTarget(monster, context);
+        ResolvedTarget target = validateTarget(monster, context);
 
         // 纯决策(无副作用,可表驱动单测):目标可锁→攻击/追击;无目标→出生锚 leash 内待机/超界归位
         MonsterState next = decide(
-            target != null,
-            target != null && inAttackRange(monster, target),
+            target.present(),
+            target.present() && inAttackRange(monster, target),
             homeDistOf(monster), leashOf(monster));
 
-        if (target != null) {
+        if (target.present()) {
             // 刚出过刀 → **站完这一刀**：动画时长内不切状态（哪怕目标已移出攻击范围）。
             //
             // 原版服务端跑的是**同一份 `smCHAR::Main()`**，怪进入 ATTACK 后要等 `MotionInfo->EndFrame`
@@ -102,19 +134,17 @@ public class AiEngine {
             }
             if (next == MonsterState.ATTACK) {
                 if (monster.getState() != MonsterState.ATTACK) {
-                    logState(monster, prevState, MonsterState.ATTACK, "lock target=" + targetName(target));
+                    logState(monster, prevState, MonsterState.ATTACK, "lock target=" + target.label());
                     monster.setState(MonsterState.ATTACK);
                 }
                 faceTarget(monster, target);
                 tryAttack(monster, target);
             } else {
                 if (monster.getState() != MonsterState.CHASE) {
-                    logState(monster, prevState, MonsterState.CHASE, "chase target=" + targetName(target));
+                    logState(monster, prevState, MonsterState.CHASE, "chase target=" + target.label());
                     monster.setState(MonsterState.CHASE);
                 }
-                context.setTargetX(target.getX());
-                context.setTargetY(target.getY());
-                context.setTargetZ(target.getZ());
+                target.writeInto(context);
             }
             return;
         }
@@ -169,55 +199,129 @@ public class AiEngine {
 
     // ======== 目标管理 ========
 
+    /**
+     * 一个已解析的目标：**玩家**或**另一只怪（召唤物）**，二者最多一个非空。
+     *
+     * <p>
+     * 只在两处问"是哪一类"：`update` 的公共尾巴只看 `present()/label()/writeInto()/`坐标，
+     * 结算分派集中在 {@code tryAttack} 一处。这样"目标多了一种"这件事不会渗透到
+     * 状态机、面向、追击坐标里去。
+     */
+    private record ResolvedTarget(PlayerEntity player, Monster monster) {
+        static ResolvedTarget of(PlayerEntity p) {
+            return new ResolvedTarget(p, null);
+        }
+
+        static ResolvedTarget of(Monster m) {
+            return new ResolvedTarget(null, m);
+        }
+
+        static ResolvedTarget none() {
+            return new ResolvedTarget(null, null);
+        }
+
+        boolean present() {
+            return player != null || monster != null;
+        }
+
+        double x() {
+            return player != null ? player.getX() : monster.getX();
+        }
+
+        double y() {
+            return player != null ? player.getY() : monster.getY();
+        }
+
+        double z() {
+            return player != null ? player.getZ() : monster.getZ();
+        }
+
+        String label() {
+            return player != null ? targetName(player) : labelOf(monster);
+        }
+
+        void writeInto(AiContext c) {
+            c.setTargetX(x());
+            c.setTargetY(y());
+            c.setTargetZ(z());
+        }
+    }
+
     /** 校验当前目标是否仍可锁;不可锁则清空并尝试按视野补一个(Evil) */
-    private PlayerEntity validateTarget(Monster monster, AiContext context) {
-        PlayerEntity target = context.getTargetPlayer();
+    private ResolvedTarget validateTarget(Monster monster, AiContext context) {
+        PlayerEntity player = context.getTargetPlayer();
+        Monster summon = context.getTargetMonster();
 
         // 若已锁一个目标,先校验它是否仍有效
-        if (target != null) {
+        if (player != null || summon != null) {
             double lose = loseRangeOf(monster);
-            if (!target.isTargetable()
-                || target.getMapId() != monster.getMapId()
-                || distXZ(monster, target) > lose) {
+            boolean stillOk = player != null
+                ? player.isTargetable()
+                    && player.getMapId() == monster.getMapId()
+                    && distXZ(monster, player) <= lose
+                : summon.isAlive()
+                    && summon.getMapId() == monster.getMapId()
+                    && distXZ(monster, summon) <= lose;
+            if (!stillOk) {
                 log.info("[MonsterAI] {}#{} lost target {} (out of range/area)",
-                    monster.getName(), monster.getId(), targetName(target));
+                    monster.getName(), monster.getId(),
+                    player != null ? targetName(player) : labelOf(summon));
                 context.setTargetPlayer(null);
+                context.setTargetMonster(null);
                 monster.setTargetPlayerId(null);
-                target = null;
+                monster.setTargetMonsterId(null);
+                player = null;
+                summon = null;
             } else {
-                context.setTargetX(target.getX());
-                context.setTargetY(target.getY());
-                context.setTargetZ(target.getZ());
-                return target;
+                ResolvedTarget kept = player != null ? ResolvedTarget.of(player) : ResolvedTarget.of(summon);
+                kept.writeInto(context);
+                return kept;
             }
         }
 
-        // 无目标:仅 Evil(主动)扫描视野内玩家
-        PlayerEntity found = scanTarget(monster);
-        if (found != null) {
-            context.setTargetPlayer(found);
-            context.setTargetX(found.getX());
-            context.setTargetY(found.getY());
-            context.setTargetZ(found.getZ());
-            monster.setTargetPlayerId(found.getCharId());
+        // 无目标:仅 Evil(主动)扫描视野内「玩家 ∪ 召唤物」
+        ResolvedTarget found = scanTarget(monster);
+        if (found.present()) {
+            if (found.player() != null) {
+                context.setTargetPlayer(found.player());
+                monster.setTargetPlayerId(found.player().getCharId());
+            } else {
+                context.setTargetMonster(found.monster());
+                monster.setTargetMonsterId(found.monster().getId());
+            }
+            found.writeInto(context);
             log.info("[MonsterAI] {}#{} acquire target {} at ({},{})",
-                monster.getName(), monster.getId(), targetName(found),
-                (int) found.getX(), (int) found.getZ());
+                monster.getName(), monster.getId(), found.label(),
+                (int) found.x(), (int) found.z());
         } else {
             monster.setTargetPlayerId(null);
+            monster.setTargetMonsterId(null);
         }
         return found;
     }
 
-    /** 视野内找最近玩家实体(仅 Evil;高度差 <140) */
-    private PlayerEntity scanTarget(Monster monster) {
+    /**
+     * 视野内找最近的「玩家 ∪ 召唤物」（仅 Evil；高度差 &lt; 140）。
+     *
+     * <p>
+     * ⚠ **召唤物也在这里当候选**：原版里玩家召唤出来的怪就是一只普通怪 ——
+     * `Brood == MONSTER_USER` 的 `smCHAR` 就躺在 `lpCharMonster[]` 里，别的怪遇到它照打
+     * （`character.cpp:5905/5969` 一带的怪→召唤物路径**没有主人判定**）。少了这一条，
+     * 召唤物就变成"怪不理它、它单方面输出"的图腾，与原版手感差得远。
+     *
+     * <p>
+     * 玩家与召唤物取**更近**的那个。原版没有这个比较（它按单位表顺序取第一个满足条件的），
+     * 但"取最近"是这条链既有的口径，召唤物沿用同一口径 —— 不引入第二套优先级。
+     */
+    private ResolvedTarget scanTarget(Monster monster) {
         if (monster.getNature() != 1 || monster.getViewsight() <= 0) {
-            return null;
+            return ResolvedTarget.none();
         }
         double sight = Math.min(monster.getViewsight(), AOIManager.VIEW_RANGE);
+
+        PlayerEntity nearestPlayer = null;
+        double nearestPlayerDistSq = Double.MAX_VALUE;
         Set<PlayerEntity> nearby = aoiManager.getNearbyPlayers(monster.getX(), monster.getZ(), (float) sight);
-        PlayerEntity nearest = null;
-        double nearestDistSq = Double.MAX_VALUE;
         for (PlayerEntity entity : nearby) {
             if (entity == null || !entity.isTargetable() || entity.getMapId() != monster.getMapId()) {
                 continue;
@@ -227,12 +331,35 @@ public class AiEngine {
                 continue;
             }
             double d = distXZ(monster, entity);
-            if (d < nearestDistSq) {
-                nearestDistSq = d;
-                nearest = entity;
+            if (d < nearestPlayerDistSq) {
+                nearestPlayerDistSq = d;
+                nearestPlayer = entity;
             }
         }
-        return nearest;
+
+        Monster nearestSummon = null;
+        double nearestSummonDistSq = Double.MAX_VALUE;
+        for (Monster other : entityRegistry.monstersByMap(monster.getMapId())) {
+            if (other == monster || !other.isAlive() || !other.isSummon()) {
+                continue;
+            }
+            if (Math.abs(monster.getY() - other.getY()) > AIConstants.SCAN_HEIGHT_DIFF) {
+                continue;
+            }
+            double d = distXZ(monster, other);
+            if (d > sight) {
+                continue;
+            }
+            if (d < nearestSummonDistSq) {
+                nearestSummonDistSq = d;
+                nearestSummon = other;
+            }
+        }
+
+        if (nearestPlayer != null && nearestPlayerDistSq <= nearestSummonDistSq) {
+            return ResolvedTarget.of(nearestPlayer);
+        }
+        return nearestSummon != null ? ResolvedTarget.of(nearestSummon) : ResolvedTarget.none();
     }
 
     /** 受击反击/仇恨指定:把目标设为指定玩家实体(供 CombatService 受击调用) */
@@ -242,20 +369,45 @@ public class AiEngine {
             return;
         }
         context.setTargetPlayer(target);
+        context.setTargetMonster(null);
         context.setTargetX(targetX);
         context.setTargetZ(targetZ);
         monster.setTargetPlayerId(target.getCharId());
+        monster.setTargetMonsterId(null);
         log.info("[MonsterAI] {}#{} retaliate target {}", monster.getName(), monster.getId(),
             targetName(target));
     }
 
-    /** 清除怪物目标 */
+    /**
+     * 受击反击/仇恨指定:把目标设为指定**怪物**（召唤物）。
+     *
+     * 调用点：怪被召唤物打中时（{@code resolveMonsterVsMonster}）—— 与玩家那条对称，
+     * 都是"谁打我我打谁"。
+     */
+    public void setTargetMonster(Monster monster, Monster target, double targetX, double targetZ) {
+        AiContext context = monsterContexts.computeIfAbsent(monster.getId(), k -> new AiContext());
+        if (target == null || !target.isAlive()) {
+            return;
+        }
+        context.setTargetMonster(target);
+        context.setTargetPlayer(null);
+        context.setTargetX(targetX);
+        context.setTargetZ(targetZ);
+        monster.setTargetMonsterId(target.getId());
+        monster.setTargetPlayerId(null);
+        log.info("[MonsterAI] {}#{} retaliate target {}", monster.getName(), monster.getId(),
+            labelOf(target));
+    }
+
+    /** 清除怪物目标（两种目标一起清 —— 留着另一个会让"丢目标"只做了一半） */
     public void clearTarget(Monster monster) {
         AiContext context = monsterContexts.get(monster.getId());
         if (context != null) {
             context.setTargetPlayer(null);
+            context.setTargetMonster(null);
         }
         monster.setTargetPlayerId(null);
+        monster.setTargetMonsterId(null);
     }
 
     /** 移除怪物上下文 */
@@ -270,17 +422,21 @@ public class AiEngine {
 
     // ======== 攻击 ========
 
+    private void faceTarget(Monster monster, ResolvedTarget target) {
+        faceTarget(monster, target.x(), target.z());
+    }
+
     /**
-     * 站桩攻击时面朝目标。
+     * 站桩攻击时面朝目标（**面向算法唯一实现**；召唤物那条链也用这个）。
      *
-     * 原先**只有** `MovementService.moveToward`（追击移动）会写 `monster.angle`，所以一旦进入攻击距离
-     * 停下不动，朝向就停在上一次移动的方向 —— 从侧面/背面靠近或被人从背后打时，
+     * 原先**只有** `MovementService.moveToward`（追击移动）会写 `monster.angle`，所以一旦进入
+     * 攻击距离停下不动，朝向就停在上一次移动的方向 —— 从侧面/背面靠近或被人从背后打时，
      * 怪会**背对玩家挥击**（用户 2026-09-12 实测发现）。
      * 转向写成 monster.angle 后由 MonsterAOI.broadcastMove 下发（那里也已把朝向纳入"变化"判定）。
      */
-    private void faceTarget(Monster monster, PlayerEntity target) {
-        double dx = target.getX() - monster.getX();
-        double dz = target.getZ() - monster.getZ();
+    private void faceTarget(Monster monster, double targetX, double targetZ) {
+        double dx = targetX - monster.getX();
+        double dz = targetZ - monster.getZ();
         if (dx * dx + dz * dz < 0.0001) {
             return;
         }
@@ -293,17 +449,207 @@ public class AiEngine {
         monster.setAngle(angle);
     }
 
-    private boolean inAttackRange(Monster monster, PlayerEntity target) {
+    private boolean inAttackRange(Monster monster, ResolvedTarget target) {
         double range = monster.getAttackRange() > 0 ? monster.getAttackRange() : 2.0;
-        if (distXZ(monster, target) > range) {
+        if (distXZ(monster, target.x(), target.z()) > range) {
             return false;
         }
-        double dy = monster.getY() - target.getY();
+        double dy = monster.getY() - target.y();
         return Math.abs(dy) < AIConstants.ATTACK_HEIGHT_DIFF;
     }
 
-    /** 按攻击冷却结算一次伤害(对齐原版:站桩出刀,帧外由 tick 决定出手节奏) */
-    private void tryAttack(Monster monster, PlayerEntity target) {
+    // ======== 召唤物（怪物水晶） ========
+
+    /**
+     * 召唤物的每 tick 决策。与原版 `character.cpp:5780-5830` 同一套：
+     * 先把主人拴住（太远瞬移），再找怪打，最后才是归位/待机。
+     *
+     * <p>
+     * **主人不在线时这里直接返回、不判死** —— 召唤物的收尾统一由
+     * `MonsterSpawnService` 的生命周期检查处理（它对"寿命到点"和"主人没了"都调
+     * `CombatService.killSummon`）。理由：致死入口只能有一个（`Monster.onDeath` 的不变式，
+     * 见 `MonsterAOI.reconcile` 的自检），两条链都能改死亡状态迟早会漏写死亡负载。
+     */
+    private void updateSummon(Monster summon, AiContext context) {
+        PlayerEntity owner = ownerOf(summon);
+        if (owner == null) {
+            return;
+        }
+
+        tetherToOwner(summon, context, owner);
+
+        MonsterState prevState = summon.getState();
+        Monster target = validateMonsterTarget(summon, context);
+        MonsterState next = decide(
+            target != null,
+            target != null && inAttackRange(summon, ResolvedTarget.of(target)),
+            homeDistOf(summon), leashOf(summon));
+
+        if (target != null) {
+            // 与原版一致：出了刀就站完这一刀（时长 = 攻击动画时长），否则客户端的挥击会被打断
+            long lockMs = summon.getAttackIntervalMs();
+            if (summon.getState() == MonsterState.ATTACK && lockMs > 0
+                    && System.currentTimeMillis() - summon.getLastAttackTime() < lockMs) {
+                faceTarget(summon, target.getX(), target.getZ());
+                return;
+            }
+            if (next == MonsterState.ATTACK) {
+                if (summon.getState() != MonsterState.ATTACK) {
+                    logState(summon, prevState, MonsterState.ATTACK, "lock target=" + labelOf(target));
+                    summon.setState(MonsterState.ATTACK);
+                }
+                faceTarget(summon, target.getX(), target.getZ());
+                tryAttack(summon, ResolvedTarget.of(target));
+            } else {
+                if (summon.getState() != MonsterState.CHASE) {
+                    logState(summon, prevState, MonsterState.CHASE, "chase target=" + labelOf(target));
+                    summon.setState(MonsterState.CHASE);
+                }
+                ResolvedTarget.of(target).writeInto(context);
+            }
+            return;
+        }
+
+        if (next == MonsterState.RETURN) {
+            if (summon.getState() != MonsterState.RETURN) {
+                // RETURN 的位移目标是 `spawnX/spawnZ`，而召唤物的出生锚**就是主人**
+                // （`tetherToOwner` 每 tick 把它更新成主人当前位置）⇒ 不需要动 MovementService
+                logState(summon, prevState, MonsterState.RETURN,
+                    "back to owner, dist=" + (int) homeDistOf(summon));
+                summon.setState(MonsterState.RETURN);
+            }
+        } else if (summon.getState() != MonsterState.IDLE) {
+            logState(summon, prevState, MonsterState.IDLE, "stand");
+            summon.setState(MonsterState.IDLE);
+        }
+    }
+
+    /**
+     * 把召唤物拴在主人身上（原版 `character.cpp:5788-5827`）。
+     *
+     * <p>
+     * 两件事：
+     * <ol>
+     *   <li>**出生锚跟随主人** —— 让 `homeDistOf`/`leashOf`/RETURN 这三样现成的东西
+     *       全部自动变成"以主人为家"。这是"不新增状态机取值"的关键一步；</li>
+     *   <li>距离 ≥ {@link #SUMMON_TELEPORT_DIST} 时瞬移到主人脚下并清目标（原版就是这样，
+     *       顺带解释了为什么玩家跑远了召唤物也会跟上来）。</li>
+     * </ol>
+     */
+    private void tetherToOwner(Monster summon, AiContext context, PlayerEntity owner) {
+        // 出生锚 = 主人当前位置（每 tick 更新，见上）
+        summon.setSpawnX(owner.getX());
+        summon.setSpawnZ(owner.getZ());
+
+        double dx = owner.getX() - summon.getX();
+        double dz = owner.getZ() - summon.getZ();
+        if (dx * dx + dz * dz < SUMMON_TELEPORT_DIST * SUMMON_TELEPORT_DIST) {
+            return;
+        }
+
+        // 原版：主人所在处没有地面（掉出了世界）→ 召唤物直接死，而不是跟着瞬移过去
+        // （`character.cpp:5794-5796`：`y = lpStage->GetHeight(...); if (y < 0) Life[0]=0; DEAD;`）
+        Double ownerGround = mapRegionService.getFloorHeightOrNull(owner.getMapId(), owner.getX(), owner.getZ());
+        if (ownerGround == null) {
+            log.info("[MonsterAI] {}#{} 距主人过远且主人脚下没有地面 → 按原版让召唤物死亡",
+                summon.getName(), summon.getId());
+            combatService.killSummon(summon, 0L);
+            return;
+        }
+
+        log.info("[MonsterAI] {}#{} 距主人 {} 超出 {} → 瞬移到主人脚下",
+            summon.getName(), summon.getId(), (int) Math.sqrt(dx * dx + dz * dz),
+            (int) SUMMON_TELEPORT_DIST);
+        // 落点用**主人自己的坐标**（含 Y），与原版逐字一致 —— 不是地面高度
+        summon.setX(owner.getX());
+        summon.setY(owner.getY());
+        summon.setZ(owner.getZ());
+        summon.setTargetMonsterId(null);
+        context.setTargetMonster(null);
+        summon.setLastBroadcastX(Double.NaN);   // 强制下一次广播位置（否则客户端会看到它"平滑滑过去"）
+        summon.setLastBroadcastZ(Double.NaN);
+    }
+
+    /** 召唤物的主人实体；主人不在线（会话已解绑/回选角）时返回 null。 */
+    PlayerEntity ownerOf(Monster summon) {
+        if (!summon.isSummon()) {
+            return null;
+        }
+        PlayerSession session = sessionManager.getSessionByCharacterId(summon.getOwnerCharId());
+        if (session == null || !session.isPlaying()) {
+            return null;
+        }
+        return session.getEntity();
+    }
+
+    /**
+     * 召唤物的目标：视野内最近的**非召唤物**怪。
+     *
+     * <p>
+     * 不打玩家的召唤物（`isSummon()` 的排除）、不打 NPC（NPC 是另一个实体类型，不在
+     * `EntityRegistry` 的怪表里）。原版的过滤比这多几条（同 `ClassClan`、城堡联动、
+     * `lpLinkChar` 等，见 `OnSever.cpp:10084-10130`）—— 那几条全部服务于城堡战，
+     * 我们本期不做城堡水晶，故不移植；等做 GP114-116 时再照抄那段。
+     */
+    private Monster validateMonsterTarget(Monster summon, AiContext context) {
+        Monster current = context.getTargetMonster();
+        if (current != null) {
+            double lose = loseRangeOf(summon);
+            if (!current.isAlive()
+                || current.getMapId() != summon.getMapId()
+                || current.isSummon()
+                || distXZ(summon, current) > lose) {
+                log.info("[MonsterAI] {}#{} lost target {} (out of range/area)",
+                    summon.getName(), summon.getId(), labelOf(current));
+                context.setTargetMonster(null);
+                summon.setTargetMonsterId(null);
+                current = null;
+            } else {
+                ResolvedTarget.of(current).writeInto(context);
+                return current;
+            }
+        }
+
+        Monster found = scanMonsterTarget(summon);
+        if (found != null) {
+            context.setTargetMonster(found);
+            ResolvedTarget.of(found).writeInto(context);
+            summon.setTargetMonsterId(found.getId());
+            log.info("[MonsterAI] {}#{} acquire target {} at ({},{})",
+                summon.getName(), summon.getId(), labelOf(found),
+                (int) found.getX(), (int) found.getZ());
+        } else {
+            summon.setTargetMonsterId(null);
+        }
+        return found;
+    }
+
+    /** 视野内最近的**非召唤物**怪（高度差同普通怪的 SCAN_HEIGHT_DIFF） */
+    private Monster scanMonsterTarget(Monster summon) {
+        double sight = Math.min(summon.getViewsight(), AOIManager.VIEW_RANGE);
+        Monster nearest = null;
+        double nearestDistSq = Double.MAX_VALUE;
+        for (Monster other : entityRegistry.monstersByMap(summon.getMapId())) {
+            if (other == summon || !other.isAlive() || other.isSummon()) {
+                continue;
+            }
+            if (Math.abs(summon.getY() - other.getY()) > AIConstants.SCAN_HEIGHT_DIFF) {
+                continue;
+            }
+            double d = distXZ(summon, other);
+            if (d > sight) {
+                continue;
+            }
+            if (d < nearestDistSq) {
+                nearestDistSq = d;
+                nearest = other;
+            }
+        }
+        return nearest;
+    }
+
+    /** 按攻击冷却结算一次伤害(对齐原版:站桩出刀,帧外由 tick 决定出手节奏)。**出刀节奏的唯一实现** */
+    private void tryAttack(Monster monster, ResolvedTarget target) {
         long now = System.currentTimeMillis();
         // 两刀间隔 = 攻击动画时长 —— 唯一判据在 Monster.getAttackIntervalMs()
         // （原版服务端跑同一份 smCHAR::Main()，动画没播完不能出下一刀，等价于这个时长）。
@@ -321,7 +667,18 @@ public class AiEngine {
         monster.setAttackAnim(MonsterAnimData.get().pick(monster.getModelFile(), "attack"));
         monster.setLastBroadcastAnim(-1);
 
+        // 结算按目标类型分派（两条链的差别只有结算方式，节奏/动画/朝向都是共用的）
+        if (target.monster() != null) {
+            resolveMonsterVsMonster(monster, target.monster());
+            return;
+        }
+        resolveMonsterVsPlayer(monster, target.player(), interval);
+    }
+
+    /** 怪 → 玩家（原有实现，逐字保留；只把出刀节奏挪到了 `tryAttack`） */
+    private void resolveMonsterVsPlayer(Monster monster, PlayerEntity target, long interval) {
         Player player = target.getPlayer();
+
         if (player == null) {
             return;
         }
@@ -406,6 +763,88 @@ public class AiEngine {
         }
     }
 
+    /**
+     * 怪 ↔ 召唤物 的结算 —— **两个方向共用这一份**（召唤物打怪、怪打召唤物）。
+     *
+     * <p>
+     * 不变式：**恰好一方是召唤物**。
+     * <ul>
+     *   <li>召唤物只把"非召唤物的怪"当目标（`scanMonsterTarget` 里排除同类）；</li>
+     *   <li>普通怪只把"玩家或召唤物"当目标（`scanTarget` 只收这两种）。</li>
+     * </ul>
+     * 两边都不是召唤物是**不该出现**的（怪打怪）—— 那就报 error，不静默（AGENTS #12）：
+     * 那种情况会被 `MonsterAOI.reconcile` 的"DEAD 却没有死亡负载"自检再抓一次，
+     * 然后由 decay 路径收走，所以既不会卡住也不会被吞掉。
+     *
+     * <p>
+     * 显示侧**客户端零改动**：用怪→玩家那条 `S2C_Damage`（`targetId` = 被打的实体 id，
+     * 带权威 `currentHp`），客户端的 `applyUnitHp`/`applyMonsterHit` 本来就认怪物血量，
+     * 而召唤物也是 `monsters` 表里的实体 ⇒ 打怪飘字、召唤物自己掉血都自动成立。
+     */
+    private void resolveMonsterVsMonster(Monster attacker, Monster defender) {
+        DamageResult result = damageCalculator.calculateMonsterToMonster(
+            attacker.combatStats(), defender.combatStats());
+
+        int mapId = defender.getMapId();
+        float bx = (float) defender.getX();
+        float bz = (float) defender.getZ();
+
+        if (result.isMissed()) {
+            log.info("[MonsterAI] {}#{} ATK {} -> MISS, interval={}ms",
+                attacker.getName(), attacker.getId(), labelOf(defender), attacker.getAttackIntervalMs());
+            messageSender.broadcastToArea(mapId, bx, bz, 50,
+                ServerMessage.newBuilder()
+                    .setDamage(S2C_Damage.newBuilder()
+                        .setTargetId(defender.getId())
+                        .setDamage(0)
+                        .setCurrentHp(defender.getHp())
+                        .setMissed(true)
+                        .build())
+                    .build());
+            attacker.setLastBroadcastAnim(-1);   // 下一刀仍广播攻击动作，玩家看得到挥空
+            return;
+        }
+
+        int newHp = Math.max(0, defender.getHp() - result.getFinalDamage());
+        defender.setHp(newHp);
+
+        log.info("[MonsterAI] {}#{} ATK {} dmg={} ({}->{})",
+            attacker.getName(), attacker.getId(), labelOf(defender),
+            result.getFinalDamage(), newHp + result.getFinalDamage(), newHp);
+
+        messageSender.broadcastToArea(mapId, bx, bz, 50,
+            ServerMessage.newBuilder()
+                .setDamage(S2C_Damage.newBuilder()
+                    .setTargetId(defender.getId())
+                    .setDamage(result.getFinalDamage())
+                    .setCurrentHp(newHp)
+                    .build())
+                .build());
+
+        // 受击反击：被谁打就回头打谁（与玩家那条对称 —— Neutral 受击也反击）
+        if (defender.getNature() == 0
+            || (defender.getTargetPlayerId() == null && defender.getTargetMonsterId() == null)) {
+            setTargetMonster(defender, attacker, attacker.getX(), attacker.getZ());
+        }
+
+        // 强制下一轮攻击广播重发（客户端每刀都能看到攻击动作）
+        attacker.setLastBroadcastAnim(-1);
+
+        if (newHp <= 0) {
+            if (defender.isSummon()) {
+                // 召唤物被打死：**不给任何人经验/掉落**（它只是主人的一块肉，模板本身 exp=0）
+                combatService.killSummon(defender, attacker.getId());
+            } else if (attacker.isSummon()) {
+                // 召唤物打死了怪 → 经验/掉落记在**主人**头上（原版把主人 serial 写在 `Next_Exp` 上的语义）
+                combatService.creditSummonKill(defender, attacker);
+            } else {
+                log.error("[MonsterAI] 怪打死了怪：{}#{} → {}#{}（不该出现 —— 目标来源只有"
+                    + "「召唤物打怪」与「怪打玩家/召唤物」两条，请查是谁塞的目标）",
+                    attacker.getName(), attacker.getId(), defender.getName(), defender.getId());
+            }
+        }
+    }
+
     // ======== 工具 ========
 
     private double loseRangeOf(Monster monster) {
@@ -414,17 +853,30 @@ public class AiEngine {
     }
 
     private double distXZ(Monster monster, PlayerEntity entity) {
-        double dx = monster.getX() - entity.getX();
-        double dz = monster.getZ() - entity.getZ();
+        return distXZ(monster, entity.getX(), entity.getZ());
+    }
+
+    /** 怪物↔怪物、怪物↔坐标 的水平距离（与玩家那条同一个算法）。 */
+    private double distXZ(Monster monster, Monster other) {
+        return distXZ(monster, other.getX(), other.getZ());
+    }
+
+    private double distXZ(Monster monster, double x, double z) {
+        double dx = monster.getX() - x;
+        double dz = monster.getZ() - z;
         return Math.sqrt(dx * dx + dz * dz);
     }
 
-    private String targetName(PlayerEntity entity) {
+    private static String targetName(PlayerEntity entity) {
         if (entity == null) return "?";
         Player p = entity.getPlayer();
         if (p != null && p.getName() != null) return p.getName();
         PlayerSession s = entity.getSession();
         return s != null && s.getCharacterName() != null ? s.getCharacterName() : String.valueOf(entity.getCharId());
+    }
+
+    private static String labelOf(Monster monster) {
+        return monster == null ? "?" : monster.getName() + "#" + monster.getId();
     }
 
     private void logState(Monster monster, MonsterState from, MonsterState to, String reason) {

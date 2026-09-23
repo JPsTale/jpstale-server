@@ -66,8 +66,20 @@ public class MonsterSpawnService {
     @Autowired
     private EntityRegistry entityRegistry;
 
+    /** 召唤物的收场（到点/主人离场）要发死亡事件 —— 与 `AiEngine` 打死的走同一个入口。 */
+    @Autowired
+    private CombatService combatService;
+
     /** 怪物名 → 模板 */
     private final Map<String, MonsterList> monsterTemplatesByName = new ConcurrentHashMap<>();
+    /**
+     * `monsterid`（业务 id，全库唯一）→ 模板。
+     *
+     * 刷怪配置按**名字**引用怪物（`mapmonster.monster1..12` 就是名字），所以按名索引用的是上面那张表；
+     * 而召唤物（怪物水晶）按 **`monsterid`** 引用模板（`CrystalService` 表里写的就是 monsterid）——
+     * 两条链的键不同，各自一张索引，**不做名字↔id 的双向猜测**。
+     */
+    private final Map<Integer, MonsterList> monsterTemplatesByMonsterId = new ConcurrentHashMap<>();
     /** 加权随机用：mapId → 累积权重数组 */
     private final Map<Integer, int[]> cumulativeWeightsByMap = new ConcurrentHashMap<>();
     /** 加权随机用：mapId → 对应怪物名列表 */
@@ -93,7 +105,22 @@ public class MonsterSpawnService {
             if (t.getName() != null && !t.getName().isBlank()) {
                 monsterTemplatesByName.put(t.getName().trim(), t);
             }
+            if (t.getMonsterId() != null) {
+                MonsterList prev = monsterTemplatesByMonsterId.put(t.getMonsterId(), t);
+                if (prev != null) {
+                    // `monsterid` 实测全库唯一（456 行 / 0 重复）。真出现重复就是数据被改坏了 ——
+                    // 喊出来，别让"后一条静默胜出"变成查不出来的行为差异。
+                    log.error("[MonsterSpawn] monsterid={} 在 monsterlist 里重复（{} 与 {}）→ "
+                            + "按 monsterid 找模板的调用方（召唤物）会拿到后者",
+                        t.getMonsterId(), prev.getName(), t.getName());
+                }
+            }
         }
+    }
+
+    /** 按 `monsterlist.monsterid` 取模板（召唤物用）；没有该 id 时返回 null。 */
+    public MonsterList findTemplateByMonsterId(int monsterId) {
+        return monsterTemplatesByMonsterId.get(monsterId);
     }
 
     /**
@@ -269,7 +296,15 @@ public class MonsterSpawnService {
 
     // ======== 创建怪物实例 ========
 
-    private Monster createMonster(MonsterList template, int mapId, SpawnPoint point) {
+    /**
+     * **模板 → Monster 的逐字段拷贝（唯一实现）** —— 刷怪与召唤物（怪物水晶）共用。
+     *
+     * <p>
+     * 只填"由 `monsterlist` 决定的东西"。位置、地图归属、出生点记账一律留给调用方：
+     * 刷怪走**出生点**（含随机偏移与存活账本），召唤物走**主人脚下的落点**且不记账 ——
+     * 这是两者唯一的差别，所以差别只出现在调用方那几行里。
+     */
+    private Monster applyTemplate(MonsterList template) {
         Monster monster = new Monster();
         monster.setName(template.getName());
         monster.setLevel(template.getLevel() != null ? template.getLevel() : 1);
@@ -324,9 +359,6 @@ public class MonsterSpawnService {
         // 音效/特效 ID：DB effect 列存名字（如 "MUSHROOM"），转成数字编码下发客户端
         monster.setMonsterEffectId(MonsterEffectId.fromName(template.getEffect()).getValue());
 
-        monster.setMapId(mapId);
-        monster.setState(MonsterState.IDLE);
-        monster.setLastTransTime(System.currentTimeMillis());
         // 动画条目表可用性自检（表由客户端仓库 `npm run monster-anim` 统计 .inx 生成）。
         // **具体选哪条攻击动画**在出刀时决定（`AiEngine.tryAttack` → `MonsterAnimData.pick`），
         // 因为每刀都该重新选变体（原版 `SetMotionFromCode(ATTACK)` 每刀都随机）。
@@ -343,6 +375,16 @@ public class MonsterSpawnService {
                         monster.getModelFile());
             }
         }
+        return monster;
+    }
+
+    /** 刷怪：模板 + 出生点（含随机偏移、出生点记账）。 */
+    private Monster createMonster(MonsterList template, int mapId, SpawnPoint point) {
+        Monster monster = applyTemplate(template);
+
+        monster.setMapId(mapId);
+        monster.setState(MonsterState.IDLE);
+        monster.setLastTransTime(System.currentTimeMillis());
 
         // 在出生点附近随机偏移
         int offsetRange = point.getRange() > 0 ? point.getRange() : 200;
@@ -359,6 +401,72 @@ public class MonsterSpawnService {
         monster.setSpawnZ(point.getZ());
 
         return monster;
+    }
+
+    /**
+     * 建一只**召唤物**（怪物水晶）—— 与刷怪共用 {@link #applyTemplate}，差别只有两处：
+     *
+     * <ol>
+     *   <li>`spawnPointIndex = -1` ⇒ `findSpawnPoint` 对负值返回空，**不碰刷怪点的账本**
+     *       （存活数 / 刷新冷却）。少了这一条，召唤物会被算进"这个刷怪点已经有多少只"，
+     *       把野外刷怪顶掉。</li>
+     *   <li>出生锚 = 落点（召唤瞬间的位置）。此后由 `AiEngine.tetherToOwner` 每 tick 更新成
+     *       主人当前位置 ⇒ `RETURN`（归位）对召唤物天然就是"跑回主人身边"。</li>
+     * </ol>
+     *
+     * 归属与寿命字段（`ownerCharId/ownerEntityId/ownerName/summonExpireMs`）由调用方
+     * （`SummonService`）填 —— 这里不知道水晶、也不知道主人是谁，只管"按模板造一只在 (x,z)"。
+     */
+    public Monster createSummon(MonsterList template, int mapId, double x, double z) {
+        Monster monster = applyTemplate(template);
+
+        monster.setMapId(mapId);
+        monster.setState(MonsterState.IDLE);
+        monster.setLastTransTime(System.currentTimeMillis());
+        monster.setX(x);
+        monster.setZ(z);
+        monster.setY(mapRegionService.getHeight(mapId, x, z));
+        monster.setAngle(ThreadLocalRandom.current().nextDouble() * Math.PI * 2);
+
+        monster.setSpawnPointIndex(-1);
+        monster.setSpawnX(x);
+        monster.setSpawnZ(z);
+
+        return monster;
+    }
+
+    /**
+     * 召唤物该收场了吗 —— 寿命到点，或主人已不在线 / 换了图。
+     *
+     * <p>
+     * 原版这是**两条独立的规则**：寿命（`OnSever.cpp:10162` 的 `dwUpdateCharInfoTime` 到期
+     * → `Life[0]=0` + 死亡动作）与"主人不在本 field"（`OnSever.cpp:10074` → `DelCaravan`）。
+     * 我们合到一处判定，但**两条都保留**：只做寿命的话，主人换图后召唤物会留在原地打空气。
+     *
+     * <p>
+     * 用 SessionManager 判"主人还在不在"，不用 `EntityRegistry.findPlayer` ——
+     * 后者的 `unregisterPlayer` 在全仓没有任何调用方（玩家实体从不从注册表摘除），
+     * 拿它当在线判据会永远命中一个已经离线的实体。
+     */
+    private boolean summonShouldDie(Monster summon, long now) {
+        if (summon.getSummonExpireMs() > 0 && now >= summon.getSummonExpireMs()) {
+            log.info("[Spawn] 召唤物 {}#{} 寿命到点（主人 charId={}）",
+                summon.getName(), summon.getId(), summon.getOwnerCharId());
+            return true;
+        }
+        PlayerSession ownerSession = sessionManager.getSessionByCharacterId(summon.getOwnerCharId());
+        PlayerEntity owner = ownerSession != null && ownerSession.isPlaying() ? ownerSession.getEntity() : null;
+        if (owner == null) {
+            log.info("[Spawn] 召唤物 {}#{} 的主人不在线了（charId={}）→ 收场",
+                summon.getName(), summon.getId(), summon.getOwnerCharId());
+            return true;
+        }
+        if (owner.getMapId() != summon.getMapId()) {
+            log.info("[Spawn] 召唤物 {}#{} 的主人换了图（{} → {}）→ 收场（原版 DelCaravan 同义）",
+                summon.getName(), summon.getId(), summon.getMapId(), owner.getMapId());
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -438,6 +546,13 @@ public class MonsterSpawnService {
             //      见 Monster.decayTime / SpawnPoint.respawnCooldownMs）；存活但连续 60s 无玩家临近移除(D10)
             List<Long> toRemove = new ArrayList<>();
             for (Monster m : monsters) {
+                // 召唤物（怪物水晶）：寿命到点 / 主人离场 → 收场。
+                // 放在"清理"里而不是 AI 里，是因为致死入口只能有一个（见 `CombatService.killSummon`）——
+                // 而这里本来就在判"这个实体该不该留"。死掉后**继续走下面的尸体流程**
+                // （decayTime 到点才真正移除）：原版也是"到点自己死"，不是被删掉。
+                if (m.isAlive() && m.isSummon() && summonShouldDie(m, now)) {
+                    combatService.killSummon(m, 0L);
+                }
                 if (!m.isAlive()) {
                     if (m.isDecayed(now)) {
                         monsterAOI.onMonsterRemoved(m);

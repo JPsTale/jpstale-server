@@ -301,6 +301,14 @@ public class MonsterAOI {
         // 动画播放速率：服务端持有 attackspeed 档位（客户端没有），算好下发 —— 客户端直接当 animRate 用。
         // 与 `Monster.getAttackIntervalMs()`（服务端等动画播完的时长）同源，两边时间才对得上。
         appear.setAnimRate(m.getAnimRate());
+        // 召唤物归属（怪物水晶）：只在真的是召唤物时才带。客户端用 `owner_entity_id > 0`
+        // 判"这是个召唤物"，用 `owner_name` 在名牌第二行画 `(主人名)`；不设 = 普通怪。
+        if (m.isSummon()) {
+            appear.setOwnerEntityId(m.getOwnerEntityId());
+            if (m.getOwnerName() != null) {
+                appear.setOwnerName(m.getOwnerName());
+            }
+        }
         session.send(ServerMessage.newBuilder().setMonsterAppear(appear.build()).build());
     }
 

@@ -77,11 +77,12 @@ public class MovementService {
 
         switch (monster.getState()) {
             case CHASE: {
-                // 追击：朝目标玩家实体位置移动;速度档与动画同源:能跑才跑,否则走(原版 IQ≥6+run 动画)
-                PlayerEntity target = context.getTargetPlayer();
-                if (target == null) break;
-                double tx = target.getX();
-                double tz = target.getZ();
+                // 追击：朝**目标坐标**移动（不再读目标实体）。
+                // 目标可能是玩家，也可能是一只召唤物（`AiContext.targetMonster`）；两条链都会把
+                // 目标坐标写进 targetX/targetZ ⇒ 位移侧与目标类型解耦，这里不必知道追的是谁。
+                // 速度档与动画同源:能跑才跑,否则走(原版 IQ≥6+run 动画)
+                double tx = context.getTargetX();
+                double tz = context.getTargetZ();
                 double step = monster.isCanRun() ? GameConstants.MONSTER_RUN_STEP : GameConstants.MONSTER_WALK_STEP;
                 moveToward(monster, tx, tz, step);
                 break;

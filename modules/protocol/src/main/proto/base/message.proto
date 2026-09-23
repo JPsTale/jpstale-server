@@ -578,6 +578,18 @@ message S2C_MonsterAppear {
   // 这样 `attackspeed` 才真正作用于动画速度（快怪动画播得快），且与**服务端算的动画时长同源**
   // （服务端"等动画播完"必须等于客户端实际播完的时间）。
   float anim_rate = 12;
+  // ==================== 召唤物归属（怪物水晶） ====================
+  // 这两项只在"这只怪是玩家召唤出来的"时非零/非空 —— 不另发一条"这是召唤物"的消息，
+  // 用 `owner_entity_id > 0` 作唯一判据（原版对应 `smCharInfo.Brood == smCHAR_MONSTER_USER`）。
+  //
+  // 为什么是**显式字段**而不是复用别的：原版把主人名字塞进 `szModelName2+1`、把主人 serial
+  // 塞进 `smCharInfo.Next_Exp`（都是借字段用），任何读那两个字段的代码都得知道这个约定；
+  // 我们全部显式化（见 game-server `Monster` 的归属字段注释）。
+  //
+  // 客户端用途：① 认出"这是我自己的召唤物"（不可攻击、不被裁剪、名牌画蓝）；
+  // ② 在名牌第二行画 `(主人名)`（原版 `Winmain.cpp:4010-4019` 的画法）。
+  int64 owner_entity_id = 13; // 主人的**运行时实体 id**（PlayerEntity.getId()）；0 = 不是召唤物
+  string owner_name = 14;     // 主人角色名（名牌第二行 `(名字)`）
 }
 
 message S2C_MonsterDisappear {

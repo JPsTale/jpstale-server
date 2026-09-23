@@ -204,22 +204,32 @@ public class CombatService {
      */
     public void playerAttackStart(Player player, long monsterId, int clientSeq, int declaredSegments,
                                   int animIndex, String animClip) {
-        if (!checkAttackCooldown(player)) {
-            log.info("COMBAT {} 起手 seq={} 被冷却拒绝（距上次 {}ms < 判定阈值 {}ms）→ 这次挥拳没有计划",
-                player.getName(), clientSeq, msSinceLastAttack(player), attackGateMs(player));
-            discardStalePlan(player, clientSeq);
-            return;
-        }
         PlayerSession session = playerService.sessionOf(player);
         PlayerEntity attackerEntity = session != null ? session.getEntity() : null;
         if (attackerEntity == null) {
             return;
         }
+        if (!checkAttackCooldown(player)) {
+            log.info("COMBAT {} 起手 seq={} 被冷却拒绝（距上次 {}ms < 判定阈值 {}ms）→ 这次挥拳没有计划",
+                player.getName(), clientSeq, msSinceLastAttack(player), attackGateMs(player));
+            discardStalePlan(player, clientSeq);
+            // 同上：攻击方自己的屏幕上这一刀是挥出去了（它是本地驱动的），旁观者也要看到同样的挥击
+            broadcastAttackStart(attackerEntity, buildAttackStart(player, monsterId, animIndex, animClip));
+            return;
+        }
+        // ★ **挥击本身要广播**（哪怕这一刀注定没有伤害）：`S2C_AttackStart` 是"动作同步"，
+        //   与伤害账本无关。原版每次挥拳都是本地先播、再由状态广播透传，所以"对着尸体挥"别人也看得见；
+        //   我们这条是**显式一次性事件**（丢了不会补）—— 一旦在下面两个分支里 return 掉，
+        //   旁观者就**完全看不到**这次挥击（用户 2026-09-23 实测："怪物被秒杀后远端角色根本不播攻击动画"：
+        //   秒杀之后攻击方客户端还在挥，那几刀全落在"目标已死"分支上）。
+        //   故：**起手广播先行，计划另算**；该跳过的只有"伤害计划"。
+        S2C_AttackStart start = buildAttackStart(player, monsterId, animIndex, animClip);
         Monster monster = findMonsterById(monsterId);
         if (monster == null || !monster.isAlive()) {
-            log.info("COMBAT {} 起手 seq={} 目标 {} 不存在或已死 → 这次挥拳没有计划",
+            log.info("COMBAT {} 起手 seq={} 目标 {} 不存在或已死 → 这次挥拳没有计划（动作照常广播）",
                 player.getName(), clientSeq, monsterId);
             discardStalePlan(player, clientSeq);
+            broadcastAttackStart(attackerEntity, start);
             return;
         }
         // ⚠ 距离**不在这里拦截**：自机位置是客户端预测值、怪物位置是插值，边界附近两边必然不一致。
@@ -268,14 +278,18 @@ public class CombatService {
             broadcastAttackPlan(attackerEntity, plan.build());
         }
 
-        S2C_AttackStart start = S2C_AttackStart.newBuilder()
+        broadcastAttackStart(attackerEntity, buildAttackStart(player, monsterId, animIndex, animClip));
+    }
+
+    /** `S2C_AttackStart` 的消息体只造一处（三条出口共用：正常 / 目标已死 / 冷却拒绝） */
+    private S2C_AttackStart buildAttackStart(Player player, long monsterId, int animIndex, String animClip) {
+        return S2C_AttackStart.newBuilder()
             .setAttackerId(player.getId())
             .setTargetId(monsterId)
             .setAttackSpeed(statCalculator.attackSpeed(player))
             .setAnimIndex(animIndex)
             .setAnimClip(animClip == null ? "" : animClip)
             .build();
-        broadcastAttackStart(attackerEntity, start);
     }
 
     /**
@@ -611,6 +625,62 @@ public class CombatService {
         // 尸体**保留**：死怪留在 AOI 可见集里，直到 Monster.decayTime 到点后由主循环发 Disappear
         //（"死"与"消失"是两条独立事件；中途进场的观察者靠 S2C_MonsterAppear.dead 认出尸体）
         monsterAOI.onMonsterDeath(monster, killer.getId(), exp, gold);
+    }
+
+    // ======== 召唤物（怪物水晶）的死亡与击杀归属 ========
+
+    /**
+     * **召唤物打死了怪 → 结算给主人**。
+     *
+     * <p>
+     * 复用 {@link #handleMonsterDeath}：经验/掉落/升级/落库/战斗日志/死亡广播全都照走，
+     * 只是把"击杀者"从玩家换成**主人的 Player** —— 这正是原版把主人 serial 写在召唤物
+     * `smCharInfo.Next_Exp` 上的语义（`docs/召唤物系统-源码分析.md` §7）。
+     * 客户端侧：`MonsterAOI.sendDeath` 只把 exp/gold 发给 `killerId == 自己` 的那个玩家，
+     * 所以经验飘字只会出现在主人屏幕上。
+     *
+     * <p>
+     * 主人已离线时**不静默丢弃**：报 error 并改走"无击杀者"死亡（怪照死、死亡事件照发，
+     * 只是没人拿经验）—— 那种日志就是"为什么这次击杀没给经验"的凭据。
+     */
+    public void creditSummonKill(Monster dead, Monster summon) {
+        long ownerCharId = summon.getOwnerCharId();
+        PlayerSession session = sessionManager.getSessionByCharacterId(ownerCharId);
+        Player owner = session != null && session.isPlaying() ? playerService.getPlayer(session) : null;
+        if (owner == null) {
+            log.error("[COMBAT] 召唤物 {}#{} 打死了 {}#{}，但主人已不在线（charId={}）→ 本次不发经验与掉落",
+                summon.getName(), summon.getId(), dead.getName(), dead.getId(), ownerCharId);
+            killMonsterNoCredit(dead, "召唤物击杀但主人已离线");
+            return;
+        }
+        log.info("[COMBAT] 召唤物 {}#{}（主人 {}）打死了 {}#{} → 经验/掉落记给主人",
+            summon.getName(), summon.getId(), owner.getName(), dead.getName(), dead.getId());
+        handleMonsterDeath(dead, owner);
+    }
+
+    /**
+     * **召唤物的死亡**：被打死（`killerId` = 那只怪的实体 id）或到点/主人离场（`killerId` = 0）。
+     *
+     * <p>
+     * 为什么不复用 {@link #handleMonsterDeath}：那条链要给玩家发经验/掉落/升级/落库，
+     * 而召唤物死亡恰恰相反 —— 谁都不给（它只是主人的一块肉，模板 `exp` 本身就是 0）。
+     * 但**死亡负载必须写**：`state == DEAD ⇒ deathInfo != null` 是 `MonsterAOI.reconcile`
+     * 自检依赖的不变式（见 `Monster.onDeath` 的注释）；缺了它客户端只会看到"它站着不动然后消失"。
+     */
+    public void killSummon(Monster summon, long killerId) {
+        dieWithNoCredit(summon, killerId, killerId > 0 ? "召唤物被打死，凶手怪=" + killerId : "召唤物到点/主人离场");
+    }
+
+    /** 怪死了但**没有可记账的玩家**（召唤物的主人已下线）：死亡事件照发，经验与掉落不发。 */
+    public void killMonsterNoCredit(Monster monster, String why) {
+        dieWithNoCredit(monster, 0L, why);
+    }
+
+    /** 死亡 + 死亡负载，但不发经验/掉落 —— 上面两个入口的**唯一实现**。 */
+    private void dieWithNoCredit(Monster monster, long killerId, String why) {
+        monster.onDeath();
+        monsterAOI.onMonsterDeath(monster, killerId, 0L, 0);
+        log.info("[COMBAT] {}#{} 死亡（{}）—— 不发经验与掉落", monster.getName(), monster.getId(), why);
     }
 
     /**

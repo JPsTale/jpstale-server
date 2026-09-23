@@ -97,6 +97,53 @@ public class DamageCalculator {
     }
 
     /**
+     * 计算**怪物对怪物**的伤害（召唤物打怪 / 怪打召唤物）。
+     *
+     * <p>
+     * 与 {@link #calculateMonsterToPlayer} 的差别只有两处，都是照原版来的：
+     * <ol>
+     *   <li>**没有格挡** —— 格挡是玩家专有（原版的怪→怪路径里没有 block 判定）；</li>
+     *   <li>减伤是**百分比**吸收，不是玩家那种明文减伤点数：
+     *       `pw = pow; pw -= (pow * lpTargetChar->smCharInfo.Absorption) / 100;`
+     *       （`character.cpp` 里召唤物的范围伤害分支即此写法，见
+     *       `docs/召唤物系统-源码分析.md` §4.1 的引用）。</li>
+     * </ol>
+     *
+     * <p>
+     * 命中判定与 {@code calculateMonsterToPlayer} 共用 `statCalculator.monsterAccuracyPvp`
+     * （原版怪→怪与怪→玩家走的是同一套 `sinGetMonsterAccuracy`）。
+     * 两个入参都是 {@link MonsterStats} 快照 —— 共享层不认 app 层的实体，
+     * 攻方与防方用同一个记录类型即可，**不要为它加字段**（那会波及所有取快照的调用点）。
+     */
+    public DamageResult calculateMonsterToMonster(MonsterStats attacker, MonsterStats defender) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+        // 0. 命中判定（同怪→玩家：攻击方 等级/attackRating 对 防御方 等级/defense）
+        int hitPercent = statCalculator.monsterAccuracyPvp(
+            attacker.level(), attacker.attackRating(), defender.level(), defender.defense());
+        if (rnd.nextInt(100) >= hitPercent) {
+            return DamageResult.miss();
+        }
+
+        DamageResult result = new DamageResult();
+
+        // 1. 基础伤害 = 攻方攻击力区间掷点（原版 `smCharInfo.Attack_Damage[0..1]`）。
+        //    区间用 max(1, …) 兜住"上界不大于下界"的坏数据：`nextInt(0)` 会抛，
+        //    而不是"打 0 伤害"—— 数据问题不该表现成崩溃。
+        int baseDamage = rnd.nextInt(Math.max(1, attacker.atkMax() - attacker.atkMin()))
+            + attacker.atkMin() + 1;
+        result.setRawDamage(baseDamage);
+
+        // 2. 吸收减伤 —— 百分比
+        int absorption = defender.absorption();
+        baseDamage = baseDamage * (100 - absorption) / 100;
+
+        // 3. 最小伤害为 1（与原版一致：打中就是掉血）
+        result.setFinalDamage(Math.max(1, baseDamage));
+        return result;
+    }
+
+    /**
      * 计算玩家基础攻击力（对齐原版 sinInvenTory.cpp）
      * <p>
      * 徒手：按 DamageMelee 系数用属性公式；有武器时按武器伤害 * 属性系数。

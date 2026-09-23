@@ -42,6 +42,8 @@ public class ItemNetworkHandler {
     private final org.jpstale.server.game.service.BuffStateService buffStateService;
     /** 锻造升级的广播（原版 `smCOMMNAD_USER_AGINGUP`） */
     private final org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster;
+    /** 怪物水晶：召唤体解析 + 落点 + 归属（`CrystalService` 只管"哪颗水晶召哪只怪"这张表）。 */
+    private final org.jpstale.server.game.service.SummonService summonService;
 
 
     public ItemNetworkHandler(ItemService itemService, PlayerService playerService,
@@ -56,7 +58,8 @@ public class ItemNetworkHandler {
                               org.jpstale.common.service.item.ForceOrbService forceOrbService,
                               org.jpstale.common.service.item.MixService mixService,
                               org.jpstale.server.game.service.BuffStateService buffStateService,
-                              org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster) {
+                              org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster,
+                              org.jpstale.server.game.service.SummonService summonService) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
@@ -71,6 +74,7 @@ public class ItemNetworkHandler {
         this.mixService = mixService;
         this.buffStateService = buffStateService;
         this.ageEffectBroadcaster = ageEffectBroadcaster;
+        this.summonService = summonService;
     }
 
     // ------------------------------------------------------------------
@@ -204,6 +208,21 @@ public class ItemNetworkHandler {
         int idCode = it.getItemCode() != null ? it.getItemCode() : 0;
         int family = familyOf(idCode);
 
+        // ---- ⓪ 怪物水晶（`sinGP1` 的已实现档）：在主人身边召唤一只怪 ----
+        //
+        // 与原版**入口**的差别是有意的（见 docs/召唤物系统-源码分析.md §10.1 #3）：原版是
+        // "丢到地上 + 把 `PotionCount` 改成 100 当协议标记"（`sinThrowItemToFeild`），
+        // 本服按用户要求走**右键使用**这条链 —— 也就是这条 `C2S_UseItem`，不引入魔数标记。
+        //
+        // 所以这里也**不广播 EAT**（原版水晶没有吃药用动作，它是"丢出去"的），并且必须放在
+        // 冷却与 `broadcastUseItem` **之前** —— 否则右键水晶会被那套 EAT 闸门吞掉（同一个坑在
+        // 客户端侧也踩过一次：`useWithoutAnimation` 就是为它存在的）。
+        CrystalService.CrystalDef crystal = CrystalService.defOf(idCode);
+        if (crystal != null) {
+            useCrystal(session, p, idCode, crystal, req.getUid());
+            return;
+        }
+
         // ---- 吃药冷却（先于任何副作用）----
         // 原版 `sinUsePotionDelayFlag`（`sinInvenTory.cpp:791-798`：50 帧 @70Hz ≈ 714ms）在**客户端**，
         // 但那层改包就能绕；"连按刷药"直接改战斗节奏，所以服务端同样挡一道。
@@ -286,6 +305,75 @@ public class ItemNetworkHandler {
         log.info("[UseItem] {} 未支持的消耗品 family=0x{} idCode={} name={}（未消耗）",
                 p.getName(), Integer.toHexString(family), idCode,
                 it.getTemplate() != null ? it.getTemplate().getName() : "?");
+    }
+
+    /**
+     * 怪物水晶：**一颗水晶 → 一只召唤物**。
+     *
+     * <p>
+     * 顺序遵循 `ItemService.consumeFromBag` 的约定："调用方先确认**效果能落地**，再扣" ——
+     * 所以三条判据（等级、城市、模板）全部在扣之前返回，不需要"扣了再退"的回滚路径。
+     *
+     * <p>
+     * 判据出处：
+     * <ul>
+     *   <li>**等级** = `gamedb.itemlist.reqlevel`（GP102=8 … GP113=80；对照表见源码分析 §1）。
+     *       原版只在**客户端**拦这一道，而且是静默 `return`（`sinInvenTory.cpp:1272`），
+     *       改包就能绕 ⇒ 服务端权威，并给可见提示（原版连提示都没有）；</li>
+     *   <li>**城市禁召唤** = 原版 `lpField->State == FIELD_STATE_VILLAGE`（`OnSever.cpp:3595`
+     *       里 `return FALSE`）—— 我们的对应判据就是既有的 `GameMap.isSafe()`
+     *       （`maplist.typemap = 'Cities'`，实测 5 张：3/21/29/45/49）；</li>
+     *   <li>**模板缺失** = 原版按名字比对失败后 `return FALSE`，水晶被**静默消耗**。这个失败模式
+     *       我们**不复制**：回一条可见错误且**不扣物品**（另外 `SummonService.validateCrystalTable`
+     *       会在启动时先喊一次）。</li>
+     * </ul>
+     */
+    private void useCrystal(PlayerSession session, Player p, int idCode,
+                            CrystalService.CrystalDef def, long uid) {
+        org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
+        if (ent == null) {
+            return;
+        }
+        ItemInstance it = p.getItems().byUid(uid);
+        if (it == null || it.isDeleted()) {
+            sendErrorKey(session, "chat.cmd.useItemNotInBag");
+            return;
+        }
+
+        // ① 等级门
+        int reqLevel = it.getReqLevel();
+        if (p.getLevel() < reqLevel) {
+            sendErrorKey(session, "item.op.crystal.level", java.util.Map.of("level", String.valueOf(reqLevel)));
+            log.info("[UseItem] {} 等级 {} < {} → 不能使用水晶 0x{}（未消耗）",
+                p.getName(), p.getLevel(), reqLevel, Integer.toHexString(idCode));
+            return;
+        }
+
+        // ② 城市禁召唤（原版 FIELD_STATE_VILLAGE）
+        org.jpstale.server.game.model.GameMap map = mapManager.getMap(ent.getMapId());
+        if (map != null && map.isSafe()) {
+            sendErrorKey(session, "item.op.crystal.town");
+            log.info("[UseItem] {} 在城市图 {}（{}）试图召唤 → 拒绝，未消耗",
+                p.getName(), ent.getMapId(), map.getName());
+            return;
+        }
+
+        // ③ 掷出召唤体（神秘水晶按权重池抽；单怪水晶的池里只有一项）
+        int roll = java.util.concurrent.ThreadLocalRandom.current().nextInt(100);   // 原版 `rand() % 100`
+        org.jpstale.dao.gamedb.entity.MonsterList template = summonService.resolveSummon(def, roll);
+        if (template == null) {
+            sendErrorKey(session, "item.op.crystal.noTemplate");
+            return;   // resolveSummon 已把"缺哪个 id、依据是哪条"打进 error 日志
+        }
+
+        // ④ 到这里才扣：效果已经确定能落地
+        ItemInstance used = itemService.consumeAt(p, uid, 1);
+        if (used == null) {
+            sendErrorKey(session, "chat.cmd.useItemFailed");
+            return;
+        }
+        pushAfterUse(session, used);
+        summonService.spawn(idCode, template, ent, p);
     }
 
     // ---------------- 回复类（药水）效果 ----------------
@@ -816,6 +904,17 @@ public class ItemNetworkHandler {
                 .setError(S2C_Error.newBuilder()
                         .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
                         .setKey(key)
+                        .build())
+                .build());
+    }
+
+    /** 带模板参数的错误（客户端 `t(key, params)`；如"需要 {level} 级"）。 */
+    private void sendErrorKey(PlayerSession session, String key, java.util.Map<String, String> params) {
+        session.send(ServerMessage.newBuilder()
+                .setError(S2C_Error.newBuilder()
+                        .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
+                        .setKey(key)
+                        .putAllParams(params)
                         .build())
                 .build());
     }
