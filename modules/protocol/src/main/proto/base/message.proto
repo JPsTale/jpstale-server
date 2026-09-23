@@ -44,7 +44,11 @@ message ClientMessage {
     C2S_AgeItem age_item = 219;           // 锻造投石：目标装备 + 一颗材料石（"一键拉满"走 use_item，不经此消息）
     C2S_ForceOrbItem force_orb_item = 220;
   C2S_MixPreview mix_preview = 221; // 力量大师转化：材料石 → 同档力量石
+    C2S_LearnSkill learn_skill = 222;               // 学/升级技能（服务端权威：判定 + 扣钱 + 写技能等级）
+    C2S_ResetSkillPoints reset_skill_points = 223;  // 洗点（会话内一次；守卫是内存标记，不落库）
+    C2S_SetSkillBinding set_skill_binding = 224;    // 改技能绑定（拳位/快捷栏）；服务端校验后写 props 并回推 S2C_SkillBindings
     
+
     // 战斗 (300-399)
     C2S_Attack attack = 300;
     C2S_UseSkill use_skill = 301;
@@ -88,6 +92,8 @@ message ServerMessage {
     S2C_MapSwitched map_switched = 210;
     S2C_PlayerTeleport player_teleport = 209;  // 不连续位移（脱困/传送）：本人据此搬自己，旁观者据此挪 actor
     S2C_LevelUpBroadcast level_up_broadcast = 211;  // 升级广播：本人+观察者都收（本人播音+特效、观察者播特效）
+    S2C_SkillList skill_list = 212;  // 已学技能表 + 两个技能点池（**只发本人**：技能点是私有的）
+    S2C_SkillBindings skill_bindings = 213;  // 技能绑定表（拳位/快捷栏；**只发本人**）—— 与技能表同一批时机下发
     
     // 怪物 (300-399)
     S2C_MonsterAppear monster_appear = 300;
@@ -552,6 +558,9 @@ message S2C_CharacterStatus {
   // 当前等级起点的累计经验（同 S2C_PlayerState.level_exp）：角色面板显示
   // 「本级已获得 / 本级升级所需」用，避免只显示一个「剩余所需」看不出进度。
   int64 level_exp = 44;
+  // 技能点（**派生量**：等级 + 任务位 − 已花，不落盘）：面板显示用，学技能/洗点/升级后都会推
+  int32 skill_point = 47;          // 1–3 转池的剩余点
+  int32 special_skill_point = 48;  // 4 转池的剩余点
 }
 
 // 外观更新：穿/脱装备、W 武器切换后服务端推送，客户端据此更新 3D 角色模型。
@@ -1051,4 +1060,57 @@ message S2C_AgeUpBroadcast {
   int64 player_id = 1;   // 谁的装备锻造成功了（客户端按它找单位位置）
   int64 uid = 2;         // 哪件装备（诊断用）
   int32 level = 3;       // 成功后的等级（+N）
+}
+
+// ==================== 技能（技能点 / 学习 / 洗点） ====================
+
+// 一条已学技能。
+// **技能标识用数字 `skill_id`**（= 0x<job 1..11><tier 1..5><slot 1..4>，每段一字节、十进制值），
+// 不用源码宏名（60 个技能没有宏），也不用动画下标（那是客户端自己那套，两端各自重排过一次就静默对不上）。
+// 未学的技能**不下发**（键不存在 = 等级 0）。
+message LearnedSkill {
+  int32 skill_id = 1;  // 数字技能 id，如 0x040101（pikeman 一转一槽）
+  int32 point = 2;     // 技能等级 1..10（已学的必然 ≥1）
+  int32 mastery = 3;   // 熟练度 0..10000（CD 档位用）
+}
+
+// 技能表：登录 / 学习 / 洗点后各发一次。**只发本人** —— 技能点是私有的。
+// 两个点数字段与 S2C_CharacterStatus 的两个同源（都走 SkillPointService.free）。
+message S2C_SkillList {
+  repeated LearnedSkill skills = 1;
+  int32 skill_point = 2;          // 1–3 转池剩余点
+  int32 special_skill_point = 3;  // 4 转池剩余点
+}
+
+// 学/升级技能：服务端判定四道门（槽位开放 / 前置槽 / 等级 / 上限）+ 两条成本（技能点 / 钱），
+// 失败回 `skill.op.*` 原因码（客户端按前缀决定是否回滚乐观 UI）。
+message C2S_LearnSkill {
+  int32 skill_id = 1;   // 要学/升的数字技能 id（同 LearnedSkill.skill_id）
+}
+
+// 洗点：退还全部已花技能点、清零等级与熟练度（剩余点是派生量，清键即退点）。
+// 守卫 = **会话内存标记**（登录/转职清零，不落库）；被拒回 `skill.op.resetUsed`。无字段。
+message C2S_ResetSkillPoints {
+}
+
+// ==================== 技能绑定（拳位 / F1~F8） ====================
+
+// 技能绑定表：**只发本人**。`0` = 该位置**没有绑定**（拳位 0 = 普通攻击拳，就是原版
+// `pLeftSkill/pRightSkill == NULL` 时那一击退化为普通攻击的状态，`playmain.cpp:2316`）。
+//
+// 身份是**数字 `skill_id`**（同 LearnedSkill.skill_id）：客户端据此反查图标/职业，**不存图标名、不存职业目录**
+// —— 那两样都是客户端资产命名，改名即静默错位（AGENTS #24）。
+message S2C_SkillBindings {
+  int32 fist_left = 1;             // 左键（左拳位）绑的技能；0 = 未绑（普通攻击）
+  int32 fist_right = 2;            // 右键（右拳位）绑的技能；0 = 未绑
+  repeated int32 quick = 3;        // F1~F8 各绑的技能，**定长 8、下标 0 = F1**；0 = 该键未绑
+}
+
+// 改一个绑定：`kind` 1 = 拳位 / 2 = 快捷栏；`skill_id` 0 = 解绑。
+// 服务端校验（不是本职业的技能、`useCode` 不允许该位置、kind/index 越界一律拒绝）
+// 后写进 `characterinfo.props`（`bind.fist.left|right` / `bind.quick.<1..8>`）并回推上面的绑定表。
+message C2S_SetSkillBinding {
+  int32 kind = 1;      // 1 = 拳位（index 1=左 2=右）；2 = 快捷栏（index 1..8 = F1..F8）
+  int32 index = 2;     // 见 kind
+  int32 skill_id = 3;  // 数字技能 id；0 = 解绑（显式清掉该位置）
 }

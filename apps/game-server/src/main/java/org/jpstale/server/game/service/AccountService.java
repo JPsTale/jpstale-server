@@ -86,6 +86,9 @@ public class AccountService {
     @Autowired
     private GameTokenService gameTokenService;
 
+    @Autowired
+    private SkillPointService skillPointService;
+
     private final Random random = new Random();
 
     /**
@@ -639,7 +642,10 @@ public class AccountService {
 
         PlayerEntity playerEntity = null;
         try {
-            playerService.getOrCreate(session);
+            Player loaded = playerService.getOrCreate(session);
+            // 洗点守卫是**会话内存标记**、不落库 ⇒ 登录（选角进场）时清零：原版那个标志服务端
+            // 从不存，每次把角色数据发下来客户端就又变成"没洗过"，效果等同"本次登录内一次"
+            loaded.setSkillResetUsed(false);
             playerEntity = playerService.ensureEntity(session);
         } catch (Exception e) {
             log.warn("Load player {} failed on selectCharacter: {}", characterId, e.toString());
@@ -704,6 +710,9 @@ public class AccountService {
             playerService.sendPlayerStatus(session, cachedPlayer);
             // 物品全量快照：背包/仓库/装备/备用武器（客户端据此重建物品界面）
             itemNetworkHandler.sendInventorySnapshot(session, cachedPlayer);
+            // 技能表（已学等级 + 熟练度 + 两个点数）+ 技能绑定表（拳位/F1~F8）：
+            // 绑定是**按角色**存在 props 里的，所以换角色时这张表必须跟着重发（否则客户端会留着上一个角色的绑定）
+            skillPointService.sendSkillTables(session, cachedPlayer);
         }
 
         log.info("Character selected: {} ({}) for account: {}, spawn at map {} ({}, {}, {})",

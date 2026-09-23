@@ -85,6 +85,15 @@ public class CharacterInfo {
     private Integer head;
     @TableField("rank")
     private Integer rank;
+    /**
+     * 角色属性包（jsonb，键 → int）：任务位、技能等级/熟练度…
+     *
+     * <p>⚠ 这一列**必须由 DDL 先行加上**（`ALTER TABLE userdb.characterinfo ADD COLUMN props jsonb
+     * NOT NULL DEFAULT '{}'::jsonb`）：实体映射了它，列不存在时所有 characterinfo 的查询都会报错。
+     * 解析/校验在 `PlayerProperties`；写不进去的坑见 {@link org.jpstale.dao.userdb.handler.JsonbTypeHandler}。
+     */
+    @TableField(value = "props", typeHandler = org.jpstale.dao.userdb.handler.JsonbTypeHandler.class)
+    private String props;
     @TableField(exist = false)
     private LocalDateTime levelUpDate;
 }

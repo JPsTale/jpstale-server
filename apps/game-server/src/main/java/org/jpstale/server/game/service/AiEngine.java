@@ -301,17 +301,31 @@ public class AiEngine {
     }
 
     /**
-     * 视野内找最近的「玩家 ∪ 召唤物」（仅 Evil；高度差 &lt; 140）。
+     * 视野内找最近的**玩家**（仅 Evil；高度差 &lt; 140）—— 照原版，**召唤物不是索敌候选**。
      *
      * <p>
-     * ⚠ **召唤物也在这里当候选**：原版里玩家召唤出来的怪就是一只普通怪 ——
-     * `Brood == MONSTER_USER` 的 `smCHAR` 就躺在 `lpCharMonster[]` 里，别的怪遇到它照打
-     * （`character.cpp:5905/5969` 一带的怪→召唤物路径**没有主人判定**）。少了这一条，
-     * 召唤物就变成"怪不理它、它单方面输出"的图腾，与原版手感差得远。
+     * 原版的索敌逐字如此（`Server/OnSever.cpp:10200-10358`，`srAutoCharMain` 里）：
+     * <pre>
+     *   if (!lpChar->lpTargetChar) {                        // 没有"怪"目标时才索敌
+     *     for (cnt = 0; cnt &lt; CONNECTMAX; cnt++) {          // ★ 遍历 rsPlayInfo[] = **玩家表**
+     *       ... State != smCHAR_STATE_ENEMY / 同血盟跳过 / dwLinkObjectCode / HideMode ...
+     *       dist = rX*rX + rZ*rZ + rY*rY;
+     *       if (dist &lt; MinDist &amp;&amp; abs(rY) &lt; 140) { ... lprsPlayInfo = &amp;rsPlayInfo[cnt]; MinDist = dist; }
+     * </pre>
+     * ⇒ 取**最近的活玩家**；视野是 `smCharInfo.Sight`（玩家的蔽目/追踪技能会改它），
+     * 排除同血盟与 `HideMode`。（原版还有 `dwTargetLockTime` 目标锁 —— 我们没做，见文末注。）
      *
      * <p>
-     * 玩家与召唤物取**更近**的那个。原版没有这个比较（它按单位表顺序取第一个满足条件的），
-     * 但"取最近"是这条链既有的口径，召唤物沿用同一口径 —— 不引入第二套优先级。
+     * ⚠ **召唤物要等它先动手才挨打**：怪把召唤物当目标的**唯一**入口是**反击** ——
+     * `character.cpp:5998/6005` 的 `lpTargetChar-&gt;lpTargetChar = this;`（"我打了你，你现在打我"），
+     * 由 {@code resolveMonsterVsMonster} 调 {@link #setTargetMonster} 落地。
+     * 我**一度**把召唤物也加进了这个扫描，依据写的是 `character.cpp:5905/5969` —— 那两行其实是
+     * "诅咒技能对召唤物跳过"和"Babel 回血对召唤物不适用"，**不是索敌证据**。用户 2026-09-23 实测
+     * 指出"怪物刷新出来后会先找玩家的茬"，核对后确认**那就是原版行为**，遂撤回。
+     *
+     * <p>
+     * 已知未做的差异：原版有目标锁 `dwTargetLockTime`（锁定期不重新索敌），我们每 tick 都重新校验、
+     * 能自由换目标。要不要补是独立的一件事（当前没有表现出问题）。
      */
     private ResolvedTarget scanTarget(Monster monster) {
         if (monster.getNature() != 1 || monster.getViewsight() <= 0) {
@@ -336,30 +350,7 @@ public class AiEngine {
                 nearestPlayer = entity;
             }
         }
-
-        Monster nearestSummon = null;
-        double nearestSummonDistSq = Double.MAX_VALUE;
-        for (Monster other : entityRegistry.monstersByMap(monster.getMapId())) {
-            if (other == monster || !other.isAlive() || !other.isSummon()) {
-                continue;
-            }
-            if (Math.abs(monster.getY() - other.getY()) > AIConstants.SCAN_HEIGHT_DIFF) {
-                continue;
-            }
-            double d = distXZ(monster, other);
-            if (d > sight) {
-                continue;
-            }
-            if (d < nearestSummonDistSq) {
-                nearestSummonDistSq = d;
-                nearestSummon = other;
-            }
-        }
-
-        if (nearestPlayer != null && nearestPlayerDistSq <= nearestSummonDistSq) {
-            return ResolvedTarget.of(nearestPlayer);
-        }
-        return nearestSummon != null ? ResolvedTarget.of(nearestSummon) : ResolvedTarget.none();
+        return nearestPlayer != null ? ResolvedTarget.of(nearestPlayer) : ResolvedTarget.none();
     }
 
     /** 受击反击/仇恨指定:把目标设为指定玩家实体(供 CombatService 受击调用) */
@@ -795,9 +786,10 @@ public class AiEngine {
      * 不变式：**恰好一方是召唤物**。
      * <ul>
      *   <li>召唤物只把"非召唤物的怪"当目标（`scanMonsterTarget` 里排除同类）；</li>
-     *   <li>普通怪只把"玩家或召唤物"当目标（`scanTarget` 只收这两种）。</li>
+     *   <li>普通怪的**索敌**只收玩家（`scanTarget`），它拿到"怪"目标**只有反击**这一条路
+     *       （原版同：`character.cpp:5998/6005`）—— 而能打到它、从而触发反击的只有召唤物。</li>
      * </ul>
-     * 两边都不是召唤物是**不该出现**的（怪打怪）—— 那就报 error，不静默（AGENTS #12）：
+     * 两边都不是召唤物是**不该出现**的（怪打怪、且都不是召唤物）—— 那就报 error，不静默（AGENTS #12）：
      * 那种情况会被 `MonsterAOI.reconcile` 的"DEAD 却没有死亡负载"自检再抓一次，
      * 然后由 decay 路径收走，所以既不会卡住也不会被吞掉。
      *

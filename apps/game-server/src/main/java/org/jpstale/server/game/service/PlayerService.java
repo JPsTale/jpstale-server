@@ -3,6 +3,7 @@ package org.jpstale.server.game.service;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.props.PlayerProperties;
 import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.dao.userdb.entity.CharacterExpDef;
 import org.jpstale.dao.userdb.entity.CharacterInfo;
@@ -51,6 +52,10 @@ public class PlayerService {
     /** buff 状态的唯一生产者（见 `BuffStateService` 注释：生效/刷新/到期三处共用一份拼装） */
     @Autowired
     private BuffStateService buffStateService;
+
+    /** 技能点（两个池）的唯一求值入口：面板的 skill_point / special_skill_point 与学技能都走它 */
+    @Autowired
+    private SkillPointService skillPointService;
 
     /** 等级 → 升到该级所需总经验（characterexpdef / ExpLevelTable） */
     private final Map<Integer, Long> expTable = new ConcurrentHashMap<>();
@@ -140,6 +145,11 @@ public class PlayerService {
 
     public Player getPlayer(PlayerSession session) {
         return players.get(session.getCharacterId());
+    }
+
+    /** charId → 已装载的 Player（不在世 ⇒ null）。 */
+    public Player byId(long playerId) {
+        return players.get(playerId);
     }
 
     // ======== 在线 PlayerEntity(D11/实体化) ========
@@ -350,7 +360,10 @@ public class PlayerService {
             .setResFire(res[2]).setResLightning(res[4]).setResIce(res[3])
             .setHpRegen((float) statCalculator.regenHp(p))
             .setMpRegen((float) statCalculator.regenMp(p))
-            .setStmRegen((float) statCalculator.regenStm(p));
+            .setStmRegen((float) statCalculator.regenStm(p))
+            // 技能点（派生量：等级 + 任务位 − 已花）：面板显示用，学技能/升级/洗点后随状态推送一起刷新
+            .setSkillPoint(skillPointService.free(p, SkillPointService.Pool.ONE))
+            .setSpecialSkillPoint(skillPointService.free(p, SkillPointService.Pool.FOUR));
     }
 
     /**
@@ -453,6 +466,8 @@ public class PlayerService {
         info.setAgility(player.getAgility());
         info.setHealth(player.getHealth());
         info.setStatePoint(player.getStatePoint());
+        // 属性包（jsonb）：任务位 / 技能等级与熟练度都在这一个包里 —— 整行 UPDATE 是它唯一的落库路径
+        info.setProps(PlayerProperties.serialize(player.getProps()));
         // 一并落库当前位置/朝向（下次进场从下线坐标恢复，而非固定 startPoint）
         PlayerEntity ent = entityOf(player);
         if (ent != null) {
@@ -610,6 +625,10 @@ public class PlayerService {
         p.setAgility(info.getAgility() != null ? info.getAgility() : 10);
         p.setHealth(info.getHealth() != null ? info.getHealth() : 10);
         p.setStatePoint(info.getStatePoint() != null ? info.getStatePoint() : 0);
+        // 属性包（jsonb）：脏数据在这里当场抛出、登录失败（不静默当 0 —— 那会把"存档坏了"演成"没学过技能"）
+        p.setProps(PlayerProperties.parse(info.getProps()));
+        // 技能点自检（等于原版的 CheckSkillPoint）：已花 > 所得 ⇒ 存档非法，报错但不改数据
+        skillPointService.checkLoaded(p);
 
         // 物品权威装载：背包/仓库/装备/备用武器 全部活行 → items + 重建画布位图 + 抗性
         loadItems(p);

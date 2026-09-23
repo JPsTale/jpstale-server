@@ -1,7 +1,14 @@
 package org.jpstale.common.service.model;
 
 import lombok.Data;
+import org.jpstale.common.service.props.PlayerProperties;
 import org.jpstale.server.common.model.CharacterAppearance;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 玩家游戏数据（**纯数据面**）。
@@ -47,6 +54,91 @@ public class Player {
 
     /** 完整外观（头/防具/时装/武器），进场时由 AccountService 计算一次缓存；AOI Appear 下发用 */
     private CharacterAppearance appearance;
+
+    /**
+     * 角色属性包（`characterinfo.props` 的 jsonb → 键值表）：任务位、技能等级/熟练度…
+     * 派生字段（类似 {@link #statsCache}）：装载时解析、整行落库时写回，见 `PlayerProperties`。
+     * ⚠ 读写**一律**走下面的 `getPropInt` / `setPropInt`（解析与默认值只此一处；在别处 read-modify-write
+     * 这个 map 会丢更新）。
+     */
+    private Map<String, Integer> props = new LinkedHashMap<>();
+
+    /**
+     * 本次登录是否已经洗过技能点（守**洗点**这道门）。
+     *
+     * <p>**不落库**（不进 props）：原版那个标志服务端从不读也不存、下发时还被清零 ⇒ 有效语义就是
+     * "本次登录内一次"，落库反而比原版更严。由登录（选角进场）与转职清零。
+     */
+    private transient boolean skillResetUsed;
+
+    /* ─────────────── 属性包访问器（唯一读写入口；见字段注释） ─────────────── */
+
+    /** 该键的值；无该键 ⇒ 注册表默认值（未注册的键 ⇒ 0）。 */
+    public int getPropInt(String key) {
+        Integer v = props.get(requirePropKey(key));
+        return v != null ? v : PlayerProperties.defaultOf(key);
+    }
+
+    /** 该键的值；无该键 ⇒ `def`（**优先于**注册表默认值）。 */
+    public int getPropIntOrDefault(String key, int def) {
+        Integer v = props.get(requirePropKey(key));
+        return v != null ? v : def;
+    }
+
+    /** 只改内存；落库由整行 UPDATE（`PlayerService.persistStats`）负责。 */
+    public void setPropInt(String key, int value) {
+        props.put(requirePropKey(key), value);
+    }
+
+    /** = `getPropInt(key) != 0`。 */
+    public boolean getPropBool(String key) {
+        return getPropInt(key) != 0;
+    }
+
+    /** = `setPropInt(key, value ? 1 : 0)`。 */
+    public void setPropBool(String key, boolean value) {
+        setPropInt(key, value ? 1 : 0);
+    }
+
+    public boolean getPropBoolOrDefault(String key, boolean def) {
+        return getPropIntOrDefault(key, def ? 1 : 0) != 0;
+    }
+
+    /** 取多个键（无该键的填默认值），保持入参顺序。 */
+    public Map<String, Integer> getPropMany(List<String> keys) {
+        if (keys == null) {
+            return Map.of();
+        }
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (String k : keys) {
+            out.put(k, getPropInt(k));
+        }
+        return Collections.unmodifiableMap(out);
+    }
+
+    /**
+     * 包里出现过、但注册表里没有的键（键腐烂的守卫）—— 升序。
+     *
+     * <p>`skill.*` 整段跳过：它们的合法取值是"职业 × 技能名"的笛卡尔积，白名单枚举不过来。
+     */
+    public List<String> unknownPropKeys() {
+        List<String> out = new ArrayList<>();
+        for (String k : props.keySet()) {
+            if (!k.startsWith("skill.") && !PlayerProperties.isKnown(k)) {
+                out.add(k);
+            }
+        }
+        Collections.sort(out);
+        return out;
+    }
+
+    /** 键不能是 null/空白（否则会往包里塞一个读不回来的键）。 */
+    private static String requirePropKey(String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("props 的键不能为空");
+        }
+        return key;
+    }
 
     // 元素抗性**不在这里**：它是装备属性的一种，与其它读数同源（`EquipSummary.res`
     // → `PlayerStatCalculator.resistances(p)`，含装备基础 + 职业特效 + `Lev_*` 的等级档）。

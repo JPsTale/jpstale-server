@@ -196,6 +196,28 @@ public class CombatService {
     }
 
     /**
+     * 玩家能否把这一只怪当作攻击目标 —— **召唤物一律不行**。
+     *
+     * <p>
+     * 原版（`SrcGame/src/playmain.cpp:2380-2387`，客户端那一侧）：
+     * <pre>
+     *   if (lpCharMsTrace-&gt;smCharInfo.State == smCHAR_STATE_ENEMY &amp;&amp; lpCharMsTrace-&gt;smCharInfo.Brood == smCHAR_MONSTER_USER)
+     *       if (!PkMode) { attack_UserMonster = TRUE; attack = 0; }
+     * </pre>
+     * ⚠ 那句**没有"是不是我的"判断** —— 非 PkMode 下**任何人的**召唤物都打不了（自己那只也不行），
+     * 只有 PkMode 放行；而**我们没有 PkMode** ⇒ 等于一律不可攻击。
+     * （例外是治疗类技能，原版在 `playmain.cpp:2394` 把 `attack_UserMonster` 清掉放行 —— 我们技能效果还没接。）
+     *
+     * <p>
+     * 为什么收成一个共用判据：它有**三条**攻击入口（起手 / 命中帧 / 技能），三处各写一遍
+     * `isSummon()` 迟早漏一处，而漏掉的那一处就是"改包能打召唤物"的口子 —— 用户 2026-09-23
+     * 要的就是"服务端也拒掉"。判据只有一个含义，所以只有一份实现。
+     */
+    static boolean playerAttackAllowed(Monster target) {
+        return target == null || !target.isSummon();
+    }
+
+    /**
      * 起手（挥拳开始）：冷却 + 距离校验 → 广播 S2C_AttackStart（旁观者据此立刻挥拳 + 定挥拳时长）。
      * 不结算伤害；伤害由后续命中帧 C2S_AttackHit 触发。
      *
@@ -231,6 +253,19 @@ public class CombatService {
         if (monster == null || !monster.isAlive()) {
             log.info("COMBAT {} 起手 seq={} 目标 {} 不存在或已死 → 这次挥拳没有计划（动作照常广播）",
                 player.getName(), clientSeq, monsterId);
+            discardStalePlan(player, clientSeq);
+            broadcastAttackStart(attackerEntity, start);
+            return;
+        }
+        // **召唤物不可被玩家攻击**（原版 `SrcGame/src/playmain.cpp:2380-2387`）：
+        //   if (State == smCHAR_STATE_ENEMY && Brood == smCHAR_MONSTER_USER) { if (!PkMode) { attack_UserMonster = TRUE; attack = 0; } }
+        // ⚠ 注意原版那句**没有"是不是我的"判断** —— `attack = 0` 对**任何人的**召唤物都生效；
+        //   只有 PkMode 下才允许，而**我们没有 PkMode** ⇒ 等于一律不可攻击。
+        //   （我们客户端也已按此拦住点击；这一道是给改包用的 —— 之前服务端**完全没有**校验。）
+        // 处理方式与"目标已死"一致：**挥击照常广播**（动作同步不归伤害账本管），只是不出伤害计划。
+        if (!playerAttackAllowed(monster)) {
+            log.warn("COMBAT {} 起手 seq={} 目标是召唤物 {}#{} → 拒绝生成伤害计划（动作照常广播）",
+                player.getName(), clientSeq, monster.getName(), monsterId);
             discardStalePlan(player, clientSeq);
             broadcastAttackStart(attackerEntity, start);
             return;
@@ -324,6 +359,15 @@ public class CombatService {
             // 怪物头上却连伤害数字和 MISS 都没有）。
             log.info("COMBAT {} hit#{} 目标 {} 已不存在或已死 → 这一刀落空（回 MISS 修正客户端音效）",
                 player.getName(), hitIndex, monsterId);
+            battleLogService.playerWhiffed(playerService.sessionOf(player));
+            reportWhiff(attackerEntity, player.getId(), monsterId, hitIndex);
+            return;
+        }
+        // 召唤物：按**落空**处理（与"目标已死"同一条路）—— 客户端在事件帧已播了命中音，
+        // 必须回一条 missed 让它收掉、改播挥空音。判据见 `playerAttackAllowed`。
+        if (!playerAttackAllowed(monster)) {
+            log.warn("COMBAT {} hit#{} 目标是召唤物 {}#{} → 这一刀落空（回 MISS）",
+                player.getName(), hitIndex, monster.getName(), monsterId);
             battleLogService.playerWhiffed(playerService.sessionOf(player));
             reportWhiff(attackerEntity, player.getId(), monsterId, hitIndex);
             return;
@@ -481,6 +525,15 @@ public class CombatService {
         }
         Monster monster = findMonsterById(monsterId);
         if (monster == null || !monster.isAlive()) {
+            return;
+        }
+
+        // 召唤物不可被玩家攻击 —— 见 `playerAttackAllowed`。
+        // 这条链是**技能**（`handleUseSkill` → 这里），它自己就能结算伤害，所以必须独立挡一道：
+        // 只挡起手是不够的，技能不经过「起手 → 命中帧」那套计划。
+        if (!playerAttackAllowed(monster)) {
+            log.warn("COMBAT {} 技能 {} 指向召唤物 {}#{} → 拒绝（非 PkMode 不可攻击召唤物）",
+                player.getName(), skillId, monster.getName(), monsterId);
             return;
         }
 
