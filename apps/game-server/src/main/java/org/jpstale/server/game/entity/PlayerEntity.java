@@ -39,6 +39,32 @@ public class PlayerEntity extends BaseEntity {
     /** 已广播的动画状态值(0x0040 STAND/0x0050 WALK/0x0060 RUN),-1=未广播 */
     private volatile int lastSyncedAnimState = -1;
     /**
+     * **该玩家最近一次上报的动画条目**（`S2C_PlayerMove.anim_index/anim_clip` 的同源值），
+     * 由移动上报与起手（攻击/技能）两处写、由 `AOIManager.buildAppear` 读。
+     *
+     * 为什么放在**实体**上（不是 `PlayerSession` 的 `pendingMoveAnim*`）：那两个是"这一帧要广播的移动动画"
+     * （每帧被覆盖、随广播消费），而这里要的是"此刻他在播什么"这一**跨出现/消失的运行时状态** ——
+     * 新玩家进视野时要靠它对齐对方当前的动作（`S2C_PlayerAppear.anim_index`，见 proto 注释）。
+     * 与坐标/朝向一样属于"实体权威"（见类注释）。
+     */
+    private volatile int lastAnimIndex = 0;
+    private volatile String lastAnimClip = "";
+
+    /** 记录"此刻在播哪一条"（移动上报 / 起手 / 技能三条链路共用；只存，不解释） */
+    public void setLastAnim(int animIndex, String animClip) {
+        this.lastAnimIndex = Math.max(0, animIndex);
+        this.lastAnimClip = animClip == null ? "" : animClip;
+    }
+
+    public int getLastAnimIndex() {
+        return lastAnimIndex;
+    }
+
+    public String getLastAnimClip() {
+        return lastAnimClip;
+    }
+
+    /**
      * 「使用道具」广播序号（`S2C_PlayerMove.use_seq`），每次使用 +1。
      *
      * 用途：旁观者的去重键是 (anim_state, anim_index)，而站着连喝两瓶时两者完全相同

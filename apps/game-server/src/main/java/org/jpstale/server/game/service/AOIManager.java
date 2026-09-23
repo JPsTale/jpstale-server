@@ -115,7 +115,10 @@ public class AOIManager {
                 .setY((float) e.getY())
                 .setZ((float) e.getZ())
                 .build())
-            .setAngle((float) e.getAngle());
+            .setAngle((float) e.getAngle())
+            // 此刻在播的那一条（进视野对齐用，见 proto 注释 / AGENTS #81）
+            .setAnimIndex(e.getLastAnimIndex())
+            .setAnimClip(e.getLastAnimClip() == null ? "" : e.getLastAnimClip());
         if (p != null) {
             b.setClassId(p.getJob());
             if (p.getAppearance() != null) {

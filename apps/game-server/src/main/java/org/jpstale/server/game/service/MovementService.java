@@ -266,6 +266,8 @@ public class MovementService {
                 (float) entity.getX(), (float) entity.getZ());
         }
         entity.setLastSyncedAnimState(animState);
+        // 记下"此刻在播哪一条"（进视野时要用；值就是这条广播里透传的那一对）
+        entity.setLastAnim(session.getPendingMoveAnimIndex(), session.getPendingMoveAnimClip());
 
         ServerMessage moveMessage = ServerMessage.newBuilder()
             .setPlayerMove(S2C_PlayerMove.newBuilder()

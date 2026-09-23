@@ -368,6 +368,13 @@ message S2C_PlayerAppear {
   // 走/跑**动画速率** = 实际速度 ÷ 1档速度（服务端算好；客户端直接用，不再本地换算）
   float anim_walk_rate = 14;
   float anim_run_rate = 15;
+  // 该玩家**此刻正在播的那一条动画**（服务端缓存其最近一次上报：`C2S_PlayerMove` / `C2S_AttackStart`）。
+  // 语义与 `S2C_PlayerMove.anim_index/anim_clip` **完全一致**（同一个 `SemanticEntry.clip` 校验口径），
+  // 用途只有一个：**进视野时对齐** —— 否则"出现时正在挥砍/施法/走路"的玩家只能先站住，
+  // 丢掉当前这一条动作（用户 2026-09-23："客户端经常丢掉远端玩家的第一下攻击动画"）。
+  // ⚠ 不带进度：客户端从该条目的第 0 帧播起（与"起手广播迟到补播"同一口径）。
+  int32 anim_index = 16;
+  string anim_clip = 17;
 }
 
 message S2C_PlayerDisappear {
@@ -590,6 +597,16 @@ message S2C_MonsterAppear {
   // ② 在名牌第二行画 `(主人名)`（原版 `Winmain.cpp:4010-4019` 的画法）。
   int64 owner_entity_id = 13; // 主人的**运行时实体 id**（PlayerEntity.getId()）；0 = 不是召唤物
   string owner_name = 14;     // 主人角色名（名牌第二行 `(名字)`）
+  // 剩余寿命（只对召唤物非零）：客户端据此在名牌下画一条**按比例**收缩的倒计时条（用户 2026-09-23 要求）。
+  //
+  // 为什么是**两个数**（总量 + 剩余）而不是一个：条要按"剩余 / 总量"比例画，只给剩余量的话
+  // 客户端要么把寿命公式（4 分钟 + 主人等级×2 秒）抄一份 —— 服务端规则出现第二份实现 ——
+  // 要么在"走出视野再走回来"收到新 Appear 时把进度重置成满格。两个都由服务端给，客户端只做除法。
+  //
+  // 客户端以**收到 Appear 的时刻**为锚点本地倒数；服务端到点照旧自己收场，所以本地倒数只是显示，
+  // 与判定不一致也不影响正确性（重新进入视野会收到新 Appear ⇒ 自动校正）。
+  int32 summon_life_total_ms = 15;     // 总寿命（毫秒）；0 = 不是召唤物
+  int32 summon_life_remaining_ms = 16; // 自本消息发出时算起还剩多少毫秒
 }
 
 message S2C_MonsterDisappear {

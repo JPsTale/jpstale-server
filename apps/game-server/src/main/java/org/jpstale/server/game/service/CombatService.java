@@ -224,6 +224,9 @@ public class CombatService {
         //   秒杀之后攻击方客户端还在挥，那几刀全落在"目标已死"分支上）。
         //   故：**起手广播先行，计划另算**；该跳过的只有"伤害计划"。
         S2C_AttackStart start = buildAttackStart(player, monsterId, animIndex, animClip);
+        // 记下"此刻在播的这一刀"（含被拒的两条分支 —— 只要广播出去了，这就是他在播的动作）：
+        // 新玩家进视野时靠它对齐（`S2C_PlayerAppear.anim_index`），否则"出现时正在挥砍"的玩家会先站住。
+        attackerEntity.setLastAnim(animIndex, animClip);
         Monster monster = findMonsterById(monsterId);
         if (monster == null || !monster.isAlive()) {
             log.info("COMBAT {} 起手 seq={} 目标 {} 不存在或已死 → 这次挥拳没有计划（动作照常广播）",
