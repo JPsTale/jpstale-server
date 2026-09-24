@@ -147,6 +147,7 @@ message ServerMessage {
     S2C_PartyPlayUpdate party_play_update = 607;  // 队伍动态数据增量（周期 500ms；见消息注释）
     S2C_ClanCreateResult clan_create_result = 608; // 建会结果（成功带公会名/图标号；失败带 i18n key）
     S2C_ClanUpdate clan_update = 609;              // 某玩家的公会显示变了（建会/入会/退会/解散）→ 刷名牌
+    S2C_ClanOpen clan_open = 610;                  // 公会管理员 NPC 开窗（照 S2C_CraftOpen：服务端判 NPC 与距离后下发）
     
     // 系统 (900-999)
     S2C_Pong pong = 900;
@@ -961,6 +962,13 @@ message S2C_ClanUpdate {
   int64 player_id = 1;    // 协议面身份 = charId（与 Appear 同一身份空间）
   string clan_name = 2;   // 空串 = 无公会
   string clan_mark = 3;   // 图标编号（clandb.cl.miconcnt 转字符串）；无公会为空串
+}
+
+// 公会管理员 NPC 开窗。判据 = `npclist.eventtype=8`（全库唯一：phillai_clan_master /
+// ricarten_clan_master 两个，见 game-server `NpcClanTable`）；NPC 存在性与距离由服务端判
+// （与商店/打造那条路同款校验）。
+message S2C_ClanOpen {
+  int64 entity_id = 1;    // NPC 实体 id（客户端回传定位用；与 S2C_CraftOpen 同构）
 }
 
 message S2C_Chat {

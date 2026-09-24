@@ -92,14 +92,17 @@ public class NpcShopHandler {
         // 打造服务（合成/锻造/力量石）：**按 NPC id 定表**，依据是原版 NPC 脚本的韩文关键字，
         // 不能按名字或模型推（同一模型上坐着不同服务的 NPC）。见 `NpcCraftTable`。
         NpcCraftTable.Mode craft = NpcCraftTable.modeOfEventType(npc.getEventType());
-        if (offers.isEmpty() && craft == null) {
-            // 走到这里说明这个 NPC 既没有商品清单、也不在打造服务表里（数据问题或未登记）
-            log.error("[Npc] npc={} 既无商品清单也无打造服务（数据问题或未登记）", npcId);
+        // 公会服务（eventtype=8 → *_clan_master，全库唯一可辨）。见 `NpcClanTable`。
+        org.jpstale.server.game.clan.NpcClanTable.Mode clan =
+                org.jpstale.server.game.clan.NpcClanTable.modeOfEventType(npc.getEventType());
+        if (offers.isEmpty() && craft == null && clan == null) {
+            // 走到这里说明这个 NPC 既没有商品清单、也不在任何服务表里（数据问题或未登记）
+            log.error("[Npc] npc={} 既无商品清单也无打造/公会服务（数据问题或未登记）", npcId);
             sendErrorKey(session, "shop.noItems");
             return;
         }
-        // 两个标志在原版里**互相独立**（`Svr_Damge.cpp`：商店与打造窗口各判各的、各发各的），
-        // 所以两个分支都判都发 —— 我们的数据现在是一 NPC 一种服务，但结构不假设这一点。
+        // 三个标志在原版里**互相独立**（`Svr_Damge.cpp`：商店与打造窗口各判各的、各发各的），
+        // 所以每个分支都判都发 —— 我们的数据现在是一 NPC 一种服务，但结构不假设这一点。
         if (!offers.isEmpty()) {
             S2C_ShopOpen.Builder open = S2C_ShopOpen.newBuilder().setEntityId(entityId);
             for (NpcShopService.Offer o : offers) {
@@ -120,6 +123,13 @@ public class NpcShopHandler {
                             .addModes(craft.wire))
                     .build());
             log.info("[Craft] {} 打开 npc={}（{}）", session.getCharacterName(), npcId, craft);
+        }
+        if (clan != null) {
+            session.send(ServerMessage.newBuilder()
+                    .setClanOpen(S2C_ClanOpen.newBuilder()
+                            .setEntityId(entityId))
+                    .build());
+            log.info("[Clan] {} 打开公会菜单 npc={}", session.getCharacterName(), npcId);
         }
     }
 
