@@ -87,7 +87,12 @@ public class AOIManager {
     @Autowired
     private GroundItemAOI groundItemAOI;
 
-    /** 公会缓存：charId → [公会名, 图标id]（懒加载一次，玩家离场清缓存） */
+    /**
+     * 公会缓存：charId → [公会名, 图标id]。
+     * 失效点有三处，缺一不可：① 玩家离场（本类 `removePlayer` 那条路）；
+     * ② 公会发生变化时（`broadcastClanUpdate` 自己先 remove 再重查）；
+     * ③ ⚠ 别指望"过一会儿自己会好"——它是**懒加载且不过期**的。
+     */
     private final ConcurrentHashMap<Long, String[]> clanCache = new ConcurrentHashMap<>();
 
     /** 移动速度：Appear 要带上，旁观者据此缩放该角色的走/跑动画播放速度（见 S2C_PlayerAppear.walk_speed） */
@@ -140,7 +145,15 @@ public class AOIManager {
 
     /**
      * 取玩家公会信息（懒加载 + 缓存，查不到返回 null）。
-     * 失败静默降级为空串（名牌仅不显示公会行，不阻塞 appear）。
+     *
+     * <p>`null` 与 `{"",""}` **含义不同，别混**：
+     * <ul>
+     *   <li>{@code null} = 连角色名都问不到（会话已断）或**查库失败** ⇒ 调用方什么也不写；</li>
+     *   <li>{@code {"",""}} = 明确地"这个角色没有公会"（查询成功、结果为空）。</li>
+     * </ul>
+     *
+     * <p>⚠ 查库失败**不**退化成 {@code {"",""}}：那会把"库坏了"伪装成"没公会"，而两者的现象
+     * 一模一样、以后没人分得清（`AGENTS.md` 纠错 #12）。这里记 error 并返回 {@code null}。
      */
     private String[] clanOf(PlayerEntity e) {
         long charId = e.getCharId();
@@ -161,8 +174,8 @@ public class AOIManager {
             clanCache.put(charId, clan);
             return clan;
         } catch (Exception ex) {
-            log.warn("[AOI] 查询公会失败 chName={}: {}", chName, ex.getMessage());
-            return new String[]{"", ""};
+            log.error("[AOI] 查公会失败（这**不是**「没有公会」）chName={}: {}", chName, ex.toString(), ex);
+            return null;
         }
     }
 
@@ -359,6 +372,52 @@ public class AOIManager {
             entity.getName(), pid,
             appearance.getBodyModelIdcode() != 0 ? appearance.getBodyModelIdcode() : (appearance.getBodyModel().isEmpty() ? "-" : appearance.getBodyModel()),
             appearance.getWeaponDorp().isEmpty() ? "-" : appearance.getWeaponDorp());
+    }
+
+    /**
+     * 公会显示更新广播（建会 / 入会 / 退会 / 解散后调用）：自机一份 + 视野内各一份。
+     *
+     * <p>为什么必须单独广播一次（2026-09-25 实测客户端源码后确认）：
+     * <ul>
+     *   <li>客户端的 `S2C_AppearanceUpdate` 处理是"用**本地记住的** clanName/clanMark 重建演员"
+     *       （`WorldView.ts:6860`）⇒ 外形广播带不动公会字段；</li>
+     *   <li>重发 `S2C_PlayerAppear` 会被客户端 `spawnRemote` 早退忽略（`WorldView.ts:5314`
+     *       `if (remotes.has(pid) || remoteSpawning.has(pid)) return;`）。</li>
+     * </ul>
+     * 不显式通知的话，刚建会的人要**离开视野再回来**才能看到自己的公会名。
+     *
+     * <p>顺带失效本地缓存：{@code clanCache} 是懒加载的，不失效会一直返回旧值（自己那次通常是
+     * 进视野时查到的 {@code {"",""}}）。
+     */
+    public void broadcastClanUpdate(PlayerEntity entity) {
+        if (entity == null) {
+            return;
+        }
+        clanCache.remove(entity.getCharId());     // 先失效，再让 clanOf 重新查一次
+        String[] clan = clanOf(entity);
+        String name = clan != null ? clan[0] : "";
+        String mark = clan != null ? clan[1] : "";
+        long pid = entity.getCharId();
+        S2C_ClanUpdate msg = S2C_ClanUpdate.newBuilder()
+            .setPlayerId(pid)
+            .setClanName(name)
+            .setClanMark(mark)
+            .build();
+        PlayerSession session = entity.getSession();
+        if (session != null) {
+            session.send(ServerMessage.newBuilder().setClanUpdate(msg).build());
+        }
+        for (PlayerEntity nearby : getNearbyPlayers(entity.getX(), entity.getZ())) {
+            if (nearby.getId() == entity.getId()) {
+                continue;
+            }
+            PlayerSession ns = nearby.getSession();
+            if (ns != null) {
+                ns.send(ServerMessage.newBuilder().setClanUpdate(msg).build());
+            }
+        }
+        log.info("[AOI] {} (id={}) 公会显示更新: clan={} mark={}",
+            entity.getName(), pid, name.isEmpty() ? "-" : name, mark.isEmpty() ? "-" : mark);
     }
 
     private void checkVisibility(PlayerEntity moved,

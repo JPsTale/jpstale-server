@@ -46,6 +46,9 @@ public class ItemNetworkHandler {
     private final org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster;
     /** 怪物水晶：召唤体解析 + 落点 + 归属（`CrystalService` 只管"哪颗水晶召哪只怪"这张表）。 */
     private final org.jpstale.server.game.service.SummonService summonService;
+    /** 组队金币分摊（D5：拾取时对分享距离内的队友均分，见 PartyService.splitGold）。 */
+    private final org.jpstale.server.game.service.PartyService partyService;
+    private final org.jpstale.server.game.network.SessionManager sessionManager;
 
 
     public ItemNetworkHandler(ItemService itemService, PlayerService playerService,
@@ -63,7 +66,9 @@ public class ItemNetworkHandler {
                               org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster,
                               org.jpstale.server.game.service.SummonService summonService,
                               org.jpstale.common.service.skill.SkillMasteryService skillMasteryService,
-                              org.jpstale.server.game.service.SkillPointService skillPoints) {
+                              org.jpstale.server.game.service.SkillPointService skillPoints,
+                              org.jpstale.server.game.service.PartyService partyService,
+                              org.jpstale.server.game.network.SessionManager sessionManager) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
@@ -81,6 +86,8 @@ public class ItemNetworkHandler {
         this.summonService = summonService;
         this.skillMasteryService = skillMasteryService;
         this.skillPoints = skillPoints;
+        this.partyService = partyService;
+        this.sessionManager = sessionManager;
     }
 
     // ------------------------------------------------------------------
@@ -820,19 +827,50 @@ public class ItemNetworkHandler {
         // 判据 = **家族 + 带金额**（`ItemRules.isGoldDrop`，两条件缺一不可，见该方法的注释）。
         Integer giCode = gi.item.getItemCode();
         if (ItemRules.isGoldDrop(giCode == null ? 0 : giCode, gi.money)) {
-            org.jpstale.server.game.service.GoldService.Result r = goldService.add(session, p, gi.money, "pickup");
-            if (r != org.jpstale.server.game.service.GoldService.Result.OK) {
-                // 超等级上限：**金币留在地上**（原版行为：不发放、不截断），并给出明确原因
-                log.info("[Pickup] {} gid={} : 金币 {} 入账被拒（{}）→ 保持原地",
-                    session.getCharacterName(), gid, gi.money, r);
-                if (r == org.jpstale.server.game.service.GoldService.Result.OVER_LIMIT) {
+            // 组队金币分摊（D5，EU GetPartyMoney：分享距离内**无阈值一律均分**、余数归拾取者）。
+            // 防重复分账：逐人入账并累计**实际入账额**，没分完的继续留在地上（下次拾取按剩余额再分）；
+            // 全员都因超上限被拒 → 金币原地不动（原版行为：不发放、不截断）。
+            long pot = gi.money;
+            java.util.Map<Long, Long> shares = partyService.splitGold(ent, pot);
+            long distributed = 0;
+            boolean pickerOverLimit = false;
+            for (java.util.Map.Entry<Long, Long> en : shares.entrySet()) {
+                long share = en.getValue();
+                if (share <= 0) {
+                    continue;
+                }
+                boolean isPicker = en.getKey() == cid;
+                PlayerSession memberSession = isPicker ? session
+                    : sessionManager.getSessionByCharacterId(en.getKey());
+                Player memberPlayer = isPicker ? p : playerService.byId(en.getKey());
+                if (memberSession == null || memberPlayer == null) {
+                    log.info("[Pickup] 组队分金：成员 {} 刚掉线 → 份额 {} 作废", en.getKey(), share);
+                    continue; // 份额不转移、不回流，直接蒸发（与 EU 超距拿 0 同语义）
+                }
+                org.jpstale.server.game.service.GoldService.Result r = goldService.add(memberSession, memberPlayer, share, "pickup");
+                if (r == org.jpstale.server.game.service.GoldService.Result.OK) {
+                    distributed += share;
+                } else if (isPicker) {
+                    pickerOverLimit = true;
+                    log.info("[Pickup] {} gid={} : 金币 {} 入账被拒（{}）", session.getCharacterName(), gid, share, r);
+                } else {
+                    log.info("[Pickup] 组队分金：成员 {} 份额 {} 入账被拒（{}）", en.getKey(), share, r);
+                }
+            }
+            if (distributed <= 0) {
+                if (pickerOverLimit) {
                     sendErrorKey(session, "item.pickup.overMoney");
                 }
-                return;
+                return; // 金币保持原地
             }
-            groundItems.remove(ent.getMapId(), gid);
-            broadcastDisappear(ent.getMapId(), gi.getX(), gi.getZ(), gid);
-            log.info("[Pickup] {} 拾取金币 {}（gid={}）", session.getCharacterName(), gi.money, gid);
+            if (distributed < pot) {
+                gi.reduceMoney((int) distributed); // 没分完的留在地上，下次按剩余额再分
+            } else {
+                groundItems.remove(ent.getMapId(), gid);
+                broadcastDisappear(ent.getMapId(), gi.getX(), gi.getZ(), gid);
+            }
+            log.info("[Pickup] {} 拾取金币 {}/{}（gid={}，分给 {} 人）", session.getCharacterName(),
+                distributed, pot, gid, shares.size());
             return;
         }
         // ① 负重：原版在拾取入口就查，超重则整次拾取拒绝（物品留在地上）

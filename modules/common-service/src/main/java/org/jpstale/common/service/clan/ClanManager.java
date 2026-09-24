@@ -49,10 +49,18 @@ import java.util.List;
  *       的可见性补上（见各方法注释）。</li>
  *   <li><b>`memcnt` 用 `COUNT(*)` 重算并写回</b>，不照抄 ASP 的 `±1`（原版不做防负、不做一致性
  *       校验，会漂移）。</li>
- *   <li><b>`characterinfo.clanid` 的清零覆盖面</b>：ASP 只在解散时清**会长**一行，且那句 UPDATE
- *       的 WHERE 写的是不存在的列（`where ClanName = ...`，`characterinfo` 没有这列）⇒ 实际是坏的。
- *       我们在解散时清**全部成员**，踢人/退会时清当事角色。</li>
+ *   <li><b>解散时清全部成员的 `characterinfo.clanid`</b>（ASP 只想清会长一行，且那句 UPDATE 的
+ *       WHERE 用的是活库里不存在的列 `ClanName` ⇒ 原本就是坏的）。</li>
  * </ol>
+ *
+ * <h3>⚠ `characterinfo.clanid` 只在建会 / 解散两处维护（照 ASP，不是漏了）</h3>
+ * 逐个 grep 过：**只有 `NewClan.asp` 与 `DeleteClan.asp` 碰 `CharacterInfo`**，
+ * 邀请 / 踢人 / 退会 / 转让 / 副会长那 6 个 ASP **一行都不碰**（2026-09-25 实测）。
+ * 所以一个被邀请入会的成员，他的 `characterinfo.clanid` 一直是 0 —— **这是原版行为**。
+ * <p>之所以敢照抄：**我们没有任何代码读这一列**。读成员关系一律走 `ul.chname`
+ * （名牌 `AOIManager`、REST 读接口都是）。`CharacterInfoMapper.xml` 里的
+ * `selectClanIdByName` / `selectClanIdByNameForClan` 是**孤儿语句**（接口没声明、无调用方）。
+ * <p>⚠ **哪天开始读它，就必须把这 8 个操作都补齐维护** —— 那才是改它的时机，不是现在。
  *
  * ⚠ 原版 ASP **没有任何服务端等级/金钱校验** —— 40 级与 50 万只在客户端
  * （`cE_Cmake.cpp:353` 的 `ABILITY`、`clan_Enti.cpp:928` 的 `CLAN_MAKELEVEL`，见
@@ -343,8 +351,8 @@ public class ClanManager {
      * 只有这一个公会"）—— 我们保留这条判据（拿不到行长列表时按"不属于该会"处理即可，
      * 下面的会长判定已经覆盖它）。
      *
-     * <p><b>偏差 ③</b>：清零**全部成员**的 `characterinfo.clanid`（ASP 只清了会长一行，且那句
-     * UPDATE 的 WHERE 用的是不存在的列，实际是坏的）。
+     * <p><b>偏差 ③</b>：清零**全部成员**的 `characterinfo.clanid` —— ASP 想做的就是这个
+     * （那句 UPDATE 的 WHERE 用的是活库里不存在的列 ⇒ 原本就是坏的），我们把它做对。
      */
     @Transactional
     public Result dissolve(String clanName, String operatorCharName) {
@@ -454,8 +462,9 @@ public class ClanManager {
         if (target.equals(cl.getClanZang())) {
             return Result.TARGET_IS_LEADER;   // ASP: Code=4
         }
+        // ⚠ 不碰 characterinfo.clanid —— LeavePlayer.asp 一行都不碰它（见类注释）。
+        //   我们也没有任何代码读这一列，读了才有义务维护。
         ulMapper.deleteByChName(target);
-        characterInfoMapper.updateClanIdByName(target, 0);
         refreshMemCnt(name);
         log.info("[Clan] 踢人 clan={} 操作者={} 目标={}", name, op, target);
         return Result.OK;
@@ -485,8 +494,8 @@ public class ClanManager {
         if (self.equals(cl.getClanZang())) {
             return Result.LEADER_CANNOT_LEAVE;   // ASP: Code=4
         }
+        // ⚠ 不碰 characterinfo.clanid —— LeavePlayerSelf.asp 一行都不碰它（见类注释）。
         ulMapper.deleteByChName(self);
-        characterInfoMapper.updateClanIdByName(self, 0);
         refreshMemCnt(name);
         log.info("[Clan] 退会 clan={} 角色={}", name, self);
         return Result.OK;

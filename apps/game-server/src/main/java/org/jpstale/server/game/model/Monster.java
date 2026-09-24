@@ -130,6 +130,14 @@ public class Monster extends BaseEntity {
     private int nature;         // 本性：1=Evil主动攻击, 0=Neutral被动(受击反击), 2=Good中立
 
     /**
+     * 目标信息窗相机补正 = monsterlist.cameray / cameraz（客户端 smCHAR_INFO.ArrowPosi[2]，
+     * 怪物 .inf 的 `*화면보정`"画面补正"行）。随 S2C_MonsterAppear 下发，**只对怪物生效**：
+     * [y]=目标窗相机在锚点上再抬高、[z]=再拉远（语义见 docs/目标信息窗-源码分析.md §3）。
+     */
+    private int cameraY;
+    private int cameraZ;
+
+    /**
      * 种族（原版 `smCharInfo.Brood`，来自 monsterlist.**propertymon** 列 —— 用户 2026-09-24 指认；
      * 原版同源：怪物脚本 `*몬스터종족` 字段 ⇒ `fileread.cpp:4130-4175` 的 Brood 赋值）。
      * 消费点：Jumping Crash 对 DEMON +30%（`Svr_Damge.cpp:2834`）等"对某族加成"系。
@@ -195,8 +203,12 @@ public class Monster extends BaseEntity {
      */
     private boolean missingDeathPayloadLogged;
 
-    /** 死亡事件负载（不可变）。字段类型对齐 CombatService.onMonsterDeath 的入参（killerId/exp 为 long） */
-    public record DeathInfo(long killerId, long exp, int gold) {}
+    /**
+     * 死亡事件负载（不可变）。字段类型对齐 CombatService.onMonsterDeath 的入参（killerId/exp 为 long）。
+     * {@code expShares} = 组队分摊表（成员 → 各自份额，**含击杀者**）；单人击杀时是单条表。
+     * {@code exp} = 击杀者本人的份额（兼容旧读法）。
+     */
+    public record DeathInfo(long killerId, long exp, int gold, java.util.Map<Long, Long> expShares) {}
 
     public DeathInfo getDeathInfo() {
         return deathInfo;

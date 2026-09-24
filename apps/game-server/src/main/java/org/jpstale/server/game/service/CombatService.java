@@ -81,6 +81,10 @@ public class CombatService {
     @Autowired
     private org.jpstale.server.game.item.GroundItemManager groundItems;
 
+    /** 组队经验分摊（docs/组队系统-源码分析.md §8.2，EU OnSendExp） */
+    @Autowired
+    private PartyService partyService;
+
     private final Map<Long, Long> attackCooldowns = new ConcurrentHashMap<>();
     /** 攻击/死亡这类瞬时事件的广播半径（世界单位） */
     private static final float AOI_BROADCAST_RANGE = 50f;
@@ -655,7 +659,25 @@ public class CombatService {
         // 注意，经验倍率应该是一个动态参数，由服务器管理员来设置基准倍率。如果有什么活动，可能会临时提高全服玩家的经验获取速度。
         // 玩家也可以使用经验道具来提升自己的经验倍率，组队也可能有额外的倍率提升。目前暂时以固定倍率计算，提高测试账号的升级速度。
         long exp = (long) (monster.getExp() * EXP_MODIFIER);
-        killer.setExp(killer.getExp() + exp);
+        // 组队分摊（EU OnSendExp：同图+分享距离内即有份、Normal/Hunt 总量%、按加权平均队等级折减）。
+        // null = 击杀者未组队 → 单人路径照旧；非 null = 含击杀者在内的份额表。
+        Map<Long, Long> expShares = partyService.distributeExp(killer, monster, exp);
+        if (expShares == null) {
+            grantExp(killer, exp);
+            // 权威落库：经验/金币/等级/属性点写回 characterinfo
+            playerService.persistStats(killer);
+            playerService.sendPlayerStatus(playerService.sessionOf(killer), killer);
+        } else {
+            for (Map.Entry<Long, Long> en : expShares.entrySet()) {
+                Player member = playerService.byId(en.getKey());
+                if (member == null) {
+                    continue;
+                }
+                grantExp(member, en.getValue());
+                playerService.persistStats(member);
+                playerService.sendPlayerStatus(playerService.sessionOf(member), member);
+            }
+        }
 
         // 掉落（对齐 EU OnSetDrop + HandleKill）：dropQuantity + premium/事件加成，逐次掷点
         int numDrops = Math.max(0, monster.getDropQuantity()) + lootService.extraDrops(killer);
@@ -710,24 +732,22 @@ public class CombatService {
         // 战斗日志：击杀 + 经验（金币不再于击杀时入账，故记 0 —— 拾取时另有记录）
         battleLogService.monsterKilled(playerService.sessionOf(killer), monster.getName(), exp, 0);
 
-        // 升级检测：经验反算等级（对齐原版 GetLevelFromExp），每级 +5 自由属性点
-        int newLevel = playerService.getLevelFromExp(killer.getExp());
-        if (newLevel > killer.getLevel()) {
-            applyLevelUp(killer, newLevel);
-        }
+        // （升级检测/落库/状态推送已上移到组队分摊分支——单人与组队两条路都逐人走 grantExp）
 
-        // 权威落库：经验/金币/等级/属性点写回 characterinfo
-        playerService.persistStats(killer);
-
-        // 经验/金币/等级变了必须**推给击杀者**：原先这里只写内存+落库，客户端没有任何通知 →
-        // HUD 经验条与角色面板"打怪也不变动"（用户 2026-09-12 报）。一次 sendPlayerStatus 同时下发
-        // S2C_PlayerState(HUD) + S2C_CharacterStatus(面板)。
-        playerService.sendPlayerStatus(playerService.sessionOf(killer), killer);
-
-        // 通知视野内观察者：击杀者带 exp/gold；其余只收死亡事件。
+        // 通知视野内观察者：击杀者与分到经验的队友各带自己的份额；其余只收死亡事件。
         // 尸体**保留**：死怪留在 AOI 可见集里，直到 Monster.decayTime 到点后由主循环发 Disappear
         //（"死"与"消失"是两条独立事件；中途进场的观察者靠 S2C_MonsterAppear.dead 认出尸体）
-        monsterAOI.onMonsterDeath(monster, killer.getId(), exp, gold);
+        monsterAOI.onMonsterDeath(monster, killer.getId(),
+            expShares != null ? expShares : Map.of(killer.getId(), exp), gold);
+    }
+
+    /** 经验入账 + 升级检测（对齐原版 GetLevelFromExp，每级 +5 自由属性点）；单人/组队分摊共用。 */
+    private void grantExp(Player p, long exp) {
+        p.setExp(p.getExp() + exp);
+        int newLevel = playerService.getLevelFromExp(p.getExp());
+        if (newLevel > p.getLevel()) {
+            applyLevelUp(p, newLevel);
+        }
     }
 
     // ======== 召唤物（怪物水晶）的死亡与击杀归属 ========
@@ -782,7 +802,7 @@ public class CombatService {
     /** 死亡 + 死亡负载，但不发经验/掉落 —— 上面两个入口的**唯一实现**。 */
     private void dieWithNoCredit(Monster monster, long killerId, String why) {
         monster.onDeath();
-        monsterAOI.onMonsterDeath(monster, killerId, 0L, 0);
+        monsterAOI.onMonsterDeath(monster, killerId, Map.of(), 0);
         log.info("[COMBAT] {}#{} 死亡（{}）—— 不发经验与掉落", monster.getName(), monster.getId(), why);
     }
 

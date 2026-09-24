@@ -66,6 +66,9 @@ message ClientMessage {
     C2S_PartyInvite party_invite = 405;
     C2S_PartyAccept party_accept = 406;
     C2S_PartyLeave party_leave = 407;
+    C2S_PartyAction party_action = 408;   // 队伍动作（踢人/转让/解散/换模式）；action 取值 = PartyAction 枚举值
+    C2S_ClanCreate clan_create = 409;     // 创建公会。**走 game-server 不走 Web**：金币权威在 game-server 内存里，
+                                          // 且"校验 + 扣钱 + 建会"必须在同一处（原版是客户端→NewClan.asp，钱只在客户端校验）
     
     // 心跳 (900-999)
     C2S_Ping ping = 900;
@@ -141,6 +144,9 @@ message ServerMessage {
     S2C_TradeComplete trade_complete = 604;
     S2C_PartyUpdate party_update = 605;
     S2C_PartyInvite party_invite = 606;
+    S2C_PartyPlayUpdate party_play_update = 607;  // 队伍动态数据增量（周期 500ms；见消息注释）
+    S2C_ClanCreateResult clan_create_result = 608; // 建会结果（成功带公会名/图标号；失败带 i18n key）
+    S2C_ClanUpdate clan_update = 609;              // 某玩家的公会显示变了（建会/入会/退会/解散）→ 刷名牌
     
     // 系统 (900-999)
     S2C_Pong pong = 900;
@@ -620,6 +626,12 @@ message S2C_MonsterAppear {
   // 与判定不一致也不影响正确性（重新进入视野会收到新 Appear ⇒ 自动校正）。
   int32 summon_life_total_ms = 15;     // 总寿命（毫秒）；0 = 不是召唤物
   int32 summon_life_remaining_ms = 16; // 自本消息发出时算起还剩多少毫秒
+  // ==================== 目标信息窗相机补正 ====================
+  // = monsterlist.cameray / cameraz（客户端 smCHAR_INFO.ArrowPosi[2]，怪物 .inf 的 `*화면보정`
+  // "画面补正"行）。**只对怪物生效**：[0]=目标窗相机在头骨锚点上再抬高 N 单位、[1]=再拉远 N 单位
+  // （原版 ×fONE=256；我们的换算系数在客户端目标窗实现里）。NPC 对话窗将来共用这套数据。
+  int32 camera_y = 17;
+  int32 camera_z = 18;
 }
 
 message S2C_MonsterDisappear {
@@ -884,15 +896,65 @@ message C2S_TradeConfirm {
   int64 trade_id = 1;
 }
 
+// 组队协议（2026-09-24 定案，docs/组队系统-源码分析.md §8）：
+// 走专门的包（D1），形态对齐 EU CPartyHandler 的两级模型——
+//   · 成员变动（入队/退队/踢人/转让/解散/换模式）→ S2C_PartyUpdate 全量名单（静态身份）
+//   · 每 500ms → S2C_PartyPlayUpdate 动态数据（HP/MP/等级/坐标/所在图/buff）
 message C2S_PartyInvite {
-  string target_name = 1;
+  // 目标的**角色 id**（点选目标时客户端手里的是 playerId，不再按名反查——EU PacketRequestParty.iTargetID 同构）
+  int64 target_id = 1;
 }
 
 message C2S_PartyAccept {
-  int64 party_id = 1;
+  // 邀请者的**角色 id**（接受哪份邀请由服务端 pendingInvites 判定，客户端只回"谁邀的我"）
+  int64 inviter_id = 1;
 }
 
 message C2S_PartyLeave {
+}
+
+// 队伍动作。action 取值 = 服务端 PartyAction 枚举值（移植自 EU shared/party.h EPartyAction：
+// 1=LEAVE 2=KICK 3=DELEGATE 4=DISBAND_PARTY 6=CHANGE_MODE；DISBAND_RAID(5) 不做——D3）
+message C2S_PartyAction {
+  int32 action = 1;
+  int64 target_id = 2; // KICK / DELEGATE 的目标队员；其余动作忽略
+}
+
+// ==================== 公会（血盟）协议 ====================
+//
+// 为什么公会**写**操作走 game-server 而不是 web-server 的 REST（2026-09-25 定）：
+//   · 建会要扣 500,000 金币，而金币的权威在 game-server 内存里（DB 只是它的存档，
+//     且 `CombatService.doRespawn` 这类路径会先改内存、稍后才落库）；
+//   · 跨进程"先查后扣"是 TOCTOU 竞态，且扣钱与建会分属两个进程就没法一个事务收口。
+// **读**接口（详情/成员/排行/重名）仍在 web-server 的 `/api/clan/*.json`（无需玩家内存态）。
+
+// 建会请求。原版 `NewClan.asp` 的参数里有 userid/gserver/chname/chtype/lv —— 那些服务端自己
+// 从会话与 DB 拿得到，**不要客户端上报**（上报了也得校验，等于白给一个伪造面）。
+// 等级门槛 40 / 费用 500,000 照原版（用户 2026-09-25 定"按原值"），但都在服务端判。
+message C2S_ClanCreate {
+  string clan_name = 1;   // 公会名（服务端 trim + 长度校验；重名由 DB 判）
+}
+
+// 建会结果。失败时只回 `error_key`（i18n key，客户端 `tOr` 翻译；沿用全仓"服务端只发 key"的约定）。
+message S2C_ClanCreateResult {
+  bool ok = 1;
+  string error_key = 2;   // 失败原因，如 clan.create.nameTaken / clan.create.notEnoughMoney
+  string clan_name = 3;   // 成功：公会名
+  int32 icon_id = 4;      // 成功：图标编号（clandb.cl.miconcnt）→ 客户端拼 ClanImage/<n>.bmp
+}
+
+// 某玩家的公会显示更新（建会 / 入会 / 退会 / 解散后广播）。
+//
+// 为什么需要一条**专门**的消息，而不是顺手复用已有的两条：
+//   · `S2C_AppearanceUpdate` 只带装备外观，客户端处理它时是"用**本地记住的**
+//     clanName/clanMark 重建演员"（`WorldView.ts:6860`）⇒ 公会字段永远停在旧值；
+//   · 重发 `S2C_PlayerAppear` 也没用：客户端 `spawnRemote` 对已存在的 actor 直接 return
+//     （`WorldView.ts:5314`）。
+// 所以"公会显示变了"必须显式通知一次。
+message S2C_ClanUpdate {
+  int64 player_id = 1;    // 协议面身份 = charId（与 Appear 同一身份空间）
+  string clan_name = 2;   // 空串 = 无公会
+  string clan_mark = 3;   // 图标编号（clandb.cl.miconcnt 转字符串）；无公会为空串
 }
 
 message S2C_Chat {
@@ -922,10 +984,40 @@ message S2C_TradeComplete {
   string message = 2;
 }
 
+// 队伍全量名单（成员变动时发给全队；解散时发**空 members** 作为清窗信号——EU 同构）
 message S2C_PartyUpdate {
   int64 party_id = 1;
-  int64 leader_id = 2;
-  repeated int64 member_ids = 3;
+  int32 mode = 2;                        // PartyMode 枚举值（0=Normal 1=Hunt）
+  repeated PartyMemberInfo members = 3;  // 队长在首位
+}
+
+// 成员静态身份（全量包用；名字/职业/队长位都在这，动态数值走 PlayUpdate）
+message PartyMemberInfo {
+  int64 id = 1;
+  string name = 2;
+  int32 class_id = 3;  // 职业（Player.job / characterinfo.jobcode）
+  bool leader = 4;     // 队长位——显式字段是我们定的（EU 靠数组顺序、NSPT 靠下标0+JangFlag）
+}
+
+// 成员动态数据（500ms 周期包用；EU PacketUpdatePartyData 没有 mapID——跨图队员坐标
+// 客户端无从归属，这是我们补的字段，大地图/跨图显示靠它）
+message PartyMemberPlay {
+  int64 id = 1;
+  int32 level = 2;
+  int32 hp = 3;
+  int32 max_hp = 4;
+  int32 mp = 5;
+  int32 max_mp = 6;
+  int32 map_id = 7;
+  double x = 8;   // 世界坐标（与服务端既有 world 域同单位）
+  double z = 9;
+  // 成员生效中的 buff（服务端 BuffStateService.build 按人出快照；客户端按 remaining_ms 本地倒计时，
+  // 与自机 S2C_BuffState 同一服务端权威口径）
+  repeated BuffStateProto buffs = 10;
+}
+
+message S2C_PartyPlayUpdate {
+  repeated PartyMemberPlay members = 1; // **不含接收者自己**（自己的 HP/坐标本地权威，无需服务器回灌）
 }
 
 message S2C_PartyInvite {

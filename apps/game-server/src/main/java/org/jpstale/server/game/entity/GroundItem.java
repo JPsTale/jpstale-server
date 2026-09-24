@@ -5,8 +5,10 @@ import org.jpstale.common.service.item.ItemInstance;
 /**
  * 地面物品（继承 BaseEntity，与其他实体同级）。
  *
- * 字段不可变（构造后不再修改）：地面物是内存对象、不进 DB，生命周期为
- * 投放 → 过期/被拾取/被挤掉。坐标由构造时确定，不移动。
+ * 字段构造后不再修改（地面物是内存对象、不进 DB，生命周期为投放 → 过期/被拾取/被挤掉）；
+ * 坐标由构造时确定，不移动。**唯一例外**是 {@link #money}：组队分金可能只入账一部分
+ * （有人超上限/掉线，见 {@code ItemNetworkHandler} 金币分支），剩余额必须留在地上等下次
+ * 拾取再分 —— 否则要么玩家丢钱、要么下一次拾取把全额重分一遍（重复入账）。
  */
 public class GroundItem extends BaseEntity {
 
@@ -23,8 +25,14 @@ public class GroundItem extends BaseEntity {
     public final int level;
     /**
      * **金币金额**（仅金币掉落物 > 0）：拾取时入账用（原版 `sITEMINFO.Money`）。
+     * 可变——唯一写点是 {@link #reduceMoney(int)}（组队部分分账，见类注释）。
      */
-    public final int money;
+    public int money;
+
+    /** 组队分金后扣减地上剩余额；调用方保证 {@code taken ≤ money} 且 {@code taken > 0}。 */
+    public void reduceMoney(int taken) {
+        money = Math.max(0, money - taken);
+    }
 
     public GroundItem(long id, ItemInstance item, int mapId, double x, double y, double z,
                       long ownerId, long privateUntil, long expireAt, int level, int money) {

@@ -147,7 +147,8 @@ public class ChatService {
         String[] parts = cmd.trim().substring(1).split("\\s+");
         String name = parts[0].toLowerCase();
 
-        // //party 玩家名 —— 组队邀请（对齐原版 OnSever.cpp RecvCommand //party）
+        // //party 玩家名 —— 组队邀请（对齐原版 OnSever.cpp RecvCommand //party；用户裁定保留
+        // 这条原版手感入口，与目标窗"组队"按钮的专用包 C2S_PartyInvite 并存、同一条校验链）
         if (cmd.startsWith("//")) {
             String target = cmd.trim().substring(2).trim();
             if (target.isEmpty()) {
@@ -156,7 +157,7 @@ public class ChatService {
             }
             // 原版 //party 取第一个词为目标
             String targetName = target.split("\\s+")[0];
-            partyService.invite(session.getCharacterId(), targetName);
+            partyService.inviteByName(session.getCharacterId(), targetName);
             return;
         }
 

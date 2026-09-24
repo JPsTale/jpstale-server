@@ -349,6 +349,11 @@ public class MonsterSpawnService {
         monster.setAttackSpeed(template.getAttackSpeed() != null ? template.getAttackSpeed() : 6);
         // 击杀经验：monsterlist.exp（单值数字字符串）
         monster.setExp(parseExp(template.getExp()));
+        // 目标信息窗相机补正（cameray/cameraz → 客户端 ArrowPosi 语义，docs/目标信息窗-源码分析.md §3）。
+        // DB 实测 456/456 行非空（2026-09-24）；.inf 无 `*화면보정` 行时原版清零（fileread.cpp:3597-3598），
+        // 故 null → 0 是**源码自己的默认**，不是我们的兜底。
+        monster.setCameraY(template.getCameraY() == null ? 0 : template.getCameraY());
+        monster.setCameraZ(template.getCameraZ() == null ? 0 : template.getCameraZ());
         // 掉落表键：`dropitem.dropid` == **monsterlist.monsterid**（业务 id，**不是**主键 id）。
         // 实测依据（2026-09-21，全库 dropitem 2268 行 / 304 个 dropid）：
         //   按 monsterid 命中 2203 行、300 只怪有掉落表；按主键 id 只命中 347 行、52 只怪。

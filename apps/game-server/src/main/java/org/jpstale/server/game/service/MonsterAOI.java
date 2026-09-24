@@ -213,10 +213,12 @@ public class MonsterAOI {
      * 但会在 reconcile 里收到 `Appear(dead=true)` —— 看见尸体，而不是"这里什么都没有"。
      * 不这样做的话，同一具尸体在在场玩家屏幕上有、在后来者屏幕上没有。
      */
-    public void onMonsterDeath(Monster m, long killerId, long exp, int gold) {
+    public void onMonsterDeath(Monster m, long killerId, Map<Long, Long> expShares, int gold) {
         // 负载**先落**：Appear(dead) 与 Death 都从这份负载取"谁杀的/给多少经验"，
-        // 且 `state==DEAD ⇒ deathInfo!=null` 是 AOI 自检依赖的不变式（见 reconcile）
-        m.setDeathInfo(new Monster.DeathInfo(killerId, exp, gold));
+        // 且 `state==DEAD ⇒ deathInfo!=null` 是 AOI 自检依赖的不变式（见 reconcile）。
+        // expShares = 组队分摊表（**含击杀者**，见 PartyService.distributeExp）；单人击杀时是单条表。
+        m.setDeathInfo(new Monster.DeathInfo(killerId,
+            expShares.getOrDefault(killerId, 0L), gold, expShares));
         long mid = m.getId();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {
             Set<Long> set = e.getValue();
@@ -237,8 +239,9 @@ public class MonsterAOI {
     /**
      * 单个观察者的死亡事件：**只发 Death，不发 Disappear**（尸体还在，由 decay 到点后发 Disappear）。
      *
-     * 经验/金币只给击杀者（原版 `rsOpen_MonsterItemExp` 只结算给击杀者）；其余观察者收的是
-     * 同一个 Death 事件，只是不带 exp/gold —— 他们据此播死亡动画。
+     * 经验：分到份额的成员（击杀者或其队友，组队分摊）各带自己的份额；金币只给击杀者——
+     * 金币本身是掉落物，队友分摊发生在**拾取时**（ItemNetworkHandler → PartyService.splitGold）。
+     * 其余观察者收的是同一个 Death 事件，不带 exp/gold —— 他们据此播死亡动画。
      */
     private void sendDeath(PlayerSession session, long pid, Monster m) {
         Monster.DeathInfo di = m.getDeathInfo();
@@ -252,8 +255,11 @@ public class MonsterAOI {
             .setMonsterId(m.getId());
         if (di != null) {
             death.setKillerId(di.killerId());
+            Long share = di.expShares() != null ? di.expShares().get(pid) : null;
+            if (share != null) {
+                death.setExp(share.intValue());
+            }
             if (pid == di.killerId()) {
-                death.setExp((int) di.exp());
                 death.setGold(di.gold());
             }
         }
@@ -301,6 +307,9 @@ public class MonsterAOI {
         // 动画播放速率：服务端持有 attackspeed 档位（客户端没有），算好下发 —— 客户端直接当 animRate 用。
         // 与 `Monster.getAttackIntervalMs()`（服务端等动画播完的时长）同源，两边时间才对得上。
         appear.setAnimRate(m.getAnimRate());
+        // 目标信息窗相机补正（monsterlist.cameray/cameraz → ArrowPosi 语义，见 Monster.cameraY 注释）
+        appear.setCameraY(m.getCameraY());
+        appear.setCameraZ(m.getCameraZ());
         // 召唤物归属（怪物水晶）：只在真的是召唤物时才带。客户端用 `owner_entity_id > 0`
         // 判"这是个召唤物"，用 `owner_name` 在名牌第二行画 `(主人名)`；不设 = 普通怪。
         if (m.isSummon()) {
