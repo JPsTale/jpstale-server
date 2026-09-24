@@ -329,9 +329,12 @@ public class SkillPointService {
             if (point <= 0) {
                 continue;
             }
+            Long cd = skillCast.cooldownMsOf(p, s.skillId());
             b.addSkills(LearnedSkill.newBuilder()
                     .setSkillId(s.skillId())
                     .setPoint(point)
+                    // CD 时长（毫秒）由服务端算好 —— 客户端只显示/预判，不再自己算一遍公式
+                    .setCdMs(cd == null ? 0 : (int) (long) cd)
                     // 发**派生后的熟练度**（`UseSkillMastery` = Talent/3×100 + 计数，元素技能恒满）——
                     // 面板的百分比、CD 的 `− 熟练度/100` 都用它；存下来的原始计数（`skill.<id>.mastery`）
                     // 只在服务端内部用于增长（`growMastery`）。派生唯一实现在 `SkillRules.useSkillMastery`。

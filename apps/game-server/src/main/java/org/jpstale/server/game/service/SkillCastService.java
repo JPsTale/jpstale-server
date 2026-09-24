@@ -5,6 +5,7 @@ import org.jpstale.common.service.model.DamageResult;
 import org.jpstale.common.service.model.Player;
 import org.jpstale.common.service.props.SkillKeys;
 import org.jpstale.common.service.skill.SkillDataRegistry;
+import org.jpstale.common.service.skill.SkillRules;
 import org.jpstale.common.service.stat.DamageCalculator;
 import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.server.common.enums.skill.SkillIds;
@@ -114,6 +115,8 @@ public class SkillCastService {
         NOT_MIGRATED,
         /** 被拒绝（非本职业/未学/MP 不足）—— 什么都没发生。 */
         REJECTED,
+        /** 被拒绝：**还在冷却里**（`GageLength < 35`）—— 调用方据此回一句可见原因（不静默）。 */
+        REJECTED_COOLDOWN,
     }
 
     /** 待结算的施法（每次施法的运行态；`hit` 按它校验段序与目标）。 */
@@ -124,6 +127,14 @@ public class SkillCastService {
 
     /** 已结算过的段号（防同一事件帧重复回报；每次新起手清空）。 */
     private final Map<Long, List<Integer>> firedSegments = new ConcurrentHashMap<>();
+
+    /**
+     * 每玩家、每技能的**上次起手时刻**（毫秒）—— CD 判定用。
+     *
+     * <p>**只在内存**：原版也没把 CD 计量条存档（`record.cpp:525-526/634` 只存 `UseSkillCount`，
+     * `GageLength` 是运行态）⇒ 重登后 CD 不延续，这里同样不落库。
+     */
+    private final Map<Long, Map<Integer, Long>> lastCastAt = new ConcurrentHashMap<>();
 
     /** AoE 命中者的结算明细（伤害/击退），供日志与测试。 */
     public record HitTarget(long monsterId, int damage, boolean critical, boolean missed, boolean knockedBack) {}
@@ -158,6 +169,24 @@ public class SkillCastService {
             return BeginResult.REJECTED;
         }
 
+        // **CD 判定**（原版 `UseSkillFlag`：`GageLength >= 35` 才允许用；`sinSkill.cpp:2117/2124` 每帧刷）。
+        // 我们是服务端权威：客户端那套计时只是显示与预判，改包绕不过这里。
+        Long cd = cooldownMsOf(player, skillId);
+        long now = System.currentTimeMillis();
+        if (cd != null) {
+            long left = cooldownLeftMs(player.getId(), skillId, cd, now);
+            if (left > 0) {
+                log.info("[Skill] {} 起手 {} 拒绝：冷却中（还需 {}ms / 共 {}ms）", player.getName(),
+                        SkillKeys.describe(skillId), left, cd);
+                return BeginResult.REJECTED_COOLDOWN;
+            }
+        }
+        if (cd == null) {
+            // 算不出 CD（该行没有 RequireMastery ⇒ 5 转那 60 行）⇒ **不编一个时长**，放行但留痕
+            log.warn("[Skill] {} 起手 {} 的 CD 算不出来（该行无 RequireMastery）⇒ 本次不判 CD",
+                    player.getName(), SkillKeys.describe(skillId));
+        }
+
         int idx = point - 1;
         int mpCost = mpCostOf(skillId, idx);
         if (mpCost < 0) {
@@ -176,7 +205,10 @@ public class SkillCastService {
 
         // 登记待结算（新起手覆盖旧的：原版同一时刻只有一个动作）
         long pid = player.getId();
-        pending.put(pid, new PendingCast(skillId, targetId, point, System.currentTimeMillis()));
+        // CD 的起点 = **服务端受理这一刻**（与扣 MP 同一时刻）；客户端也在收到 `S2C_SkillStart` 后才起表，
+        // 于是客户端那圈弧总是**不早于**服务端的窗口结束 ⇒ 不会出现"客户端满了、服务端还在冷却"。
+        recordCast(pid, skillId, now);
+        pending.put(pid, new PendingCast(skillId, targetId, point, now));
         firedSegments.put(pid, new ArrayList<>());
 
         // 起手广播：旁观者立刻播**同一条**技能动画（自己已在本地播）
@@ -203,6 +235,55 @@ public class SkillCastService {
             skillPoints.sendSkillTables(session, player);
         }
         return BeginResult.STARTED;
+    }
+
+    /** **记一次起手**（CD 的起点 = 服务端受理这一刻）。包级可见：测试直测，不必造会话。 */
+    void recordCast(long playerId, int skillId, long nowMs) {
+        lastCastAt.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>()).put(skillId, nowMs);
+    }
+
+    /**
+     * 该玩家、该技能**还剩多少毫秒**冷却（0 = 可以放）；`cdMs` 由调用方算好传进来（便于直测）。
+     * 语义 = 原版 `GageLength < 35` 那一段：起手后 `cdMs` 之内不许再放同一个技能。
+     */
+    long cooldownLeftMs(long playerId, int skillId, long cdMs, long nowMs) {
+        Long last = lastCastAt.getOrDefault(playerId, Map.of()).get(skillId);
+        if (last == null) {
+            return 0;   // 没起过手 ⇒ 可以放（**不做登录后的强制冷却**：原版也不存计量条）
+        }
+        return Math.max(0, cdMs - (nowMs - last));
+    }
+
+    /**
+     * 该玩家、该技能**此刻**的冷却时长（毫秒）；`null` = 算不出来（该行没有 `RequireMastery`）。
+     *
+     * <p>公式唯一实现在 {@link SkillRules#cooldownMs}；输入 = 当前等级 + **派生熟练度**
+     * （`SkillRules.useSkillMastery`）⇒ 熟练度把 CD 压下来这件事在服务端算一次，
+     * 客户端只拿到结果（`S2C_SkillList.skills[].cd_ms`）。
+     */
+    public Long cooldownMsOf(Player player, int skillId) {
+        int point = player.getPropInt(SkillKeys.point(skillId));
+        if (skillData == null || point < 1 || !skillData.hasId(skillId)) {
+            return null;   // 未注入（单测直 new）/未学/不在身份表 ⇒ **算不出来**，不编时长
+        }
+        int mastery = SkillRules.useSkillMastery(player, skillData, skillId,
+                statCalculator == null ? 0 : statCalculator.magicMastery(player));
+        SkillDataRegistry.Skill row = skillData.byId(skillId);
+        if ("NOT".equals(row.useCode())) {
+            // **被动没有 CD**（不可施放 ⇒ 无所谓冷却；原版也不给它画计量条，`sinSkill.cpp:823`）。
+            // 返回 null = "没有这个数"，由调用方按"无 CD"处理（不下发 0 之外的东西、也不判）
+            return null;
+        }
+        Long ms = SkillRules.cooldownMs(point, mastery, row.requireMastery());
+        // 上界 17500ms（Mastery=70 那一档）≪ int32 ⇒ 收窄是安全的；null 保持 null（显式未知）
+        return ms;
+    }
+
+    /** 玩家离线：清掉他的 CD 计时与待结算（原版也不存 CD ⇒ 重登不延续）。 */
+    public void clearPlayer(long playerId) {
+        lastCastAt.remove(playerId);
+        pending.remove(playerId);
+        firedSegments.remove(playerId);
     }
 
     /* ────────────── ② 事件帧：逐段结算 ────────────── */

@@ -249,4 +249,25 @@ class SkillRulesTest {
             }
         }
     }
+
+    /**
+     * **CD 时长的六个锚点**（逐帧真值，见 {@link SkillRules#cooldownMs} 的推导）：
+     * 满格 35 格 × 每格 `max(1, floor(35/floor(70/Mastery)))` 帧 ÷ 70fps。
+     * 反例：任何一个对不上就说明公式被"顺"成了别的形状（比如又变成 `Mastery×35/120` 的连续近似）。
+     */
+    @Test
+    void CD时长六个锚点() {
+        // 反推某档 Mastery 需要的熟练度：Mastery = rm0 + rm1×Point − 熟练度/100
+        int[] rm = {80, 4};                       // 龙卷枪风那类
+        for (int[] a : new int[][]{{70, 17500}, {35, 8500}, {20, 5500}, {10, 2500}, {5, 1000}, {1, 500}}) {
+            int mastery = (80 + 4 * 1 - a[0]) * 100;
+            assertEquals((long) a[1], SkillRules.cooldownMs(1, mastery, rm), "Mastery " + a[0]);
+        }
+        // 钳位：熟练度极大 ⇒ Mastery 夹到 1（CD 最短）；≥170 的 rm0 恒被夹到 70（17.5 秒）
+        assertEquals(500L, SkillRules.cooldownMs(1, 100000000, rm));
+        assertEquals(17500L, SkillRules.cooldownMs(10, 10000, new int[]{950, 0}));
+        // 没有 RequireMastery 的行（5 转）⇒ null：**算不出来就是算不出来**，不编时长
+        assertEquals(null, SkillRules.cooldownMs(1, 10000, null));
+        assertEquals(null, SkillRules.cooldownMs(0, 10000, rm));
+    }
 }

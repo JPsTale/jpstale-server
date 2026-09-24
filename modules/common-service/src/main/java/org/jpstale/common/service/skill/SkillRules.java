@@ -67,6 +67,9 @@ public final class SkillRules {
         NO_GOLD("noGold"),
         /** 本次登录已经洗过点 */
         RESET_USED("resetUsed"),
+        /** **施法**路径：该技能还在冷却里（`GageLength < 35`）。学习路径用不到这个码，但共用同一个
+         *  `skill.op.*` key 空间（客户端只认 key，不认是谁发的） */
+        COOLDOWN("cooldown"),
         ;
 
         private final String key;
@@ -215,6 +218,45 @@ public final class SkillRules {
     /** 本职业内序号 0..19 = (转职档 − 1) × 4 + (档内槽 − 1)；= 技能编号 − 1。 */
     public static int slotInJob(int tier, int slotInTier) {
         return skillNum(tier, slotInTier) - 1;
+    }
+
+    /* ─────────────── 冷却时长（CD；唯一实现） ─────────────── */
+
+    /** 原版 CD 计量条的格数（`GageLength` 到 35 即就绪）。 */
+    public static final int COOLDOWN_GAGE = 35;
+    /** 原版 `Mastery` 档位上限（`sinSkill.cpp:2074` 的 `if (Mastery > 70) Mastery = 70`）。 */
+    public static final int COOLDOWN_MASTERY_MAX = 70;
+    /** 主循环帧率：`MainSub()` 每帧调一次 `CheckSkillMastery`，同一函数里 `sinMainCounter % 70` 即 1 秒。 */
+    public static final int COOLDOWN_FPS = 70;
+
+    /**
+     * **技能冷却时长（毫秒）** —— 逐行照抄原版 `cSKILL::CheckSkillMastery`
+     * （`SrcGame/src/sinbaram/sinSkill.cpp:2025-2075`）：
+     * <pre>
+     *   Mastery = RequireMastery[0] + RequireMastery[1] × Point − UseSkillMastery/100;   // :2072
+     *   if (Mastery &lt;= 0) Mastery = 1;  if (Mastery &gt; 70) Mastery = 70;                  // :2073-2074
+     *   TempLenght = (int)(35 / (Mastery/2));                                            // :2049
+     *   GageLength2 += TempLenght;                                                       // :2051
+     *   if (GageLength &lt; GageLength2) { SkillCountTime2++;                               // :2053-2056
+     *       if (SkillCountTime2 &gt;= (int)(35 / (float)TempLenght)) { GageLength++; SkillCountTime2 = 0; } }
+     * </pre>
+     * ⇒ 满格需 `35 × max(1, floor(35 / floor(70/Mastery)))` 帧，`COOLDOWN_FPS` 帧 = 1 秒
+     * ⇒ `CD(秒) = 0.5 × max(1, floor(35 / floor(70/Mastery)))`（**阶跃**：Mastery 36..70 全是 17.5 秒）。
+     *
+     * <p>**唯一实现**：服务端强判（`SkillCastService.begin`）与下发给客户端显示（`cd_ms`）都用它。
+     *
+     * @param requireMastery 该技能的 `{常数项, 每级增量}`；`null` ⇒ 返回 `null`（**算不出来 = 显式未知**）
+     * @return 毫秒；`null` = 该技能没有 CD 数据（不编一个时长）
+     */
+    public static Long cooldownMs(int point, int mastery, int[] requireMastery) {
+        if (requireMastery == null || requireMastery.length < 2 || point < 1) {
+            return null;
+        }
+        int gauge = requireMastery[0] + requireMastery[1] * point - mastery / 100;
+        int m = Math.max(1, Math.min(COOLDOWN_MASTERY_MAX, gauge));
+        int t = COOLDOWN_FPS / m;                       // (int)(35 / (m/2.0f))
+        int framesPerIncrement = Math.max(1, COOLDOWN_GAGE / t);
+        return (long) COOLDOWN_GAGE * framesPerIncrement * 1000L / COOLDOWN_FPS;
     }
 
     /* ─────────────── 熟练度（派生值） ─────────────── */

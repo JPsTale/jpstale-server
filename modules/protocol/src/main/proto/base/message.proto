@@ -1100,7 +1100,11 @@ message S2C_AgeUpBroadcast {
 message LearnedSkill {
   int32 skill_id = 1;  // 数字技能 id，如 0x040101（pikeman 一转一槽）
   int32 point = 2;     // 技能等级 1..10（已学的必然 ≥1）
-  int32 mastery = 3;   // 熟练度 0..10000（CD 档位用）
+  int32 mastery = 3;   // **派生后的**熟练度 UseSkillMastery 0..10000（面板百分比 / CD 都用它）
+  // 该技能**此刻**的冷却时长（毫秒；服务端按 point + mastery 算好）。
+  // 客户端只用它显示弧/竖条与本地预判，**不再自己算**（公式的唯一实现在服务端 SkillRules.cooldownMs）。
+  // 0 = 该技能算不出 CD（无 RequireMastery 行，如 5 转）—— 客户端按"无 CD"显示，不编时长。
+  int32 cd_ms = 4;
 }
 
 // 技能表：登录 / 学习 / 洗点后各发一次。**只发本人** —— 技能点是私有的。

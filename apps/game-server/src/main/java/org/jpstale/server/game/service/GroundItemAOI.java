@@ -187,6 +187,8 @@ public class GroundItemAOI {
                 .setItem(CommonProto.GroundItemProto.newBuilder()
                     .setGroundItemId(gi.getId())
                     .setItemId(code == null ? 0 : code)
+                    // 主键：客户端查 i18n 名用（`item.<id>.name`）；与物品码同时下发
+                    .setItemlistId(gi.item.getItemListId() == null ? 0 : gi.item.getItemListId())
                     .setQuantity(gi.item.getCount())
                     .setMoney(gi.money)
                     .setPosition(CommonProto.Position.newBuilder()

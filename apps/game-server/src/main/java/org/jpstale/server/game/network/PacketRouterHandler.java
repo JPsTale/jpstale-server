@@ -49,6 +49,9 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<ClientMessa
     private org.jpstale.server.game.service.PlayerService playerService;
 
     @Autowired
+    private org.jpstale.server.game.service.SkillCastService skillCastService;
+
+    @Autowired
     private org.jpstale.server.game.service.AccountService accountService;
 
     @Autowired
@@ -201,6 +204,8 @@ public class PacketRouterHandler extends SimpleChannelInboundHandler<ClientMessa
             }
             // 清理玩家缓存（重登时重新权威加载）
             if (session.getCharacterId() != null) {
+                // 技能 CD 计时是**运行态**（原版也不存计量条）⇒ 离线即清，重登不延续
+                skillCastService.clearPlayer(session.getCharacterId());
                 playerService.persistAndRemove(session.getCharacterId());
             }
         }

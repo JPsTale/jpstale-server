@@ -358,6 +358,8 @@ public class ChatService {
                         .setItem(org.jpstale.server.proto.base.CommonProto.GroundItemProto.newBuilder()
                                 .setGroundItemId(gi.getId())
                                 .setItemId(fresh.getItemCode() == null ? 0 : fresh.getItemCode())
+                                // 主键：客户端查 i18n 名用（`item.<id>.name`）
+                                .setItemlistId(fresh.getItemListId())
                                 .setQuantity(fresh.getCount())
                                 .setPosition(org.jpstale.server.proto.base.CommonProto.Position.newBuilder()
                                         .setX((float) gi.getX()).setY((float) gi.getY()).setZ((float) gi.getZ()).build())

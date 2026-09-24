@@ -201,6 +201,18 @@ public class CombatService {
         // 事件帧触发伤害），见 `SkillsSub.cpp` 的 `EventSkill` 那一侧。
         var r = skillCastService.begin(player, skill.getSkillId(), skill.getTargetId(),
                 skill.getAnimIndex(), skill.getAnimClip());
+        if (r == SkillCastService.BeginResult.REJECTED_COOLDOWN) {
+            // 冷却中：**明确回一句原因**（原版是拳图标变灰 + `NotUseSkillElement[2]` 那条提示）。
+            // 其余拒绝（非本职业/未学/MP 不足）保持原样：客户端自己已有一道预校验，
+            // 服务端再回一遍只会把"改包/竞态"变成一个玩家可见的噪声。
+            session.send(ServerMessage.newBuilder()
+                    .setError(S2C_Error.newBuilder()
+                            .setErrorCode(CommonProto.ErrorCode.UNKNOWN_ERROR)
+                            .setKey("skill.op.cooldown")
+                            .build())
+                    .build());
+            return;
+        }
         if (r != SkillCastService.BeginResult.NOT_MIGRATED) {
             return;   // STARTED / REJECTED —— 都已由 SkillCastService 处理完
         }

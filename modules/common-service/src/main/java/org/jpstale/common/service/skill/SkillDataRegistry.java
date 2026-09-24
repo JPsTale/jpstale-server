@@ -187,13 +187,15 @@ public class SkillDataRegistry {
      * @param reqLv      需求等级（学习门槛：`reqLv + 当前等级×2 <= 角色等级`）
      * @param useCode    可绑拳位（源码 `USECODE` 的裸 token，如 `ALL`/`RIGHT`/`NOT`）
      * @param classDir   职业目录名（与 `SkillKeys.classDirOfJob` 同套，只作日志/对账）
+     * @param requireMastery CD 公式的 `RequireMastery[2]` = `{常数项, 每级增量}`；`null` = 该行没有
+     *                   （无宏定义的 60 行）⇒ CD 算不出来（显式未知，不编档位）。口径见生成物 `requireMasteryNote`
      * @param element0   `Element[0]`（`sinSkill.h` 的 `sSKILL_INFO.Element[3]` 首项）。原版**只当布尔**读它，
      *                   且有两处语义：`sinSkill.cpp:2064` 熟练度恒满（⇒ CD 最短）、`:839` 面板画粉色 gage；
      *                   取值口径与逐值 provenance 见生成物的 `elementNote` / `element0Src`
      */
     public record Skill(int skillId, int classId, int slotInJob, int tier, int slotInTier, String macro,
                         String iconFile, String name, String constName, int reqLv, String useCode,
-                        String classDir, int element0) {
+                        String classDir, int element0, int[] requireMastery) {
 
         /** `0x` + 6 位小写 hex（**props 键用的就是它**；生成物那列是大写，别照抄）。 */
         public String skillIdHex() {
@@ -876,13 +878,22 @@ public class SkillDataRegistry {
                     throw fail(where + ".macro '" + macro + "' 重复出现在两行上");
                 }
             }
+            int[] requireMastery = null;
+            if (n.hasNonNull("requireMastery")) {
+                JsonNode rmn = n.get("requireMastery");
+                if (!rmn.isArray() || rmn.size() != 2) {
+                    throw fail(where + ".requireMastery 期望长度 2 的数组（或 null），实得 " + describe(rmn));
+                }
+                requireMastery = new int[]{intOf(rmn.get(0), where + ".requireMastery[0]"),
+                        intOf(rmn.get(1), where + ".requireMastery[1]")};
+            }
             int element0 = intOf(requiredNode(n, "element0", where), where + ".element0");
             if (element0 != 0 && element0 != 1) {
                 // 源码里它只被当布尔读（`if (…Element[0])`），值域就 0/1；其它值说明抽取口径变了
                 throw fail(where + ".element0 期望 0 或 1，实得 " + element0);
             }
             out.add(new Skill(skillId, classId, slotInJob, tier, slotInTier, macro, iconFile, name,
-                    constName, reqLv, useCode, classDir, element0));
+                    constName, reqLv, useCode, classDir, element0, requireMastery));
         }
         for (int job = 1; job <= JOBS; job++) {
             int rows = rowsSeenOfJob.getOrDefault(job, 0);

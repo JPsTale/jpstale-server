@@ -216,6 +216,9 @@ message ItemProto {
 // 地面物品
 message GroundItemProto {
   int64 ground_item_id = 1;
+  // ⚠ **物品码（idcode），不是 `gamedb.itemlist.id` 主键** —— 服务端填的是 `ItemInstance.getItemCode()`
+  // （`GroundItemAOI.java:189` / `ChatService.java:360`），客户端拿它推掉落模型/判大类（`itemBaseOf`）。
+  // 显示名**不看这个字段** —— 用下面的 `itemlist_id`（用户 2026-09-25 定）。
   int32 item_id = 2;
   int32 quantity = 3;
   Position position = 4;
@@ -228,6 +231,11 @@ message GroundItemProto {
   string dorp_item = 8;
   // **金币金额**（仅金币家族的地面物 >0）：拾取时入账用；地面物只在内存里，不进 DB。
   int64 money = 9;
+  // **`gamedb.itemlist.id`（主键）** —— 只给客户端查 i18n 显示名（`item.<id>.name`）。
+  // 与 `item_id`（物品码）**同时下发**：码给掉落模型/族判定用（`itemBaseOf`），主键给名字用；
+  // 主键是行的身份，一个 idcode 可能对应多行（库里实测 7 组重复）。
+  // 0 = 服务端没给（旧版）⇒ 客户端显式留痕，名字退回数据名。
+  int32 itemlist_id = 10;
 }
 
 // Buff效果
