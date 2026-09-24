@@ -280,7 +280,7 @@ public class GroundItemManager {
         GroundItem gi = m.remove(id);
         if (gi != null) {
             removedQueue.add(gi);
-            log.info("[GroundItem] remove id={} mapId={} name={} @({},{},{})",
+            log.debug("[GroundItem] remove id={} mapId={} name={} @({},{},{})",
                 id, mapId, gi.item.getTemplate() != null ? gi.item.getTemplate().getName() : "?", (float) gi.getX(), (float) gi.getY(), (float) gi.getZ());
         }
         return gi;

@@ -67,6 +67,12 @@ public class ChatService {
     @Autowired
     private UserInfoMapper userInfoMapper;
 
+    @Autowired
+    private org.jpstale.common.service.skill.SkillMasteryService skillMasteryService;
+
+    @Autowired
+    private SkillPointService skillPointService;
+
     /** 转职（GM /@set_rank 走它的设值入口） */
     @Autowired
     private JobService jobService;
@@ -166,6 +172,10 @@ public class ChatService {
             }
             if (name.equals("@set_rank")) {
                 treatSetRank(session, parts);
+                return;
+            }
+            if (name.equals("@skill_mastery")) {
+                treatSkillMastery(session, parts);
                 return;
             }
             if (name.equals("@reloadloot")) {
@@ -413,6 +423,40 @@ public class ChatService {
 
     private void systemMessageKey(PlayerSession session, String key) {
         systemMessageKey(session, key, Map.of());
+    }
+
+    /**
+     * `/@skill_mastery &lt;1..100&gt;` —— GM 把**已学**技能的熟练度设为该百分比
+     * （用户 2026-09-25 要求；写入的唯一实现在 `SkillMasteryService.setAllPercent`）。
+     *
+     * <p>两个"要不到"的情形会**如实回报**（不假装做到）：才能/装备给的下限高于目标、
+     * 以及 `Element[0]` 的技能恒为 100%（这类技能的计数**不动**）。
+     */
+    private void treatSkillMastery(PlayerSession session, String[] parts) {
+        if (parts.length < 2) {
+            systemMessageKey(session, "chat.cmd.skillMasteryUsage");
+            return;
+        }
+        int pct;
+        try {
+            pct = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            systemMessageKey(session, "chat.cmd.skillMasteryBad", Map.of("arg", parts[1]));
+            return;
+        }
+        var player = playerService.getOrCreate(session);
+        var r = skillMasteryService.setAllPercent(player, pct);
+        if (!r.ok()) {
+            systemMessageKey(session, "chat.cmd.skillMasteryBad", Map.of("arg", parts[1]));
+            return;
+        }
+        playerService.persistStats(player);
+        skillPointService.sendSkillTables(session, player);   // 面板/HUD 立刻刷新（同一批时机）
+        systemMessageKey(session, "chat.cmd.skillMasteryDone", Map.of(
+                "pct", String.valueOf(pct),
+                "actual", String.valueOf(r.effectivePct()),
+                "count", String.valueOf(r.changed()),
+                "full", String.valueOf(r.elementFull())));
     }
 
     /** 调试输出：纯文本直发（/items 等开发者诊断，不走翻译） */

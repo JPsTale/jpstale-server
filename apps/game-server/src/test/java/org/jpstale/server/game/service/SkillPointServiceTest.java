@@ -421,4 +421,55 @@ class SkillPointServiceTest {
         assertEquals(0, p.getPropInt(SkillKeys.useCount(sid)), "满熟练度时连计数都不记");
         assertEquals(10000, p.getPropInt(SkillKeys.mastery(sid)), "上限 10000");
     }
+
+    /**
+     * **熟练度的派生值**（面板与 CD 用的那个"熟练度"）—— 逐字照抄原版
+     * `sinSkill.cpp:2061-2071`：`min(50, Talent/3 + fMagic_Mastery) × 100 + 原始计数`，
+     * 且 `Element[0] != 0` 的技能**恒满 10000**、整体上限 10000。
+     *
+     * <p>为什么值得钉：早先我们**只发原始计数**（少了 `Talent/3×100`，最多 +5000），于是 CD 公式里的
+     * `− 熟练度/100` 几乎不动、被 70 档上限吃掉 ⇒ 用户实测"CD 完全不受熟练度影响"。
+     */
+    @Test
+    void 熟练度派生含Talent项且元素技能恒满() {
+        Player p = pikeman(20);
+        int sid = idAt(0);                       // 龙卷枪风：element0 = 0（T1 段）
+        assertEquals(0, skillData.byId(sid).element0(), "前提：槽 1 不是 Element[0] 技能");
+        p.setTalent(30);
+        p.setPropInt(SkillKeys.point(sid), 1);
+        p.setPropInt(SkillKeys.mastery(sid), 400);
+
+        // Talent/3 = 10 ⇒ 10×100 + 400 = 1400（装备没给魔法精通 ⇒ 0 是"没有加成"，不是换值）
+        assertEquals(1400, SkillRules.useSkillMastery(p, skillData, sid, 0));
+        // 装备的 fMagic_Mastery（原版 sinAdd_fMagic_Mastery）是**加法项**，直接叠在 Talent/3 上
+        assertEquals(1900, SkillRules.useSkillMastery(p, skillData, sid, 5));
+        // `TempTalent > 50` 截断（`:2062`）：Talent 999/3 = 333、再 +5 ⇒ 50
+        p.setTalent(999);
+        assertEquals(5000 + 400, SkillRules.useSkillMastery(p, skillData, sid, 5), "Talent/3 项上限 50");
+        // 上限 10000（`:2069`）
+        p.setPropInt(SkillKeys.mastery(sid), 9999);
+        assertEquals(10000, SkillRules.useSkillMastery(p, skillData, sid, 5));
+
+        // Element[0] 技能：**不看** Talent/计数，恒满（`:2064`）
+        int el = idAt(12);                       // 刺客之眼/4 转段 = Element[0]
+        assertEquals(1, skillData.byId(el).element0(), "前提：槽 13 是 Element[0] 技能");
+        p.setTalent(0);
+        p.setPropInt(SkillKeys.mastery(el), 0);
+        assertEquals(10000, SkillRules.useSkillMastery(p, skillData, el, 0), "元素/高阶技能熟练度恒满");
+    }
+
+    /** 下发的那一列就是**派生值**（不是 props 里的原始计数）—— 客户端面板的百分比与 CD 都读它。 */
+    @Test
+    void 技能表下发的熟练度是派生值() {
+        Player p = pikeman(20);
+        int sid = idAt(0);
+        p.setTalent(30);
+        p.setPropInt(SkillKeys.point(sid), 1);
+        p.setPropInt(SkillKeys.mastery(sid), 400);
+
+        S2C_SkillList m = svc.buildSkillList(p);
+        var row = m.getSkillsList().stream().filter(x -> x.getSkillId() == sid).findFirst().orElseThrow();
+        assertEquals(1400, row.getMastery(), "发的是 UseSkillMastery（含 Talent/3×100），不是存下来的 400");
+        assertEquals(400, p.getPropInt(SkillKeys.mastery(sid)), "props 里存的仍是原始计数（增长要用）");
+    }
 }

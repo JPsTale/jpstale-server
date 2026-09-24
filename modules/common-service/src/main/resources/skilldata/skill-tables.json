@@ -1,6 +1,6 @@
 {
- "note": "由 scripts/extract-skill-tables.ts 从 .refsrc/tree 的原版源码机械抽取（sinbaram/sinSkill_Info.cpp 的参数数组 + sinbaram/sinSkill.h 的技能宏 + Language/{Brazil,English}/*_sinSkill_Info.h 的技能定义 + character.cpp 的 CheckSkillIndex 区间 + fileread.cpp 的 SkillDataCode 编号表）。 口径：① 数值表下标 = 技能等级 − 1（源码用法 Table[Point - 1]）； ② 定义按**位置原样**存成 tuple（顺序 = sinSkill.h:350-365 的 sSKILL_INFO，展平共 22 项； 其中 [2]=RequireLevel、[19]=CODE、[20]=USECODE、[21]=UseMana），不做逐字段命名映射； ③ counts.arrays=484 的口径是**声明为 int 的参数表**（451 一维 + 33 二维），另有 7 张 float[10]（如 Raving_UseLife）同样在 arrays 里、单列计数 arraysFloat1d。 裸 token 原样保留（数字仍是数字、标识符是字符串）；缺省槽记 null —— 没有任何编造值。 ⚠ `defects` 是源码**自己**写短了的初始化列表（C 编译时会补 0）：我们**不补零**、原样记录并在此列明。 ④ skills = 技能身份表 220 行（11 职业 × 20 槽 = 有源码 160 + 无源码 60）： skillId = 0x<job 1..11><tier 1..5><slot 1..4>（每段一字节、十进制值）； 槽序 = **需求等级序**（= 面板序 = skillData.SKILLS 数组序；与源码 SKILL_n 位无关 —— mecha J1 第 3/4 格在源码里是反的，见 docs/技能系统-mecha.md §0.4.1）； `macro/pairing` 是**配对**（这一格是哪个技能）：有源码的按定义表条目对齐， pairing=in-name（客户端名或 alt 命中源码宏名）| position（靠需求等级序）| unverified（刺客 10 + 萨满 11 这 21 格的客户端名与源码缩写宏是两套命名，只按位置对齐、不许按名字硬配）| none（60 个无源码）； `reqLv/weapon` 取**客户端值**（sourceReqLv 留源码原值对账）； `useCode` 取**源码 USECODE**（2026-09-23 裁定；60 个无源码的只能用客户端值）； `sourceSkillDataCodeIndex` 取**源码编号表**（`fileread.cpp` 的 SkillDataCode[] 下标）—— 先按名字在职业段内定位（sourceSkillDataCodeSrc=name），名字对不上才按源码槽号取（=slot）、 5 转的按职业段尾 4 条取（=block-j5）、格斗家取不到（源码 switch 无 case 11）。 `skillIndex` 是双向索引（byClassDir / byMacro / byIconFile），客户端只新增\"iconFile → skillId\"这一查表。",
- "generatedAt": "2026-09-24T13:10:08.103Z",
+ "note": "由 scripts/extract-skill-tables.ts 从 .refsrc/tree 的原版源码机械抽取（sinbaram/sinSkill_Info.cpp 的参数数组 + sinbaram/sinSkill.h 的技能宏 + Language/{Brazil,English}/*_sinSkill_Info.h 的技能定义 + character.cpp 的 CheckSkillIndex 区间 + fileread.cpp 的 SkillDataCode 编号表）。 口径：① 数值表下标 = 技能等级 − 1（源码用法 Table[Point - 1]）； ② 定义按**位置原样**存成 tuple（顺序 = sinSkill.h:350-365 的 sSKILL_INFO，展平共 22 项； 其中 [2]=RequireLevel、[7]=Element[0]、[19]=CODE、[20]=USECODE、[21]=UseMana），不做逐字段命名映射； ③ counts.arrays=484 的口径是**声明为 int 的参数表**（451 一维 + 33 二维），另有 7 张 float[10]（如 Raving_UseLife）同样在 arrays 里、单列计数 arraysFloat1d。 裸 token 原样保留（数字仍是数字、标识符是字符串）；缺省槽记 null —— 没有任何编造值。 ⚠ `defects` 是源码**自己**写短了的初始化列表（C 编译时会补 0）：我们**不补零**、原样记录并在此列明。 ④ skills = 技能身份表 220 行（11 职业 × 20 槽 = 有源码 160 + 无源码 60）： skillId = 0x<job 1..11><tier 1..5><slot 1..4>（每段一字节、十进制值）； 槽序 = **需求等级序**（= 面板序 = skillData.SKILLS 数组序；与源码 SKILL_n 位无关 —— mecha J1 第 3/4 格在源码里是反的，见 docs/技能系统-mecha.md §0.4.1）； `macro/pairing` 是**配对**（这一格是哪个技能）：有源码的按定义表条目对齐， pairing=in-name（客户端名或 alt 命中源码宏名）| position（靠需求等级序）| unverified（刺客 10 + 萨满 11 这 21 格的客户端名与源码缩写宏是两套命名，只按位置对齐、不许按名字硬配）| none（60 个无源码）； `reqLv/weapon` 取**客户端值**（sourceReqLv 留源码原值对账）； `useCode` 取**源码 USECODE**（2026-09-23 裁定；60 个无源码的只能用客户端值）； `sourceSkillDataCodeIndex` 取**源码编号表**（`fileread.cpp` 的 SkillDataCode[] 下标）—— 先按名字在职业段内定位（sourceSkillDataCodeSrc=name），名字对不上才按源码槽号取（=slot）、 5 转的按职业段尾 4 条取（=block-j5）、格斗家取不到（源码 switch 无 case 11）。 `skillIndex` 是双向索引（byClassDir / byMacro / byIconFile），客户端只新增\"iconFile → skillId\"这一查表。",
+ "generatedAt": "2026-09-24T16:00:35.543Z",
  "sourceHash": "c90dba61f164a84d",
  "sources": [
   {
@@ -27952,6 +27952,8 @@
    }
   ]
  },
+ "requireMasteryNote": "skills[].requireMastery = CD 公式的 `RequireMastery[2]`（`sinSkill.cpp:2072`）。口径与 element0 相同（English/Chinese 优先、两者须一致、缺则 Brazil）：巴西在 130 个共有宏里有 7 条把 `[0]` 写成 0，**全部**是 Element[0]=1 的高阶技能（与那 96 条 element 改写同源）⇒ 同判。5 转（无宏定义）为 null：CD 算不出来时应显式未知，不许编档位。",
+ "elementNote": "skills[].element0 = `Element[0]`（原版 `sinSkill.cpp:2064` 熟练度恒满 / `:839` 粉色 gage）。取值**不取 Brazil**：Brazil 198 条里 136 条写 1（含 T1/T2 与被动），与 English/Chinese 冲突；English 与 Chinese 在共有的 130 个宏上**分歧为 0**，且 `=1` 的正好是高转职段 ⇒ 按这两个取。缺英文/中文的宏退回 Brazil；5 转（无宏定义）取 1（依据 = 用户观察到的粉色 gage，见 element0Src）。",
  "align": {
   "rule": [
    "① 有 CODE 的条目按 CODE 名（= sinSkill.h 的宏名）配对，两侧均唯一命中才算；",
@@ -28228,7 +28230,14 @@
    "sourceName": "Mestre das Armas",
    "sourceSkillDataCodeIndex": 21,
    "sourceSkillDataCodeName": "MeleeMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28253,7 +28262,14 @@
    "sourceName": "Resistência a Fogo",
    "sourceSkillDataCodeIndex": 22,
    "sourceSkillDataCodeName": "FireAttribute",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28284,7 +28300,14 @@
    "sourceName": "Raiva",
    "sourceSkillDataCodeIndex": 23,
    "sourceSkillDataCodeName": "Raving",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    93,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28314,7 +28337,14 @@
    "sourceName": "Impacto",
    "sourceSkillDataCodeIndex": 24,
    "sourceSkillDataCodeName": "Impact",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    86,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28344,7 +28374,14 @@
    "sourceName": "Impacto Triplo",
    "sourceSkillDataCodeIndex": 25,
    "sourceSkillDataCodeName": "TripleImpact",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    80,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28372,7 +28409,14 @@
    "sourceName": "Girada Brutal",
    "sourceSkillDataCodeIndex": 26,
    "sourceSkillDataCodeName": "BrutalSwing",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28401,7 +28445,14 @@
    "sourceName": "Rugido",
    "sourceSkillDataCodeIndex": 27,
    "sourceSkillDataCodeName": "Roar",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    112,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28430,7 +28481,14 @@
    "sourceName": "Fúria de Zecram",
    "sourceSkillDataCodeIndex": 28,
    "sourceSkillDataCodeName": "RageofZecram",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    84,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28458,7 +28516,14 @@
    "sourceName": "Concentração",
    "sourceSkillDataCodeIndex": 29,
    "sourceSkillDataCodeName": "Concentration",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28486,7 +28551,14 @@
    "sourceName": "Golpe da Vingança",
    "sourceSkillDataCodeIndex": 30,
    "sourceSkillDataCodeName": "AvangingCrash",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    73,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28514,7 +28586,14 @@
    "sourceName": "Machado Veloz",
    "sourceSkillDataCodeIndex": 31,
    "sourceSkillDataCodeName": "SwiftAxe",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    200,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28542,7 +28621,14 @@
    "sourceName": "Quebra Ossos",
    "sourceSkillDataCodeIndex": 32,
    "sourceSkillDataCodeName": "BoneSmash",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    73,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28569,7 +28655,14 @@
    "sourceName": "Destroyer",
    "sourceSkillDataCodeIndex": 33,
    "sourceSkillDataCodeName": "DESTROYER",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    150,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28594,7 +28687,14 @@
    "sourceName": "Fúria",
    "sourceSkillDataCodeIndex": 34,
    "sourceSkillDataCodeName": "BERSERKER",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    700,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28622,7 +28722,14 @@
    "sourceName": "Golpe Giratório",
    "sourceSkillDataCodeIndex": 35,
    "sourceSkillDataCodeName": "CYCLONESTRIKE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    135,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28647,7 +28754,14 @@
    "sourceName": "Bônus de Vitalidade",
    "sourceSkillDataCodeIndex": 36,
    "sourceSkillDataCodeName": "BoostHealth",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 1,
@@ -28675,7 +28789,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 37,
    "sourceSkillDataCodeName": "DOWNHIT",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 1,
@@ -28703,7 +28821,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 38,
    "sourceSkillDataCodeName": "POWERDASH",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 1,
@@ -28731,7 +28853,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 39,
    "sourceSkillDataCodeName": "MOTALBLOW",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 1,
@@ -28759,7 +28885,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 40,
    "sourceSkillDataCodeName": "BLOODYBERSERKER",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 2,
@@ -28787,7 +28917,14 @@
    "sourceName": "Escudo Extremo",
    "sourceSkillDataCodeIndex": 1,
    "sourceSkillDataCodeName": "ExtremeShield",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -28815,7 +28952,14 @@
    "sourceName": "Bomba Mecânica",
    "sourceSkillDataCodeIndex": 2,
    "sourceSkillDataCodeName": "MechanicBomb",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    73,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -28843,7 +28987,14 @@
    "sourceName": "Resistência a Veneno",
    "sourceSkillDataCodeIndex": 4,
    "sourceSkillDataCodeName": "PoisonAttribute",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -28871,7 +29022,14 @@
    "sourceName": "Absorção Física",
    "sourceSkillDataCodeIndex": 3,
    "sourceSkillDataCodeName": "PhysicalAbsorption",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    5
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -28899,7 +29057,14 @@
    "sourceName": "Grande Golpe",
    "sourceSkillDataCodeIndex": 5,
    "sourceSkillDataCodeName": "roundimpact",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    73,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -28927,7 +29092,14 @@
    "sourceName": "Maximizar",
    "sourceSkillDataCodeIndex": 6,
    "sourceSkillDataCodeName": "Maximize",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -28955,7 +29127,14 @@
    "sourceName": "Automação",
    "sourceSkillDataCodeIndex": 7,
    "sourceSkillDataCodeName": "Automation",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -28983,7 +29162,14 @@
    "sourceName": "Spark",
    "sourceSkillDataCodeIndex": 8,
    "sourceSkillDataCodeName": "Spark",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29011,7 +29197,14 @@
    "sourceName": "Armadura Metálica",
    "sourceSkillDataCodeIndex": 9,
    "sourceSkillDataCodeName": "MetalArmor",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    5
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29039,7 +29232,14 @@
    "sourceName": "Golpe Grandioso",
    "sourceSkillDataCodeIndex": 10,
    "sourceSkillDataCodeName": "GrandSmash",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29067,7 +29267,14 @@
    "sourceName": "Mestre dos Mecânicos",
    "sourceSkillDataCodeIndex": 11,
    "sourceSkillDataCodeName": "MechanicMastery",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29095,7 +29302,14 @@
    "sourceName": "Escudo Espinhoso",
    "sourceSkillDataCodeIndex": 12,
    "sourceSkillDataCodeName": "SparkShield",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29123,7 +29337,14 @@
    "sourceName": "Impulso",
    "sourceSkillDataCodeIndex": 13,
    "sourceSkillDataCodeName": "IMPULSION",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    130,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29151,7 +29372,14 @@
    "sourceName": "Implosão",
    "sourceSkillDataCodeIndex": 14,
    "sourceSkillDataCodeName": "COMPULSION",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    440,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29179,7 +29407,14 @@
    "sourceName": "Esfera Magnética",
    "sourceSkillDataCodeIndex": 15,
    "sourceSkillDataCodeName": "MAGNETICSPHERE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    600,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29207,7 +29442,14 @@
    "sourceName": "Golem de Metal",
    "sourceSkillDataCodeIndex": 16,
    "sourceSkillDataCodeName": "METALGOLEM",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    1000,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 2,
@@ -29235,7 +29477,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 17,
    "sourceSkillDataCodeName": "LandMining",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 2,
@@ -29263,7 +29509,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 18,
    "sourceSkillDataCodeName": "HyperSonic",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 2,
@@ -29291,7 +29541,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 19,
    "sourceSkillDataCodeName": "RollingSmash",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 2,
@@ -29319,7 +29573,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 20,
    "sourceSkillDataCodeName": "PowerEnhance",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 3,
@@ -29344,7 +29602,14 @@
    "sourceName": "Falcão Vigia",
    "sourceSkillDataCodeIndex": 61,
    "sourceSkillDataCodeName": "ScoutHawk",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    115,
+    5
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29371,7 +29636,14 @@
    "sourceName": "Mestra do Tiro",
    "sourceSkillDataCodeIndex": 62,
    "sourceSkillDataCodeName": "ShootingMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29398,7 +29670,14 @@
    "sourceName": "Flecha de Vento",
    "sourceSkillDataCodeIndex": 63,
    "sourceSkillDataCodeName": "WindArrow",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29425,7 +29704,14 @@
    "sourceName": "Mira Perfeita",
    "sourceSkillDataCodeIndex": 64,
    "sourceSkillDataCodeName": "PerfectAim",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    81,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29452,7 +29738,14 @@
    "sourceName": "Olho de Dion",
    "sourceSkillDataCodeIndex": 65,
    "sourceSkillDataCodeName": "DionsEye",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29477,7 +29770,14 @@
    "sourceName": "Falcão",
    "sourceSkillDataCodeIndex": 66,
    "sourceSkillDataCodeName": "Falcon",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    115,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29504,7 +29804,14 @@
    "sourceName": "Flecha da Fúria",
    "sourceSkillDataCodeIndex": 67,
    "sourceSkillDataCodeName": "ArrowofRage",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29531,7 +29838,14 @@
    "sourceName": "Avalanche",
    "sourceSkillDataCodeIndex": 68,
    "sourceSkillDataCodeName": "Avalanche",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    103,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29558,7 +29872,14 @@
    "sourceName": "Tiro Elemental",
    "sourceSkillDataCodeIndex": 69,
    "sourceSkillDataCodeName": "ElementalShot",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29583,7 +29904,14 @@
    "sourceName": "Falcão Dourado",
    "sourceSkillDataCodeIndex": 70,
    "sourceSkillDataCodeName": "GoldenFalcon",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    120,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29610,7 +29938,14 @@
    "sourceName": "Tiro Explosivo",
    "sourceSkillDataCodeIndex": 71,
    "sourceSkillDataCodeName": "BombShot",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    87,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29637,7 +29972,14 @@
    "sourceName": "Perfuração",
    "sourceSkillDataCodeIndex": 72,
    "sourceSkillDataCodeName": "Perforation",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29662,7 +30004,14 @@
    "sourceName": "Invocar Wolverine",
    "sourceSkillDataCodeIndex": 73,
    "sourceSkillDataCodeName": "RECALLWOLVERIN",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    900,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29689,7 +30038,14 @@
    "sourceName": "Mestra da Esquiva",
    "sourceSkillDataCodeIndex": 74,
    "sourceSkillDataCodeName": "EvasionMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29716,7 +30072,14 @@
    "sourceName": "Tiro Fênix",
    "sourceSkillDataCodeIndex": 75,
    "sourceSkillDataCodeName": "PHOENIXSHOT",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    100,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29743,7 +30106,14 @@
    "sourceName": "Força da Natureza",
    "sourceSkillDataCodeIndex": 76,
    "sourceSkillDataCodeName": "FORCEOFNATURE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    900,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 3,
@@ -29770,7 +30140,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 77,
    "sourceSkillDataCodeName": "EVADESHOT",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 3,
@@ -29797,7 +30171,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 78,
    "sourceSkillDataCodeName": "THUNDERROOP",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 3,
@@ -29824,7 +30202,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 79,
    "sourceSkillDataCodeName": "NATURESPLASH",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 3,
@@ -29851,7 +30233,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 80,
    "sourceSkillDataCodeName": "CIRCLETRAP",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 4,
@@ -29878,7 +30264,14 @@
    "sourceName": "Sopro Afiado",
    "sourceSkillDataCodeIndex": 41,
    "sourceSkillDataCodeName": "PikeWind",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    80,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -29906,7 +30299,14 @@
    "sourceName": "Resistência a Gelo",
    "sourceSkillDataCodeIndex": 42,
    "sourceSkillDataCodeName": "IceAttribute",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -29933,7 +30333,14 @@
    "sourceName": "Ataque Crítico",
    "sourceSkillDataCodeIndex": 43,
    "sourceSkillDataCodeName": "CriticalHit",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    84,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -29960,7 +30367,14 @@
    "sourceName": "Pulo Fatal",
    "sourceSkillDataCodeIndex": 44,
    "sourceSkillDataCodeName": "JumpingCrash",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    76,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -29987,7 +30401,14 @@
    "sourceName": "Espinhos de Gelo",
    "sourceSkillDataCodeIndex": 45,
    "sourceSkillDataCodeName": "GroundPike",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    84,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30014,7 +30435,14 @@
    "sourceName": "Tornado",
    "sourceSkillDataCodeIndex": 46,
    "sourceSkillDataCodeName": "Tornado",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    83,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30041,7 +30469,14 @@
    "sourceName": "Mestre da Def.",
    "sourceSkillDataCodeIndex": 47,
    "sourceSkillDataCodeName": "WeaponDefenceMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30069,7 +30504,14 @@
    "sourceName": "Expansão",
    "sourceSkillDataCodeIndex": 48,
    "sourceSkillDataCodeName": "Expansion",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    4
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30096,7 +30538,14 @@
    "sourceName": "Lanças Venenosas",
    "sourceSkillDataCodeIndex": 49,
    "sourceSkillDataCodeName": "VenomSpear",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30121,7 +30570,14 @@
    "sourceName": "Desaparecer",
    "sourceSkillDataCodeIndex": 50,
    "sourceSkillDataCodeName": "Vanish",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    140,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30148,7 +30604,14 @@
    "sourceName": "Mestre do ATQ Crítico",
    "sourceSkillDataCodeIndex": 51,
    "sourceSkillDataCodeName": "CriticalMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30175,7 +30638,14 @@
    "sourceName": "Foice de Aço",
    "sourceSkillDataCodeIndex": 52,
    "sourceSkillDataCodeName": "ChainLance",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    88,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30202,7 +30672,14 @@
    "sourceName": "Olho Assassino",
    "sourceSkillDataCodeIndex": 53,
    "sourceSkillDataCodeName": "ASSASSINEYE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    520,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30229,7 +30706,14 @@
    "sourceName": "Golpe Carregado",
    "sourceSkillDataCodeIndex": 54,
    "sourceSkillDataCodeName": "CHARGINGSTRIKE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    150,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30256,7 +30740,14 @@
    "sourceName": "Furtivo",
    "sourceSkillDataCodeIndex": 55,
    "sourceSkillDataCodeName": "VAGUE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    650,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30283,7 +30774,14 @@
    "sourceName": "Mestre das Sombras",
    "sourceSkillDataCodeIndex": 56,
    "sourceSkillDataCodeName": "SHADOWMASTER",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    160,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 4,
@@ -30310,7 +30808,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 57,
    "sourceSkillDataCodeName": "DANCINGREAPER",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 4,
@@ -30337,7 +30839,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 58,
    "sourceSkillDataCodeName": "FINALSPEAR",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 4,
@@ -30364,7 +30870,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 59,
    "sourceSkillDataCodeName": "AMPLIFIED",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 4,
@@ -30391,7 +30901,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 60,
    "sourceSkillDataCodeName": "SIDESPINATTACK",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 5,
@@ -30418,7 +30932,14 @@
    "sourceName": "Golpe do Escudo",
    "sourceSkillDataCodeIndex": 103,
    "sourceSkillDataCodeName": "ShieldStrike",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30445,7 +30966,14 @@
    "sourceName": "Farina",
    "sourceSkillDataCodeIndex": 104,
    "sourceSkillDataCodeName": "Farina",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30472,7 +31000,14 @@
    "sourceName": "Mestra do Arremesso",
    "sourceSkillDataCodeIndex": 105,
    "sourceSkillDataCodeName": "ThrowingMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30500,7 +31035,14 @@
    "sourceName": "Lança Gigante",
    "sourceSkillDataCodeIndex": 106,
    "sourceSkillDataCodeName": "VigorSpear",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30527,7 +31069,14 @@
    "sourceName": "Windy",
    "sourceSkillDataCodeIndex": 107,
    "sourceSkillDataCodeName": "Windy",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    100,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30554,7 +31103,14 @@
    "sourceName": "Lança Giratória",
    "sourceSkillDataCodeIndex": 108,
    "sourceSkillDataCodeName": "TwistJavelin",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30581,7 +31137,14 @@
    "sourceName": "Ladrão de Almas",
    "sourceSkillDataCodeIndex": 109,
    "sourceSkillDataCodeName": "SoulSucker",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30608,7 +31171,14 @@
    "sourceName": "Lança de Fogo",
    "sourceSkillDataCodeIndex": 110,
    "sourceSkillDataCodeName": "FireJavelin",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30635,7 +31205,14 @@
    "sourceName": "Lança Partida",
    "sourceSkillDataCodeIndex": 111,
    "sourceSkillDataCodeName": "SplitJavelin",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    115,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30662,7 +31239,14 @@
    "sourceName": "Triunfo de Valhalla",
    "sourceSkillDataCodeIndex": 112,
    "sourceSkillDataCodeName": "TriumphOfValhalla",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    120,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30689,7 +31273,14 @@
    "sourceName": "Lança de Raio",
    "sourceSkillDataCodeIndex": 113,
    "sourceSkillDataCodeName": "LightningJavelin",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30716,7 +31307,14 @@
    "sourceName": "Chuva de Lanças",
    "sourceSkillDataCodeIndex": 114,
    "sourceSkillDataCodeName": "StormJavelin",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30743,7 +31341,14 @@
    "sourceName": "Inferno de Valhalla",
    "sourceSkillDataCodeIndex": 115,
    "sourceSkillDataCodeName": "HALLOFVALHALLA",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    750,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30770,7 +31375,14 @@
    "sourceName": "Fúria-X",
    "sourceSkillDataCodeIndex": 116,
    "sourceSkillDataCodeName": "XRAGE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    210,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30797,7 +31409,14 @@
    "sourceName": "Lança de Gelo",
    "sourceSkillDataCodeIndex": 117,
    "sourceSkillDataCodeName": "FROSTJAVELIN",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    720,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30824,7 +31443,14 @@
    "sourceName": "Vingança",
    "sourceSkillDataCodeIndex": 118,
    "sourceSkillDataCodeName": "VENGEANCE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    100,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 5,
@@ -30851,7 +31477,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 119,
    "sourceSkillDataCodeName": "TALARIA",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 5,
@@ -30878,7 +31508,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 120,
    "sourceSkillDataCodeName": "GALAXYCOUP",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 5,
@@ -30905,7 +31539,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 121,
    "sourceSkillDataCodeName": "SUMMONARCUDA",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 5,
@@ -30932,7 +31570,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 122,
    "sourceSkillDataCodeName": "SNIPPYFEAR",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 6,
@@ -30959,7 +31601,14 @@
    "sourceName": "Rajada Sagrada",
    "sourceSkillDataCodeIndex": 81,
    "sourceSkillDataCodeName": "SwordBlast",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -30984,7 +31633,14 @@
    "sourceName": "Corpo Sagrado",
    "sourceSkillDataCodeIndex": 82,
    "sourceSkillDataCodeName": "HolyBody",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    110,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31009,7 +31665,14 @@
    "sourceName": "Treinamento Físico",
    "sourceSkillDataCodeIndex": 83,
    "sourceSkillDataCodeName": "PhysicalTraning",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31038,7 +31701,14 @@
    "sourceName": "Golpe Duplo",
    "sourceSkillDataCodeIndex": 84,
    "sourceSkillDataCodeName": "DoubleCrash",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31063,7 +31733,14 @@
    "sourceName": "Valor Sagrado",
    "sourceSkillDataCodeIndex": 85,
    "sourceSkillDataCodeName": "holyteam",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    100,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31091,7 +31768,14 @@
    "sourceName": "Brandish",
    "sourceSkillDataCodeIndex": 86,
    "sourceSkillDataCodeName": "Brandish",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31118,7 +31802,14 @@
    "sourceName": "Piercing",
    "sourceSkillDataCodeIndex": 87,
    "sourceSkillDataCodeName": "Piercing",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31143,7 +31834,14 @@
    "sourceName": "Espírito Drástico",
    "sourceSkillDataCodeIndex": 88,
    "sourceSkillDataCodeName": "DrasticSpirit",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    100,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31170,7 +31868,14 @@
    "sourceName": "Mestre da Espada",
    "sourceSkillDataCodeIndex": 89,
    "sourceSkillDataCodeName": "SwordMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31197,7 +31902,14 @@
    "sourceName": "Escudo Divino",
    "sourceSkillDataCodeIndex": 90,
    "sourceSkillDataCodeName": "Divineinhalation",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    130,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31222,7 +31934,14 @@
    "sourceName": "Encantamento Sagrado",
    "sourceSkillDataCodeIndex": 91,
    "sourceSkillDataCodeName": "HolyIncantation",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    120,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31249,7 +31968,14 @@
    "sourceName": "Grande Cruzada",
    "sourceSkillDataCodeIndex": 92,
    "sourceSkillDataCodeName": "GrandCross",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31276,7 +32002,14 @@
    "sourceName": "Espada da Justiça",
    "sourceSkillDataCodeIndex": 98,
    "sourceSkillDataCodeName": "SWORDOFJUSTICE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    250,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31303,7 +32036,14 @@
    "sourceName": "Escudo dos deuses",
    "sourceSkillDataCodeIndex": 96,
    "sourceSkillDataCodeName": "GODLYSHIELD",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    400,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31336,7 +32076,14 @@
    "sourceName": "Bênção Divina",
    "sourceSkillDataCodeIndex": 97,
    "sourceSkillDataCodeName": "GODSBLESS",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    330,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31363,7 +32110,14 @@
    "sourceName": "Piercing Divino",
    "sourceSkillDataCodeIndex": 93,
    "sourceSkillDataCodeName": "DIVINEPIERCING",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    160,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 6,
@@ -31390,7 +32144,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 99,
    "sourceSkillDataCodeName": "SOULBREAKER",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 6,
@@ -31417,7 +32175,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 100,
    "sourceSkillDataCodeName": "CRESCENTMOON",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 6,
@@ -31444,7 +32206,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 101,
    "sourceSkillDataCodeName": "SAINTBLADE",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 6,
@@ -31471,7 +32237,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 102,
    "sourceSkillDataCodeName": "HOLYBENEDIC",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 7,
@@ -31498,7 +32268,14 @@
    "sourceName": "Agonia",
    "sourceSkillDataCodeIndex": 143,
    "sourceSkillDataCodeName": "Agony",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31525,7 +32302,14 @@
    "sourceName": "Fagulha",
    "sourceSkillDataCodeIndex": 144,
    "sourceSkillDataCodeName": "FireBolt",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    84,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31552,7 +32336,14 @@
    "sourceName": "Zenith",
    "sourceSkillDataCodeIndex": 145,
    "sourceSkillDataCodeName": "Zenith",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    100,
+    3
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31579,7 +32370,14 @@
    "sourceName": "Bola de Fogo",
    "sourceSkillDataCodeIndex": 146,
    "sourceSkillDataCodeName": "FireBall",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31604,7 +32402,14 @@
    "sourceName": "Mestre da Mente",
    "sourceSkillDataCodeIndex": 147,
    "sourceSkillDataCodeName": "MentalMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31631,7 +32436,14 @@
    "sourceName": "Watornado",
    "sourceSkillDataCodeIndex": 148,
    "sourceSkillDataCodeName": "ColumnOfWater",
-   "sourceSkillDataCodeSrc": "slot"
+   "sourceSkillDataCodeSrc": "slot",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31658,7 +32470,14 @@
    "sourceName": "Encanto",
    "sourceSkillDataCodeIndex": 149,
    "sourceSkillDataCodeName": "EnchantWeapon",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    104,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31685,7 +32504,14 @@
    "sourceName": "Raio da Morte",
    "sourceSkillDataCodeIndex": 150,
    "sourceSkillDataCodeName": "DeadRay",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31712,7 +32538,14 @@
    "sourceName": "Escudo Energético",
    "sourceSkillDataCodeIndex": 151,
    "sourceSkillDataCodeName": "EnergyShield",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    150,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31739,7 +32572,14 @@
    "sourceName": "Terremoto",
    "sourceSkillDataCodeIndex": 152,
    "sourceSkillDataCodeName": "Diastrophism",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    106,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31766,7 +32606,14 @@
    "sourceName": "Espírito Elemental",
    "sourceSkillDataCodeIndex": 153,
    "sourceSkillDataCodeName": "SpiritElemental",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    150,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31793,7 +32640,14 @@
    "sourceName": "Espada Dançante",
    "sourceSkillDataCodeIndex": 154,
    "sourceSkillDataCodeName": "DancingSword",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    150,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31820,7 +32674,14 @@
    "sourceName": "Chama Elemental",
    "sourceSkillDataCodeIndex": 155,
    "sourceSkillDataCodeName": "FIREELEMENTAL",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    900,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31847,7 +32708,14 @@
    "sourceName": "Ondas de Fogo",
    "sourceSkillDataCodeIndex": 156,
    "sourceSkillDataCodeName": "FLAMEWAVE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    124,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31874,7 +32742,14 @@
    "sourceName": "Distorção",
    "sourceSkillDataCodeIndex": 157,
    "sourceSkillDataCodeName": "DISTORTION",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    460,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31901,7 +32776,14 @@
    "sourceName": "Meteóro",
    "sourceSkillDataCodeIndex": 158,
    "sourceSkillDataCodeName": "METEO",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    190,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 7,
@@ -31928,7 +32810,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 159,
    "sourceSkillDataCodeName": "Silraphim",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 7,
@@ -31955,7 +32841,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 160,
    "sourceSkillDataCodeName": "Vistenus",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 7,
@@ -31982,7 +32872,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 161,
    "sourceSkillDataCodeName": "Primaignis",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 7,
@@ -32009,7 +32903,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 162,
    "sourceSkillDataCodeName": "Thirdanima",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 8,
@@ -32036,7 +32934,14 @@
    "sourceName": "Cura",
    "sourceSkillDataCodeIndex": 123,
    "sourceSkillDataCodeName": "Healing",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32063,7 +32968,14 @@
    "sourceName": "Fagulha Sagrada",
    "sourceSkillDataCodeIndex": 124,
    "sourceSkillDataCodeName": "HolyBolt",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32090,7 +33002,14 @@
    "sourceName": "Espinhos Múltiplos",
    "sourceSkillDataCodeIndex": 125,
    "sourceSkillDataCodeName": "MultiSpark",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32117,7 +33036,14 @@
    "sourceName": "Feitiço Divino",
    "sourceSkillDataCodeIndex": 126,
    "sourceSkillDataCodeName": "HolyMind",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    100,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32142,7 +33068,14 @@
    "sourceName": "Meditação",
    "sourceSkillDataCodeIndex": 127,
    "sourceSkillDataCodeName": "Meditation",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32169,7 +33102,14 @@
    "sourceName": "Raios Divinos",
    "sourceSkillDataCodeIndex": 128,
    "sourceSkillDataCodeName": "DivineLightning",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32196,7 +33136,14 @@
    "sourceName": "Reflexão Divina",
    "sourceSkillDataCodeIndex": 129,
    "sourceSkillDataCodeName": "HolyReflection",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    120,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32223,7 +33170,14 @@
    "sourceName": "Cura Máxima",
    "sourceSkillDataCodeIndex": 130,
    "sourceSkillDataCodeName": "GrandHealing",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32250,7 +33204,14 @@
    "sourceName": "Esferas de Vigor",
    "sourceSkillDataCodeIndex": 131,
    "sourceSkillDataCodeName": "VigorBall",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32277,7 +33238,14 @@
    "sourceName": "Ressurreição",
    "sourceSkillDataCodeIndex": 132,
    "sourceSkillDataCodeName": "Resurrection",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    130,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32304,7 +33272,14 @@
    "sourceName": "Extinção",
    "sourceSkillDataCodeIndex": 133,
    "sourceSkillDataCodeName": "Extinction",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    120,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32331,7 +33306,14 @@
    "sourceName": "HP Virtual",
    "sourceSkillDataCodeIndex": 134,
    "sourceSkillDataCodeName": "VirtualLife",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "english",
+   "requireMastery": [
+    134,
+    1
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32358,7 +33340,14 @@
    "sourceName": "Espinhos Glaciais",
    "sourceSkillDataCodeIndex": 135,
    "sourceSkillDataCodeName": "GLACIALSPIKE",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    120,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32385,7 +33374,14 @@
    "sourceName": "Campo de Regen",
    "sourceSkillDataCodeIndex": 136,
    "sourceSkillDataCodeName": "REGENERATIONFIELD",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    950,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32412,7 +33408,14 @@
    "sourceName": "Raios Contínuos",
    "sourceSkillDataCodeIndex": 137,
    "sourceSkillDataCodeName": "CHAINLIGHTNING",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    120,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32439,7 +33442,14 @@
    "sourceName": "Invocar Muspell",
    "sourceSkillDataCodeIndex": 138,
    "sourceSkillDataCodeName": "SUMMONMUSPELL",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "english",
+   "requireMastery": [
+    800,
+    0
+   ],
+   "requireMasterySrc": "english"
   },
   {
    "job": 8,
@@ -32466,7 +33476,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 139,
    "sourceSkillDataCodeName": "SpiritImpact",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 8,
@@ -32493,7 +33507,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 140,
    "sourceSkillDataCodeName": "PiercingIce",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 8,
@@ -32520,7 +33538,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 141,
    "sourceSkillDataCodeName": "SummonRamiel",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 8,
@@ -32547,7 +33569,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 142,
    "sourceSkillDataCodeName": "BlessingKrishna",
-   "sourceSkillDataCodeSrc": "block-j5"
+   "sourceSkillDataCodeSrc": "block-j5",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 9,
@@ -32574,7 +33600,14 @@
    "sourceName": "Ferrão",
    "sourceSkillDataCodeIndex": 163,
    "sourceSkillDataCodeName": "Stingger",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    82,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32599,7 +33632,14 @@
    "sourceName": "Ataque Duplo",
    "sourceSkillDataCodeIndex": 164,
    "sourceSkillDataCodeName": "RunningHit",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    82,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32626,7 +33666,14 @@
    "sourceName": "Maestria em Adagas",
    "sourceSkillDataCodeIndex": 165,
    "sourceSkillDataCodeName": "DualSwordMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32653,7 +33700,14 @@
    "sourceName": "Wisp",
    "sourceSkillDataCodeIndex": 166,
    "sourceSkillDataCodeName": "Wisp",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    100,
+    0
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32680,7 +33734,14 @@
    "sourceName": "Trono de Veneno",
    "sourceSkillDataCodeIndex": 167,
    "sourceSkillDataCodeName": "VenomThrone",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    73,
+    0
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32707,7 +33768,14 @@
    "sourceName": "Alas",
    "sourceSkillDataCodeIndex": 168,
    "sourceSkillDataCodeName": "Alas",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    100,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32734,7 +33802,14 @@
    "sourceName": "Choque na Alma",
    "sourceSkillDataCodeIndex": 169,
    "sourceSkillDataCodeName": "SoulShock",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32761,7 +33836,14 @@
    "sourceName": "Maestria no Ataque",
    "sourceSkillDataCodeIndex": 170,
    "sourceSkillDataCodeName": "AttackMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32788,7 +33870,14 @@
    "sourceName": "Adaga Dolorida",
    "sourceSkillDataCodeIndex": 171,
    "sourceSkillDataCodeName": "SoreSword",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    52,
+    4
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32815,7 +33904,14 @@
    "sourceName": "Espancamento",
    "sourceSkillDataCodeIndex": 172,
    "sourceSkillDataCodeName": "BeatUp",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    84,
+    4
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32842,7 +33938,14 @@
    "sourceName": "Inpes",
    "sourceSkillDataCodeIndex": 173,
    "sourceSkillDataCodeName": "Inpes",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    110,
+    5
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32869,7 +33972,14 @@
    "sourceName": "Sombria",
    "sourceSkillDataCodeIndex": 174,
    "sourceSkillDataCodeName": "Blind",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    800,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32896,7 +34006,14 @@
    "sourceName": "Vento Gelado",
    "sourceSkillDataCodeIndex": 175,
    "sourceSkillDataCodeName": "FrostWind",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    150,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32921,7 +34038,14 @@
    "sourceName": "Maestria Fatal",
    "sourceSkillDataCodeIndex": 176,
    "sourceSkillDataCodeName": "CriticalMastery",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32948,7 +34072,14 @@
    "sourceName": "Poluir",
    "sourceSkillDataCodeIndex": 177,
    "sourceSkillDataCodeName": "Polluted",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    135,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -32975,7 +34106,14 @@
    "sourceName": "Sombra Ninja",
    "sourceSkillDataCodeIndex": 178,
    "sourceSkillDataCodeName": "PastingShadow",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    800,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 9,
@@ -33003,7 +34141,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 179,
    "sourceSkillDataCodeName": "ShadowBomb",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 9,
@@ -33031,7 +34173,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 180,
    "sourceSkillDataCodeName": "RisingSlash",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 9,
@@ -33059,7 +34205,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 181,
    "sourceSkillDataCodeName": "ViolenceStab",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 9,
@@ -33087,7 +34237,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 182,
    "sourceSkillDataCodeName": "Storm",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 10,
@@ -33114,7 +34268,14 @@
    "sourceName": "Raio Negro",
    "sourceSkillDataCodeIndex": 183,
    "sourceSkillDataCodeName": "DarkBolt",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    84,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33141,7 +34302,14 @@
    "sourceName": "Onda Negra",
    "sourceSkillDataCodeIndex": 184,
    "sourceSkillDataCodeName": "DarkWave",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33168,7 +34336,14 @@
    "sourceName": "Maldição Preguiçosa",
    "sourceSkillDataCodeIndex": 185,
    "sourceSkillDataCodeName": "CurseLazy",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    100,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33193,7 +34368,14 @@
    "sourceName": "Paz Interior",
    "sourceSkillDataCodeIndex": 186,
    "sourceSkillDataCodeName": "InnerPeace",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    0,
+    0
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33220,7 +34402,14 @@
    "sourceName": "Labareda Espiritual",
    "sourceSkillDataCodeIndex": 187,
    "sourceSkillDataCodeName": "SpiritualFlare",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33247,7 +34436,14 @@
    "sourceName": "Algemador",
    "sourceSkillDataCodeIndex": 188,
    "sourceSkillDataCodeName": "SoulManacle",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    100,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33274,7 +34470,14 @@
    "sourceName": "Caçada",
    "sourceSkillDataCodeIndex": 189,
    "sourceSkillDataCodeName": "ChasingHunt",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    100,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33301,7 +34504,14 @@
    "sourceName": "Advento Migal",
    "sourceSkillDataCodeIndex": 190,
    "sourceSkillDataCodeName": "AdventMigal",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    800,
+    0
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33328,7 +34538,14 @@
    "sourceName": "Chuva",
    "sourceSkillDataCodeIndex": 191,
    "sourceSkillDataCodeName": "RainMaker",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    134,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33355,7 +34572,14 @@
    "sourceName": "Fantasmaria",
    "sourceSkillDataCodeIndex": 192,
    "sourceSkillDataCodeName": "LandOfGhost",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    60,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33382,7 +34606,14 @@
    "sourceName": "Assombrar",
    "sourceSkillDataCodeIndex": 193,
    "sourceSkillDataCodeName": "Haunt",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    110,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33409,7 +34640,14 @@
    "sourceName": "Arranhar",
    "sourceSkillDataCodeIndex": 194,
    "sourceSkillDataCodeName": "Scratch",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 0,
+   "element0Src": "brazil",
+   "requireMastery": [
+    82,
+    2
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33436,7 +34674,14 @@
    "sourceName": "Chamar Cavaleiro Sanguinário",
    "sourceSkillDataCodeIndex": 195,
    "sourceSkillDataCodeName": "RecallBloodyKnight",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    900,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33463,7 +34708,14 @@
    "sourceName": "Julgamento",
    "sourceSkillDataCodeIndex": 196,
    "sourceSkillDataCodeName": "Judgement",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    800,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33490,7 +34742,14 @@
    "sourceName": "Advento Midranda",
    "sourceSkillDataCodeIndex": 197,
    "sourceSkillDataCodeName": "AdventMidranda",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    800,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33517,7 +34776,14 @@
    "sourceName": "Manhã de Oração",
    "sourceSkillDataCodeIndex": 198,
    "sourceSkillDataCodeName": "MourningOfPray",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "brazil",
+   "requireMastery": [
+    60,
+    1
+   ],
+   "requireMasterySrc": "brazil"
   },
   {
    "job": 10,
@@ -33544,7 +34810,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 199,
    "sourceSkillDataCodeName": "Creed",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 10,
@@ -33571,7 +34841,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 200,
    "sourceSkillDataCodeName": "PressOfDeity",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 10,
@@ -33598,7 +34872,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 201,
    "sourceSkillDataCodeName": "GhostyNail",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 10,
@@ -33625,7 +34903,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": 202,
    "sourceSkillDataCodeName": "HighRegeneration",
-   "sourceSkillDataCodeSrc": "name"
+   "sourceSkillDataCodeSrc": "name",
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33650,7 +34932,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33675,7 +34961,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33700,7 +34990,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33725,7 +35019,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33750,7 +35048,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33775,7 +35077,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33800,7 +35106,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33825,7 +35135,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33850,7 +35164,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33875,7 +35193,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33900,7 +35222,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33925,7 +35251,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33950,7 +35280,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -33975,7 +35309,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -34000,7 +35338,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -34025,7 +35367,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -34050,7 +35396,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -34075,7 +35425,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -34100,7 +35454,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   },
   {
    "job": 11,
@@ -34125,7 +35483,11 @@
    "sourceName": null,
    "sourceSkillDataCodeIndex": null,
    "sourceSkillDataCodeName": null,
-   "sourceSkillDataCodeSrc": null
+   "sourceSkillDataCodeSrc": null,
+   "element0": 1,
+   "element0Src": "manual-override",
+   "requireMastery": null,
+   "requireMasterySrc": "none"
   }
  ],
  "skillIndex": {

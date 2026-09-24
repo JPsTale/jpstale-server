@@ -332,7 +332,10 @@ public class SkillPointService {
             b.addSkills(LearnedSkill.newBuilder()
                     .setSkillId(s.skillId())
                     .setPoint(point)
-                    .setMastery(p.getPropInt(SkillKeys.mastery(s.skillId())))
+                    // 发**派生后的熟练度**（`UseSkillMastery` = Talent/3×100 + 计数，元素技能恒满）——
+                    // 面板的百分比、CD 的 `− 熟练度/100` 都用它；存下来的原始计数（`skill.<id>.mastery`）
+                    // 只在服务端内部用于增长（`growMastery`）。派生唯一实现在 `SkillRules.useSkillMastery`。
+                    .setMastery(SkillRules.useSkillMastery(p, skillData, s.skillId(), magicMastery(p)))
                     .build());
         }
         return b.build();
@@ -358,6 +361,15 @@ public class SkillPointService {
             out.addQuick(v);
         }
         return out.build();
+    }
+
+    /**
+     * 装备累加的魔法精通 —— 原版 `sinAdd_fMagic_Mastery`（客户端 `sinInvenTory1.cpp:6566` 清零后
+     * 逐件加 `Item.Add_fMagic_Mastery`），对应我们 `PlayerStatCalculator.magicMastery`。
+     * ⚠ 装备**没有**这一项时累加结果就是 0（`EquipSummary` 从 0 起加），这不是我们换的值。
+     */
+    private int magicMastery(Player p) {
+        return statCalculator.magicMastery(p);
     }
 
     /** 只发绑定表（改绑定之后：客户端不做乐观更新，界面等这一条回推）。 */

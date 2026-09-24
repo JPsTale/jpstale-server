@@ -748,7 +748,7 @@ public class AiEngine {
         // 锻造：被击受伤 → 一次性喂五件防具（原版 `character.cpp:10876-10882` 的五个 DEFENSE_* 调用）
         ageEffectBroadcaster.wrapUpBattleAging(player, ageService.onDamaged(player));
 
-        log.info("[MonsterAI] {}#{} ATK {} dmg={} ({}->{}), interval={}ms",
+        log.debug("[MonsterAI] {}#{} ATK {} dmg={} ({}->{}), interval={}ms",
             monster.getName(), monster.getId(), targetName(target),
             result.getFinalDamage(), newHp + result.getFinalDamage(), newHp, interval);
 

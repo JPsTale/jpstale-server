@@ -216,4 +216,50 @@ public final class SkillRules {
     public static int slotInJob(int tier, int slotInTier) {
         return skillNum(tier, slotInTier) - 1;
     }
+
+    /* ─────────────── 熟练度（派生值） ─────────────── */
+
+    /** 熟练度上限（`sinSkill.cpp:2069` 的 `if (UseSkillMastery >= 10000)`；也是"满熟练度"）。 */
+    public static final int MASTERY_MAX = 10000;
+
+    /** `Talent/3 + fMagic_Mastery` 的上限（`sinSkill.cpp:2062`：`if (TempTalent > 50)`）。 */
+    public static final int TALENT_TERM_MAX = 50;
+
+    /**
+     * **`UseSkillMastery` 的派生** —— 逐字照抄原版 `SrcGame/src/sinbaram/sinSkill.cpp:2061-2071`：
+     * <pre>
+     *   TempTalent = (int)(sinChar->Talent / 3) + (int)sinAdd_fMagic_Mastery;
+     *   if (TempTalent > 50) TempTalent = 50;
+     *   UseSkillMastery = TempTalent * 100 + UseSkillCount;
+     *   if (Skill_Info.Element[0]) UseSkillMastery = 10000;
+     *   if (UseSkillMastery >= 10000) UseSkillMastery = 10000;
+     * </pre>
+     *
+     * 三处输入分别来自：`Talent` = 角色属性（`Player.talent`）；`sinAdd_fMagic_Mastery` = **装备累加**的
+     * 魔法精通（客户端 `sinInvenTory1.cpp:6566` 清零后逐件加 `Item.Add_fMagic_Mastery`，即我们
+     * `PlayerStatCalculator.magicMastery(player)` 那个同名列）；`UseSkillCount` = **服务端存的原始计数**
+     * （我们 `skill.<id>.mastery` 那个键，每达门槛 +100，见 `SkillPointService.growMastery`）。
+     *
+     * <p>⚠ 这就是"熟练度"这个**显示值**——原版面板与 CD 都用它，而它**不等于**存下来的计数：
+     * 少了 `Talent/3×100`（最多 +5000）这一项，CD 的 `− UseSkillMastery/100` 就几乎不动，
+     * 被 `Mastery` 的 70 档上限吃掉 ⇒ 表现为"CD 完全不受熟练度影响"。
+     *
+     * @param magicMastery 装备累加的魔法精通（`PlayerStatCalculator.magicMastery`）；没有来源时传 0
+     * @return 0..10000
+     */
+    public static int useSkillMastery(Player p, SkillDataRegistry data, int skillId, int magicMastery) {
+        int stored = p.getPropInt(SkillKeys.mastery(skillId));
+        SkillDataRegistry.Skill row = data.hasId(skillId) ? data.byId(skillId) : null;
+        if (row == null) {
+            // 不在身份表里 ⇒ 只有存下来的计数可用（调用方一般已先按身份表过滤；这里不抛是为了让
+            // 展示链路不会因为一条脏 id 整表发不出去）。**不是**取一个别的值：Element 未知 ⇒ 不套元素规则。
+            return Math.min(MASTERY_MAX, Math.max(0, stored));
+        }
+        if (row.element0() != 0) {
+            return MASTERY_MAX;   // `Element[0]` ⇒ 恒满（`sinSkill.cpp:2064`）
+        }
+        int talentTerm = Math.min(TALENT_TERM_MAX,
+                Math.max(0, p.getTalent() / 3) + Math.max(0, magicMastery));
+        return Math.min(MASTERY_MAX, Math.max(0, talentTerm * 100 + stored));
+    }
 }

@@ -36,6 +36,8 @@ public class ItemNetworkHandler {
     private final org.jpstale.common.service.item.AgeService ageService;
     /** 力量石：吃 buff（走 USE）+ 力量大师转化。 */
     private final org.jpstale.common.service.item.ForceOrbService forceOrbService;
+    private final org.jpstale.common.service.skill.SkillMasteryService skillMasteryService;
+    private final org.jpstale.server.game.service.SkillPointService skillPoints;
     /** 合成：配方匹配 + 效果应用（走 C2S_MixItem）。 */
     private final org.jpstale.common.service.item.MixService mixService;
     /** buff 状态的唯一生产者（见 `BuffStateService`）。 */
@@ -59,7 +61,9 @@ public class ItemNetworkHandler {
                               org.jpstale.common.service.item.MixService mixService,
                               org.jpstale.server.game.service.BuffStateService buffStateService,
                               org.jpstale.server.game.service.AgeEffectBroadcaster ageEffectBroadcaster,
-                              org.jpstale.server.game.service.SummonService summonService) {
+                              org.jpstale.server.game.service.SummonService summonService,
+                              org.jpstale.common.service.skill.SkillMasteryService skillMasteryService,
+                              org.jpstale.server.game.service.SkillPointService skillPoints) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
@@ -75,6 +79,8 @@ public class ItemNetworkHandler {
         this.buffStateService = buffStateService;
         this.ageEffectBroadcaster = ageEffectBroadcaster;
         this.summonService = summonService;
+        this.skillMasteryService = skillMasteryService;
+        this.skillPoints = skillPoints;
     }
 
     // ------------------------------------------------------------------
@@ -190,6 +196,21 @@ public class ItemNetworkHandler {
                 pushUpdate(session, aged.target);       // 目标等级/属性变了
             }
             refreshPlayerStats(session, p);
+            return;
+        }
+        // 技能熟练度石（**Skill Master 1st/2nd/3rd**，我们库里 idcode 0x080B3700/3800/3900）：
+        // 一整档（4 个槽）的已学技能计数直接拉满 —— 原版 `UsePremiumItem(76/77/78)` → `UseSkillMaster(n)`
+        // （`HaPremiumItem.cpp:1877`，入口与门槛见 `sinInvenTory.cpp:2425-2456` + `CheckMaturedSkill`）。
+        // 判据（哪一档）**只由石头自己**决定，客户端不传目标；门槛不过时**不消耗**石头。
+        if (org.jpstale.common.service.skill.SkillMasteryService.tierIndexOf(it.getItemCode()) > 0) {
+            var sm = skillMasteryService.matureTier(p, req.getUid());
+            if (!sm.ok()) {
+                sendErrorKey(session, sm.reason().key());
+                return;
+            }
+            pushRemove(session, req.getUid());              // 石头被消耗
+            playerService.persistStats(p);                  // 计数落库（是 props）
+            skillPoints.sendSkillTables(session, p);        // 面板熟练度条 + HUD 的 CD 立刻刷新
             return;
         }
         // 力量石：**吃 buff** —— 同样走 USE、由服务端判断（EU `netplay.cpp:2233` 的物品使用分支）
@@ -811,8 +832,7 @@ public class ItemNetworkHandler {
             }
             groundItems.remove(ent.getMapId(), gid);
             broadcastDisappear(ent.getMapId(), gi.getX(), gi.getZ(), gid);
-            log.info("[Pickup] {} 拾取金币 {}（gid={}，不入背包）",
-                session.getCharacterName(), gi.money, gid);
+            log.info("[Pickup] {} 拾取金币 {}（gid={}）", session.getCharacterName(), gi.money, gid);
             return;
         }
         // ① 负重：原版在拾取入口就查，超重则整次拾取拒绝（物品留在地上）

@@ -204,8 +204,18 @@ public final class SkillBindRules {
                 throw new IllegalArgumentException("拳位 index " + index + " 越界（只有 "
                         + INDEX_LEFT + " 左 / " + INDEX_RIGHT + " 右）");
             }
-            p.setPropInt(PlayerKey.fistBind(index == INDEX_LEFT ? PlayerKey.Fist.LEFT : PlayerKey.Fist.RIGHT),
-                    skillId);
+            PlayerKey.Fist side = index == INDEX_LEFT ? PlayerKey.Fist.LEFT : PlayerKey.Fist.RIGHT;
+            p.setPropInt(PlayerKey.fistBind(side), skillId);
+            // **一个技能只在一只拳上**（原版模型：每个技能只有一个 `MousePosi`，`record.cpp:530` 存的是
+            // `ShortKey | (MousePosi << 4)`）⇒ 绑到这一侧时，把**另一侧的同名技能清掉**。
+            // ⚠ 不清的后果（用户 2026-09-24 实测）：技能可同时挂左右两拳，而客户端显示取左（先查 left）
+            // ⇒ "绑了右键却显示 L"（看起来像 R 被 L 覆盖）。
+            if (skillId != UNBOUND) {
+                PlayerKey.Fist other = side == PlayerKey.Fist.LEFT ? PlayerKey.Fist.RIGHT : PlayerKey.Fist.LEFT;
+                if (p.getPropInt(PlayerKey.fistBind(other)) == skillId) {
+                    p.setPropInt(PlayerKey.fistBind(other), UNBOUND);
+                }
+            }
             return;
         }
         if (kind == KIND_QUICK) {

@@ -115,4 +115,56 @@ class SkillBindingTableTest {
         assertTrue(a.getProps().containsKey(PlayerKey.fistBind(PlayerKey.Fist.LEFT)));
         assertTrue(b.getProps().isEmpty(), "b 一个键都没被写过");
     }
+
+    /**
+     * **一个技能只在一只拳上** —— 原版每个技能只有一个 `MousePosi`（`record.cpp:530` 把它与
+     * `ShortKey` 一起写进存档），所以"同一个 id 同时在左右拳"在原版不可能出现。
+     *
+     * <p>症状（用户 2026-09-24 报）：把技能绑到**右拳**后，面板图标上的角标是 **L** ——
+     * 因为客户端查"这个技能在哪只拳上"时先看左拳，而左拳上还留着早先那次绑定。
+     * ⇒ 服务端在写入时必须把另一侧清掉（不是"客户端显示时挑一个"）。
+     */
+    @Test
+    void 绑到一只拳会把另一只拳上的同名技能清掉() {
+        Player p = pikeman(20);
+        int all = idWith("ALL");                 // ALL = 左右都能绑，才可能被绑到两只拳上
+
+        SkillBindRules.apply(p, SkillBindRules.KIND_FIST, SkillBindRules.INDEX_LEFT, all);
+        assertEquals(all, svc.buildSkillBindings(p).getFistLeft());
+
+        SkillBindRules.apply(p, SkillBindRules.KIND_FIST, SkillBindRules.INDEX_RIGHT, all);
+        S2C_SkillBindings m = svc.buildSkillBindings(p);
+        assertEquals(all, m.getFistRight(), "右拳是新绑的");
+        assertEquals(0, m.getFistLeft(), "左拳上的同名技能必须被清掉（原版只有一个 MousePosi）");
+
+        // 反向同理：再绑回左拳 ⇒ 右拳清空
+        SkillBindRules.apply(p, SkillBindRules.KIND_FIST, SkillBindRules.INDEX_LEFT, all);
+        m = svc.buildSkillBindings(p);
+        assertEquals(all, m.getFistLeft());
+        assertEquals(0, m.getFistRight(), "反向绑定同样清另一侧");
+    }
+
+    /** 不同技能各占一只拳时**不许**互相清（判定按 id 相等，不是"只要绑过就清另一侧"）。 */
+    @Test
+    void 两只拳绑不同技能时互不影响() {
+        Player p = pikeman(20);
+        java.util.List<Integer> all = data.ofJob(4).stream()
+                .filter(s -> "ALL".equals(s.useCode())).map(SkillDataRegistry.Skill::skillId).limit(2).toList();
+        assertEquals(2, all.size(), "pikeman 至少要有 2 个 ALL 技能（不然这条测试没意义）");
+        SkillBindRules.apply(p, SkillBindRules.KIND_FIST, SkillBindRules.INDEX_LEFT, all.get(0));
+        SkillBindRules.apply(p, SkillBindRules.KIND_FIST, SkillBindRules.INDEX_RIGHT, all.get(1));
+        S2C_SkillBindings m = svc.buildSkillBindings(p);
+        assertEquals(all.get(0), m.getFistLeft(), "左拳技能没被右拳那次绑定清掉");
+        assertEquals(all.get(1), m.getFistRight());
+    }
+
+    /** 解绑（0）不该去清另一只拳（0 = "没有"，不是"某个技能"）。 */
+    @Test
+    void 解绑不误伤另一只拳() {
+        Player p = pikeman(20);
+        int all = idWith("ALL");
+        SkillBindRules.apply(p, SkillBindRules.KIND_FIST, SkillBindRules.INDEX_LEFT, all);
+        SkillBindRules.apply(p, SkillBindRules.KIND_FIST, SkillBindRules.INDEX_RIGHT, SkillBindRules.UNBOUND);
+        assertEquals(all, svc.buildSkillBindings(p).getFistLeft(), "右拳的“解绑”不该动左拳");
+    }
 }
