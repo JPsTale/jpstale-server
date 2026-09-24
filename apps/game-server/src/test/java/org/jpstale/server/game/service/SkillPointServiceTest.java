@@ -7,8 +7,13 @@ import org.jpstale.common.service.skill.SkillDataRegistry;
 import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.common.service.skill.SkillRules;
 import org.jpstale.server.common.enums.skill.SkillIds;
+import org.jpstale.server.proto.base.S2C_SkillList;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,7 +56,24 @@ class SkillPointServiceTest {
         return s.skillId();
     }
 
-    private final SkillPointService svc = new SkillPointService(skillData, new PlayerStatCalculator());
+
+    /**
+     * 造一个注入了 `skillData` 的 {@link SkillCastService}（无 Spring 容器时的惯例：反射注入，
+     * 同 `DamageCalculatorTest`）。`buildSkillList` 会经它读"伤害百分比"（面板数据）。
+     */
+    private static SkillCastService castService(SkillDataRegistry data) {
+        SkillCastService svc = new SkillCastService();
+        try {
+            java.lang.reflect.Field f = SkillCastService.class.getDeclaredField("skillData");
+            f.setAccessible(true);
+            f.set(svc, data);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("注入 skillData 失败", e);
+        }
+        return svc;
+    }
+
+    private final SkillPointService svc = new SkillPointService(skillData, new PlayerStatCalculator(), castService(skillData));
 
     @Test
     void 二十级Pikeman一池六点四池零() {
@@ -328,5 +350,75 @@ class SkillPointServiceTest {
         bad.setPropInt(SkillKeys.point(idAt(0)), 8);
         assertEquals(1, svc.checkLoaded(bad), "一池超花");
         assertEquals(8, bad.getPropInt(SkillKeys.point(idAt(0))), "只报错，不改数据");
+    }
+
+    /**
+     * 面板数据（`S2C_SkillList.learn_info`）：学**下一级**的等级门槛/金币 + **伤害百分比**。
+     *
+     * 钉住两件事（都是"错了不会报错、只是面板显示假数"的那类）：
+     * ① Pike Wind 是"攻击力 ×(1+%)"模型 ⇒ 要给出百分比，且 1 级 = `Pike_Wind_Damage[0]` = 3..20；
+     * ② Critical Hit 不是那个模型（它的模型是"暴击率 +表值"）⇒ **不给**百分比（面板就不显示那一行，
+     *    而不是编一个数出来）。
+     */
+    @Test
+    void 面板数据给出下一级条件与伤害百分比() {
+        Player p = pikeman(20);
+        int pikeWind = idAt(0);
+        int criticalHit = idAt(2);
+        p.setPropInt(SkillKeys.point(pikeWind), 1);
+        p.setPropInt(SkillKeys.point(criticalHit), 1);
+
+        S2C_SkillList list = svc.buildSkillList(p);
+        var info = list.getLearnInfoList().stream().collect(
+                java.util.stream.Collectors.toMap(i -> i.getSkillId(), i -> i));
+
+        var pw = info.get(pikeWind);
+        assertNotNull(pw, "Pike Wind 的面板数据");
+        assertEquals(3, pw.getPowerPctMin(), "1 级下限 = Pike_Wind_Damage[0][0] = 3");
+        assertEquals(20, pw.getPowerPctMax(), "1 级上限 = Pike_Wind_Damage[0][1] = 20");
+        assertEquals(5, pw.getNextPowerPctMin(), "2 级下限 = Pike_Wind_Damage[1][0] = 5");
+        assertEquals(skillData.byId(pikeWind).reqLv() + 1 * 2, pw.getNextReqLevel(),
+                "下一级所需等级 = RequireLevel + 当前等级*2（从数据行算，不手抄等级）");
+        assertTrue(pw.getNextGold() > 0, "下一级金币要给出");
+
+        var ch = info.get(criticalHit);
+        assertNotNull(ch);
+        assertEquals(0, ch.getPowerPctMin(), "Critical Hit 不是'攻击力×百分比'模型 ⇒ 不报百分比");
+        assertEquals(0, ch.getPowerPctMax());
+    }
+
+    /**
+     * **熟练度增长**（原版 `Morayion.cpp:281-288` 逐字）：
+     * `UseSKillIncreCount++`，达 `sinMasteryIncreaIndex[槽] + (Point-1)/3` ⇒ 计数清零 + 熟练度 +100。
+     *
+     * 钉住三件事（前两条是"错了不会报错、只是永远不涨/涨错"的那类）：
+     * ① 门槛**按槽位**（表 `{5,5,5,5,7,7,7,7,9,9,9,9,14,15,16,17}`）+ `(Point-1)/3`；
+     * ② 达标那一次熟练度 **+100**、计数清零；未达标只 +1 计数（熟练度不动）；
+     * ③ 熟练度满 10000 后**不再计数**（原版同样有 `< 10000` 的前提）。
+     */
+    @Test
+    void 熟练度按原版门槛增长() {
+        Player p = pikeman(20);
+        int sid = idAt(0);                       // 槽 1（门槛 5，Point=1 ⇒ 5 + 0 = 5）
+        p.setPropInt(SkillKeys.point(sid), 1);
+
+        for (int i = 1; i <= 4; i++) {
+            assertFalse(svc.growMastery(p, sid), "第 " + i + " 次不该涨（门槛 5）");
+        }
+        assertEquals(4, p.getPropInt(SkillKeys.useCount(sid)), "计数应记到 4");
+        assertEquals(0, p.getPropInt(SkillKeys.mastery(sid)), "还没到门槛");
+
+        assertTrue(svc.growMastery(p, sid), "第 5 次达标 ⇒ 涨一次");
+        assertEquals(0, p.getPropInt(SkillKeys.useCount(sid)), "达标后计数清零");
+        assertEquals(100, p.getPropInt(SkillKeys.mastery(sid)), "涨 100（USE_SKILL_MASTERY_COUNT）");
+
+        // ③ 满熟练度后不再计数
+        p.setPropInt(SkillKeys.mastery(sid), 10000);
+        p.setPropInt(SkillKeys.useCount(sid), 0);
+        for (int i = 0; i < 10; i++) {
+            assertFalse(svc.growMastery(p, sid), "满熟练度不再涨");
+        }
+        assertEquals(0, p.getPropInt(SkillKeys.useCount(sid)), "满熟练度时连计数都不记");
+        assertEquals(10000, p.getPropInt(SkillKeys.mastery(sid)), "上限 10000");
     }
 }

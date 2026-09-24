@@ -10,6 +10,7 @@ import org.jpstale.common.service.skill.SkillDataRegistry;
 import org.jpstale.common.service.skill.SkillRules;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.proto.base.LearnedSkill;
+import org.jpstale.server.proto.base.SkillLearnInfo;
 import org.jpstale.server.proto.base.S2C_SkillBindings;
 import org.jpstale.server.proto.base.S2C_SkillList;
 import org.jpstale.server.proto.base.ServerMessage;
@@ -58,9 +59,14 @@ public class SkillPointService {
     /** 被动技能写进面板（P3），学/退/洗点都要失效属性缓存，否则"学了被动不生效"直到下次换装备 */
     private final PlayerStatCalculator statCalculator;
 
-    public SkillPointService(SkillDataRegistry skillData, PlayerStatCalculator statCalculator) {
+    /** 面板数据（伤害百分比）取自各技能的模型 —— 那是 `SkillCastService` 的唯一定义处 */
+    private final SkillCastService skillCast;
+
+    public SkillPointService(SkillDataRegistry skillData, PlayerStatCalculator statCalculator,
+                             SkillCastService skillCast) {
         this.skillData = skillData;
         this.statCalculator = statCalculator;
+        this.skillCast = skillCast;
     }
 
     /* ─────────────── 求值（唯一实现） ─────────────── */
@@ -195,6 +201,62 @@ public class SkillPointService {
         statCalculator.invalidate(p);
     }
 
+    /* ─────────────── 熟练度增长（每次使用） ─────────────── */
+
+    /**
+     * 放一次技能后的**熟练度增长** —— 逐字照抄原版（`SkillFunction/Morayion.cpp:281-288`，
+     * `Tempskron.cpp` 里有 8 处同样的片段）：
+     * <pre>
+     *   lpSkill->UseSKillIncreCount++;
+     *   if (UseSKillIncreCount >= sinMasteryIncreaIndex[SkillNum] + ((Point - 1) / 3)) {
+     *       UseSKillIncreCount = 0;
+     *       UseSkillCount += USE_SKILL_MASTERY_COUNT;      // = 100（Tempskron.h:12）
+     *   }
+     * </pre>
+     * `sinMasteryIncreaIndex[16] = { 5,5,5,5,7,7,7,7,9,9,9,9,14,15,16,17 }`（`Tempskron.cpp:27`，按**槽位**）。
+     *
+     * <p>这不是"我们加的"：设计文档附录 A 早就记着它（"每次使用计数达门槛 ⇒ 熟练度 +100"），
+     * 只是 P1 当时只落了 `mastery` 的值、没接增长 —— 用户 2026-09-24 实测"用技能熟练度不涨"。
+     *
+     * <p>上限 10000（附录 A：熟练度封顶后不再有额外 CD 加成，但计数照涨没有意义 ⇒ 满了直接不记）。
+     *
+     * @return 熟练度是否真的变了（变了调用方要落库 + 回推技能表，否则面板/HUD 不刷新）
+     */
+    public boolean growMastery(Player p, int skillId) {
+        SkillRules.Learn learn = SkillRules.resolve(p, skillData, skillId);
+        if (!learn.ok()) {
+            return false;
+        }
+        int mastery = p.getPropInt(SkillKeys.mastery(skillId));
+        if (mastery >= MASTERY_MAX) {
+            return false;   // 满熟练度：不再计数（原版 `UseSkillCount < 10000` 的守卫同理）
+        }
+        int skillNum = growTableIndex(learn.slotInJob());
+        int threshold = MASTERY_INCRE_INDEX[skillNum - 1] + (learn.currentPoint() - 1) / 3;
+        int count = p.getPropInt(SkillKeys.useCount(skillId)) + 1;
+        if (count < threshold) {
+            p.setPropInt(SkillKeys.useCount(skillId), count);
+            return false;
+        }
+        p.setPropInt(SkillKeys.useCount(skillId), 0);
+        p.setPropInt(SkillKeys.mastery(skillId), Math.min(MASTERY_MAX, mastery + USE_SKILL_MASTERY_COUNT));
+        return true;
+    }
+
+    /** 熟练度上限（附录 A：0..10000；满 = CD 最短）。 */
+    static final int MASTERY_MAX = 10000;
+    /** 每次达门槛的熟练度增量（`Tempskron.h:12` 逐字）。 */
+    static final int USE_SKILL_MASTERY_COUNT = 100;
+    /** 每槽的计数门槛（`Tempskron.cpp:27` 逐字，下标 = 槽位−1）。 */
+    static final int[] MASTERY_INCRE_INDEX = {5, 5, 5, 5, 7, 7, 7, 7, 9, 9, 9, 9, 14, 15, 16, 17};
+
+    /** `slotInJob`(0..19) → 门槛表下标（1..16）；5 转槽（16..19）没有表项 ⇒ 按最后一档（17）算，见注释。 */
+    private static int growTableIndex(int slotInJob) {
+        // ⚠ 原版表只有 16 项（`CHANGE_JOB5` 不存在，源码里没有 5 转）—— 5 转槽取末档是**我们的选择**，
+        // 保证"能算出一个门槛"而不是崩/静默跳过；5 转数值表将来定稿时一并订正。
+        return Math.min(16, Math.max(1, slotInJob + 1));
+    }
+
     /* ─────────────── 洗点 ─────────────── */
 
     /**
@@ -243,6 +305,27 @@ public class SkillPointService {
         }
         for (SkillDataRegistry.Skill s : skillData.ofJob(p.getJob())) {
             int point = p.getPropInt(SkillKeys.point(s.skillId()));
+            // 学**下一级**的条件（面板 hover 显示）：等级门槛与金币都按 `SkillRules` 的规则算，
+            // 未学的技能也要给（它显示的就是"学 1 级"的条件）⇒ 这里不分已学/未学。
+            SkillRules.Learn learn = SkillRules.resolve(p, skillData, s.skillId());
+            if (learn.ok()) {
+                // 面板显示用的等级：未学（point=0）时看"学 1 级"，已学看当前级（与面板的 Lv 行口径一致）
+                int curLevel = Math.max(1, point);
+                int[] cur = skillCast.powerPctOf(s.skillId(), curLevel);
+                int[] next = skillCast.powerPctOf(s.skillId(), curLevel + 1);
+                SkillLearnInfo.Builder li = SkillLearnInfo.newBuilder()
+                        .setSkillId(s.skillId())
+                        // `RequireLevel + Point*2 <= Level`（`SkillRules.judge`）⇒ 下一级所需等级
+                        .setNextReqLevel(learn.requireLevel() + learn.currentPoint() * 2)
+                        .setNextGold(learn.cost());
+                if (cur != null) {
+                    li.setPowerPctMin(cur[0]).setPowerPctMax(cur[1]);
+                }
+                if (next != null) {
+                    li.setNextPowerPctMin(next[0]).setNextPowerPctMax(next[1]);
+                }
+                b.addLearnInfo(li.build());
+            }
             if (point <= 0) {
                 continue;
             }

@@ -43,7 +43,24 @@ class SkillBindingTableTest {
                 .orElseThrow(() -> new IllegalStateException("pikeman 没有 useCode=" + useCode + " 的技能")).skillId();
     }
 
-    private final SkillPointService svc = new SkillPointService(data, new PlayerStatCalculator());
+
+    /**
+     * 造一个注入了 `skillData` 的 {@link SkillCastService}（无 Spring 容器时的惯例：反射注入，
+     * 同 `DamageCalculatorTest`）。`buildSkillList` 会经它读"伤害百分比"（面板数据）。
+     */
+    private static SkillCastService castService(SkillDataRegistry data) {
+        SkillCastService svc = new SkillCastService();
+        try {
+            java.lang.reflect.Field f = SkillCastService.class.getDeclaredField("skillData");
+            f.setAccessible(true);
+            f.set(svc, data);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("注入 skillData 失败", e);
+        }
+        return svc;
+    }
+
+    private final SkillPointService svc = new SkillPointService(data, new PlayerStatCalculator(), castService(data));
 
     @Test
     void 没绑过时三处都是0_且quick定长8() {

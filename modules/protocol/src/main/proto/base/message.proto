@@ -1109,6 +1109,24 @@ message S2C_SkillList {
   repeated LearnedSkill skills = 1;
   int32 skill_point = 2;          // 1–3 转池剩余点
   int32 special_skill_point = 3;  // 4 转池剩余点
+  // **学下一级**的条件（面板 hover 用）：服务端算好下发 —— 判定规则归它（`SkillRules`），
+  // 客户端不重算（`RequireLevel + 当前等级*2`、价目表公式都只在服务端一处）。
+  // 只含**有价目表**的槽（1..16）；5 转槽没有价、也不属任何点池 ⇒ 不下发（面板就不显示）。
+  repeated SkillLearnInfo learn_info = 4;
+}
+
+// 一个技能的"学下一级"条件（当前等级 → 下一级）。
+message SkillLearnInfo {
+  int32 skill_id = 1;        // 数字 skillId
+  int32 next_req_level = 2;  // 学下一级所需角色等级
+  int64 next_gold = 3;       // 学下一级所需金币
+  // 伤害加成百分比区间（面板 hover 描述"伤害 = 攻击力 ×(1 + X%)"用）。
+  // 由**服务端按该技能自己的模型**给出（各技能的伤害来源不同：有的按表加百分比、有的是固定表…），
+  // 客户端不重算、也不猜。0/0 = 该技能不是"攻击力×百分比"模型（面板就不显示这一行）。
+  int32 power_pct_min = 4;      // 当前显示等级
+  int32 power_pct_max = 5;
+  int32 next_power_pct_min = 6; // 下一级
+  int32 next_power_pct_max = 7;
 }
 
 // 学/升级技能：服务端判定四道门（槽位开放 / 前置槽 / 等级 / 上限）+ 两条成本（技能点 / 钱），

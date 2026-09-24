@@ -159,11 +159,12 @@ class DamageCalculatorTest {
      * **命中加成**（`SkillMods.accuracyBonusPct`）：原版 Jumping Crash 的"施法前临时加命中"
      * （`SkillSub.cpp:1935-1943`：`Attack_Rating += Attack_Rating * 表值 / 100`，发包后还原）。
      *
-     * 做法：拿一只"刚好在命中率低档"的怪，加成后命中率应当**上升**（用同一只怪、同一角色，
-     * 统计 400 次的命中次数 —— 加成把 Attack_Rating 放大 ⇒ 命中率单调不减）。
+     * ⚠ 本测试**必须确定性**：第一版用"采样 400 次比命中次数"——基础命中已封顶 95% 时加成改变不了结果，
+     *   于是偶发失败（概率测试在 CI 里就是噪声源）。这里直接比**服务端算出的命中率本身**。
      */
     @Test
-    void 命中加成提高命中率() {
+    void 命中加成按百分比放大命中率() {
+        PlayerStatCalculator stat = new PlayerStatCalculator();
         Player p = new Player(0);
         p.setCharacterId(1L);
         p.setJob(4);
@@ -173,16 +174,17 @@ class DamageCalculatorTest {
         p.setTalent(40);
         p.setAgility(40);
         p.setHealth(40);
-        MonsterStats mob = new MonsterStats(40, 40, 0, 10000, 0, 1, 1);
+        // 目标取**中等防御**（相对自身命中力 −200 → `ac = 280`，落在 Accuracy_Table 的敏感区间）。
+        // ⚠ 第一版图省事写了 `defense = 9999`，结果两边都被钳在"远低于表"那一档（都 36）——
+        //    加成在**饱和区**里看不出差别；命中率公式（`accuracyPvp`）有五档 clamp，测试要挑中间档。
+        int rating = stat.stats(p).attackRating;
+        int mobLevel = p.getLevel();
+        int mobDefense = Math.max(1, rating - 200);
 
-        int baseHits = 0;
-        int boostedHits = 0;
-        for (int i = 0; i < 400; i++) {
-            if (!calculator.calculatePlayerToMonster(p, mob, 50).isMissed()) baseHits++;
-            if (!calculator.calculatePlayerToMonster(p, mob, 50,
-                    new DamageCalculator.SkillMods(65, 0)).isMissed()) boostedHits++;
-        }
-        assertTrue(boostedHits > baseHits,
-            "65% 命中加成后命中次数应严格多于无加成（base=" + baseHits + " boosted=" + boostedHits + "）");
+        int base = stat.accuracyPvp(p, mobLevel, mobDefense);
+        int boosted = stat.accuracyPvp(p, mobLevel, mobDefense, 65);
+        assertTrue(boosted > base,
+            "65% 命中加成后命中率应更高（base=" + base + " boosted=" + boosted + "）");
+        assertTrue(base >= 30 && boosted <= 95, "两侧都在 clamp 区间内（30..95）");
     }
 }

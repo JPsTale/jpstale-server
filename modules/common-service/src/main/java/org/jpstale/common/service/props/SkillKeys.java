@@ -73,6 +73,11 @@ public final class SkillKeys {
         return SkillKey.MASTERY.format(hex(skillId));
     }
 
+    /** `skill.0x%06x.usecount`（熟练度增长计数；原版 `UseSKillIncreCount`）。 */
+    public static String useCount(int skillId) {
+        return SkillKey.USECOUNT.format(hex(skillId));
+    }
+
     /** 键里那一段：小写、6 位、带 `0x`（未知 id ⇒ 抛）。 */
     public static String hex(int skillId) {
         if (!KNOWN_IDS.contains(skillId)) {

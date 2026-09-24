@@ -10,6 +10,8 @@ public enum SkillKey implements IPlayerKey {
 
     POINT("skill.%s.point", 0, "技能等级"),
     MASTERY("skill.%s.mastery", 0, "熟练度"),
+    /** 熟练度增长计数（原版 `UseSKillIncreCount`：每用一次 +1，达门槛清零并把熟练度 +100）。 */
+    USECOUNT("skill.%s.usecount", 0, "熟练度增长计数"),
     ;
 
     private final String key;

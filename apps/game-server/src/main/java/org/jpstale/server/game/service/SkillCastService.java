@@ -89,6 +89,11 @@ public class SkillCastService {
     @Autowired
     private PlayerService playerService;
 
+    /** 熟练度增长（唯一实现 `SkillPointService.growMastery`） */
+    @Autowired
+    @Lazy
+    private SkillPointService skillPoints;
+
     @Autowired
     private BattleLogService battleLogService;
 
@@ -189,6 +194,14 @@ public class SkillCastService {
 
         log.info("[Skill] {} 起手 {}（等级 {}）MP-{} anim={}",
                 player.getName(), SkillKeys.describe(skillId), point, mpCost, animIndex);
+
+        // **熟练度增长**（原版在技能用完之后调用，`Morayion.cpp:281-288`）：起手即算（起手已经是
+        // "这一次放成功了"——后面的拒绝都发生在起手之前）。变了就落库 + 回推技能表，
+        // 否则面板的熟练度条/HUD 的 CD 都要等到下一次推送才动。
+        if (skillPoints.growMastery(player, skillId)) {
+            playerService.persistStats(player);
+            skillPoints.sendSkillTables(session, player);
+        }
         return BeginResult.STARTED;
     }
 
@@ -289,9 +302,20 @@ public class SkillCastService {
             }
         }
 
+        // 伤害 = **面板攻击力掷点 × (1 + 表值%)** —— ⚠ **我方决定，与源码不同**（用户 2026-09-24 裁定）：
+        //   源码此招是 `lpTransSkillAttackData->Power = GetRandomPos(Pike_Wind_Damage[Point][0..1])`
+        //   （`Svr_Damge.cpp:4393`）—— 用**自己的表覆盖**攻击力，1 级只有 3..20 ⇒ 比普攻还低
+        //   （用户实测："普攻 40 点，技能只打 20 点"）。同族技能 Ground Pike/Roar/Mechanic Bomb/Spark
+        //   也都是"自己的表覆盖"；**大多数技能**则是 `pow = GetRandomPos(包的 Power[0], Power[1])` +
+        //   技能自己的百分比（包的 `Power[0..1]` = 玩家面板 `Attack_Damage`，`Damage.cpp:809-810`）。
+        //   EU 库（`skilldbnew.skilldata`）给 Pike Wind 也是自己的表（15-25），即"太弱"是共识。
+        //   我们按用户口径把表读作**百分比区间**（1 级 3..20%、10 级 21..80%），伤害随面板攻击力走。
+        int[] ap = statCalculator.attackPower(player);
+        int atk = randBetween(ap[0], ap[1]);
+        int pct = randBetween(dmg2[idx][0], dmg2[idx][1]);
+        int power = atk + atk * pct / 100;
         List<HitTarget> hits = new ArrayList<>(targets.size());
         for (Monster m : targets) {
-            int power = randBetween(dmg2[idx][0], dmg2[idx][1]);
             // **必中**（原版 `dm_SelectRange(x,y,z,range,FALSE)` ⇒ `dmUseAccuracy = 0`，`Damage.cpp:428/454`）
             // —— Pike Wind 不做命中判定；用户 2026-09-24 实测"MISS 了，跟原版不一样"⇒ 已改必中入口。
             DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(player, m.combatStats(), power);
@@ -354,6 +378,37 @@ public class SkillCastService {
     }
 
     /* ────────────── 共用件 ────────────── */
+
+    /**
+     * **面板用**：该技能该等级的"伤害加成百分比"区间（`{min,max}`；单一值时两者相等）。
+     *
+     * `null` = 该技能**不是**"攻击力 ×(1+%)"模型（面板不显示伤害行，也不编一个数）。
+     * 这里是各技能伤害模型的**唯一定义处**（与 `settleXxx` 用同一张表），面板只是读它。
+     *
+     * @param point 1 基技能等级
+     */
+    public int[] powerPctOf(int skillId, int point) {
+        int idx = point - 1;
+        if (idx < 0) {
+            return null;
+        }
+        if (skillId == SkillIds.PIKE_WIND.id()) {
+            double[][] t = skillData.table2d("Pike_Wind_Damage");
+            if (t == null || idx >= t.length) {
+                return null;
+            }
+            return new int[]{(int) t[idx][0], (int) t[idx][1]};
+        }
+        if (skillId == SkillIds.JUMPING_CRASH.id()) {
+            double[] t = skillData.table1d("Jumping_Crash_Damage");
+            if (t == null || idx >= t.length) {
+                return null;
+            }
+            return new int[]{(int) t[idx], (int) t[idx]};
+        }
+        // Critical Hit / 其余：伤害本身不加百分比（它的模型是"暴击率 +表值"）⇒ 不报
+        return null;
+    }
 
     /** Jumping Crash 的"施法前临时加命中"表值（`Jumping_Crash_Attack_Rating[10] = {10,20,…,65}`，`sinSkill_Info.cpp:193`）。 */
     private int accuracyBonusOf(int idx) {
