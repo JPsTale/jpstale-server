@@ -195,13 +195,39 @@ public class CombatService {
             return;
         }
         C2S_UseSkill skill = message.getUseSkill();
-        // P4：已迁入 SkillCastService 的技能走**服务端权威编排**（校验/扣MP/表值伤害/AoE/击退）；
-        // 未迁入的（cast 返回 null）保持旧路"当普攻即时结算"，逐批迁入（§9 P4）。
-        var casted = skillCastService.cast(player, skill.getSkillId(), skill.getTargetId());
-        if (casted != null) {
-            return;
+        // P4 / D7：技能走**两次上报**——这里只处理"意图"（C2S_UseSkill）：
+        // 校验 + 扣 MP + 起手广播（旁观者播同一条动画）；伤害在客户端的事件帧回报
+        // （C2S_SkillHit → SkillCastService.hit）才逐段结算。原版同此（客户端播动画、
+        // 事件帧触发伤害），见 `SkillsSub.cpp` 的 `EventSkill` 那一侧。
+        var r = skillCastService.begin(player, skill.getSkillId(), skill.getTargetId(),
+                skill.getAnimIndex(), skill.getAnimClip());
+        if (r != SkillCastService.BeginResult.NOT_MIGRATED) {
+            return;   // STARTED / REJECTED —— 都已由 SkillCastService 处理完
         }
         playerAttackMonster(player, skill.getTargetId(), skill.getSkillId());
+    }
+
+    /**
+     * 报文入口：技能事件帧回报（`C2S_SkillHit`）—— 结算该段（每段独立，D7）。
+     *
+     * <p>与 {@link #handleAttackHit} 同构：客户端在技能动作的事件帧上报，"哪一帧是事件帧"是
+     * 动画知识、只在客户端；服务端按回报逐段结算（不回报就不结算 —— 不做"到时自动结算"的兜底）。
+     */
+    @GamePacketHandler(ClientMessage.SKILL_HIT_FIELD_NUMBER)
+    public void handleSkillHit(PlayerSession session, ClientMessage message) {
+        if (session == null || !session.isPlaying()) {
+            return;
+        }
+        Player player = playerService.getOrCreate(session);
+        if (player == null) {
+            return;
+        }
+        PlayerEntity dead = session.getEntity();
+        if (dead != null && dead.isDead()) {
+            return;   // 死亡躺下期间剩余段不再结算（与 handleAttackHit 同判据）
+        }
+        C2S_SkillHit hit = message.getSkillHit();
+        skillCastService.hit(player, hit.getSkillId(), hit.getTargetId(), hit.getHitIndex());
     }
 
     /**

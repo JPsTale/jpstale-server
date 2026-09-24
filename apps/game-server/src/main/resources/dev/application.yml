@@ -18,6 +18,6 @@ pt:
   game:
     id: 99
     name: 艾琳
-    external-ip: 127.0.0.1
+    external-ip: 192.168.31.90
   field:
     smd-root: E:\JPsTale\client

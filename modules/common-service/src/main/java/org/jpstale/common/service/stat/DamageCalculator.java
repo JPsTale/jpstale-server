@@ -27,18 +27,55 @@ public class DamageCalculator {
     }
 
     /**
-     * 带暴击率加成的版本（技能用：Critical Hit 的 `Critical_Hit_Critical[point]`，`Svr_Damge.cpp`
-     * 的 `Critical[0] += 表值` 同语义 —— 加在**暴击率**上再掷，不是加伤害）。
+     * **技能对判定的修正**（原版随技能包/技能码下发的那些量）。
+     *
+     * <p>为什么收成一个 record 而不是继续加 int 形参：两个相邻的 int 含义不同
+     * （命中加成 vs 暴击加成），调用处 `f(x, y, 0, 30)` 读不出哪个是哪个 —— 这类"位置参数张冠李戴"
+     * 不会编译错、只是数值悄悄不对。
+     *
+     * @param accuracyBonusPct 命中（`Attack_Rating`）加成百分比 —— Jumping Crash 的"施法前临时加命中"
+     *                         （`SkillSub.cpp:1935-1943`，`Jumping_Crash_Attack_Rating[point]`）
+     * @param critBonusPct     暴击**率**加成（加在暴击率上再掷，不是加伤害）—— Critical Hit 的
+     *                         `Critical_Hit_Critical[point]`（`Svr_Damge.cpp` 的 `Critical[0] += 表值`）
      */
-    public DamageResult calculatePlayerToMonster(Player player, MonsterStats monster, int skillDamage, int critBonus) {
+    public record SkillMods(int accuracyBonusPct, int critBonusPct) {
+        public static final SkillMods NONE = new SkillMods(0, 0);
+    }
+
+    /**
+     * 带技能修正的版本（命中加成 / 暴击率加成）。
+     */
+    public DamageResult calculatePlayerToMonster(Player player, MonsterStats monster, int skillDamage, SkillMods mods) {
         // 0. 命中判定（原版 Accuracy_Table：攻方命中+等级 对 防方等级+防御）
         //    必须在暴击/伤害之前：未命中就不掷暴击、不出伤害，否则会出现「MISS 却带暴击」的自相矛盾。
         //    B 方案下这一掷发生在**起手**，结果随 S2C_AttackPlan 下发，客户端在事件帧就能直接播挥空音。
-        int hitPercent = statCalculator.accuracyPvp(player, monster.level(), monster.defense());
+        int hitPercent = statCalculator.accuracyPvp(player, monster.level(), monster.defense(),
+                mods.accuracyBonusPct());
         if (ThreadLocalRandom.current().nextInt(100) >= hitPercent) {
             return DamageResult.miss();
         }
+        return damageBody(player, monster, skillDamage, mods.critBonusPct());
+    }
 
+    /** 只要暴击率加成的版本（Critical Hit 等）。 */
+    public DamageResult calculatePlayerToMonster(Player player, MonsterStats monster, int skillDamage, int critBonusPct) {
+        return calculatePlayerToMonster(player, monster, skillDamage, new SkillMods(0, critBonusPct));
+    }
+
+    /**
+     * **必中**版本：不做命中判定（原版 `dm_SelectRange(..., FALSE)` ⇒ `dmUseAccuracy = 0`，
+     * `Damage.cpp:428/454`；Pike Wind 等"必中"技能用它）。
+     *
+     * <p>为什么单独一个入口而不是加个 boolean 形参：调用点读起来就是它的语义（`…AlwaysHit`），
+     * 而 boolean 形参在调用处不可读（`true` 是什么意思要靠翻签名）。
+     * 除命中判定外，其余（暴击/吸收/过度保护/最小 1 点）与普攻**同一条实现**（`damageBody`）。
+     */
+    public DamageResult calculatePlayerToMonsterAlwaysHit(Player player, MonsterStats monster, int skillDamage) {
+        return damageBody(player, monster, skillDamage, 0);
+    }
+
+    /** 命中判定**之后**的那半段（伤害本体）：普攻与所有技能共用，保证"不同技能只在命中/加成上分岔"。 */
+    private DamageResult damageBody(Player player, MonsterStats monster, int skillDamage, int critBonus) {
         DamageResult result = new DamageResult();
 
         // 1. 基础伤害 = 玩家攻击力 + 技能伤害

@@ -263,7 +263,7 @@ public class AiEngine {
                     && summon.getMapId() == monster.getMapId()
                     && distXZ(monster, summon) <= lose;
             if (!stillOk) {
-                log.info("[MonsterAI] {}#{} lost target {} (out of range/area)",
+                log.debug("[MonsterAI] {}#{} lost target {} (out of range/area)",
                     monster.getName(), monster.getId(),
                     player != null ? targetName(player) : labelOf(summon));
                 context.setTargetPlayer(null);
@@ -703,7 +703,7 @@ public class AiEngine {
         // 未命中（原版 sinGetMonsterAccuracy）：不扣血、不写战斗日志、不触发受击硬直，
         // 只广播一条 missed 让受害者头顶飘 MISS —— 低等级怪打高等级玩家常常打空，正是靠这条体现。
         if (result.isMissed()) {
-            log.info("[MonsterAI] {}#{} ATK {} -> MISS, interval={}ms",
+            log.debug("[MonsterAI] {}#{} ATK {} -> MISS, interval={}ms",
                 monster.getName(), monster.getId(), targetName(target), interval);
             battleLogService.monsterMissed(playerService.sessionOf(player), monster.getName());
             messageSender.broadcastToArea(target.getMapId(),
@@ -724,7 +724,7 @@ public class AiEngine {
         // 只广播一条 blocked 让受害者头顶飘 "Blocked" + 客户端随机播 impact/block{1,2,3}.wav。
         // 与 missed 分开：格挡有音、miss 没有（用户 2026-09-16）。
         if (result.isBlocked()) {
-            log.info("[MonsterAI] {}#{} ATK {} -> BLOCKED, interval={}ms",
+            log.debug("[MonsterAI] {}#{} ATK {} -> BLOCKED, interval={}ms",
                 monster.getName(), monster.getId(), targetName(target), interval);
             messageSender.broadcastToArea(target.getMapId(),
                 (float) target.getX(), (float) target.getZ(), 50,
@@ -825,7 +825,7 @@ public class AiEngine {
         int newHp = Math.max(0, defender.getHp() - result.getFinalDamage());
         defender.setHp(newHp);
 
-        log.info("[MonsterAI] {}#{} ATK {} dmg={} ({}->{})",
+        log.debug("[MonsterAI] {}#{} ATK {} dmg={} ({}->{})",
             attacker.getName(), attacker.getId(), labelOf(defender),
             result.getFinalDamage(), newHp + result.getFinalDamage(), newHp);
 

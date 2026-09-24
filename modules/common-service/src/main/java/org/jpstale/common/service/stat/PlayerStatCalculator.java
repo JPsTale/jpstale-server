@@ -438,8 +438,31 @@ public class PlayerStatCalculator {
 
     /** 玩家命中率（原版 sinGetPVPAccuracy，等级修正 ×28，clamp 30~95） */
     public int accuracyPvp(Player p, int desLevel, int desDefense) {
+        return accuracyPvp(p, desLevel, desDefense, 0);
+    }
+
+    /**
+     * 带**命中率临时加成**的版本（技能的"施法前临时加命中"用）。
+     *
+     * <p>原版做法（逐字 `SkillSub.cpp:1935-1943`，Jumping Crash）：
+     * <pre>
+     *   temp = lpCurPlayer-&gt;smCharInfo.Attack_Rating;
+     *   lpCurPlayer-&gt;smCharInfo.Attack_Rating += (Attack_Rating * Jumping_Crash_Attack_Rating[Point-1]) / 100;
+     *   …发包…
+     *   lpCurPlayer-&gt;smCharInfo.Attack_Rating = temp;      // 发包后**立即还原**
+     * </pre>
+     * 即：**按百分比放大命中（Attack_Rating）**，只影响这一次判定、不落盘。
+     * 我们服务端权威 ⇒ 等价物 = 判定时把 attackRating 放大同样比例（不改玩家状态，天然"还原"）。
+     *
+     * @param attackRatingBonusPct 命中加成百分比（0 = 无加成）
+     */
+    public int accuracyPvp(Player p, int desLevel, int desDefense, int attackRatingBonusPct) {
         Stats s = stats(p);
-        double ac = (s.attackRating - desDefense) * 1.4;
+        int rating = s.attackRating;
+        if (attackRatingBonusPct != 0) {
+            rating += rating * attackRatingBonusPct / 100;
+        }
+        double ac = (rating - desDefense) * 1.4;
         int real = 50;
         if (ac < -190) {
             real = 50;

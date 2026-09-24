@@ -2,6 +2,7 @@ package org.jpstale.common.service.stat;
 
 import org.jpstale.common.service.model.DamageResult;
 import org.jpstale.common.service.model.MonsterStats;
+import org.jpstale.common.service.model.Player;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -115,5 +116,73 @@ class DamageCalculatorTest {
         // 数据问题不该表现成服务端崩溃 —— 兜到"打一下"即可。
         assertDoesNotThrow(() -> firstHit(attacker(100, 50, 9999), defender(0)));
         assertEquals(101, firstHit(attacker(100, 50, 9999), defender(0)).getFinalDamage());
+    }
+
+    /**
+     * **必中**入口（`calculatePlayerToMonsterAlwaysHit`）：Pike Wind 等"必中"技能的伤害路径。
+     *
+     * 依据：原版 `dm_SelectRange(x, y, z, range, FALSE)` ⇒ `dmUseAccuracy = 0`（`Damage.cpp:428/454`），
+     * Pike Wind 的选敌就是那一支 —— **不做命中判定**（这是"必中"的来源，不是我们的创设）。
+     * 用户 2026-09-24 实测"Pike Wind 会 MISS"⇒ 本测试钉住"永不 miss"。
+     *
+     * 做法：把玩家的命中率压到最低（高等级高防御的怪），掷普通入口必然大量 MISS，
+     * 必中入口**一次都不该 MISS**。
+     */
+    @Test
+    void 必中入口永不miss() {
+        Player p = new Player(0);
+        p.setCharacterId(1L);
+        p.setJob(4);
+        p.setLevel(1);
+        p.setStrength(20);
+        p.setSpirit(10);
+        p.setTalent(10);
+        p.setAgility(10);
+        p.setHealth(10);
+        // 高等级 + 高防御的怪：普通命中率被压到很低
+        MonsterStats tank = new MonsterStats(90, 9999, 0, 100000, 0, 1, 1);
+
+        int normalMiss = 0;
+        for (int i = 0; i < 200; i++) {
+            if (calculator.calculatePlayerToMonster(p, tank, 50).isMissed()) normalMiss++;
+        }
+        assertTrue(normalMiss > 0, "前置：普通入口对这种怪应当会 MISS（否则本测试没在测必中）");
+
+        for (int i = 0; i < 200; i++) {
+            DamageResult r = calculator.calculatePlayerToMonsterAlwaysHit(p, tank, 50);
+            assertFalse(r.isMissed(), "必中入口不得 MISS（原版 dmUseAccuracy = 0）");
+            assertTrue(r.getFinalDamage() >= 1, "必中且至少 1 点伤害");
+        }
+    }
+
+    /**
+     * **命中加成**（`SkillMods.accuracyBonusPct`）：原版 Jumping Crash 的"施法前临时加命中"
+     * （`SkillSub.cpp:1935-1943`：`Attack_Rating += Attack_Rating * 表值 / 100`，发包后还原）。
+     *
+     * 做法：拿一只"刚好在命中率低档"的怪，加成后命中率应当**上升**（用同一只怪、同一角色，
+     * 统计 400 次的命中次数 —— 加成把 Attack_Rating 放大 ⇒ 命中率单调不减）。
+     */
+    @Test
+    void 命中加成提高命中率() {
+        Player p = new Player(0);
+        p.setCharacterId(1L);
+        p.setJob(4);
+        p.setLevel(40);
+        p.setStrength(60);
+        p.setSpirit(20);
+        p.setTalent(40);
+        p.setAgility(40);
+        p.setHealth(40);
+        MonsterStats mob = new MonsterStats(40, 40, 0, 10000, 0, 1, 1);
+
+        int baseHits = 0;
+        int boostedHits = 0;
+        for (int i = 0; i < 400; i++) {
+            if (!calculator.calculatePlayerToMonster(p, mob, 50).isMissed()) baseHits++;
+            if (!calculator.calculatePlayerToMonster(p, mob, 50,
+                    new DamageCalculator.SkillMods(65, 0)).isMissed()) boostedHits++;
+        }
+        assertTrue(boostedHits > baseHits,
+            "65% 命中加成后命中次数应严格多于无加成（base=" + baseHits + " boosted=" + boostedHits + "）");
     }
 }
