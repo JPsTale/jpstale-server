@@ -310,7 +310,7 @@ public class ClanService {
             r.put("CNFlag", "0");
             return r;
         }
-        Cl cl = clMapper.selectClanZangMemCntNoteMIconCntRegiDateLimitDatePFlagKFlagClanMoneyByClanName(clanName);
+        Cl cl = clMapper.selectByClanName(clanName);
         if (cl == null) {
             ulMapper.deleteByChName(chnameTrim);
             ClanResponse r = ClanResponse.of(0);
@@ -319,7 +319,7 @@ public class ClanService {
             return r;
         }
         int cnFlag = 0;
-        List<Cl> rankList = clMapper.selectByClanNameOrderByCpointDesc();
+        List<Cl> rankList = clMapper.selectAllOrderByCpointDesc();
         if (rankList != null && cl.getCPoint() != null && cl.getCPoint() > 0) {
             for (int i = 0; i < rankList.size() && i < 3; i++) {
                 if (clanName.equals(rankList.get(i).getClanName())) {
@@ -357,7 +357,7 @@ public class ClanService {
         if (index == null) return ClanResponse.of(104);
         String chnameTrim = chname != null ? chname.trim() : "";
         if (index == 1) {
-            List<Cl> list = clMapper.selectByClanNameOrderByCpointDesc();
+            List<Cl> list = clMapper.selectAllOrderByCpointDesc();
             Cl top = (list != null && !list.isEmpty()) ? list.get(0) : null;
             Ul ul = ulMapper.selectByChName(chnameTrim);
             if (ul == null || ul.getClanName() == null || ul.getClanName().isEmpty()) {
@@ -401,7 +401,7 @@ public class ClanService {
             return r;
         }
         if (index == 3) {
-            List<Cl> list = clMapper.selectByClanNameOrderByCpointDesc();
+            List<Cl> list = clMapper.selectAllOrderByCpointDesc();
             ClanResponse r = ClanResponse.of(1);
             int count = 0;
             if (list != null) {
@@ -427,7 +427,7 @@ public class ClanService {
         String clanName = ulMapper.selectClanNameByChName(chnameTrim);
         if (clanName == null || clanName.isEmpty()) return null;
 
-        Cl cl = clMapper.selectClanZangMemCntNoteMIconCntRegiDateLimitDatePFlagKFlagClanMoneyByClanName(clanName);
+        Cl cl = clMapper.selectByClanName(clanName);
         if (cl == null) return null;
 
         ClanDetailResponse resp = new ClanDetailResponse();
@@ -447,7 +447,7 @@ public class ClanService {
         resp.setSubLeader(subChief != null ? subChief : "");
         resp.setAmSubLeader(subChief != null && subChief.equals(chnameTrim));
 
-        List<Cl> rankList = clMapper.selectByClanNameOrderByCpointDesc();
+        List<Cl> rankList = clMapper.selectAllOrderByCpointDesc();
         resp.setRank(0);
         if (rankList != null && cl.getCPoint() != null && cl.getCPoint() > 0) {
             for (int i = 0; i < rankList.size(); i++) {
@@ -480,7 +480,7 @@ public class ClanService {
     }
 
     public List<ClanRankDto> getRanking() {
-        List<Cl> list = clMapper.selectByClanNameOrderByCpointDesc();
+        List<Cl> list = clMapper.selectAllOrderByCpointDesc();
         List<ClanRankDto> result = new ArrayList<>();
         if (list == null) return result;
         for (Cl c : list) {

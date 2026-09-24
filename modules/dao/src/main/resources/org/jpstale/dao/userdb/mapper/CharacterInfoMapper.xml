@@ -57,11 +57,11 @@
         SELECT id, account_name FROM userdb.characterinfo WHERE name = #{name}
     </select>
     <select id="selectByIdForLoad" resultType="org.jpstale.dao.userdb.entity.CharacterInfo">
-        SELECT id, account_name, level, experience, gold, job_code, clan_id, clan_permission, last_seen_date, last_stage
+        SELECT id, account_name, level, experience, gold, job_code, clanid, clanpermission, last_seen_date, last_stage
         FROM userdb.characterinfo WHERE name = #{name}
     </select>
     <select id="selectClanIdByName" resultType="java.lang.Integer">
-        SELECT clan_id FROM userdb.characterinfo WHERE name = #{name}
+        SELECT clanid FROM userdb.characterinfo WHERE name = #{name}
     </select>
     <update id="updateNameByName">
         UPDATE userdb.characterinfo SET name = #{newName} WHERE name = #{oldName}
@@ -115,7 +115,7 @@
         UPDATE userdb.characterinfo SET is_online = 1, job_code = #{jobCode}, last_seen_date = CURRENT_TIMESTAMP WHERE id = #{id}
     </update>
     <select id="selectClanIdByNameForClan" resultType="java.lang.Integer">
-        SELECT clan_id FROM userdb.characterinfo WHERE name = #{name}
+        SELECT clanid FROM userdb.characterinfo WHERE name = #{name}
     </select>
     <update id="updateFspByName">
         UPDATE userdb.characterinfo SET fsp = #{fsp} WHERE name = #{name}
@@ -153,9 +153,15 @@
         UPDATE userdb.characterinfo SET bless_castle_score = 0
     </update>
 
-    <!-- ClanSystem NewClan.asp / DeleteClan.asp: 按角色名更新 ClanId -->
+    <!--
+      ClanSystem NewClan.asp / DeleteClan.asp: 按角色名更新 ClanId
+      ⚠ 活库列名是 **clanid / clanpermission / clanleavedate**（无下划线，与
+      `CharacterInfo.@TableField("clanid")` 一致）；旧 SQL 写的是带下划线的
+      `clan`+`_id` / `clan`+`_permission`，在活库不存在 ⇒ 建会与解散的最后一步都会 500。
+      （活库 characterinfo 是**混用**命名：`pos_x/pos_y/pos_z/pos_angle` 有下划线，其余没有。）
+    -->
     <update id="updateClanIdByName">
-        UPDATE userdb.characterinfo SET clan_id = #{clanId} WHERE name = #{name}
+        UPDATE userdb.characterinfo SET clanid = #{clanId} WHERE name = #{name}
     </update>
 
 </mapper>

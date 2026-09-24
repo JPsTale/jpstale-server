@@ -2,54 +2,94 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.jpstale.dao.clandb.mapper.UlMapper">
 
+    <!--
+      ⚠ **列名一律用活库的真实名字**（`clandb.ul` 全表无下划线）：idx / midx / userid / chname /
+      chtype / chlv / clanname / permi / joindate / delactive / pflag / kflag / miconcnt。
+
+      ⚠ **idx 与 midx 别混**（活库实测 1490/1490 行 `ul.idx = cl.idx`、零孤儿）：
+        · `idx`  = **所属公会的 id**（外键 → cl.idx），`integer NOT NULL` **无默认值**，插入必须给值
+        · `midx` = **本行自己的 id**（`nextval('clandb.ul_midx_seq')`）
+      活库 `ul` **既没有 `id` 列也没有 `clan_id` 列**。
+
+      依据：`docs/公会系统-源码分析与客户端接入方案.md` §2.1 / §2.3。
+    -->
+
     <!-- C++ characterserver:356 - rename -->
     <update id="updateChNameByChName">
-        UPDATE clandb.ul SET ch_name = #{newName} WHERE ch_name = #{oldName}
+        UPDATE clandb.ul SET chname = #{newName} WHERE chname = #{oldName}
     </update>
 
     <!-- ClanSystem ASP -->
     <select id="selectClanNameByChName" resultType="java.lang.String">
-        SELECT clan_name FROM clandb.ul WHERE ch_name = #{chName} LIMIT 1
+        SELECT clanname FROM clandb.ul WHERE chname = #{chName} LIMIT 1
     </select>
-    <select id="selectClanNameAndPermiByChName" resultType="org.jpstale.dao.clandb.entity.Ul">
-        SELECT clan_name, permi FROM clandb.ul WHERE ch_name = #{chName} LIMIT 1
+    <!--
+      ⚠ **这两列必须显式映射，其余列不用。**
+
+      `resultType` 走 MyBatis 的**自动映射**，按「列名 → 属性名」查且**大小写不敏感**
+      ⇒ `clanname → clanName`、`chtype → chType`、`clanname`/`joindate`/`miconcnt` 等**都能自动对上**
+      （已核对 mybatis 3.5.13 源码）。但这两列的名字与属性名**不只是大小写之差**，兜不住：
+        · `idx`  → 属性 `clanId`（公会 id）
+        · `midx` → 属性 `id`（本行 id，见类注释）
+
+      ⚠ `@TableField` / `@TableId` 对 XML 自定义语句**不生效**（那是 MP 内建方法用的）。
+    -->
+    <resultMap id="ulMap" type="org.jpstale.dao.clandb.entity.Ul">
+        <id column="midx" property="id"/>
+        <result column="idx" property="clanId"/>
+    </resultMap>
+
+    <select id="selectClanNameAndPermiByChName" resultMap="ulMap">
+        SELECT clanname, permi FROM clandb.ul WHERE chname = #{chName} LIMIT 1
     </select>
     <select id="selectChNameByPermi2AndClanName" resultType="java.lang.String">
-        SELECT ch_name FROM clandb.ul WHERE permi = '2' AND clan_name = #{clanName} LIMIT 1
+        SELECT chname FROM clandb.ul WHERE permi = '2' AND clanname = #{clanName} LIMIT 1
     </select>
     <select id="selectChNameListByClanName" resultType="java.lang.String">
-        SELECT ch_name FROM clandb.ul WHERE clan_name = #{clanName}
+        SELECT chname FROM clandb.ul WHERE clanname = #{clanName}
     </select>
     <select id="selectUserIdByChNameAndClanName" resultType="java.lang.String">
-        SELECT user_id FROM clandb.ul WHERE ch_name = #{chName} AND clan_name = #{clanName} LIMIT 1
+        SELECT userid FROM clandb.ul WHERE chname = #{chName} AND clanname = #{clanName} LIMIT 1
     </select>
-    <select id="selectByChName" resultType="org.jpstale.dao.clandb.entity.Ul">
-        SELECT * FROM clandb.ul WHERE ch_name = #{chName} LIMIT 1
+    <select id="selectByChName" resultMap="ulMap">
+        SELECT * FROM clandb.ul WHERE chname = #{chName} LIMIT 1
     </select>
 
-    <insert id="insertUl" useGeneratedKeys="true" keyProperty="midx">
-        INSERT INTO clandb.ul (idx, user_id, ch_name, clan_name, ch_type, ch_lv, permi, join_date, del_active, p_flag, k_flag, m_icon_cnt)
-        VALUES (#{idx}, #{userId}, #{chName}, #{clanName}, #{chType}, #{chLv}, #{permi}, CURRENT_TIMESTAMP, #{delActive}, #{pFlag}, #{kFlag}, #{mIconCnt})
+    <!--
+      `idx` 的值来自实体属性 **clanId**（`Ul.clanId` 的 @TableField 就是 "idx"）。
+      旧版写 `#{idx}` —— 实体上没有这个属性 ⇒ 运行期必然
+      `BindingException: There is no getter for property named 'idx'`，建会/邀请入会一步都走不到。
+
+      ⚠ keyColumn 必须写（**不是可选的美化**）：MyBatis 把它交给
+      `connection.prepareStatement(sql, keyColumnNames)`（`PreparedStatementHandler:80`），
+      pgjdbc 据此生成 `RETURNING midx`，于是"生成键结果集"只有 `midx` 一列、取第 1 列是对的。
+      **不写** keyColumn 就退化成 `RETURN_GENERATED_KEYS` ⇒ pgjdbc 追加 `RETURNING *`
+      ⇒ 结果集第 1 列是 **idx**，而 `Jdbc3KeyGenerator` 是**按位置**取第 1 列
+      ⇒ 公会 id 被写进"本行 id"。这是原来就有的错，不是改列名改出来的。
+    -->
+    <insert id="insertUl" useGeneratedKeys="true" keyProperty="id" keyColumn="midx">
+        INSERT INTO clandb.ul (idx, userid, chname, clanname, chtype, chlv, permi, joindate, delactive, pflag, kflag, miconcnt)
+        VALUES (#{clanId}, #{userId}, #{chName}, #{clanName}, #{chType}, #{chLv}, #{permi}, CURRENT_TIMESTAMP, #{delActive}, #{pFlag}, #{kFlag}, #{mIconCnt})
     </insert>
 
     <update id="updatePermi0ByChName">
-        UPDATE clandb.ul SET permi = '0' WHERE ch_name = #{chName}
+        UPDATE clandb.ul SET permi = '0' WHERE chname = #{chName}
     </update>
     <update id="updatePermi2ByChName">
-        UPDATE clandb.ul SET permi = '2' WHERE ch_name = #{chName}
+        UPDATE clandb.ul SET permi = '2' WHERE chname = #{chName}
     </update>
     <update id="updatePermi0ByClanNameInChName">
-        UPDATE clandb.ul SET permi = '0' WHERE clan_name IN (SELECT clan_name FROM clandb.ul WHERE ch_name = #{chName})
+        UPDATE clandb.ul SET permi = '0' WHERE clanname IN (SELECT clanname FROM clandb.ul WHERE chname = #{chName})
     </update>
     <update id="updateMIconCntByChName">
-        UPDATE clandb.ul SET m_icon_cnt = #{mIconCnt} WHERE ch_name = #{chName}
+        UPDATE clandb.ul SET miconcnt = #{mIconCnt} WHERE chname = #{chName}
     </update>
 
     <delete id="deleteByChName">
-        DELETE FROM clandb.ul WHERE ch_name = #{chName}
+        DELETE FROM clandb.ul WHERE chname = #{chName}
     </delete>
     <delete id="deleteByClanName">
-        DELETE FROM clandb.ul WHERE clan_name = #{clanName}
+        DELETE FROM clandb.ul WHERE clanname = #{clanName}
     </delete>
 
 </mapper>

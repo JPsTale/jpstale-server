@@ -2,47 +2,91 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.jpstale.dao.clandb.mapper.ClMapper">
 
-    <!-- ClanSystem ASP: IDX=id -->
-    <select id="selectIdClanZangMemCntByClanName" resultType="org.jpstale.dao.clandb.entity.Cl">
-        SELECT id, clan_zang, mem_cnt FROM clandb.cl WHERE clan_name = #{clanName} LIMIT 1
+    <!--
+      ⚠ **列名一律用活库的真实名字**（`clandb.cl` 全表无下划线）：idx / clanname / clanzang /
+      memcnt / miconcnt / regidate / limitdate / delactive / pflag / kflag / notecnt / cpoint /
+      cwin / cfail / clanmoney / cnflag / siegemoney / userid。
+
+      踩过的坑（2026-09-25 实测）：这批语句原先是 snake_case（clan_name / m_icon_cnt / c_point …），
+      对着活库跑直接 `ERROR: column "clan_name" does not exist` ⇒ /api/clan/* 四个端点全部 500。
+      活库列名是**混用**的（`userdb.characterinfo.pos_x` 有下划线、`clandb.cl.clanname` 没有），
+      **必须逐列核对，不能套一条全局规则**。依据：`docs/公会系统-源码分析与客户端接入方案.md` §2.1。
+    -->
+
+    <!--
+      ⚠ **主键必须显式映射，其余列不用。**
+
+      `resultType` 走的是 MyBatis 的**自动映射**，它按「列名 → 属性名」查且**大小写不敏感**
+      （`Reflector.findPropertyName` 用 `caseInsensitivePropertyMap`，键是属性名大写）——
+      所以 `clanname → clanName`、`miconcnt → mIconCnt`、`cpoint → cPoint` 这些
+      **什么都不写就能对上**（已核对 mybatis 3.5.13 源码）。唯一的例外就是主键：
+      活库列叫 **`idx`**、实体属性叫 **`id`**，只差大小写之外的东西 ⇒ 兜不住，必须显式写。
+
+      ⚠ 也别指望 `@TableId` / `@TableField`：那是 MyBatis-Plus 给**它自己的内建方法**用的，
+      对 XML 里的自定义语句**完全不生效**（MP 只重写了显式 `<result>` 的构建，
+      见 `MybatisMapperBuilderAssistant`；`MybatisXMLMapperBuilder` 不参与自动映射）。
+      这一条曾让我差点把"SQL 能跑了"误当成"字段能填上了"。
+    -->
+    <resultMap id="clMap" type="org.jpstale.dao.clandb.entity.Cl">
+        <id column="idx" property="id"/>
+    </resultMap>
+
+    <!-- 主键在活库里叫 idx（不是 id）—— `Cl.id` 靠 @TableId("idx") 映射 -->
+    <select id="selectIdClanZangMemCntByClanName" resultMap="clMap">
+        SELECT idx, clanzang, memcnt FROM clandb.cl WHERE clanname = #{clanName} LIMIT 1
     </select>
     <select id="selectClanZangByClanName" resultType="java.lang.String">
-        SELECT clan_zang FROM clandb.cl WHERE clan_name = #{clanName} LIMIT 1
+        SELECT clanzang FROM clandb.cl WHERE clanname = #{clanName} LIMIT 1
     </select>
     <select id="selectIdByClanName" resultType="java.lang.Integer">
-        SELECT id FROM clandb.cl WHERE clan_name = #{clanName} LIMIT 1
+        SELECT idx FROM clandb.cl WHERE clanname = #{clanName} LIMIT 1
     </select>
-    <select id="selectClanNameNoteByMIconCnt" resultType="org.jpstale.dao.clandb.entity.Cl">
-        SELECT clan_name, note FROM clandb.cl WHERE m_icon_cnt = #{mIconCnt} LIMIT 1
+    <select id="selectClanNameNoteByMIconCnt" resultMap="clMap">
+        SELECT clanname, note FROM clandb.cl WHERE miconcnt = #{mIconCnt} LIMIT 1
     </select>
     <select id="selectClanZangByClanNameForCheck" resultType="java.lang.String">
-        SELECT clan_zang FROM clandb.cl WHERE clan_name = #{clanName} LIMIT 1
+        SELECT clanzang FROM clandb.cl WHERE clanname = #{clanName} LIMIT 1
     </select>
-    <!-- ClanSystem ASP CheckClanLeader.asp: SELECT ClanName FROM CL WHERE UserID=? -->
+    <!-- ASP CheckClanLeader.asp: SELECT ClanName FROM CL WHERE UserID=? -->
     <select id="selectClanNameByUserId" resultType="java.lang.String">
-        SELECT clan_name FROM clandb.cl WHERE user_id = #{userId} LIMIT 1
-    </select>
-    <select id="selectByClanNameOrderByCpointDesc" resultType="org.jpstale.dao.clandb.entity.Cl">
-        SELECT * FROM clandb.cl ORDER BY c_point DESC
-    </select>
-    <select id="selectClanZangMemCntNoteMIconCntRegiDateLimitDatePFlagKFlagClanMoneyByClanName" resultType="org.jpstale.dao.clandb.entity.Cl">
-        SELECT clan_zang, mem_cnt, note, m_icon_cnt, regi_date, limit_date, p_flag, k_flag, clan_money FROM clandb.cl WHERE clan_name = #{clanName} LIMIT 1
+        SELECT clanname FROM clandb.cl WHERE userid = #{userId} LIMIT 1
     </select>
 
-    <insert id="insertCl" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO clandb.cl (clan_name, user_id, clan_zang, mem_cnt, note, m_icon_cnt, regi_date, limit_date, del_active, p_flag, k_flag, flag, note_cnt, c_point, c_win, c_fail, clan_money, cn_flag, siege_money)
+    <!-- 排行榜：全表按公会积分倒序。⚠ **没有 clanName 过滤** —— 旧名里的 ByClanName 是错的，已改掉 -->
+    <select id="selectAllOrderByCpointDesc" resultMap="clMap">
+        SELECT * FROM clandb.cl ORDER BY cpoint DESC
+    </select>
+
+    <!--
+      详情一次取全行。
+      ⚠ 旧版是 `SELECT clan_zang, mem_cnt, note, m_icon_cnt, regi_date, limit_date, p_flag, k_flag,
+      clan_money` —— **既没取 idx 也没取 cpoint**，于是 ClanDetailResponse 的 clanId / cPoint 恒为
+      null、rank 恒为 0（方案文档 §2.3）。"把选出的列一个个念进方法名"正是它与列名一起过期的原因，
+      故改名 selectByClanName 并取全列。
+    -->
+    <select id="selectByClanName" resultMap="clMap">
+        SELECT * FROM clandb.cl WHERE clanname = #{clanName} LIMIT 1
+    </select>
+
+    <!--
+      useGeneratedKeys 必须同时给 keyColumn：PostgreSQL 的 JDBC 驱动把 RETURN_GENERATED_KEYS
+      翻成 `RETURNING *` ⇒ "生成键"是整行、第 1 列是 `idx`。只写 keyProperty 时 MyBatis 按**位置**
+      取第 1 列 —— 这里恰好就是 idx 所以侥幸正确，但那是巧合（列顺序一变就错），显式写才是有意的。
+    -->
+    <insert id="insertCl" useGeneratedKeys="true" keyProperty="id" keyColumn="idx">
+        INSERT INTO clandb.cl (clanname, userid, clanzang, memcnt, note, miconcnt, regidate, limitdate, delactive, pflag, kflag, flag, notecnt, cpoint, cwin, cfail, clanmoney, cnflag, siegemoney)
         VALUES (#{clanName}, #{userId}, #{clanZang}, #{memCnt}, #{note}, #{mIconCnt}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '3600 seconds', #{delActive}, #{pFlag}, #{kFlag}, #{flag}, #{noteCnt}, #{cPoint}, #{cWin}, #{cFail}, #{clanMoney}, #{cnFlag}, #{siegeMoney})
     </insert>
 
     <update id="updateMemCntByClanName">
-        UPDATE clandb.cl SET mem_cnt = #{memCnt} WHERE clan_name = #{clanName}
+        UPDATE clandb.cl SET memcnt = #{memCnt} WHERE clanname = #{clanName}
     </update>
     <update id="updateClanZangAndUserIdByClanName">
-        UPDATE clandb.cl SET clan_zang = #{clanZang}, user_id = #{userId} WHERE clan_name = #{clanName}
+        UPDATE clandb.cl SET clanzang = #{clanZang}, userid = #{userId} WHERE clanname = #{clanName}
     </update>
 
     <delete id="deleteByClanName">
-        DELETE FROM clandb.cl WHERE clan_name = #{clanName}
+        DELETE FROM clandb.cl WHERE clanname = #{clanName}
     </delete>
 
 </mapper>

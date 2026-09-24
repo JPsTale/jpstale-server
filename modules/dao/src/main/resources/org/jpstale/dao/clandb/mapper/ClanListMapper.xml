@@ -2,78 +2,91 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.jpstale.dao.clandb.mapper.ClanListMapper">
 
+    <!--
+      ⚠ **列名一律用活库的真实名字**（`clandb.clanlist` 全表 17 列**无下划线**）：
+      id / clanname / clanleader / note / accountname / memberscount / iconid / regisdate /
+      limitdate / deleteactive / flag / siegewarpoints / bellatrapoints / siegewargold /
+      bellatragold / bellatradate / loginmessage。
+      主键是 `id`（`nextval('clandb.clanlist_id_seq')`），`CharacterInfo.clanid` 引用它。
+
+      踩过的坑（2026-09-25）：整册原先是 snake_case（clan_name / clan_leader / icon_id …），
+      对着活库跑直接 `column "clan_name" does not exist`。活库列名是**混用**的，
+      必须逐列核对。依据：`docs/公会系统-源码分析与客户端接入方案.md` §2.1。
+    -->
+
     <!-- C++ characterserver.cpp:209 -->
     <select id="selectTop1IconIdById" resultType="java.lang.Integer">
-        SELECT icon_id FROM clandb.clanlist WHERE id = #{id} LIMIT 1
+        SELECT iconid FROM clandb.clanlist WHERE id = #{id} LIMIT 1
     </select>
     <select id="selectLoginMessageById" resultType="java.lang.String">
-        SELECT login_message FROM clandb.clanlist WHERE id = #{id}
+        SELECT loginmessage FROM clandb.clanlist WHERE id = #{id}
     </select>
     <select id="selectIdByClanLeader" resultType="java.lang.Integer">
-        SELECT id FROM clandb.clanlist WHERE clan_leader = #{clanLeader}
+        SELECT id FROM clandb.clanlist WHERE clanleader = #{clanLeader}
     </select>
     <!-- blesscastleserver, bellatraserver -->
     <select id="selectAccountNameByIconId" resultType="java.lang.String">
-        SELECT account_name FROM clandb.clanlist WHERE icon_id = #{iconId}
+        SELECT accountname FROM clandb.clanlist WHERE iconid = #{iconId}
     </select>
     <select id="selectClanNameByIconId" resultType="java.lang.String">
-        SELECT clan_name FROM clandb.clanlist WHERE icon_id = #{iconId}
+        SELECT clanname FROM clandb.clanlist WHERE iconid = #{iconId}
     </select>
     <!-- characterserver:303 - rename -->
     <update id="updateClanLeaderByClanLeader">
-        UPDATE clandb.clanlist SET clan_leader = #{newLeader} WHERE clan_leader = #{oldLeader}
+        UPDATE clandb.clanlist SET clanleader = #{newLeader} WHERE clanleader = #{oldLeader}
     </update>
     <!-- bellatraserver -->
     <select id="selectTop3IconIdByBellatraPoints" resultType="java.lang.Integer">
-        SELECT icon_id FROM clandb.clanlist WHERE bellatra_points &gt; 0 ORDER BY bellatra_points DESC, bellatra_date ASC LIMIT 3
+        SELECT iconid FROM clandb.clanlist WHERE bellatrapoints &gt; 0 ORDER BY bellatrapoints DESC, bellatradate ASC LIMIT 3
     </select>
     <select id="selectBellatraGoldByClanLeader" resultType="java.lang.Long">
-        SELECT bellatra_gold FROM clandb.clanlist WHERE clan_leader = #{clanLeader}
+        SELECT bellatragold FROM clandb.clanlist WHERE clanleader = #{clanLeader}
     </select>
     <update id="updateBellatraGoldByClanLeader">
-        UPDATE clandb.clanlist SET bellatra_gold = #{bellatraGold} WHERE clan_leader = #{clanLeader}
+        UPDATE clandb.clanlist SET bellatragold = #{bellatraGold} WHERE clanleader = #{clanLeader}
     </update>
     <select id="selectCountWhereBellatraPointsGt0" resultType="java.lang.Integer">
-        SELECT COUNT(id) FROM clandb.clanlist WHERE bellatra_points &gt; 0
+        SELECT COUNT(id) FROM clandb.clanlist WHERE bellatrapoints &gt; 0
     </select>
     <select id="selectTop3ClanNameByBellatraPoints" resultType="java.lang.String">
-        SELECT clan_name FROM clandb.clanlist WHERE bellatra_points &gt; 0 ORDER BY bellatra_points DESC, bellatra_date ASC LIMIT 3
+        SELECT clanname FROM clandb.clanlist WHERE bellatrapoints &gt; 0 ORDER BY bellatrapoints DESC, bellatradate ASC LIMIT 3
     </select>
     <update id="updateBellatraGoldAddByClanName">
-        UPDATE clandb.clanlist SET bellatra_gold = bellatra_gold + #{amount} WHERE clan_name = #{clanName}
+        UPDATE clandb.clanlist SET bellatragold = bellatragold + #{amount} WHERE clanname = #{clanName}
     </update>
     <select id="selectTop1ClanNameBellatraPoints" resultType="org.jpstale.dao.clandb.entity.ClanList">
-        SELECT clan_name, bellatra_points FROM clandb.clanlist WHERE bellatra_points &gt; 0 ORDER BY bellatra_points DESC, bellatra_date ASC LIMIT 1
+        SELECT clanname, bellatrapoints FROM clandb.clanlist WHERE bellatrapoints &gt; 0 ORDER BY bellatrapoints DESC, bellatradate ASC LIMIT 1
     </select>
     <update id="updateBellatraPointsBellatraDateByClanName">
-        UPDATE clandb.clanlist SET bellatra_points = #{bellatraPoints}, bellatra_date = #{bellatraDate} WHERE clan_name = #{clanName}
+        UPDATE clandb.clanlist SET bellatrapoints = #{bellatraPoints}, bellatradate = #{bellatraDate} WHERE clanname = #{clanName}
     </update>
     <select id="selectBellatraPointsByClanName" resultType="java.lang.Integer">
-        SELECT bellatra_points FROM clandb.clanlist WHERE clan_name = #{clanName}
+        SELECT bellatrapoints FROM clandb.clanlist WHERE clanname = #{clanName}
     </select>
     <select id="selectBellatraPointsById" resultType="java.lang.Integer">
-        SELECT bellatra_points FROM clandb.clanlist WHERE id = #{id}
+        SELECT bellatrapoints FROM clandb.clanlist WHERE id = #{id}
     </select>
     <select id="selectTop1ClanNameById" resultType="java.lang.String">
-        SELECT clan_name FROM clandb.clanlist WHERE id = #{id} LIMIT 1
+        SELECT clanname FROM clandb.clanlist WHERE id = #{id} LIMIT 1
     </select>
 
     <!-- ClanSystem ASP -->
     <select id="selectByAccountName" resultType="org.jpstale.dao.clandb.entity.ClanList">
-        SELECT * FROM clandb.clanlist WHERE account_name = #{accountName}
+        SELECT * FROM clandb.clanlist WHERE accountname = #{accountName}
     </select>
     <select id="selectClanLeaderByClanName" resultType="java.lang.String">
-        SELECT clan_leader FROM clandb.clanlist WHERE clan_name = #{clanName} LIMIT 1
+        SELECT clanleader FROM clandb.clanlist WHERE clanname = #{clanName} LIMIT 1
     </select>
     <select id="selectIdByClanName" resultType="java.lang.Integer">
-        SELECT id FROM clandb.clanlist WHERE clan_name = #{clanName} LIMIT 1
+        SELECT id FROM clandb.clanlist WHERE clanname = #{clanName} LIMIT 1
     </select>
-    <insert id="insertClanList" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO clandb.clanlist (clan_name, clan_leader, note, account_name, members_count, icon_id, regis_date, limit_date, delete_active, flag, siege_war_points, bellatra_date, bellatra_points, siege_war_gold, bellatra_gold, login_message)
+    <!-- 主键是 id，且它就是第 1 列 ⇒ keyColumn 与位置一致；仍显式写，避免列顺序变动后静默错位 -->
+    <insert id="insertClanList" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO clandb.clanlist (clanname, clanleader, note, accountname, memberscount, iconid, regisdate, limitdate, deleteactive, flag, siegewarpoints, bellatradate, bellatrapoints, siegewargold, bellatragold, loginmessage)
         VALUES (#{clanName}, #{clanLeader}, #{note}, #{accountName}, #{membersCount}, #{iconId}, #{regisDate}, #{limitDate}, #{deleteActive}, #{flag}, #{siegeWarPoints}, #{bellatraDate}, #{bellatraPoints}, #{siegeWarGold}, #{bellatraGold}, #{loginMessage})
     </insert>
     <delete id="deleteByClanName">
-        DELETE FROM clandb.clanlist WHERE clan_name = #{clanName}
+        DELETE FROM clandb.clanlist WHERE clanname = #{clanName}
     </delete>
 
 </mapper>
