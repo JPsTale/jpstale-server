@@ -591,6 +591,12 @@ message S2C_MonsterAppear {
   int32 hp = 6;
   int32 max_hp = 7;
   string model_file = 8; // 客户端渲染资源（资产相对路径，如 char/monster/monimp/monimp-a.inx）
+  // 怪物显示名的 i18n 键名段：**该怪 .inf 的文件名词干**（小写、无扩展名，如 `00_santagoblin-c`），
+  // 客户端拼 `monster.<name_key>.name` 查 locales（zh 来自中文客户端的 name/*.zhoon `*B_NAME`）。
+  // 空 = 服务端没对上 inf（多为私服自加的怪）⇒ 客户端用 `name`（monsterlist.name 数据名）显示。
+  // ⚠ 键是 **inf 文件名**而不是 monsterlist.id：名字文件的来源本身就是按 inf 组织的，
+  // 且同一模型的多个 monsterlist 行（如 Santa Goblin 三行）共用同一份中文资料。
+  string name_key = 20;
   float angle = 9;       // 面朝方向（弧度，0=Z+）
   // 尸体：这只怪已死，但仍在 AOI 内可见（服务端发 S2C_MonsterDisappear 才移除）。
   // **必须显式下发，不能由客户端从 hp==0 推** —— 那种隐式信号改一次 hp 语义就会静默失效。
