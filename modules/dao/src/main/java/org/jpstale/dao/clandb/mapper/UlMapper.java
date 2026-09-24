@@ -22,6 +22,9 @@ public interface UlMapper extends BaseMapper<Ul> {
     Ul selectClanNameAndPermiByChName(@Param("chName") String chName);
     String selectChNameByPermi2AndClanName(@Param("clanName") String clanName);
     List<String> selectChNameListByClanName(@Param("clanName") String clanName);
+
+    /** 一次取回该公会全部成员行（替掉"先取名字列表、再逐个 selectByChName"的 N+1）。 */
+    List<Ul> selectAllByClanName(@Param("clanName") String clanName);
     String selectUserIdByChNameAndClanName(@Param("chName") String chName, @Param("clanName") String clanName);
     Ul selectByChName(@Param("chName") String chName);
     int insertUl(Ul entity);

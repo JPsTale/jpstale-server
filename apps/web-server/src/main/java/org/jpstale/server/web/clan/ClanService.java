@@ -1,17 +1,9 @@
 package org.jpstale.server.web.clan;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.common.mq.ClanMessageData;
+import org.jpstale.common.service.clan.ClanManager;
 import org.jpstale.dao.clandb.entity.Cl;
-import org.jpstale.dao.clandb.entity.ClanList;
-import org.jpstale.dao.clandb.entity.Li;
 import org.jpstale.dao.clandb.entity.Ul;
-import org.jpstale.dao.clandb.mapper.ClMapper;
-import org.jpstale.dao.clandb.mapper.ClanListMapper;
-import org.jpstale.dao.clandb.mapper.LiMapper;
-import org.jpstale.dao.clandb.mapper.UlMapper;
-import org.jpstale.dao.userdb.mapper.CharacterInfoMapper;
 import org.jpstale.server.web.clan.dto.ClanDetailResponse;
 import org.jpstale.server.web.clan.dto.ClanMemberDto;
 import org.jpstale.server.web.clan.dto.ClanRankDto;
@@ -23,412 +15,53 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * ClanSystem 17 个接口业务逻辑，与原版 ASP 行为与 Code 一致。
+ * 公会的 **REST 读接口**业务逻辑（`/api/clan/*.json`）。
+ *
+ * <h3>这个类只做"装配"，不碰表</h3>
+ * 所有数据都来自 {@link ClanManager}（common-service，公会表的唯一实现）。
+ * 这样 web-server 与 game-server 走的是**同一份**读写逻辑，不会各写一套。
+ *
+ * <h3>2026-09-25 下沉后删掉的</h3>
+ * 原先这里还有 17 个"原版 ASP 文本格式"方法（`checkClanPlayer` / `checkDate` / `clanMember` /
+ * `sodScore` … 返回 {@code Code=1\rCName=...} 那种）以及 8 个 MQ 适配方法。**全部是死代码**：
+ * <ul>
+ *   <li>逐个 grep：那 17 个方法的**外部调用方 = 0**。它们对应的"`/Clan/xxx.asp` 兼容路径"
+ *       在 `ClanController` 里**从未接线**（见方案文档 §2.2）；</li>
+ *   <li>随它们一起删掉了 `ClanResponse`（只被这 17 个方法用）与 `ClanParamUtil`（零引用）。</li>
+ * </ul>
+ * 写操作已下沉到 {@link ClanManager}；MQ 适配在 `listener/ClanMessageListener`。
  */
 @Slf4j
 @Service
 public class ClanService {
 
-    private static final DateTimeFormatter REGI_LIMIT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+    private static final DateTimeFormatter REGI_LIMIT_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
 
-    private final ClMapper clMapper;
-    private final UlMapper ulMapper;
-    private final ClanListMapper clanListMapper;
-    private final LiMapper liMapper;
-    private final CharacterInfoMapper characterInfoMapper;
+    private final ClanManager clanManager;
 
-    public ClanService(ClMapper clMapper, UlMapper ulMapper, ClanListMapper clanListMapper,
-                       LiMapper liMapper, CharacterInfoMapper characterInfoMapper) {
-        this.clMapper = clMapper;
-        this.ulMapper = ulMapper;
-        this.clanListMapper = clanListMapper;
-        this.liMapper = liMapper;
-        this.characterInfoMapper = characterInfoMapper;
+    public ClanService(ClanManager clanManager) {
+        this.clanManager = clanManager;
     }
 
-    // ---------- 简单校验接口 ----------
-
-    public ClanResponse checkClanPlayer(String clwon, String gserver) {
-        return ClanResponse.of(1);
-    }
-
-    public ClanResponse checkDate(String chname) {
-        String clanName = chname != null ? ulMapper.selectClanNameByChName(chname.trim()) : null;
-        if (clanName == null || clanName.isEmpty()) return ClanResponse.of(0);
-        return ClanResponse.of(1);
-    }
-
-    public ClanResponse checkUnknown(String chname) {
-        return checkDate(chname);
-    }
-
-    public ClanResponse checkClanName(String clName, String gserver) {
-        String zang = clName != null ? clMapper.selectClanZangByClanName(clName.trim()) : null;
-        if (zang == null) return ClanResponse.of(0);
-        return ClanResponse.of(1);
-    }
-
-    public ClanResponse checkClanId(Integer num, String gserver) {
-        if (num == null) return ClanResponse.of(0);
-        Cl cl = clMapper.selectClanNameNoteByMIconCnt(num);
-        if (cl == null) return ClanResponse.of(0);
-        ClanResponse r = ClanResponse.of(1);
-        r.put("CName", cl.getClanName());
-        r.put("CNote", cl.getNote() != null ? cl.getNote() : "");
-        return r;
-    }
-
-    public ClanResponse checkClanLeader(String userid, String gserver) {
-        String clanName = userid != null ? clMapper.selectClanNameByUserId(userid.trim()) : null;
-        if (clanName == null || clanName.isEmpty()) return ClanResponse.of(0);
-        return ClanResponse.of(1);
-    }
-
-    // ---------- NewClan ----------
-
-    public ClanResponse newClan(String userid, String gserver, String chname, String clName, Integer chtype, Integer lv) {
-        String chnameTrim = chname != null ? chname.trim() : "";
-        String clNameTrim = clName != null ? clName.trim() : "";
-        String existingClan = ulMapper.selectClanNameByChName(chnameTrim);
-        if (existingClan != null && !existingClan.isEmpty()) {
-            ClanResponse r = ClanResponse.of(2);
-            r.put("CMoney", "0");
-            return r;
-        }
-        if (existingClan != null) ulMapper.deleteByChName(chnameTrim);
-        if (clMapper.selectClanZangByClanName(clNameTrim) != null) {
-            ClanResponse r = ClanResponse.of(3);
-            r.put("CMoney", "0");
-            return r;
-        }
-        Integer iIMG = liMapper.selectImgById(1);
-        if (iIMG == null) {
-            Li li = new Li();
-            li.setId(1);
-            li.setImg(1);
-            liMapper.insertLi(li);
-            iIMG = 1;
-        }
-        int nextImg = iIMG + 1;
-        liMapper.updateImgById(1, nextImg);
-
-        Cl cl = new Cl();
-        cl.setClanName(clNameTrim);
-        cl.setUserId(userid != null ? userid.trim() : "");
-        cl.setClanZang(chnameTrim);
-        cl.setMemCnt(1);
-        cl.setNote("RenaissancePT");
-        cl.setMIconCnt(nextImg);
-        cl.setDelActive("0");
-        cl.setPFlag(0);
-        cl.setKFlag(0);
-        cl.setFlag(0);
-        cl.setNoteCnt(0);
-        cl.setCPoint(0);
-        cl.setCWin(0);
-        cl.setCFail(0);
-        cl.setClanMoney(0L);
-        cl.setCnFlag(0);
-        cl.setSiegeMoney(0L);
-        clMapper.insertCl(cl);
-
-        Integer idx = clMapper.selectIdByClanName(clNameTrim);
-        Ul ul = new Ul();
-        ul.setClanId(idx);
-        ul.setUserId(userid != null ? userid.trim() : "");
-        ul.setChName(chnameTrim);
-        ul.setClanName(clNameTrim);
-        ul.setChType(chtype != null ? chtype : 0);
-        ul.setChLv(lv != null ? lv : 0);
-        ul.setPermi("0");
-        ul.setDelActive("0");
-        ul.setPFlag(0);
-        ul.setKFlag(0);
-        ul.setMIconCnt(nextImg);
-        ulMapper.insertUl(ul);
-
-        ClanList clanList = new ClanList();
-        clanList.setClanName(clNameTrim);
-        clanList.setClanLeader(chnameTrim);
-        clanList.setNote("RenaissancePT");
-        clanList.setAccountName(userid != null ? userid.trim() : "");
-        clanList.setMembersCount(1);
-        clanList.setIconId(0);
-        clanList.setRegisDate(1);
-        clanList.setLimitDate(10);
-        clanList.setDeleteActive(0);
-        clanList.setFlag(0);
-        clanList.setSiegeWarPoints(0);
-        clanList.setBellatraPoints(0);
-        clanList.setSiegeWarGold(0);
-        clanList.setBellatraGold(0);
-        clanList.setBellatraDate(0L);
-        clanList.setLoginMessage("");
-        clanListMapper.insertClanList(clanList);
-
-        Integer clanListId = clanListMapper.selectIdByClanName(clNameTrim);
-        if (clanListId != null) characterInfoMapper.updateClanIdByName(chnameTrim, clanListId);
-
-        ClanResponse r = ClanResponse.of(1);
-        r.put("CMoney", "0");
-        return r;
-    }
-
-    // ---------- DeleteClan ----------
-
-    public ClanResponse deleteClan(String userid, String gserver, String chname, String clName) {
-        List<ClanList> list = clanListMapper.selectByAccountName(userid != null ? userid.trim() : "");
-        if (list == null || list.size() != 1) return ClanResponse.of(0);
-        String leader = clanListMapper.selectClanLeaderByClanName(clName != null ? clName.trim() : "");
-        if (leader == null || !leader.equals(chname != null ? chname.trim() : "")) return ClanResponse.of(0);
-        String clNameTrim = clName.trim();
-        clanListMapper.deleteByClanName(clNameTrim);
-        clMapper.deleteByClanName(clNameTrim);
-        ulMapper.deleteByClanName(clNameTrim);
-        characterInfoMapper.updateClanIdByName(chname.trim(), 0);
-        return ClanResponse.of(1);
-    }
-
-    // ---------- LeavePlayer / LeavePlayerSelf ----------
-
-    public ClanResponse leavePlayer(String userid, String gserver, String chname, String clName, String clwon1, String ticket) {
-        String clwon1Trim = clwon1 != null ? clwon1.trim() : "";
-        String clNameTrim = clName != null ? clName.trim() : "";
-        String targetClan = ulMapper.selectClanNameByChName(clwon1Trim);
-        if (targetClan == null || targetClan.isEmpty()) return ClanResponse.of(0);
-        if (!targetClan.equals(clNameTrim)) return ClanResponse.of(0);
-        Cl cl = clMapper.selectIdClanZangMemCntByClanName(clNameTrim);
-        if (cl == null) return ClanResponse.of(0);
-        if (clwon1Trim.equals(cl.getClanZang())) return ClanResponse.of(4);
-        int newCnt = (cl.getMemCnt() != null ? cl.getMemCnt() : 1) - 1;
-        clMapper.updateMemCntByClanName(newCnt, clNameTrim);
-        ulMapper.deleteByChName(clwon1Trim);
-        return ClanResponse.of(1);
-    }
-
-    public ClanResponse leavePlayerSelf(String userid, String gserver, String chname, String clName) {
-        String chnameTrim = chname != null ? chname.trim() : "";
-        String clNameTrim = clName != null ? clName.trim() : "";
-        Ul ul = ulMapper.selectClanNameAndPermiByChName(chnameTrim);
-        if (ul == null || ul.getClanName() == null || ul.getClanName().isEmpty()) return ClanResponse.of(0);
-        if (!ul.getClanName().equals(clNameTrim)) return ClanResponse.of(0);
-        Cl cl = clMapper.selectIdClanZangMemCntByClanName(clNameTrim);
-        if (cl == null) return ClanResponse.of(0);
-        if (chnameTrim.equals(cl.getClanZang())) return ClanResponse.of(4);
-        int newCnt = (cl.getMemCnt() != null ? cl.getMemCnt() : 1) - 1;
-        clMapper.updateMemCntByClanName(newCnt, clNameTrim);
-        ulMapper.deleteByChName(chnameTrim);
-        return ClanResponse.of(1);
-    }
-
-    // ---------- InviteClan ----------
-
-    public ClanResponse inviteClan(String userid, String gserver, String chname, String clName,
-                                   String clwon, String clwonUserid, Integer lv, Integer chtype, Integer chlv, String chipflag) {
-        String clNameTrim = clName != null ? clName.trim() : "";
-        String chnameTrim = chname != null ? chname.trim() : "";
-        String clwonTrim = clwon != null ? clwon.trim() : "";
-        Cl cl = clMapper.selectIdClanZangMemCntByClanName(clNameTrim);
-        if (cl == null) return ClanResponse.of(0);
-        int memCnt = cl.getMemCnt() != null ? cl.getMemCnt() : 0;
-        if (memCnt + 1 > 100) return ClanResponse.of(2);
-        String subChief = ulMapper.selectChNameByPermi2AndClanName(clNameTrim);
-        boolean isLeader = chnameTrim.equals(cl.getClanZang());
-        boolean isSub = subChief != null && subChief.equals(chnameTrim);
-        if (!isLeader && !isSub) return ClanResponse.of(0);
-        String uclName = ulMapper.selectClanNameByChName(clwonTrim);
-        if (uclName != null && !uclName.isEmpty()) return ClanResponse.of(0);
-        ulMapper.deleteByChName(clwonTrim);
-        if (memCnt + 1 > 20) return ClanResponse.of(4);
-        int newCnt = memCnt + 1;
-        clMapper.updateMemCntByClanName(newCnt, clNameTrim);
-        Integer idx = cl.getId();
-        Ul ul = new Ul();
-        ul.setClanId(idx);
-        ul.setUserId(clwonUserid != null ? clwonUserid.trim() : "");
-        ul.setChName(clwonTrim);
-        ul.setClanName(clNameTrim);
-        ul.setChType(chtype != null ? chtype : 0);
-        ul.setChLv(chlv != null ? chlv : 0);
-        ul.setPermi("0");
-        ul.setDelActive("0");
-        ul.setPFlag(0);
-        ul.setKFlag(0);
-        ul.setMIconCnt(cl.getMIconCnt() != null ? cl.getMIconCnt() : 0);
-        ulMapper.insertUl(ul);
-        return ClanResponse.of(1);
-    }
-
-    // ---------- ChangeLeader / SubLeaderRelease / SubLeaderUpdate ----------
-
-    public ClanResponse changeLeader(String chname, String gserver, String clName) {
-        String chnameTrim = chname != null ? chname.trim() : "";
-        String clNameTrim = clName != null ? clName.trim() : "";
-        String userId = ulMapper.selectUserIdByChNameAndClanName(chnameTrim, clNameTrim);
-        if (userId == null) return ClanResponse.of(0);
-        clMapper.updateClanZangAndUserIdByClanName(chnameTrim, userId, clNameTrim);
-        return ClanResponse.of(1);
-    }
-
-    public ClanResponse subLeaderRelease(String chname, String gserver) {
-        String chnameTrim = chname != null ? chname.trim() : "";
-        ulMapper.updatePermi0ByChName(chnameTrim);
-        return ClanResponse.of(1);
-    }
-
-    public ClanResponse subLeaderUpdate(String chname, String gserver) {
-        String chnameTrim = chname != null ? chname.trim() : "";
-        ulMapper.updatePermi0ByClanNameInChName(chnameTrim);
-        ulMapper.updatePermi2ByChName(chnameTrim);
-        return ClanResponse.of(1);
-    }
-
-    // ---------- GetClanMembers ----------
-
-    public ClanResponse getClanMembers(String userid, String gserver, String chname) {
-        String clanName = chname != null ? ulMapper.selectClanNameByChName(chname.trim()) : null;
-        if (clanName == null || clanName.isEmpty()) return ClanResponse.of(0);
-        String clanZang = clMapper.selectClanZangByClanName(clanName);
-        if (clanZang == null) return ClanResponse.of(0);
-        ClanResponse r = ClanResponse.of(1);
-        r.put("CClanName", clanName);
-        r.put("CClanZang", clanZang);
-        List<String> members = ulMapper.selectChNameListByClanName(clanName);
-        if (members != null) for (String m : members) r.addLine("CMem", m);
-        return r;
-    }
-
-    // ---------- ClanMember ----------
-
-    public ClanResponse clanMember(String userid, String gserver, String chname) {
-        String chnameTrim = chname != null ? chname.trim() : "";
-        String clanName = ulMapper.selectClanNameByChName(chnameTrim);
-        if (clanName == null || clanName.isEmpty()) {
-            ulMapper.deleteByChName(chnameTrim);
-            ClanResponse r = ClanResponse.of(0);
-            r.put("CMoney", "500000");
-            r.put("CNFlag", "0");
-            return r;
-        }
-        Cl cl = clMapper.selectByClanName(clanName);
-        if (cl == null) {
-            ulMapper.deleteByChName(chnameTrim);
-            ClanResponse r = ClanResponse.of(0);
-            r.put("CMoney", "500000");
-            r.put("CNFlag", "0");
-            return r;
-        }
-        int cnFlag = 0;
-        List<Cl> rankList = clMapper.selectAllOrderByCpointDesc();
-        if (rankList != null && cl.getCPoint() != null && cl.getCPoint() > 0) {
-            for (int i = 0; i < rankList.size() && i < 3; i++) {
-                if (clanName.equals(rankList.get(i).getClanName())) {
-                    cnFlag = i + 1;
-                    break;
-                }
-            }
-        }
-        String subChief = ulMapper.selectChNameByPermi2AndClanName(clanName);
-        String cRegiD = cl.getRegiDate() != null ? cl.getRegiDate().format(REGI_LIMIT_FORMAT) : "";
-        String cLimitD = cl.getLimitDate() != null ? cl.getLimitDate().format(REGI_LIMIT_FORMAT) : "";
-        ClanResponse r = ClanResponse.of(chnameTrim.equals(cl.getClanZang()) ? 2 : (subChief != null && subChief.equals(chnameTrim) ? 5 : 1));
-        r.put("CName", clanName);
-        r.put("CNote", cl.getNote() != null ? cl.getNote() : "");
-        r.put("CZang", cl.getClanZang() != null ? cl.getClanZang() : "");
-        r.put("CSubChip", subChief != null ? subChief : "");
-        r.put("CStats", "1");
-        r.put("CMCnt", String.valueOf(cl.getMemCnt() != null ? cl.getMemCnt() : 0));
-        r.put("CIMG", String.valueOf(cl.getMIconCnt() != null ? cl.getMIconCnt() : 0));
-        r.put("CSec", "60");
-        r.put("CRegiD", cRegiD);
-        r.put("CLimitD", cLimitD);
-        r.put("CDelActive", "0");
-        r.put("CPFlag", String.valueOf(cl.getPFlag() != null ? cl.getPFlag() : 0));
-        r.put("CKFlag", String.valueOf(cl.getKFlag() != null ? cl.getKFlag() : 0));
-        r.put("CMoney", String.valueOf(cl.getClanMoney() != null ? cl.getClanMoney() : 0));
-        r.put("CNFlag", String.valueOf(cnFlag));
-        ulMapper.updateMIconCntByChName(chnameTrim, cl.getMIconCnt() != null ? cl.getMIconCnt() : 0);
-        return r;
-    }
-
-    // ---------- SodScore ----------
-
-    public ClanResponse sodScore(String userid, String gserver, String chname, Integer index) {
-        if (index == null) return ClanResponse.of(104);
-        String chnameTrim = chname != null ? chname.trim() : "";
-        if (index == 1) {
-            List<Cl> list = clMapper.selectAllOrderByCpointDesc();
-            Cl top = (list != null && !list.isEmpty()) ? list.get(0) : null;
-            Ul ul = ulMapper.selectByChName(chnameTrim);
-            if (ul == null || ul.getClanName() == null || ul.getClanName().isEmpty()) {
-                ClanResponse r = ClanResponse.of(0);
-                r.put("CClanMoney", "0");
-                r.put("CTax", "0");
-                if (top != null) {
-                    r.put("CName", top.getClanName());
-                    r.put("CNote", top.getNote() != null ? top.getNote() : "");
-                    r.put("CZang", top.getClanZang() != null ? top.getClanZang() : "");
-                    r.put("CIMG", String.valueOf(top.getMIconCnt() != null ? top.getMIconCnt() : 0));
-                }
-                return r;
-            }
-            boolean sameClan = top != null && top.getClanName() != null && top.getClanName().equals(ul.getClanName());
-            String subChief = top != null ? ulMapper.selectChNameByPermi2AndClanName(top.getClanName()) : null;
-            int code;
-            if (sameClan) {
-                if (chnameTrim.equals(top.getClanZang())) code = 1;
-                else if (subChief != null && subChief.equals(chnameTrim)) code = 2;
-                else code = 3;
-            } else {
-                String myClanZang = clMapper.selectClanZangByClanName(ul.getClanName());
-                String mySub = ulMapper.selectChNameByPermi2AndClanName(ul.getClanName());
-                if (chnameTrim.equals(myClanZang)) code = 4;
-                else if (mySub != null && mySub.equals(chnameTrim)) code = 5;
-                else code = 6;
-            }
-            ClanResponse r = ClanResponse.of(code);
-            if (top != null) {
-                r.put("CClanMoney", String.valueOf(top.getClanMoney() != null ? top.getClanMoney() : 0));
-                r.put("CName", top.getClanName());
-                r.put("CNote", top.getNote() != null ? top.getNote() : "");
-                r.put("CZang", top.getClanZang() != null ? top.getClanZang() : "");
-                r.put("CIMG", String.valueOf(top.getMIconCnt() != null ? top.getMIconCnt() : 0));
-            }
-            if (code == 1) {
-                r.put("TotalEMoney", "0");
-                r.put("TotalMoney", "0");
-            }
-            return r;
-        }
-        if (index == 3) {
-            List<Cl> list = clMapper.selectAllOrderByCpointDesc();
-            ClanResponse r = ClanResponse.of(1);
-            int count = 0;
-            if (list != null) {
-                for (Cl c : list) {
-                    if (count >= 9) break;
-                    if (c.getCPoint() == null || c.getCPoint() <= 0) continue;
-                    r.addLine("CIMG", String.valueOf(c.getMIconCnt() != null ? c.getMIconCnt() : 0));
-                    r.addLine("CName", c.getClanName());
-                    r.addLine("CPoint", String.valueOf(c.getCPoint()));
-                    r.addLine("CRegistDay", c.getRegiDate() != null ? c.getRegiDate().toLocalDate().toString() : "");
-                    count++;
-                }
-            }
-            return r;
-        }
-        return ClanResponse.of(104);
-    }
-
-    // ========== New JSON API methods ==========
-
+    /**
+     * 公会详情（`detail.json` / `members.json` 共用。
+     * ⚠ 两个端点返回的是**同一个对象**，成员列表就在 `members` 字段里 —— 这是既有行为，未改）。
+     *
+     * @return 不在任何公会时返回 {@code null}（`ClanController` 据此回 `NOT_IN_CLAN`）
+     */
     public ClanDetailResponse getClanDetail(String charName) {
-        String chnameTrim = charName != null ? charName.trim() : "";
-        String clanName = ulMapper.selectClanNameByChName(chnameTrim);
-        if (clanName == null || clanName.isEmpty()) return null;
-
-        Cl cl = clMapper.selectByClanName(clanName);
-        if (cl == null) return null;
+        String chname = charName != null ? charName.trim() : "";
+        String clanName = clanManager.clanNameOf(chname);
+        if (clanName == null) {
+            return null;
+        }
+        Cl cl = clanManager.findByName(clanName);
+        if (cl == null) {
+            // ul 有行但 cl 已不存在（公会数据半截）——**不静默**：这说明库不一致，值得看一眼
+            log.warn("[Clan] {} 的 ul 指向公会 {}，但 cl 里查不到该公会（数据不一致）", chname, clanName);
+            return null;
+        }
 
         ClanDetailResponse resp = new ClanDetailResponse();
         resp.setClanId(cl.getId());
@@ -441,17 +74,18 @@ public class ClanService {
         resp.setLimitDate(cl.getLimitDate() != null ? cl.getLimitDate().format(REGI_LIMIT_FORMAT) : "");
         resp.setClanMoney(cl.getClanMoney());
         resp.setCPoint(cl.getCPoint());
-        resp.setAmLeader(chnameTrim.equals(cl.getClanZang()));
+        resp.setAmLeader(chname.equals(cl.getClanZang()));
 
-        String subChief = ulMapper.selectChNameByPermi2AndClanName(clanName);
+        String subChief = clanManager.subLeaderOf(clanName);
         resp.setSubLeader(subChief != null ? subChief : "");
-        resp.setAmSubLeader(subChief != null && subChief.equals(chnameTrim));
+        resp.setAmSubLeader(subChief != null && subChief.equals(chname));
 
-        List<Cl> rankList = clMapper.selectAllOrderByCpointDesc();
+        // 名次：只统计 cPoint > 0 的公会（既有行为）。名次 = 数组下标 + 1，榜单里没有名次字段。
         resp.setRank(0);
-        if (rankList != null && cl.getCPoint() != null && cl.getCPoint() > 0) {
-            for (int i = 0; i < rankList.size(); i++) {
-                if (clanName.equals(rankList.get(i).getClanName())) {
+        if (cl.getCPoint() != null && cl.getCPoint() > 0) {
+            List<Cl> ranks = clanManager.allByCpointDesc();
+            for (int i = 0; i < ranks.size(); i++) {
+                if (clanName.equals(ranks.get(i).getClanName())) {
                     resp.setRank(i + 1);
                     break;
                 }
@@ -459,32 +93,27 @@ public class ClanService {
         }
 
         List<ClanMemberDto> members = new ArrayList<>();
-        List<String> names = ulMapper.selectChNameListByClanName(clanName);
-        if (names != null) {
-            for (String name : names) {
-                Ul u = ulMapper.selectByChName(name);
-                if (u == null) continue;
-                ClanMemberDto md = new ClanMemberDto();
-                md.setCharName(u.getChName());
-                md.setUserId(u.getUserId());
-                md.setCharType(u.getChType());
-                md.setCharLevel(u.getChLv());
-                md.setPermission(u.getPermi());
-                md.setJoinDate(u.getJoinDate() != null ? u.getJoinDate().format(REGI_LIMIT_FORMAT) : "");
-                members.add(md);
-            }
+        for (Ul u : clanManager.membersOf(clanName)) {
+            ClanMemberDto md = new ClanMemberDto();
+            md.setCharName(u.getChName());
+            md.setUserId(u.getUserId());
+            md.setCharType(u.getChType());
+            md.setCharLevel(u.getChLv());
+            md.setPermission(u.getPermi());
+            md.setJoinDate(u.getJoinDate() != null ? u.getJoinDate().format(REGI_LIMIT_FORMAT) : "");
+            members.add(md);
         }
         resp.setMembers(members);
-
         return resp;
     }
 
+    /** 排行榜：**只含 `cPoint > 0` 的公会**（既有行为）。条目无名次字段，名次 = 数组下标 + 1。 */
     public List<ClanRankDto> getRanking() {
-        List<Cl> list = clMapper.selectAllOrderByCpointDesc();
         List<ClanRankDto> result = new ArrayList<>();
-        if (list == null) return result;
-        for (Cl c : list) {
-            if (c.getCPoint() == null || c.getCPoint() <= 0) continue;
+        for (Cl c : clanManager.allByCpointDesc()) {
+            if (c.getCPoint() == null || c.getCPoint() <= 0) {
+                continue;
+            }
             ClanRankDto rank = new ClanRankDto();
             rank.setClanId(c.getId());
             rank.setClanName(c.getClanName());
@@ -498,70 +127,8 @@ public class ClanService {
         return result;
     }
 
+    /** 公会名是否已被占用（与建会**同一句 SQL**，见 `ClanManager.isNameTaken`）。 */
     public boolean isClanNameTaken(String clanName) {
-        String zang = clMapper.selectClanZangByClanName(clanName != null ? clanName.trim() : "");
-        return zang != null;
-    }
-
-    // ========== Redis message handlers ==========
-
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-    public void handleClanCreate(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        newClan(d.getUserId(), "redis", d.getCharName(), d.getClanName(), d.getCharType(), d.getLevel());
-    }
-
-    public void handleClanDissolve(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        deleteClan(d.getUserId(), "redis", d.getCharName(), d.getClanName());
-    }
-
-    public void handleClanInvite(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        inviteClan(d.getUserId(), "redis", d.getCharName(), d.getClanName(),
-                d.getTargetName(), d.getTargetUserId(), 0, d.getTargetType(), d.getTargetLevel(), "0");
-    }
-
-    public void handleClanKick(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        leavePlayer(d.getUserId(), "redis", d.getCharName(), d.getClanName(), d.getTargetName(), "0");
-    }
-
-    public void handleClanLeave(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        leavePlayerSelf(d.getUserId(), "redis", d.getCharName(), d.getClanName());
-    }
-
-    public void handleClanTransferLeader(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        changeLeader(d.getTargetName(), "redis", d.getClanName());
-    }
-
-    public void handleClanSetSubLeader(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        subLeaderUpdate(d.getCharName(), "redis");
-    }
-
-    public void handleClanReleaseSubLeader(String json) {
-        ClanMessageData d = parseMessage(json);
-        if (d == null) return;
-        subLeaderRelease(d.getCharName(), "redis");
-    }
-
-    private ClanMessageData parseMessage(String json) {
-        try {
-            return OBJECT_MAPPER.readValue(json, ClanMessageData.class);
-        } catch (Exception e) {
-            log.error("Failed to parse clan message: {}", json, e);
-            return null;
-        }
+        return clanManager.isNameTaken(clanName);
     }
 }

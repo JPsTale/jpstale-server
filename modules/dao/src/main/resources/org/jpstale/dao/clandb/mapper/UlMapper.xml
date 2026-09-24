@@ -48,6 +48,10 @@
     <select id="selectChNameListByClanName" resultType="java.lang.String">
         SELECT chname FROM clandb.ul WHERE clanname = #{clanName}
     </select>
+    <!-- 一次取回整行（替掉"先取名字列表、再逐个 selectByChName"的 N+1） -->
+    <select id="selectAllByClanName" resultMap="ulMap">
+        SELECT * FROM clandb.ul WHERE clanname = #{clanName}
+    </select>
     <select id="selectUserIdByChNameAndClanName" resultType="java.lang.String">
         SELECT userid FROM clandb.ul WHERE chname = #{chName} AND clanname = #{clanName} LIMIT 1
     </select>
