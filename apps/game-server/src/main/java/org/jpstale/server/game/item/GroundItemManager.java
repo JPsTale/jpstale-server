@@ -53,6 +53,47 @@ public class GroundItemManager {
     @Autowired
     private EntityRegistry entityRegistry;
 
+    @Autowired
+    private org.jpstale.server.game.service.MapRegionService mapRegionService;
+
+    /**
+     * 散布落点与投放者的高度差上限（世界单位）：超过视为**隔层**（崖下/屋顶/桥面另一侧），重选落点。
+     * 64 与拾取侧 `ItemNetworkHandler.PICKUP_HEIGHT_DIFF`（原版 ay ≤ 64·fONE）同一把"层"的尺子
+     * （用户 2026-09-24 裁定：10 太紧，缓坡也会触发重选，改用 64）。
+     */
+    private static final double SCATTER_HEIGHT_DIFF = 64.0;
+
+    /** 散布落点高度不合格时的重选次数上限（首掷 + 最多 3 次重选，见 {@link #addScattered}）。 */
+    private static final int SCATTER_HEIGHT_RETRIES = 3;
+
+    /**
+     * 在中心坐标周围随机散布投放一件地面物：角度均匀、距离 0.5~30 世界单位，
+     * 落点高度取地形（避免斜坡上沉入地下），owner=0（立即可见）、TTL 按类别默认。
+     * GM 刷物（/@get）与玩家丢弃共用这一份散布逻辑（AGENTS 纠错 #15：同一判定不留第二份实现）。
+     * <p>
+     * 落点合格性：有地面（{@code getFloorHeightOrNull != null}）且与投放者（cy）高度差
+     * ≤ {@link #SCATTER_HEIGHT_DIFF}；不合格重掷，最多 {@link #SCATTER_HEIGHT_RETRIES} 次
+     * （与原版怪物水晶落点挑选同款模式：`GetFloorHeight == CLIP_OUT` 就换个方向）。
+     * 重选用尽仍不合格 → 用**最后一个**掷出的落点（散布语义优先，不退回脚下；此时的 y 取
+     * 地面高度，无地面则 0，与旧 {@code getHeight} 口径一致）。
+     */
+    public GroundItem addScattered(ItemInstance item, int mapId, double cx, double cy, double cz) {
+        java.util.concurrent.ThreadLocalRandom rnd = java.util.concurrent.ThreadLocalRandom.current();
+        double nx = cx, nz = cz, ny = cy;
+        for (int attempt = 0; attempt <= SCATTER_HEIGHT_RETRIES; attempt++) {
+            double ang = rnd.nextDouble() * Math.PI * 2;
+            double dist = 0.5 + rnd.nextDouble() * 29.5; // 世界单位，散布 0.5~30
+            nx = cx + Math.cos(ang) * dist;
+            nz = cz + Math.sin(ang) * dist;
+            Double floor = mapRegionService.getFloorHeightOrNull(mapId, nx, nz);
+            ny = floor != null ? floor : 0.0;
+            if (floor != null && Math.abs(floor - cy) <= SCATTER_HEIGHT_DIFF) {
+                break;
+            }
+        }
+        return add(item, mapId, nx, ny, nz, 0L, 0);
+    }
+
     /**
      * 本 tick 被移除的地面物（过期清扫 / 被新掉落挤掉 / 被拾取）。
      * `GroundItemAOI` 每 tick 取走并给观察者发 Disappear —— **谁移除谁登记**，AOI 不做任何对账。

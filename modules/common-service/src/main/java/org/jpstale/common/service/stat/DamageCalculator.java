@@ -23,6 +23,14 @@ public class DamageCalculator {
      * 怪物侧参数是 {@link MonsterStats} 快照而非实体：共享层不认 app 层的运行时实体。
      */
     public DamageResult calculatePlayerToMonster(Player player, MonsterStats monster, int skillDamage) {
+        return calculatePlayerToMonster(player, monster, skillDamage, 0);
+    }
+
+    /**
+     * 带暴击率加成的版本（技能用：Critical Hit 的 `Critical_Hit_Critical[point]`，`Svr_Damge.cpp`
+     * 的 `Critical[0] += 表值` 同语义 —— 加在**暴击率**上再掷，不是加伤害）。
+     */
+    public DamageResult calculatePlayerToMonster(Player player, MonsterStats monster, int skillDamage, int critBonus) {
         // 0. 命中判定（原版 Accuracy_Table：攻方命中+等级 对 防方等级+防御）
         //    必须在暴击/伤害之前：未命中就不掷暴击、不出伤害，否则会出现「MISS 却带暴击」的自相矛盾。
         //    B 方案下这一掷发生在**起手**，结果随 S2C_AttackPlan 下发，客户端在事件帧就能直接播挥空音。
@@ -38,7 +46,7 @@ public class DamageCalculator {
         result.setRawDamage(baseDamage);
 
         // 2. 暴击判定
-        int criticalRate = calculateCriticalRate(player.getLevel(), monster.level());
+        int criticalRate = calculateCriticalRate(player.getLevel(), monster.level()) + critBonus;
         if (ThreadLocalRandom.current().nextInt(100) < criticalRate) {
             baseDamage = (baseDamage * 170) / 100; // 1.7x 暴击伤害
             result.setCritical(true);

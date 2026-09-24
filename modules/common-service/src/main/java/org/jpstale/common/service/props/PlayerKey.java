@@ -28,6 +28,14 @@ public enum PlayerKey implements IPlayerKey {
     QUEST_LEVEL_80_2("quest.level_80_2", 0, "属性点 +2"),
     QUEST_LEVEL_90_2("quest.level_90_2", 0, "属性点 +3"),
 
+    // —— 转职任务位（**转职的唯一门**；用户 2026-09-24 裁定：转职走任务流程）——
+    // 任务系统完成对应任务后置 1（`setPropInt(key, 1)`），`JobService` 据它给 rank+1。
+    // ⚠ 我方决定，与源码不同：原版 A 根是按等级自动转（sinQuest.cpp:293-306，任务流程整段被注释
+    // ——那是私服没有任务系统的表现，不代表原版设计不需要任务）。
+    QUEST_LEVEL_20("quest.level_20", 0, "转职任务位：完成 ⇒ rank 可升至 1"),
+    QUEST_LEVEL_40("quest.level_40", 0, "转职任务位：完成 ⇒ rank 可升至 2"),
+    QUEST_LEVEL_60("quest.level_60", 0, "转职任务位：完成 ⇒ rank 可升至 3"),
+
     /**
      * 拳位绑定的技能（模板：`%s` = {@link Fist#key()}）。
      *

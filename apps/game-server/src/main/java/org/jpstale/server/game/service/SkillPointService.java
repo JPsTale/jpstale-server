@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.common.service.props.PlayerKey;
 import org.jpstale.common.service.props.SkillKeys;
 import org.jpstale.common.service.skill.SkillBindRules;
@@ -54,8 +55,12 @@ public class SkillPointService {
 
     private final SkillDataRegistry skillData;
 
-    public SkillPointService(SkillDataRegistry skillData) {
+    /** 被动技能写进面板（P3），学/退/洗点都要失效属性缓存，否则"学了被动不生效"直到下次换装备 */
+    private final PlayerStatCalculator statCalculator;
+
+    public SkillPointService(SkillDataRegistry skillData, PlayerStatCalculator statCalculator) {
         this.skillData = skillData;
+        this.statCalculator = statCalculator;
     }
 
     /* ─────────────── 求值（唯一实现） ─────────────── */
@@ -176,6 +181,7 @@ public class SkillPointService {
             return new LearnResult(reason, learn.cost());
         }
         p.setPropInt(SkillKeys.point(skillId), learn.newPoint());
+        statCalculator.invalidate(p);   // 被动等级变了 ⇒ 面板缓存必须重算
         return new LearnResult(SkillRules.Reason.OK, learn.cost());
     }
 
@@ -186,6 +192,7 @@ public class SkillPointService {
             return;
         }
         p.setPropInt(SkillKeys.point(skillId), learn.currentPoint() - 1);
+        statCalculator.invalidate(p);
     }
 
     /* ─────────────── 洗点 ─────────────── */
@@ -208,6 +215,7 @@ public class SkillPointService {
             clearIfPresent(p, SkillKeys.mastery(s.skillId()));
         }
         p.setSkillResetUsed(true);
+        statCalculator.invalidate(p);   // 被动全部清零 ⇒ 面板缓存必须重算
         log.info("[Skill] {} 洗点完成（等级 {}）", p.getName(), p.getLevel());
         return SkillRules.Reason.OK;
     }

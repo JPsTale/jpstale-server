@@ -957,8 +957,6 @@ public class ItemNetworkHandler {
             sendErrorKey(session, "item.op.failed");
             return;
         }
-        double ang = Math.random() * Math.PI * 2;
-        double dist = 0.8 + Math.random() * 1.4;
         // ownerId = 0：**玩家主动丢到地上的东西立即对所有人可见**，没有私有窗口。
         //
         // 依据（原文玩家丢弃分支，ex-machina gameserver/Legacy/Server/OnSever.cpp:18784）：
@@ -967,12 +965,8 @@ public class ItemNetworkHandler {
         // 全程**没有** `dwCreateTime += 5000`，也**没有**归属赋值（`STG_ITEMS` 里根本没有 owner 字段）。
         // 那 5 秒私有窗口只属于**怪物掉落**里 `dropispublic = 0` 的那部分（击杀者的战利品）。
         // ⚠ 曾经把两条路统一套上 5 秒窗口（用户 2026-09-16 纠正："玩家丢弃原版是立即看到，没有 5 秒限制"）。
-        GroundItem gi = groundItems.add(
-            dropped, ent.getMapId(),
-            ent.getX() + Math.cos(ang) * dist,
-            ent.getY(),
-            ent.getZ() + Math.sin(ang) * dist,
-            0L, 0);
+        // 落点：与 GM /@get 同一随机散布（0.5~30 世界单位 + 地形高度 + 隔层重选），不再挤在脚边同一坐标。
+        GroundItem gi = groundItems.addScattered(dropped, ent.getMapId(), ent.getX(), ent.getY(), ent.getZ());
         if (gi == null) {
             // 地图已满且无可挤兑（全 Level=1）：原版 return FALSE 亦丢弃 → 背包物品已被取出，无法原地放回，直接告知
             log.warn("[DropGround] {} uid={} 地图满({}) 掉落被丢弃", session.getCharacterName(), req.getUid(), GroundItemManager.STG_ITEM_MAX);

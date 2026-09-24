@@ -334,6 +334,10 @@ public class MonsterSpawnService {
             && !animTable.entriesOf(monster.getModelFile(), "run").isEmpty());
         // 本性（原版 Nature）：Evil 主动攻击；Neutral/Normal 被动（受击反击）；Good 中立
         monster.setNature(natureOf(template.getMonsterType()));
+        // 种族（原版 Brood，`smCHAR_MONSTER_*`）：monsterlist.propertymon 列（用户 2026-09-24 指认）。
+        // 原版同源：怪物脚本 `*몬스터종족` ⇒ fileread.cpp:4130-4175（언데드=UNDEAD/뮤턴트=MUTANT/
+        // 디몬=DEMON/메카닉=MECHANIC，默认 NORMAL）。消费点：Jumping Crash 恶魔 +30% 等。
+        monster.setBrood(broodOf(template.getPropertyMon()));
         // 活动/归位范围：以视野 0.3 倍为界（原版 MoveRange，monsterlist 无此列）
         monster.setMoveRange(monster.getViewsight() * 0.3f);
         // 攻击速度**档位**（原样存 DB 的 `attackspeed`）—— 它**不是毫秒**。
@@ -499,6 +503,20 @@ public class MonsterSpawnService {
             return Integer.parseInt(exp.trim().split("\\s+")[0]);
         } catch (NumberFormatException e) {
             return 0;
+        }
+    }
+
+    /** propertymon → 原版 Brood（大小写不敏感；未知值按 NORMAL —— 与原版脚本缺省一致）。 */
+    static Monster.Brood broodOf(String propertyMon) {
+        if (propertyMon == null) {
+            return Monster.Brood.NORMAL;
+        }
+        switch (propertyMon.trim().toLowerCase()) {
+            case "demon":   return Monster.Brood.DEMON;
+            case "undead":  return Monster.Brood.UNDEAD;
+            case "mutant":  return Monster.Brood.MUTANT;
+            case "machine": return Monster.Brood.MECHANIC;
+            default:        return Monster.Brood.NORMAL;
         }
     }
 

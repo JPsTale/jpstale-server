@@ -4,6 +4,7 @@ import org.jpstale.common.service.model.Player;
 import org.jpstale.common.service.props.PlayerKey;
 import org.jpstale.common.service.props.SkillKeys;
 import org.jpstale.common.service.skill.SkillDataRegistry;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.common.service.skill.SkillRules;
 import org.jpstale.server.common.enums.skill.SkillIds;
 import org.junit.jupiter.api.BeforeAll;
@@ -50,7 +51,7 @@ class SkillPointServiceTest {
         return s.skillId();
     }
 
-    private final SkillPointService svc = new SkillPointService(skillData);
+    private final SkillPointService svc = new SkillPointService(skillData, new PlayerStatCalculator());
 
     @Test
     void 二十级Pikeman一池六点四池零() {

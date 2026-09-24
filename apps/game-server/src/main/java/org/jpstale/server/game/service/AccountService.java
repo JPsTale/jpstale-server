@@ -646,6 +646,8 @@ public class AccountService {
             // 洗点守卫是**会话内存标记**、不落库 ⇒ 登录（选角进场）时清零：原版那个标志服务端
             // 从不存，每次把角色数据发下来客户端就又变成"没洗过"，效果等同"本次登录内一次"
             loaded.setSkillResetUsed(false);
+            // ⚠ 转职不在登录时自动推（用户 2026-09-24 裁定：转职走任务流程，JobService.advance
+            // 由任务系统调用）。存量高等级角色 rank 0 是**显式的"未转职"**，任务系统上线后由任务补。
             playerEntity = playerService.ensureEntity(session);
         } catch (Exception e) {
             log.warn("Load player {} failed on selectCharacter: {}", characterId, e.toString());

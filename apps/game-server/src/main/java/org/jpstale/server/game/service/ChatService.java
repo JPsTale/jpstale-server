@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 聊天服务
@@ -62,15 +61,15 @@ public class ChatService {
     @Autowired
     private TeleportService teleportService;
 
-
-    @Autowired
-    private org.jpstale.server.game.service.MapRegionService mapRegionService;
-
     @Autowired
     private org.jpstale.common.service.item.LootService lootService;
 
     @Autowired
     private UserInfoMapper userInfoMapper;
+
+    /** 转职（GM /@set_rank 走它的设值入口） */
+    @Autowired
+    private JobService jobService;
 
     /**
      * 报文入口：聊天
@@ -165,6 +164,10 @@ public class ChatService {
                 treatGet(session, parts);
                 return;
             }
+            if (name.equals("@set_rank")) {
+                treatSetRank(session, parts);
+                return;
+            }
             if (name.equals("@reloadloot")) {
                 lootService.reload();
                 systemMessage(session, "loot table reloaded");
@@ -199,9 +202,37 @@ public class ChatService {
         }
     }
 
+    /**
+     * /@set_rank <n> —— GM 直接设置转职阶级（0..4；任务系统上线前的转职入口，用户 2026-09-24 裁定）。
+     * 副作用与真实转职一致（放开洗点守卫 + 落库 + 头模外观广播 + 面板推送），见 {@link JobService#setRank}。
+     */
+    private void treatSetRank(PlayerSession session, String[] parts) {
+        if (parts.length < 2) {
+            systemMessageKey(session, "chat.cmd.setRankUsage",
+                    Map.of("max", String.valueOf(JobService.GM_MAX_RANK)));
+            return;
+        }
+        int rank;
+        try {
+            rank = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            systemMessageKey(session, "chat.cmd.setRankBad",
+                    Map.of("arg", parts[1], "max", String.valueOf(JobService.GM_MAX_RANK)));
+            return;
+        }
+        var player = playerService.getOrCreate(session);
+        JobService.Reason r = jobService.setRank(player, rank);
+        if (r != JobService.Reason.OK) {
+            // BAD_RANK / NO_PLAYER：显式报错，不静默（拒绝原因也回显给 GM，便于发现手滑）
+            systemMessageKey(session, "chat.cmd.setRankBad",
+                    Map.of("arg", parts[1], "max", String.valueOf(JobService.GM_MAX_RANK)));
+            return;
+        }
+        systemMessage(session, "rank=" + rank + "  (head tier=" + rank + ")");
+    }
+
     /** GM 身份：userdb.userinfo.gamemasterlevel>0 或 gamemastertype!=0。 */
-    private boolean isGm(PlayerSession session) {
-        if (session == null || session.getAccountId() == null) {
+    private boolean isGm(PlayerSession session) {        if (session == null || session.getAccountId() == null) {
             return false;
         }
         UserInfo u = userInfoMapper.selectById(session.getAccountId().intValue());
@@ -212,8 +243,13 @@ public class ChatService {
                 || (u.getGameMasterType() != null && u.getGameMasterType() != 0);
     }
 
+    /** /@get 数量参数上限：与背包单堆上限一致（ItemService 合堆按 1000/堆封顶）。 */
+    private static final int GET_COUNT_MAX = 1000;
+
     /**
-     * /@get <名字|idCode|itemlistId> —— GM 刷物：掷点生成一件装备，随机铺在玩家周围地面。
+     * /@get <物品码> [数量] —— GM 刷物：掷点生成物品，随机铺在玩家周围地面。
+     * 数量语义（用户 2026-09-24）：可堆叠物 = **一堆一个地面物**（count=数量，拾取后自动并入
+     * 药水槽/背包既有堆）；不可堆叠物（装备等）= **数量件独立掷点**的地面物，各自随机散布。
      * 投放到 GroundItemManager（可被附近玩家拾取），并向视野内玩家广播 S2C_GroundItemAppear。
      */
     private void treatGet(PlayerSession session, String[] parts) {
@@ -221,29 +257,88 @@ public class ChatService {
             systemMessageKey(session, "chat.cmd.getUsage");
             return;
         }
+        int count = 1;
+        if (parts.length >= 3) {
+            try {
+                count = Integer.parseInt(parts[2]);
+            } catch (NumberFormatException e) {
+                count = 0;
+            }
+            // 非法数量显式报错，不静默按 1 处理（AGENTS 零兜底）
+            if (count < 1 || count > GET_COUNT_MAX) {
+                systemMessageKey(session, "chat.cmd.getBadCount",
+                        Map.of("arg", parts[2], "max", String.valueOf(GET_COUNT_MAX)));
+                return;
+            }
+        }
         org.jpstale.server.game.entity.PlayerEntity ent = session.getEntity();
         if (ent == null || ent.getMapId() < 0) {
             return; // 尚未进场，无刷物位置
         }
-        org.jpstale.common.service.item.ItemInstance fresh = itemRoll.rollByCode(parts[1], null);
-        if (fresh == null || fresh.getTemplate() == null) {
+        org.jpstale.common.service.item.ItemInstance first = itemRoll.rollByCode(parts[1], null);
+        if (first == null || first.getTemplate() == null) {
             log.info("[GM] /@get token={} by {} : item not found", parts[1], session.getCharacterName());
             systemMessageKey(session, "chat.cmd.itemNotFound", Map.of("token", parts[1]));
             return;
         }
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        double ang = rnd.nextDouble() * Math.PI * 2;
-        double dist = 0.5 + rnd.nextDouble() * 29.5; // 世界单位，散布 0.5~30
-        double nx = ent.getX() + Math.cos(ang) * dist;
-        double nz = ent.getZ() + Math.sin(ang) * dist;
-        double ny = mapRegionService.getHeight(ent.getMapId(), nx, nz); // 落点地形高度，避免沉入地下
 
-        GroundItem gi =
-                groundItems.add(fresh, ent.getMapId(), nx, ny, nz, 0, 0);
-        if (gi == null) {
-            log.info("[GM] /@get token={} : 地图满({}) 掉落被丢弃", parts[1], 1024);
+        // 可堆叠：数量并进同一堆（一个地面物、quantity=count）
+        if (first.stackable()) {
+            first.setCount(count);
+            GroundItem gi = spawnGroundItem(session, ent, first);
+            if (gi == null) {
+                systemMessageKey(session, "chat.cmd.dropOverLimit");
+                return;
+            }
+            systemMessage(session, "spawned ground item id=" + gi.getId() + "  name=" + first.getTemplate().getName()
+                    + " code=" + first.getItemCode() + " job=" + first.getJobCodeMask() + " x" + count
+                    + "  @(" + (long) gi.getX() + "," + (long) gi.getZ() + ")");
+            return;
+        }
+
+        // 不可堆叠：count 件独立掷点、各自随机散布；地图满即停（余量放弃并明说）
+        int spawned = 0;
+        GroundItem last = null;
+        for (int i = 0; i < count; i++) {
+            org.jpstale.common.service.item.ItemInstance it =
+                    (i == 0) ? first : itemRoll.rollByCode(parts[1], null);
+            if (it == null || it.getTemplate() == null) {
+                break; // 首件已验证存在，后续同码掷点不应失败
+            }
+            GroundItem gi = spawnGroundItem(session, ent, it);
+            if (gi == null) {
+                break; // 地图满
+            }
+            last = gi;
+            spawned++;
+        }
+        if (spawned == 0) {
             systemMessageKey(session, "chat.cmd.dropOverLimit");
             return;
+        }
+        if (spawned == 1) {
+            systemMessage(session, "spawned ground item id=" + last.getId() + "  name=" + first.getTemplate().getName()
+                    + " code=" + first.getItemCode() + " job=" + first.getJobCodeMask()
+                    + "  @(" + (long) last.getX() + "," + (long) last.getZ() + ")");
+            return;
+        }
+        systemMessage(session, "spawned " + spawned + "/" + count
+                + (spawned < count ? " (ground full)" : "")
+                + "  name=" + first.getTemplate().getName() + " code=" + first.getItemCode());
+    }
+
+    /**
+     * 在玩家周围随机散布投放一件地面物并向视野内广播 Appear（散布逻辑在
+     * {@link org.jpstale.server.game.item.GroundItemManager#addScattered}，与玩家丢弃共用）。
+     * 返回投放结果；地图满被丢弃时返回 null（挤掉 Level=0 的日志在 GroundItemManager.add 内）。
+     */
+    private GroundItem spawnGroundItem(PlayerSession session,
+                                       org.jpstale.server.game.entity.PlayerEntity ent,
+                                       org.jpstale.common.service.item.ItemInstance fresh) {
+        GroundItem gi = groundItems.addScattered(fresh, ent.getMapId(), ent.getX(), ent.getY(), ent.getZ());
+        if (gi == null) {
+            log.info("[GM] /@get token={} : 地图满({}) 掉落被丢弃", fresh.getItemCode(), 1024);
+            return null;
         }
 
         String itemName = fresh.getTemplate().getName();
@@ -255,7 +350,7 @@ public class ChatService {
                                 .setItemId(fresh.getItemCode() == null ? 0 : fresh.getItemCode())
                                 .setQuantity(fresh.getCount())
                                 .setPosition(org.jpstale.server.proto.base.CommonProto.Position.newBuilder()
-                                        .setX((float) nx).setY((float) ny).setZ((float) nz).build())
+                                        .setX((float) gi.getX()).setY((float) gi.getY()).setZ((float) gi.getZ()).build())
                                 .setOwnerId(gi.ownerId)
                                 .setExpireTime(gi.expireAt)
                                 .setName(itemName == null ? "" : itemName)
@@ -264,18 +359,16 @@ public class ChatService {
                         .build())
                 .build();
         int sent = 0;
-        for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers((float) nx, (float) nz, AOIManager.VIEW_RANGE)) {
+        for (org.jpstale.server.game.entity.PlayerEntity pe : aoiManager.getNearbyPlayers((float) gi.getX(), (float) gi.getZ(), AOIManager.VIEW_RANGE)) {
             if (pe.getSession() != null) {
                 pe.getSession().send(appear);
                 sent++;
             }
         }
-        log.info("[GM] {} /@get -> groundItem id={} itemListId={} code={} name={} owner={} @({},{},{}) broadcast={}",
+        log.info("[GM] {} /@get -> groundItem id={} itemListId={} code={} name={} count={} owner={} @({},{},{}) broadcast={}",
             session.getCharacterName(), gi.getId(), fresh.getItemListId(), fresh.getItemCode(), itemName,
-            session.getCharacterId(), (float) nx, (float) ny, (float) nz, sent);
-        systemMessage(session, "spawned ground item id=" + gi.getId() + "  name=" + itemName
-                + " code=" + fresh.getItemCode() + " job=" + fresh.getJobCodeMask()
-                + "  @(" + (long) nx + "," + (long) nz + ")");
+            fresh.getCount(), session.getCharacterId(), (float) gi.getX(), (float) gi.getY(), (float) gi.getZ(), sent);
+        return gi;
     }
 
     /** 同地图广播（含发送者自己） */

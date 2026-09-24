@@ -4,6 +4,7 @@ import org.jpstale.common.service.model.Player;
 import org.jpstale.common.service.props.PlayerKey;
 import org.jpstale.common.service.skill.SkillBindRules;
 import org.jpstale.common.service.skill.SkillDataRegistry;
+import org.jpstale.common.service.stat.PlayerStatCalculator;
 import org.jpstale.server.proto.base.S2C_SkillBindings;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ class SkillBindingTableTest {
                 .orElseThrow(() -> new IllegalStateException("pikeman 没有 useCode=" + useCode + " 的技能")).skillId();
     }
 
-    private final SkillPointService svc = new SkillPointService(data);
+    private final SkillPointService svc = new SkillPointService(data, new PlayerStatCalculator());
 
     @Test
     void 没绑过时三处都是0_且quick定长8() {

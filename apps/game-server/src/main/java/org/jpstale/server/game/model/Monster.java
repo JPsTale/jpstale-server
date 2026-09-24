@@ -128,6 +128,23 @@ public class Monster extends BaseEntity {
     private float viewsight;    // 视野/仇恨范围
     private int intelligence;   // AI 类型（0=被动，>0=主动攻击）
     private int nature;         // 本性：1=Evil主动攻击, 0=Neutral被动(受击反击), 2=Good中立
+
+    /**
+     * 种族（原版 `smCharInfo.Brood`，来自 monsterlist.**propertymon** 列 —— 用户 2026-09-24 指认；
+     * 原版同源：怪物脚本 `*몬스터종족` 字段 ⇒ `fileread.cpp:4130-4175` 的 Brood 赋值）。
+     * 消费点：Jumping Crash 对 DEMON +30%（`Svr_Damge.cpp:2834`）等"对某族加成"系。
+     */
+    public enum Brood { NORMAL, UNDEAD, MUTANT, DEMON, MECHANIC }
+
+    private Brood brood = Brood.NORMAL;
+
+    public Brood getBrood() {
+        return brood;
+    }
+
+    public void setBrood(Brood brood) {
+        this.brood = brood == null ? Brood.NORMAL : brood;
+    }
     private float moveRange;    // 活动/归位范围（出生点为中心）
 
     /** 能否跑步(IQ≥6,原版以此决定 run 动画与跑速档);出生时由模板 intelligence 决定 */

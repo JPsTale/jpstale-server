@@ -48,6 +48,9 @@ public class CombatService {
     private PlayerService playerService;
 
     @Autowired
+    private SkillCastService skillCastService;
+
+    @Autowired
     private MapRegionService mapRegionService;
 
     @Lazy
@@ -192,6 +195,12 @@ public class CombatService {
             return;
         }
         C2S_UseSkill skill = message.getUseSkill();
+        // P4：已迁入 SkillCastService 的技能走**服务端权威编排**（校验/扣MP/表值伤害/AoE/击退）；
+        // 未迁入的（cast 返回 null）保持旧路"当普攻即时结算"，逐批迁入（§9 P4）。
+        var casted = skillCastService.cast(player, skill.getSkillId(), skill.getTargetId());
+        if (casted != null) {
+            return;
+        }
         playerAttackMonster(player, skill.getTargetId(), skill.getSkillId());
     }
 
@@ -602,7 +611,7 @@ public class CombatService {
     /**
      * 处理怪物死亡
      */
-    private void handleMonsterDeath(Monster monster, Player killer) {
+    void handleMonsterDeath(Monster monster, Player killer) {   // 包私有：SkillCastService 的技能击杀共用
         monster.onDeath();
 
         // 注意，经验倍率应该是一个动态参数，由服务器管理员来设置基准倍率。如果有什么活动，可能会临时提高全服玩家的经验获取速度。
@@ -777,6 +786,8 @@ public class CombatService {
         killer.setLevel(newLevel);
         killer.setStatePoint(killer.getStatePoint() + gained);
         playerService.recalcPanel(killer);
+        // ⚠ 转职不在升级里自动推（用户 2026-09-24 裁定：转职走任务流程）——
+        // JobService.advance 由任务系统在转职任务完成时调用；等级到达门槛只是能接任务，不等于转职。
         log.info("{} leveled up {} -> {} (+{} stat points, total {})",
             killer.getName(), newLevel - gained / 5, newLevel, gained, killer.getStatePoint());
         battleLogService.levelUp(playerService.sessionOf(killer), newLevel, gained);

@@ -897,7 +897,7 @@ public class AiEngine {
     }
 
     private void logState(Monster monster, MonsterState from, MonsterState to, String reason) {
-        log.info("[MonsterAI] {}#{} state {} -> {} ({}) at ({},{})",
+        log.debug("[MonsterAI] {}#{} state {} -> {} ({}) at ({},{})",
             monster.getName(), monster.getId(), from, to, reason,
             (int) monster.getX(), (int) monster.getZ());
     }

@@ -363,7 +363,9 @@ public class PlayerService {
             .setStmRegen((float) statCalculator.regenStm(p))
             // 技能点（派生量：等级 + 任务位 − 已花）：面板显示用，学技能/升级/洗点后随状态推送一起刷新
             .setSkillPoint(skillPointService.free(p, SkillPointService.Pool.ONE))
-            .setSpecialSkillPoint(skillPointService.free(p, SkillPointService.Pool.FOUR));
+            .setSpecialSkillPoint(skillPointService.free(p, SkillPointService.Pool.FOUR))
+            // 转职阶级（JobService 按等级推进；面板职业名 jobTier[rank] 用）
+            .setRank(p.getRank());
     }
 
     /**
@@ -466,6 +468,8 @@ public class PlayerService {
         info.setAgility(player.getAgility());
         info.setHealth(player.getHealth());
         info.setStatePoint(player.getStatePoint());
+        // rank（原版 ChangeJob）：JobService 按等级推进后经这里落库（唯一写者；建号置 0）
+        info.setRank(player.getRank());
         // 属性包（jsonb）：任务位 / 技能等级与熟练度都在这一个包里 —— 整行 UPDATE 是它唯一的落库路径
         info.setProps(PlayerProperties.serialize(player.getProps()));
         // 一并落库当前位置/朝向（下次进场从下线坐标恢复，而非固定 startPoint）

@@ -5,7 +5,9 @@ import org.jpstale.common.service.item.ItemClass;
 import org.jpstale.common.service.item.ItemInstance;
 import org.jpstale.common.service.item.ItemLocations;
 import org.jpstale.common.service.model.Player;
+import org.jpstale.common.service.props.SkillKeys;
 import org.jpstale.server.common.codec.GameConstants;
+import org.jpstale.server.common.enums.skill.SkillIds;
 import org.springframework.stereotype.Component;
 
 /**
@@ -186,7 +188,85 @@ public class PlayerStatCalculator {
         s.regenMp = (p.getLevel() + p.getSpirit() * 1.2 + p.getHealth() / 2.0) / 115.0 + mpEquip;
         s.regenStm = (p.getLevel() + p.getHealth()) / 100.0 + stmEquip;
         s.avoid = avoidOf(s.attackRating, s.defense);
+        applySkillPassives(p, s);
         return s;
+    }
+
+    // ======== 被动技能（设计文档 D9 / §9 P3：先 pikeman 三条；每条 = 源码逐字语义 + 出处） ========
+    //
+    // 生效点逐字全部在 `sinbaram/sinInvenTory1.cpp`（第二份同源 `sinInvenTory.cpp`）的装备-技能循环里，
+    // 即"装备属性累加之后"的同一份运行值 ⇒ 我们同样放在 compute() 的装备聚合（EquipSummary）之后。
+    // 逐技能册出处：`docs/技能系统-pikeman.md` §2.2（Ice Attribute）/ §2.7（Weapon Defense Mastery）/ §2.11（Critical Mastery）。
+
+    /** 冰抗下标（`Stats.res` 顺序 = 原版 EElementID：0生物 1大地 2火 **3冰** 4雷 5毒 6水 7风）。 */
+    private static final int RES_ICE = 3;
+
+    /** 武器族码 = idcode 高 16 位（原版 `CODE & sinITEM_MASK2`）。实测见 item-weapon-semantics：斧 WA1 / 锤 WH1 / 镰枪 WP1 / 剑 WS2 / 盾 DS1。 */
+    private static final int FAMILY_AXE = 0x0101;
+    private static final int FAMILY_HAMMER = 0x0103;
+    private static final int FAMILY_SPEAR = 0x0105;    // WP1（itemlist category = Scythes）
+    private static final int FAMILY_SWORD = 0x0107;    // WS2（itemlist category = Swords）
+    private static final int FAMILY_SHIELD = 0x0204;   // sinDS1（itemlist category = Shields）
+
+    /** `PlusIce[10]`（`sinSkill_Info.cpp:185` 逐字）——Ice Attribute 每级冰抗。 */
+    private static final int[] PLUS_ICE = {8, 15, 21, 26, 30, 33, 36, 39, 42, 45};
+    /** `W_D_Mastery_Block[10]`（`sinSkill_Info.cpp:209` 逐字）——Weapon Defense Mastery 每级格挡率。 */
+    private static final int[] W_D_MASTERY_BLOCK = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    /** `Critical_Mastery_Critical[10]`（`sinSkill_Info.cpp:232` 逐字）——Critical Mastery 每级暴击值。 */
+    private static final int[] CRITICAL_MASTERY_CRITICAL = {7, 8, 9, 10, 12, 13, 14, 15, 16, 17};
+
+    /**
+     * 已学被动技能对面板的加成（P3：pikeman 三条；其他职业被动**尚未实现**，属 §9 P3 的"各职业被动分批"，
+     * 未实现期间它们对属性**没有影响**——面板不会虚高，也不会静默造假数据）。
+     *
+     * <p>已学等级从角色 props 读（{@code skill.<0xID>.point}，学/洗点后由 {@code SkillPointService} 失效本缓存）。
+     */
+    private void applySkillPassives(Player p, Stats s) {
+        // —— Ice Attribute（pikeman 一转·2）：**赋值**，不是累加 ——
+        // 逐字 `sinInvenTory1.cpp:7194-7196`：`sinSkillResistance[sITEMINFO_ICE] = PlusIce[Point-1];`
+        // （**源码是 `=`**：覆盖装备累加出来的冰抗。与装备抗性的叠加语义源码未取证 = pikeman 册未决 U-K-11，
+        // 我们按逐字实现；若日后证实应为累加，只改这一行。）
+        int ice = p.getPropInt(SkillKeys.point(SkillIds.ICE_ATTRIBUTE.id()));
+        if (ice > 0) {
+            s.res[RES_ICE] = PLUS_ICE[Math.min(ice, PLUS_ICE.length) - 1];
+        }
+
+        // 主手/副手状态（原版判据读 `sInven[0].ItemIndex` = 主手槽；逐槽找一次，`NotUseFlag` 不参与
+        // —— 原版这两处判的是"槽上物品的 CODE"，与属性累加的需求过滤是两条路）
+        int mainFamily = 0;
+        boolean offHandShield = false;
+        if (p.getItems() != null) {
+            for (ItemInstance it : p.getItems().equippedItems()) {
+                if (it.isDeleted() || it.getTemplate() == null || it.getTemplate().getIdCode() == null) {
+                    continue;
+                }
+                Integer code = it.getTemplate().getIdCode();
+                if (it.getSlot() == ItemLocations.SLOT_MAIN_HAND) {
+                    mainFamily = code >> 16;
+                } else if (it.getSlot() == ItemLocations.SLOT_OFF_HAND) {
+                    offHandShield = (code >> 16) == FAMILY_SHIELD;
+                }
+            }
+        }
+
+        // —— Weapon Defense Mastery（pikeman 二转·3）：格挡率**累加**，双条件 ——
+
+        // 逐字 `sinInvenTory1.cpp:7267-7280`：主手族 ∈ `{sinWA1,sinWH1,sinWP1,sinWS2}`（`e_sinSkill_Info.h:206`）
+        // **且副手不是盾（sinDS1 ⇒ break，技能完全不生效）**——盾已有格挡，不许叠加（照源码，非笔误）。
+        int wdm = p.getPropInt(SkillKeys.point(SkillIds.WEAPONE_DEFENCE_MASTERY.id()));
+        if (wdm > 0 && !offHandShield
+                && (mainFamily == FAMILY_AXE || mainFamily == FAMILY_HAMMER
+                || mainFamily == FAMILY_SPEAR || mainFamily == FAMILY_SWORD)) {
+            s.block += W_D_MASTERY_BLOCK[Math.min(wdm, W_D_MASTERY_BLOCK.length) - 1];
+        }
+
+        // —— Critical Mastery（pikeman 三转·3）：暴击值**累加**，主手**有武器**且族 ∈ `{sinWP1}` ——
+        // 逐字 `sinInvenTory1.cpp:7317-7326`：`if (sInven[0].ItemIndex)` + `UseWeaponCode == CODE&MASK2`。
+        // ⚠ 描述写 "Critical ATK (%)" 但实现是加一个整数（pikeman 册 §2.11：名字与实现不一致，照抄不改）。
+        int cm = p.getPropInt(SkillKeys.point(SkillIds.CRITICAL_MASTERY.id()));
+        if (cm > 0 && mainFamily == FAMILY_SPEAR) {
+            s.critical = Math.min(50, s.critical + CRITICAL_MASTERY_CRITICAL[Math.min(cm, CRITICAL_MASTERY_CRITICAL.length) - 1]);
+        }
     }
 
     // ======== 面板计算（原版公式） ========
