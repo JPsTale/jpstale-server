@@ -112,7 +112,16 @@ public class ClanHandler {
             return;
         }
 
-        // ---- ③ 扣钱（事务已提交；`add` 自带余额校验 + 内存 + 落库 + 推送）----
+        // ---- ③ 公会显示刷新（必须**先于**扣钱）：broadcastClanUpdate 会重查缓存并写回
+        // Player.clanName，而下面 goldService.add 会顺带推一次 characterStatus ——
+        // 顺序反了，那次推送带的就是旧公会（空），客户端面板要等下一次状态推送才对。
+        PlayerEntity ent = session.getEntity();
+        if (ent != null) {
+            // 名牌刷新（自己 + 同屏）。不通知的话，刚建会的人要离开视野再回来才看得到自己的公会名。
+            aoiManager.broadcastClanUpdate(ent);
+        }
+
+        // ---- ④ 扣钱（事务已提交；`add` 自带余额校验 + 内存 + 落库 + 推送）----
         GoldService.Result paid = goldService.add(session, p, -CREATE_COST, "clan_create");
         if (paid != GoldService.Result.OK) {
             // 上面已判过余额，走到这里说明是异常情况（例如并发把余额用光了）。
@@ -121,7 +130,7 @@ public class ClanHandler {
                     p.getName(), created.clanName(), paid);
         }
 
-        // ---- ④ 通知 ----
+        // ---- ⑤ 结果 ----
         session.send(ServerMessage.newBuilder()
                 .setClanCreateResult(S2C_ClanCreateResult.newBuilder()
                         .setOk(true)
@@ -129,11 +138,6 @@ public class ClanHandler {
                         .setIconId(created.iconId() != null ? created.iconId() : 0)
                         .build())
                 .build());
-        PlayerEntity ent = session.getEntity();
-        if (ent != null) {
-            // 名牌刷新（自己 + 同屏）。不通知的话，刚建会的人要离开视野再回来才看得到自己的公会名。
-            aoiManager.broadcastClanUpdate(ent);
-        }
         log.info("[Clan] {} 建会成功 clan={} 图标={} 扣款 {}",
                 p.getName(), created.clanName(), created.iconId(), CREATE_COST);
     }
