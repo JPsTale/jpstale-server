@@ -83,7 +83,8 @@ public class NpcShopHandler {
     @GamePacketHandler(ClientMessage.NPC_INTERACT_FIELD_NUMBER)
     public void handleNpcInteract(PlayerSession session, ClientMessage message) {
         long entityId = message.getNpcInteract().getEntityId();
-        Npc npc = resolveInteractableNpc(session, entityId, "shop.outOfRange");
+        // 交互总入口：不要求商家 —— 商家/打造/公会是**三个独立的标志**，后面各判各的
+        Npc npc = resolveInteractableNpc(session, entityId, "shop.outOfRange", false);
         if (npc == null) {
             return;
         }
@@ -284,6 +285,16 @@ public class NpcShopHandler {
      * 任一不过 → 回明确的错误 key 并返回 null（调用方直接 return）。
      */
     private Npc resolveInteractableNpc(PlayerSession session, long entityId, String outOfRangeKey) {
+        return resolveInteractableNpc(session, entityId, outOfRangeKey, true);
+    }
+
+    /**
+     * @param requireMerchant 是否要求"是商家"。**交互总入口（开窗）不能带这个门**：
+     *        公会管理员（eventtype=8）不是商家，但提供公会服务 —— 商家判定只该在
+     *        "真的要开商店"时做（2026-09-25 实测踩坑：公会管理员被 isMerchant 门
+     *        拦在 clan 分支之前，永远到不了）。
+     */
+    private Npc resolveInteractableNpc(PlayerSession session, long entityId, String outOfRangeKey, boolean requireMerchant) {
         PlayerEntity ent = session.getEntity();
         if (ent == null || ent.getMapId() < 0) {
             return null;
@@ -297,7 +308,7 @@ public class NpcShopHandler {
             return null;
         }
         long npcId = npc.getNpcId();
-        if (!shopService.isMerchant(npcId)) {
+        if (requireMerchant && !shopService.isMerchant(npcId)) {
             log.info("[Shop] {} 交互被拒：npc={} 不是商家（或不存在）",
                     session.getCharacterName(), npcId);
             sendErrorKey(session, "shop.notMerchant");
