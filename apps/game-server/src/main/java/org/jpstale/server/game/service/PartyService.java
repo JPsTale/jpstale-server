@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.common.service.model.Player;
+import org.jpstale.server.common.codec.GameConstants;
 import org.jpstale.server.common.enums.party.PartyAction;
 import org.jpstale.server.common.enums.party.PartyMode;
 import org.jpstale.server.game.entity.PlayerEntity;
@@ -60,21 +61,6 @@ public class PartyService {
     private final AtomicLong partyIdGenerator = new AtomicLong(1);
 
     private record PendingInvite(long inviterId, long at) {}
-
-    /** 邀请有效期（毫秒）——超时后接受视为无邀请（EU 客户端弹窗 1400 帧超时同语义，我们以服务端为准） */
-    private static final long INVITE_TTL_MS = 60_000;
-
-    /** 经验/金币分享距离（世界单位）——NSPT {@code PARTY_GETTING_DIST = 18*64}；与客户端
-     *  {@code WorldMap.PARTY_NEAR_DIST2=(17*64)^2} 同一单位系 */
-    public static final double SHARE_DIST = 18 * 64;
-    /** EU{@code unitserver.cpp:616} Normal 模式经验总量%：180 + 80×(人数-2)，2人180% → 6人500% */
-    private static final int EXP_PERCENT_NORMAL_BASE = 180;
-    private static final int EXP_PERCENT_NORMAL_PER = 80;
-    /** EU{@code :618} Hunt 模式：80 + 20×(人数-2)，低经验换多掉落（掉落侧在 OnSetDrop，本期未挂） */
-    private static final int EXP_PERCENT_HUNT_BASE = 80;
-    private static final int EXP_PERCENT_HUNT_PER = 20;
-    /** 邀请等级差门槛（EU {@code CPartyHandler.cpp:66-73} / NSPT 一致） */
-    private static final int INVITE_LEVEL_DIFF = 10;
 
     // ==================== C2S 入口（PacketRouter 自动注册） ====================
 
@@ -151,7 +137,7 @@ public class PartyService {
             return;
         }
         if (inviterParty != null && inviterParty.isFull()) {
-            sendError(inviterId, "chat.party.full");
+            sendError(inviterId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
             return;
         }
         // 等级差 ≤10（EU 取双方"各自队伍平均等级"，我们一期取"邀请者本人或其全队平均"）
@@ -160,8 +146,8 @@ public class PartyService {
             return;
         }
         int inviterLevel = inviterParty != null ? avgLevel(inviterParty) : inviter.getLevel();
-        if (Math.abs(inviterLevel - targetPlayer.getLevel()) > INVITE_LEVEL_DIFF) {
-            sendError(inviterId, "chat.party.levelDiff");
+        if (Math.abs(inviterLevel - targetPlayer.getLevel()) > GameConstants.PARTY_INVITE_LEVEL_DIFF) {
+            sendError(inviterId, "chat.party.levelDiff", Map.of("max", String.valueOf(GameConstants.PARTY_INVITE_LEVEL_DIFF)));
             return;
         }
         pendingInvites.put(targetId, new PendingInvite(inviterId, System.currentTimeMillis()));
@@ -184,7 +170,7 @@ public class PartyService {
         }
         PendingInvite invite = pendingInvites.remove(playerId);
         if (invite == null || invite.inviterId() != inviterId
-            || System.currentTimeMillis() - invite.at() > INVITE_TTL_MS) {
+            || System.currentTimeMillis() - invite.at() > GameConstants.PARTY_INVITE_TTL_MS) {
             sendError(playerId, "chat.party.noInvite");
             return;
         }
@@ -206,7 +192,7 @@ public class PartyService {
                 playerService.byId(playerId) != null ? playerService.byId(playerId).getName() : playerId);
         } else {
             if (inviterParty.isFull()) {
-                sendError(playerId, "chat.party.full");
+                sendError(playerId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
                 return;
             }
             playerPartyMap.put(playerId, inviterParty.getId());
@@ -325,8 +311,8 @@ public class PartyService {
             return null;
         }
         int percent = party.getMode() == PartyMode.HUNT
-            ? EXP_PERCENT_HUNT_BASE + EXP_PERCENT_HUNT_PER * (members.size() - 2)
-            : EXP_PERCENT_NORMAL_BASE + EXP_PERCENT_NORMAL_PER * (members.size() - 2);
+            ? GameConstants.PARTY_EXP_PERCENT_HUNT_BASE + GameConstants.PARTY_EXP_PERCENT_HUNT_PER * (members.size() - 2)
+            : GameConstants.PARTY_EXP_PERCENT_NORMAL_BASE + GameConstants.PARTY_EXP_PERCENT_NORMAL_PER * (members.size() - 2);
         long perMember = baseExp * percent / 100 / members.size();
         // 加权平均队等级（EU GetWeighedAveragePartyLevel：Σ(lv_i / Σlv × lv_i)，高等级权重更大）
         double weighted = 0;
@@ -338,7 +324,7 @@ public class PartyService {
             weighted += ((double) p.getLevel() / lvSum) * p.getLevel();
         }
         int avg = (int) Math.round(weighted);
-        double dist2 = SHARE_DIST * SHARE_DIST;
+        double dist2 = GameConstants.PARTY_SHARE_DIST * GameConstants.PARTY_SHARE_DIST;
         Map<Long, Long> shares = new LinkedHashMap<>();
         for (Player p : members) {
             // 参战判定 = 同图 + 距击杀点 SHARE_DIST 内（EU :650 同图 + DISTANCE_MAX_PARTY；无伤害贡献要求）
@@ -387,7 +373,7 @@ public class PartyService {
             if (e != null && e.getMapId() == picker.getMapId()) {
                 double dx = e.getX() - picker.getX();
                 double dz = e.getZ() - picker.getZ();
-                if (dx * dx + dz * dz <= SHARE_DIST * SHARE_DIST) {
+                if (dx * dx + dz * dz <= GameConstants.PARTY_SHARE_DIST * GameConstants.PARTY_SHARE_DIST) {
                     inRange.add(id);
                 }
             }
@@ -577,10 +563,16 @@ public class PartyService {
     }
 
     private void sendError(long playerId, String key) {
+        sendError(playerId, key, Map.of());
+    }
+
+    /** 带命名参数的错误（如 levelDiff 的 {max}）——阈值是服务端配置，文案不得写死数值 */
+    private void sendError(long playerId, String key, Map<String, String> params) {
         ServerMessage msg = ServerMessage.newBuilder()
             .setError(S2C_Error.newBuilder()
                 .setErrorCode(CommonProto.ErrorCode.PARTY_ERROR)
                 .setKey(key)
+                .putAllParams(params)
                 .build())
             .build();
         messageSender.sendToPlayer(playerId, msg);

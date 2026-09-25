@@ -212,6 +212,25 @@ public final class GameConstants {
     /** 杂项 Y 扩展 */
     public static final int DISTANCE_MISC_Y_EX = 1000;
 
+    // ---------- 组队（docs/组队系统-源码分析.md；数值对齐 EU CPartyHandler / NSPT） ----------
+    /** 队伍人数上限（EU MAX_PARTY_MEMBERS / NSPT PARTY_PLAYER_MAX，三源一致） */
+    public static final int PARTY_MAX_MEMBERS = 6;
+    /** 邀请等级差门槛——i18n 以 {max} 参数下发，文案不写死。
+     *  ⚠ EU/NSPT 原值为 10；工作区实测已调到 40（迁移时原样保留，若要回原值改这里） */
+    public static final int PARTY_INVITE_LEVEL_DIFF = 40;
+    /** 经验/金币分享距离（**我方世界单位**）——NSPT PARTY_GETTING_DIST = 18*64（原版坐标 ÷fONE 后的网格单位，
+     *  与我方世界单位同尺度）。⚠ GameConstants 里另有 EU 的 DISTANCE_MAX_PARTY（41 米）是原版 raw
+     *  平方坐标系（DISTANCE_XY_* 族），两套单位不同，勿混用 */
+    public static final double PARTY_SHARE_DIST = 18 * 64;
+    /** EU unitserver.cpp:616 Normal 模式经验总量%：180 + 80×(人数-2)，2 人 180% → 6 人 500%，再 ÷人数 */
+    public static final int PARTY_EXP_PERCENT_NORMAL_BASE = 180;
+    public static final int PARTY_EXP_PERCENT_NORMAL_PER = 80;
+    /** EU unitserver.cpp:618 Hunt 模式：80 + 20×(人数-2)；Hunt 的"每杀 +1 掉落"在掉落侧，尚未挂 */
+    public static final int PARTY_EXP_PERCENT_HUNT_BASE = 80;
+    public static final int PARTY_EXP_PERCENT_HUNT_PER = 20;
+    /** 邀请有效期（毫秒）——EU 客户端弹窗 1400 帧超时同语义，我们以服务端为准 */
+    public static final long PARTY_INVITE_TTL_MS = 60_000;
+
     // ---------- 物品/背包（与 C++ #define 一致） ----------
     /** 对应 C++ #define INVENTORYSERVER_MAX 100 */
     public static final int INVENTORYSERVER_MAX = 100;

@@ -1,6 +1,7 @@
 package org.jpstale.server.game.model;
 
 import lombok.Data;
+import org.jpstale.server.common.codec.GameConstants;
 import org.jpstale.server.common.enums.party.PartyMode;
 
 import java.util.ArrayList;
@@ -14,9 +15,6 @@ import java.util.List;
  */
 @Data
 public class Party {
-
-    /** 人数上限——EU {@code MAX_PARTY_MEMBERS 6} / NSPT {@code PARTY_PLAYER_MAX 6}，三源一致 */
-    public static final int MAX_MEMBERS = 6;
 
     private final long id;
     private long leaderId;
@@ -33,7 +31,7 @@ public class Party {
     }
 
     public boolean isFull() {
-        return memberIds.size() >= MAX_MEMBERS;
+        return memberIds.size() >= GameConstants.PARTY_MAX_MEMBERS;
     }
 
     public boolean isMember(long playerId) {
