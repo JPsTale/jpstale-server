@@ -69,6 +69,9 @@ message ClientMessage {
     C2S_PartyAction party_action = 408;   // 队伍动作（踢人/转让/解散/换模式）；action 取值 = PartyAction 枚举值
     C2S_ClanCreate clan_create = 409;     // 创建公会。**走 game-server 不走 Web**：金币权威在 game-server 内存里，
                                           // 且"校验 + 扣钱 + 建会"必须在同一处（原版是客户端→NewClan.asp，钱只在客户端校验）
+    C2S_ClanInvite clan_invite = 410;         // 邀请入会（会长/副会长）。target_id 与 target_name 二选一：
+                                              // 目标窗按钮给 id（点选目标），公会面板输名字给 name
+    C2S_ClanInviteAccept clan_invite_accept = 411; // 被邀请者的应答（accept=false = 拒绝；原版拒绝无包，这条便于对账与清 pending）
     
     // 心跳 (900-999)
     C2S_Ping ping = 900;
@@ -148,6 +151,7 @@ message ServerMessage {
     S2C_ClanCreateResult clan_create_result = 608; // 建会结果（成功带公会名/图标号；失败带 i18n key）
     S2C_ClanUpdate clan_update = 609;              // 某玩家的公会显示变了（建会/入会/退会/解散）→ 刷名牌
     S2C_ClanOpen clan_open = 610;                  // 公会管理员 NPC 开窗（照 S2C_CraftOpen：服务端判 NPC 与距离后下发）
+    S2C_ClanInviteAsk clan_invite_ask = 611;       // 被邀请者的确认弹窗（形状照 S2C_PartyInvite；同意走 C2S_ClanInviteAccept）
     
     // 系统 (900-999)
     S2C_Pong pong = 900;
@@ -974,6 +978,28 @@ message S2C_ClanUpdate {
 // （与商店/打造那条路同款校验）。
 message S2C_ClanOpen {
   int64 entity_id = 1;    // NPC 实体 id（客户端回传定位用；与 S2C_CraftOpen 同构）
+}
+
+// 邀请入会（会长/副会长发起）。原版流程 = 邀请 → 对方弹窗同意 → 才入会
+// （OPCODE_CLAN_SERVICE：WParam 1=邀请请求 / 2=被邀请方同意），**没有"直接拉人"** ——
+// 被邀请者必须自己点同意，所以是三条消息：invite → ask → accept。
+message C2S_ClanInvite {
+  int64 target_id = 1;    // 目标的**角色 id**（点选目标时用；与 C2S_PartyInvite.target_id 同语义）
+  string target_name = 2; // 目标角色名（公会面板输名字时用）；两者都给时以 id 优先
+}
+
+// 被邀请者的应答。拒绝 = accept=false（pending 就地清除；原版拒绝不发包，这条是给
+// "弹窗点了拒绝"收口的，服务端不发任何通知）。
+message C2S_ClanInviteAccept {
+  int64 inviter_id = 1;
+  bool accept = 2;
+}
+
+// 推给被邀请者的确认弹窗数据。
+message S2C_ClanInviteAsk {
+  int64 inviter_id = 1;
+  string inviter_name = 2;
+  string clan_name = 3;
 }
 
 message S2C_Chat {

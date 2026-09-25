@@ -8,13 +8,20 @@ import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.game.network.MessageSender;
 import org.jpstale.server.game.network.SessionErrors;
+import org.jpstale.server.game.network.SessionManager;
 import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.GoldService;
 import org.jpstale.server.game.service.PlayerService;
 import org.jpstale.server.proto.base.ClientMessage;
+import org.jpstale.server.proto.base.S2C_ClanInviteAsk;
+import org.jpstale.server.proto.base.S2C_SystemMessage;
 import org.jpstale.server.proto.base.S2C_ClanCreateResult;
 import org.jpstale.server.proto.base.ServerMessage;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
@@ -70,15 +77,31 @@ public class ClanHandler {
     private final ClanManager clanManager;
     private final AOIManager aoiManager;
     private final UserInfoMapper userInfoMapper;
+    private final SessionManager sessionManager;
+    private final MessageSender messageSender;
 
     public ClanHandler(PlayerService playerService, GoldService goldService, ClanManager clanManager,
-                       AOIManager aoiManager, UserInfoMapper userInfoMapper) {
+                       AOIManager aoiManager, UserInfoMapper userInfoMapper,
+                       SessionManager sessionManager, MessageSender messageSender) {
         this.playerService = playerService;
         this.goldService = goldService;
         this.clanManager = clanManager;
         this.aoiManager = aoiManager;
         this.userInfoMapper = userInfoMapper;
+        this.sessionManager = sessionManager;
+        this.messageSender = messageSender;
     }
+
+    /**
+     * 待应答的邀请：targetId → (邀请者, 公会, 时间)。
+     * 照 {@code PartyService.PendingInvite} 的模式：**同一个 target 只留最新一份**（新邀请顶旧的），
+     * TTL 60s（与组队一致）；应答时对"会长身份仍然有效"做**复判**（见 handleClanInviteAccept）。
+     */
+    private record PendingClanInvite(long inviterId, String inviterName, String clanName, long at) {}
+
+    private static final long INVITE_TTL_MS = 60_000;
+
+    private final Map<Long, PendingClanInvite> pendingInvites = new ConcurrentHashMap<>();
 
     // ------------------------------------------------------------------
     // 建会
@@ -140,6 +163,134 @@ public class ClanHandler {
                 .build());
         log.info("[Clan] {} 建会成功 clan={} 图标={} 扣款 {}",
                 p.getName(), created.clanName(), created.iconId(), CREATE_COST);
+    }
+
+    // ------------------------------------------------------------------
+    // 邀请入会（会长/副会长发起 → 对方弹窗同意 → 才入会；原版 OPCODE_CLAN_SERVICE 1/2 的流程）
+    // ------------------------------------------------------------------
+
+    @GamePacketHandler(ClientMessage.CLAN_INVITE_FIELD_NUMBER)
+    public void handleClanInvite(PlayerSession session, ClientMessage message) {
+        Player p = playerService.requirePlayer(session);
+        if (p == null) {
+            return;
+        }
+        var req = message.getClanInvite();
+
+        // ---- ① 发起者资格：在会 + 会长/副会长（服务端判，原版 ASP 有这条而其余操作没有）----
+        String inviterClan = clanManager.clanNameOf(p.getName());
+        if (inviterClan == null) {
+            SessionErrors.send(session, "clan.op.notInClan");
+            return;
+        }
+        if (!clanManager.isLeaderOrSub(inviterClan, p.getName())) {
+            SessionErrors.send(session, "clan.op.noPermission");
+            return;
+        }
+
+        // ---- ② 定位目标：id 优先，名字兜底（公会面板输名字 / 目标窗按钮给 id）----
+        PlayerSession targetSession;
+        if (req.getTargetId() > 0) {
+            targetSession = sessionManager.getSessionByCharacterId(req.getTargetId());
+        } else if (!req.getTargetName().isBlank()) {
+            targetSession = sessionManager.getSessionByCharacterName(req.getTargetName().trim());
+        } else {
+            SessionErrors.send(session, "clan.op.targetNotFound");
+            return;
+        }
+        Player target = targetSession != null && targetSession.isPlaying()
+                ? playerService.byId(targetSession.getCharacterId()) : null;
+        if (target == null) {
+            SessionErrors.send(session, "clan.op.targetOffline");
+            return;
+        }
+        Long targetId = targetSession.getCharacterId();
+        if (targetId == null || targetId == p.getId()) {
+            SessionErrors.send(session, "clan.op.cannotInviteSelf");
+            return;
+        }
+
+        // ---- ③ 目标态：未入会；本会未满 ----
+        if (clanManager.clanNameOf(target.getName()) != null) {
+            SessionErrors.send(session, "clan.op.targetAlreadyInClan");
+            return;
+        }
+        if (clanManager.membersOf(inviterClan).size() + 1 > ClanManager.MAX_MEMBERS) {
+            SessionErrors.send(session, "clan.op.clanFull");
+            return;
+        }
+
+        // ---- ④ 挂 pending，推弹窗给目标（新邀请顶旧的，TTL 60s，与组队同口径）----
+        pendingInvites.put(targetId, new PendingClanInvite(p.getId(), p.getName(), inviterClan, System.currentTimeMillis()));
+        messageSender.sendToPlayer(targetId, ServerMessage.newBuilder()
+                .setClanInviteAsk(S2C_ClanInviteAsk.newBuilder()
+                        .setInviterId(p.getId())
+                        .setInviterName(p.getName())
+                        .setClanName(inviterClan))
+                .build());
+        log.info("[Clan] 邀请: {} -> {}（clan={}）", p.getName(), target.getName(), inviterClan);
+    }
+
+    @GamePacketHandler(ClientMessage.CLAN_INVITE_ACCEPT_FIELD_NUMBER)
+    public void handleClanInviteAccept(PlayerSession session, ClientMessage message) {
+        Player acceptor = playerService.requirePlayer(session);
+        if (acceptor == null) {
+            return;
+        }
+        var acc = message.getClanInviteAccept();
+        PendingClanInvite invite = pendingInvites.remove(acceptor.getId());
+        if (invite == null || invite.inviterId() != acc.getInviterId()
+                || System.currentTimeMillis() - invite.at() > INVITE_TTL_MS) {
+            SessionErrors.send(session, "clan.op.noInvite");
+            return;
+        }
+        if (!acc.getAccept()) {
+            // 拒绝：原版不发通知，就地清 pending 即可
+            return;
+        }
+
+        // ---- 应答时刻的复判（邀请发出后到同意之间，态势可能全变了）----
+        Player inviter = playerService.byId(invite.inviterId());
+        if (inviter == null || sessionManager.getSessionByCharacterId(invite.inviterId()) == null) {
+            SessionErrors.send(session, "clan.op.inviteExpired");
+            return;
+        }
+        if (!clanManager.isLeaderOrSub(invite.clanName(), inviter.getName())) {
+            // 会长已转让/退会：原邀请不再有效
+            SessionErrors.send(session, "clan.op.noPermission");
+            return;
+        }
+        if (clanManager.clanNameOf(acceptor.getName()) != null) {
+            SessionErrors.send(session, "clan.op.targetAlreadyInClan");
+            return;
+        }
+
+        // ---- 入会（ClanManager.invite 自己还有一遍完整校验，这里过了只是省一趟）----
+        String accountName = accountNameOf(session);
+        ClanManager.Result r = clanManager.invite(invite.clanName(), inviter.getName(),
+                acceptor.getName(), accountName, acceptor.getJob(), acceptor.getLevel());
+        if (r != ClanManager.Result.OK) {
+            SessionErrors.send(session, r.key());
+            return;
+        }
+
+        // ---- 通知：双方系统消息 + 名牌/面板刷新（clanUpdate 广播给 acceptor 的视野含自己）----
+        sendSystemKey(session, "clan.invite.welcome", Map.of("clan", invite.clanName()));
+        PlayerSession inviterSession = sessionManager.getSessionByCharacterId(invite.inviterId());
+        if (inviterSession != null) {
+            sendSystemKey(inviterSession, "clan.invite.joined", Map.of("name", acceptor.getName()));
+        }
+        PlayerEntity ent = session.getEntity();
+        if (ent != null) {
+            aoiManager.broadcastClanUpdate(ent);
+        }
+        log.info("[Clan] 邀请入会完成: {} 加入 {}（会长 {}）", acceptor.getName(), invite.clanName(), inviter.getName());
+    }
+
+    private void sendSystemKey(PlayerSession session, String key, Map<String, String> params) {
+        var b = S2C_SystemMessage.newBuilder().setKey(key).setTimestamp(System.currentTimeMillis());
+        params.forEach(b::putParams);
+        session.send(ServerMessage.newBuilder().setSystemMessage(b).build());
     }
 
     // ------------------------------------------------------------------

@@ -600,7 +600,12 @@ public class ClanManager {
     // 内部
     // ==================================================================
 
-    private boolean isLeaderOrSub(String clanName, String chName) {
+    /**
+     * 操作者是否为该会的会长或副会长（邀请/踢人的权限判据）。
+     * **public**：game-server 的邀请应答链在"对方点同意"那一刻要**复判**一次
+     * （邀请发起后到同意之间，会长可能转让/退会/被踢）—— 两条链共用这一个判定。
+     */
+    public boolean isLeaderOrSub(String clanName, String chName) {
         Cl cl = findByName(clanName);
         if (cl == null) {
             return false;
