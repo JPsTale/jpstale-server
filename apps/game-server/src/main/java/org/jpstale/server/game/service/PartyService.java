@@ -56,11 +56,26 @@ public class PartyService {
 
     private final Map<Long, Party> parties = new ConcurrentHashMap<>();
     private final Map<Long, Long> playerPartyMap = new ConcurrentHashMap<>(); // playerId -> partyId
-    /** 待应答邀请：targetId -> 记录（inviterId + 发起时刻，60s 时效） */
+    /**
+     * 待应答邀请/申请：**接收弹窗者 id** -> 记录（发起者 id + 方向 + 60s 时效）。
+     *   · {@code joinRequest=false}（场景 1/5）：对方邀请**我**入队 → 我接受则入 inviter 的队；
+     *   · {@code joinRequest=true}（场景 3/4）：**对方申请加入我的队** → 我（队长/队员）同意后，
+     *     发起者入**我的**队（队员身份时还要经队长终审，见 accept）。
+     */
     private final Map<Long, PendingInvite> pendingInvites = new ConcurrentHashMap<>();
+    /** 待队长批复：leaderId -> 记录（队员/目标/场景 + 60s 时效）——两层确认的第一层 */
+    private final Map<Long, PendingRecommend> pendingRecommends = new ConcurrentHashMap<>();
     private final AtomicLong partyIdGenerator = new AtomicLong(1);
 
-    private record PendingInvite(long inviterId, long at) {}
+    private record PendingInvite(long inviterId, boolean joinRequest, long at) {}
+
+    /** 队员推荐（场景2）/ 队员代申请人转呈（场景4）；{@code joinRequest=true} 表示申请人已确认要进队 */
+    private record PendingRecommend(long memberId, long targetId, boolean joinRequest, long at) {}
+
+    /** S2C_PartyRecommendAsk.stage：0 = 场景2（队员荐散人，批准后仍需目标确认） */
+    private static final int RECOMMEND_STAGE_MEMBER_ONLY = 0;
+    /** S2C_PartyRecommendAsk.stage：1 = 场景4（散人申请、队员已同意，批准即入队） */
+    private static final int RECOMMEND_STAGE_REQUESTER_CONFIRMED = 1;
 
     // ==================== C2S 入口（PacketRouter 自动注册） ====================
 
@@ -127,44 +142,105 @@ public class PartyService {
             sendError(inviterId, "chat.party.targetOffline");
             return;
         }
-        Party inviterParty = partyOf(inviterId);
-        if (inviterParty != null && inviterParty.getLeaderId() != inviterId) {
-            sendError(inviterId, "chat.party.leaderOnly");
-            return;
-        }
-        if (playerPartyMap.containsKey(targetId)) {
-            sendError(inviterId, "chat.party.alreadyInParty");
-            return;
-        }
-        if (inviterParty != null && inviterParty.isFull()) {
-            sendError(inviterId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
-            return;
-        }
-        // 等级差 ≤10（EU 取双方"各自队伍平均等级"，我们一期取"邀请者本人或其全队平均"）
         Player inviter = playerService.byId(inviterId);
         if (inviter == null) {
             return;
         }
+        Party inviterParty = partyOf(inviterId);
+        Party targetParty = partyOf(targetId);
+        boolean inviterIsLeader = inviterParty != null && inviterParty.getLeaderId() == inviterId;
+        boolean targetIsLeader = targetParty != null && targetParty.getLeaderId() == targetId;
+
+        // 双方都有队：无任何弹窗（EU：AlreadyParty / 同队提示；我们不产生新流程）
+        if (inviterParty != null && targetParty != null) {
+            sendError(inviterId, inviterParty.getId() == targetParty.getId()
+                ? "chat.party.sameParty" : "chat.party.alreadyInParty");
+            return;
+        }
+        // 等级差（EU 取双方"各自队伍平均等级"）——发起时就拦，免得批到一半失败
         int inviterLevel = inviterParty != null ? avgLevel(inviterParty) : inviter.getLevel();
-        if (Math.abs(inviterLevel - targetPlayer.getLevel()) > GameConstants.PARTY_INVITE_LEVEL_DIFF) {
+        int targetLevel = targetParty != null ? avgLevel(targetParty) : targetPlayer.getLevel();
+        if (Math.abs(inviterLevel - targetLevel) > GameConstants.PARTY_INVITE_LEVEL_DIFF) {
             sendError(inviterId, "chat.party.levelDiff", Map.of("max", String.valueOf(GameConstants.PARTY_INVITE_LEVEL_DIFF)));
             return;
         }
-        pendingInvites.put(targetId, new PendingInvite(inviterId, System.currentTimeMillis()));
-        ServerMessage msg = ServerMessage.newBuilder()
-            .setPartyInvite(S2C_PartyInvite.newBuilder()
-                .setPartyId(inviterParty != null ? inviterParty.getId() : 0)
-                .setInviterId(inviterId)
-                .setInviterName(inviter.getName())
-                .build())
-            .build();
-        messageSender.sendToPlayer(targetId, msg);
-        log.info("[Party] invite: {} -> {}", inviter.getName(), targetPlayer.getName());
+
+        // ===== 场景 1：我是队长 → 对方散人 ⇒ 标准邀请（对方确认即入队）=====
+        if (inviterIsLeader) {
+            if (inviterParty.isFull()) {
+                sendError(inviterId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
+                return;
+            }
+            sendStandardInvite(targetId, inviterId, inviterParty.getId());
+            log.info("[Party] invite: leader {} -> {}", inviter.getName(), targetPlayer.getName());
+            return;
+        }
+
+        // ===== 场景 2：我是队员 → 对方散人 ⇒ 两层：队长批准 → 转为队长名义的邀请 =====
+        if (inviterParty != null) {
+            if (inviterParty.isFull()) {
+                sendError(inviterId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
+                return;
+            }
+            long leaderId = inviterParty.getLeaderId();
+            if (!isOnline(leaderId)) {
+                sendError(inviterId, "chat.party.leaderOffline");
+                return;
+            }
+            pendingRecommends.put(leaderId,
+                new PendingRecommend(inviterId, targetId, false, System.currentTimeMillis()));
+            messageSender.sendToPlayer(leaderId, ServerMessage.newBuilder()
+                .setPartyRecommendAsk(S2C_PartyRecommendAsk.newBuilder()
+                    .setMemberId(inviterId)
+                    .setMemberName(inviter.getName())
+                    .setTargetId(targetId)
+                    .setTargetName(targetPlayer.getName())
+                    .setStage(RECOMMEND_STAGE_MEMBER_ONLY)
+                    .build())
+                .build());
+            sendSystem(inviterId, "chat.party.recommendSent",
+                Map.of("leader", playerName(leaderId), "target", targetPlayer.getName()));
+            log.info("[Party] recommend(场景2): member {} -> leader {} for target {}",
+                inviter.getName(), playerName(leaderId), targetPlayer.getName());
+            return;
+        }
+
+        // ===== 场景 3/4：我是散人 → 对方在队 ⇒ 入队申请（方向=joinRequest）=====
+        // 场景 3：对方是队长 → 队长同意即入队（申请人自己发起的，不需要再确认自己）；
+        // 场景 4：对方是队员 → 队员先同意，再转队长终审（EU 语义：队员不能擅自放人进队）。
+        if (targetParty != null) {
+            if (targetParty.isFull()) {
+                sendError(inviterId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
+                return;
+            }
+            pendingInvites.put(targetId,
+                new PendingInvite(inviterId, true, System.currentTimeMillis()));
+            messageSender.sendToPlayer(targetId, ServerMessage.newBuilder()
+                .setPartyInvite(S2C_PartyInvite.newBuilder()
+                    .setPartyId(targetParty.getId())
+                    .setInviterId(inviterId)
+                    .setInviterName(inviter.getName())
+                    .setDirection(1)   // 1 = 申请加入你的队
+                    .build())
+                .build());
+            log.info("[Party] join-request(场景{}): {} -> {}",
+                targetIsLeader ? "3" : "4", inviter.getName(), targetPlayer.getName());
+            return;
+        }
+
+        // ===== 场景 5：双方都无队 ⇒ 直接邀请（对方接受则发起者当队长）=====
+        sendStandardInvite(targetId, inviterId, 0L);
+        log.info("[Party] invite: {} -> {} (both solo)", inviter.getName(), targetPlayer.getName());
     }
 
-    /** 接受邀请（C2S_PartyAccept{inviter_id}）。创建/加入的归属判定照 EU PacketJoinParty。 */
+    /**
+     * 接受/同意（C2S_PartyAccept{inviter_id}）—— 按 pending 的**方向**分派（用户 2026-09-25 矩阵）：
+     *   · joinRequest=false（场景 1/5）：我接受对方的邀请 ⇒ 我入**对方**的队（EU PacketJoinParty 同构）；
+     *   · joinRequest=true（场景 3/4）：我同意对方的入队申请 ⇒ 对方入**我的**队；
+     *     我是队员时（场景 4）不直接放人，转队长终审（pendingRecommends + S2C_PartyRecommendAsk）。
+     */
     public void accept(long playerId, long inviterId) {
-        if (playerPartyMap.containsKey(playerId)) {
+        if (playerPartyMap.containsKey(playerId) && pendingInvites.get(playerId) == null) {
             sendError(playerId, "chat.party.alreadyInParty");
             return;
         }
@@ -177,6 +253,49 @@ public class PartyService {
         Player inviter = playerService.byId(inviterId);
         if (inviter == null || !isOnline(inviterId)) {
             sendError(playerId, "chat.party.inviteExpired");
+            return;
+        }
+        // ===== 入队申请（场景 3/4）：申请人入我的队 =====
+        if (invite.joinRequest()) {
+            Party myParty = partyOf(playerId);
+            if (myParty == null) {
+                sendError(playerId, "chat.party.noParty");
+                return;
+            }
+            if (playerPartyMap.containsKey(inviterId)) {
+                sendError(playerId, "chat.party.alreadyInParty");
+                return;
+            }
+            if (myParty.isFull()) {
+                sendError(playerId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
+                return;
+            }
+            if (myParty.getLeaderId() != playerId) {
+                // 场景 4：我是队员 ⇒ 转队长终审（两层模型的第二跳）
+                long leaderId = myParty.getLeaderId();
+                if (!isOnline(leaderId)) {
+                    sendError(playerId, "chat.party.leaderOffline");
+                    return;
+                }
+                pendingRecommends.put(leaderId,
+                    new PendingRecommend(playerId, inviterId, true, System.currentTimeMillis()));
+                messageSender.sendToPlayer(leaderId, ServerMessage.newBuilder()
+                    .setPartyRecommendAsk(S2C_PartyRecommendAsk.newBuilder()
+                        .setMemberId(playerId)
+                        .setMemberName(playerName(playerId))
+                        .setTargetId(inviterId)
+                        .setTargetName(inviter.getName())
+                        .setStage(RECOMMEND_STAGE_REQUESTER_CONFIRMED)
+                        .build())
+                    .build());
+                sendSystem(inviterId, "chat.party.joinPending", Map.of("name", playerName(leaderId)));
+                log.info("[Party] join-request(场景4): member {} agreed, awaiting leader {}",
+                    playerName(playerId), playerName(leaderId));
+                return;
+            }
+            // 场景 3：我是队长 ⇒ 同意即入队（申请人自己发起的申请，不需要再确认自己）
+            joinExisting(myParty, inviterId);
+            log.info("[Party] join-request(场景3) accepted: {} joined {}", inviter.getName(), myParty.getId());
             return;
         }
         Party inviterParty = partyOf(inviterId);
@@ -200,6 +319,102 @@ public class PartyService {
             broadcastUpdate(inviterParty);
             log.info("[Party] {} joined {}", playerName(playerId), inviterParty.getId());
         }
+    }
+
+    /**
+     * 队长批复（{@code C2S_PartyRecommendAnswer}）——两层确认的第一层收口：
+     *   · stage=MEMBER_ONLY（场景2：队员荐散人）⇒ 批准后**转为队长名义的标准邀请**，目标还要确认；
+     *   · stage=REQUESTER_CONFIRMED（场景4：散人申请、队员已同意）⇒ 批准即 **joinExisting**（申请人已确认）。
+     * 拒绝一律只通知发起者（原版无通知；两层模型下这是他唯一的反馈）。
+     */
+    public void recommendAnswer(long leaderId, long memberId, long targetId, boolean accept) {
+        PendingRecommend rec = pendingRecommends.remove(leaderId);
+        if (rec == null || rec.memberId() != memberId || rec.targetId() != targetId
+            || System.currentTimeMillis() - rec.at() > GameConstants.PARTY_INVITE_TTL_MS) {
+            sendError(leaderId, "chat.party.noInvite");
+            return;
+        }
+        Party party = partyOf(leaderId);
+        if (party == null || party.getLeaderId() != leaderId) {
+            sendError(leaderId, "chat.party.noParty");
+            return;
+        }
+        if (!party.isMember(memberId)) {
+            sendError(leaderId, "chat.party.notMember");
+            return;
+        }
+        if (!accept) {
+            Player target = playerService.byId(targetId);
+            sendSystem(memberId, "chat.party.recommendRejected",
+                Map.of("target", target != null ? target.getName() : String.valueOf(targetId)));
+            log.info("[Party] recommend rejected by leader {}: member {} target {}", leaderId, memberId, targetId);
+            return;
+        }
+        if (party.isFull()) {
+            sendError(leaderId, "chat.party.full", Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
+            return;
+        }
+        if (!isOnline(targetId) || playerPartyMap.containsKey(targetId)) {
+            sendError(leaderId, "chat.party.targetOffline");
+            return;
+        }
+        if (rec.joinRequest()) {
+            // 场景 4 收口：申请人已确认要进队 ⇒ 批准即入队
+            joinExisting(party, targetId);
+            log.info("[Party] recommend approved(场景4): leader {} admitted {}", leaderId, targetId);
+        } else {
+            // 场景 2 收口：转为**队长名义**的标准邀请，等目标确认
+            sendStandardInvite(targetId, leaderId, party.getId());
+            log.info("[Party] recommend approved(场景2): leader {} invited target {} (recommended by {})",
+                leaderId, targetId, memberId);
+        }
+    }
+
+    @GamePacketHandler(ClientMessage.PARTY_RECOMMEND_ANSWER_FIELD_NUMBER)
+    public void handlePartyRecommendAnswer(PlayerSession session, ClientMessage message) {
+        Long cid = session.getCharacterId();
+        if (cid == null) {
+            return;
+        }
+        C2S_PartyRecommendAnswer a = message.getPartyRecommendAnswer();
+        recommendAnswer(cid, a.getMemberId(), a.getTargetId(), a.getAccept());
+    }
+
+    /** 向目标发标准邀请（direction=0：邀请你入队）；partyId=0 表示"双方都无队，接受则发起者当队长" */
+    private void sendStandardInvite(long targetId, long inviterId, long partyId) {
+        pendingInvites.put(targetId, new PendingInvite(inviterId, false, System.currentTimeMillis()));
+        messageSender.sendToPlayer(targetId, ServerMessage.newBuilder()
+            .setPartyInvite(S2C_PartyInvite.newBuilder()
+                .setPartyId(partyId)
+                .setInviterId(inviterId)
+                .setInviterName(playerName(inviterId))
+                .setDirection(0)
+                .build())
+            .build());
+    }
+
+    /** 把 playerId 加入既有队伍（复判满员/未入队），并广播名单——场景 3/4 与 accept 的落地点 */
+    private void joinExisting(Party party, long playerId) {
+        if (party.isFull() || playerPartyMap.containsKey(playerId)) {
+            sendError(party.getLeaderId(), "chat.party.full",
+                Map.of("max", String.valueOf(GameConstants.PARTY_MAX_MEMBERS)));
+            return;
+        }
+        playerPartyMap.put(playerId, party.getId());
+        party.getMemberIds().add(playerId);
+        broadcastUpdate(party);
+        log.info("[Party] {} joined {}", playerName(playerId), party.getId());
+    }
+
+    /** 无参/带参系统提示（成功类回执，如"已向队长转达"） */
+    private void sendSystem(long playerId, String key, Map<String, String> params) {
+        messageSender.sendToPlayer(playerId, ServerMessage.newBuilder()
+            .setSystemMessage(S2C_SystemMessage.newBuilder()
+                .setKey(key)
+                .putAllParams(params)
+                .setTimestamp(System.currentTimeMillis())
+                .build())
+            .build());
     }
 
     /** 队伍动作（C2S_PartyAction）：Kick/Delegate/Disband 限队长（服务端校验，不信任客户端）。 */

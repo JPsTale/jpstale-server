@@ -27,75 +27,75 @@ public class MapMonster {
     @TableField("maxenemyflag")
     private Integer maxEnemyFlag;
     @TableField("monster1")
-    private String monster1;
+    private Integer monster1;
     @TableField("count1")
     private Integer count1;
     @TableField("monster2")
-    private String monster2;
+    private Integer monster2;
     @TableField("count2")
     private Integer count2;
     @TableField("monster3")
-    private String monster3;
+    private Integer monster3;
     @TableField("count3")
     private Integer count3;
     @TableField("monster4")
-    private String monster4;
+    private Integer monster4;
     @TableField("count4")
     private Integer count4;
     @TableField("monster5")
-    private String monster5;
+    private Integer monster5;
     @TableField("count5")
     private Integer count5;
     @TableField("monster6")
-    private String monster6;
+    private Integer monster6;
     @TableField("count6")
     private Integer count6;
     @TableField("monster7")
-    private String monster7;
+    private Integer monster7;
     @TableField("count7")
     private Integer count7;
     @TableField("monster8")
-    private String monster8;
+    private Integer monster8;
     @TableField("count8")
     private Integer count8;
     @TableField("monster9")
-    private String monster9;
+    private Integer monster9;
     @TableField("count9")
     private Integer count9;
     @TableField("monster10")
-    private String monster10;
+    private Integer monster10;
     @TableField("count10")
     private Integer count10;
     @TableField("monster11")
-    private String monster11;
+    private Integer monster11;
     @TableField("count11")
     private Integer count11;
     @TableField("monster12")
-    private String monster12;
+    private Integer monster12;
     @TableField("count12")
     private Integer count12;
     @TableField("bossmonster1")
-    private String bossMonster1;
+    private Integer bossMonster1;
     @TableField("hoursbossmonster1")
     private String hoursBossMonster1;
     @TableField("submonster1")
-    private String subMonster1;
+    private Integer subMonster1;
     @TableField("countsub1")
     private Integer countSub1;
     @TableField("bossmonster2")
-    private String bossMonster2;
+    private Integer bossMonster2;
     @TableField("hoursbossmonster2")
     private String hoursBossMonster2;
     @TableField("submonster2")
-    private String subMonster2;
+    private Integer subMonster2;
     @TableField("countsub2")
     private Integer countSub2;
     @TableField("bossmonster3")
-    private String bossMonster3;
+    private Integer bossMonster3;
     @TableField("hoursbossmonster3")
     private String hoursBossMonster3;
     @TableField("submonster3")
-    private String subMonster3;
+    private Integer subMonster3;
     @TableField("countsub3")
     private Integer countSub3;
 }

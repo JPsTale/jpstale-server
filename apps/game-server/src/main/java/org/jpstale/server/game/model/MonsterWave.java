@@ -7,13 +7,14 @@ import lombok.Data;
  */
 @Data
 public class MonsterWave {
-    private String monsterName;
+    /** 该波次刷的怪物 = **monsterlist.id**（外键；表已从"按名字"迁移为按 id，2026-09-25）。 */
+    private int monsterId;
     private int count;
 
     public MonsterWave() {}
 
-    public MonsterWave(String monsterName, int count) {
-        this.monsterName = monsterName;
+    public MonsterWave(int monsterId, int count) {
+        this.monsterId = monsterId;
         this.count = count;
     }
 }

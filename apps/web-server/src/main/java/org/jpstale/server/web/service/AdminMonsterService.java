@@ -131,13 +131,13 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
             w.eq("propertymon", q.getPropertyMon());
         }
         if (q.getMap() != null) {
-            List<String> names = spawnedOnMap(q.getMap());
-            if (names.isEmpty()) {
+            List<Integer> ids = spawnedOnMap(q.getMap());
+            if (ids.isEmpty()) {
                 // 该图没有配置任何怪 ⇒ 结果必然为空。
                 // 不能用 `IN ()`（MyBatis-Plus 会生成非法 SQL），也不能"跳过条件"（那会静默返回全表）。
                 w.apply("1 = 0");
             } else {
-                w.in("name", names);
+                w.in("id", ids);
             }
         }
     }
@@ -214,22 +214,22 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
         if (m == null) {
             return null;
         }
-        String name = m.getName();
+        Integer monsterId = m.getId();      // 槽位存的就是 monsterlist.id（外键）
         Map<Integer, MapList> mapsById = mapsById();
 
         List<Map<String, Object>> maps = new ArrayList<>();
         List<Map<String, Object>> bossMaps = new ArrayList<>();
         for (MapMonster mm : mapMonsterMapper.selectList(null)) {
-            if (name != null && matchWaveSlot(mm, name)) {
+            if (monsterId != null && matchWaveSlot(mm, monsterId)) {
                 addMapRef(maps, stageOf(mm), mapsById);
                 continue;
             }
-            if (name != null && matchBossSlot(mm, name)) {
+            if (monsterId != null && matchBossSlot(mm, monsterId)) {
                 addMapRef(bossMaps, stageOf(mm), mapsById);
             }
         }
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("name", name);
+        out.put("name", m.getName());
         out.put("monsterId", m.getMonsterId());
         out.put("maps", maps);
         out.put("bossMaps", bossMaps);
@@ -237,9 +237,9 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
     }
 
     /** 该行的普通怪槽位里是否有这个名字 —— 与 `MapManager.addWave` 同一判据（**精确**字符串比较）。 */
-    private static boolean matchWaveSlot(MapMonster mm, String name) {
+    private static boolean matchWaveSlot(MapMonster mm, Integer monsterId) {
         for (int i = 1; i <= WAVE_SLOTS; i++) {
-            if (name.equals(waveSlot(mm, i))) {
+            if (monsterId.equals(waveSlot(mm, i))) {
                 return true;
             }
         }
@@ -247,16 +247,16 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
     }
 
     /** `bossmonster1..3` / `submonster1..3` 里是否有该名字。 */
-    private static boolean matchBossSlot(MapMonster mm, String name) {
+    private static boolean matchBossSlot(MapMonster mm, Integer monsterId) {
         for (int i = 1; i <= BOSS_SLOTS; i++) {
-            if (name.equals(bossSlot(mm, i)) || name.equals(subSlot(mm, i))) {
+            if (monsterId.equals(bossSlot(mm, i)) || monsterId.equals(subSlot(mm, i))) {
                 return true;
             }
         }
         return false;
     }
 
-    private static String waveSlot(MapMonster mm, int i) {
+    private static Integer waveSlot(MapMonster mm, int i) {
         return switch (i) {
             case 1 -> mm.getMonster1();
             case 2 -> mm.getMonster2();
@@ -274,7 +274,7 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
         };
     }
 
-    private static String bossSlot(MapMonster mm, int i) {
+    private static Integer bossSlot(MapMonster mm, int i) {
         return switch (i) {
             case 1 -> mm.getBossMonster1();
             case 2 -> mm.getBossMonster2();
@@ -283,7 +283,7 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
         };
     }
 
-    private static String subSlot(MapMonster mm, int i) {
+    private static Integer subSlot(MapMonster mm, int i) {
         return switch (i) {
             case 1 -> mm.getSubMonster1();
             case 2 -> mm.getSubMonster2();
@@ -292,21 +292,21 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
         };
     }
 
-    /** 该图会刷的怪名（`monster1..12` 去空去重）——"所在地图"筛选与 `spawnMaps` 同一判据。 */
-    private List<String> spawnedOnMap(int mapId) {
-        List<String> names = new ArrayList<>();
+    /** 该图会刷的怪 id（`monster1..12` 去重）——"所在地图"筛选与 `spawnMaps` 同一判据。 */
+    private List<Integer> spawnedOnMap(int mapId) {
+        List<Integer> ids = new ArrayList<>();
         for (MapMonster mm : mapMonsterMapper.selectList(null)) {
             if (!Integer.valueOf(mapId).equals(stageOf(mm))) {
                 continue;
             }
             for (int i = 1; i <= WAVE_SLOTS; i++) {
-                String n = waveSlot(mm, i);
-                if (n != null && !n.isBlank() && !names.contains(n)) {
-                    names.add(n);
+                Integer n = waveSlot(mm, i);
+                if (n != null && n > 0 && !ids.contains(n)) {
+                    ids.add(n);
                 }
             }
         }
-        return names;
+        return ids;
     }
 
     private void addMapRef(List<Map<String, Object>> out, Integer mapId, Map<Integer, MapList> mapsById) {
@@ -443,21 +443,35 @@ public class AdminMonsterService extends AdminEntityService<MonsterList, Monster
      * —— 既不全盘忽略（那是藏数据），也不假装它们真的会刷（那是谎报）。
      */
     public Map<String, Object> bosses() {
-        Set<String> names = new LinkedHashSet<>();
+        Set<Integer> ids = new LinkedHashSet<>();
         for (MapMonster mm : mapMonsterMapper.selectList(null)) {
             for (int i = 1; i <= BOSS_SLOTS; i++) {
-                addName(names, bossSlot(mm, i));
-                addName(names, subSlot(mm, i));
+                addId(ids, bossSlot(mm, i));
+                addId(ids, subSlot(mm, i));
             }
         }
+        // 响应形状保持 {names: [...]}（JS 徽标直接显示）—— 槽位是 id ⇒ 解析成 monsterlist 的显示名
+        Map<Integer, String> nameById = new LinkedHashMap<>();
+        for (MonsterList m : monsterListMapper.selectList(null)) {
+            if (m.getId() != null) {
+                nameById.put(m.getId(), m.getName());
+            }
+        }
+        List<String> names = ids.stream().map(id -> nameById.getOrDefault(id, "#" + id)).toList();
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("names", new ArrayList<>(names));
+        out.put("names", names);
         return out;
+    }
+
+    private static void addId(Set<Integer> out, Integer id) {
+        if (id != null && id > 0) {
+            out.add(id);
+        }
     }
 
     private static void addName(Set<String> out, String name) {
         if (name != null && !name.isBlank()) {
-            out.add(name.trim());
+            out.add(name);
         }
     }
 

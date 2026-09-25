@@ -69,6 +69,7 @@ message ClientMessage {
     C2S_PartyAction party_action = 408;   // 队伍动作（踢人/转让/解散/换模式）；action 取值 = PartyAction 枚举值
     C2S_ClanCreate clan_create = 409;     // 创建公会。**走 game-server 不走 Web**：金币权威在 game-server 内存里，
                                           // 且"校验 + 扣钱 + 建会"必须在同一处（原版是客户端→NewClan.asp，钱只在客户端校验）
+    C2S_PartyRecommendAnswer party_recommend_answer = 412;  // 队长对"队员推荐邀请"的批复（见消息注释）
     C2S_ClanInvite clan_invite = 410;         // 邀请入会（会长/副会长）。target_id 与 target_name 二选一：
                                               // 目标窗按钮给 id（点选目标），公会面板输名字给 name
     C2S_ClanInviteAccept clan_invite_accept = 411; // 被邀请者的应答（accept=false = 拒绝；原版拒绝无包，这条便于对账与清 pending）
@@ -152,6 +153,7 @@ message ServerMessage {
     S2C_ClanUpdate clan_update = 609;              // 某玩家的公会显示变了（建会/入会/退会/解散）→ 刷名牌
     S2C_ClanOpen clan_open = 610;                  // 公会管理员 NPC 开窗（照 S2C_CraftOpen：服务端判 NPC 与距离后下发）
     S2C_ClanInviteAsk clan_invite_ask = 611;       // 被邀请者的确认弹窗（形状照 S2C_PartyInvite；同意走 C2S_ClanInviteAccept）
+    S2C_PartyRecommendAsk party_recommend_ask = 612; // 队长的"队员推荐邀请"弹窗（见消息注释）
     
     // 系统 (900-999)
     S2C_Pong pong = 900;
@@ -601,6 +603,9 @@ message S2C_MonsterAppear {
   int32 hp = 6;
   int32 max_hp = 7;
   string model_file = 8; // 客户端渲染资源（资产相对路径，如 char/monster/monimp/monimp-a.inx）
+  // 显示名的 **i18n 键**（= monsterlist.namekey，inf 词干如 `4_hopy`）：客户端拼
+  // `monster.<name_key>.name` 查 locales（zh/en）。空 = 未映射 ⇒ 回落 `name`（英文名）。
+  string name_key = 20;
   float angle = 9;       // 面朝方向（弧度，0=Z+）
   // 尸体：这只怪已死，但仍在 AOI 内可见（服务端发 S2C_MonsterDisappear 才移除）。
   // **必须显式下发，不能由客户端从 hp==0 推** —— 那种隐式信号改一次 hp 语义就会静默失效。
@@ -923,6 +928,16 @@ message C2S_PartyAccept {
 message C2S_PartyLeave {
 }
 
+// 队长对"队员推荐邀请"的批复（用户 2026-09-25 定：**两层确认**——队长批准后服务端才以
+// 队长名义向目标发标准邀请（S2C_PartyInvite），目标同意才入队；EU 即此语义：
+// PARTYSTATE_RequestInvite 发给队长 ⇒ 队长转正式邀请 ⇒ 目标确认。NSPT 是"批准即入队"
+// （目标不确认），我们取 EU——目标必须有同意权）。
+message C2S_PartyRecommendAnswer {
+  int64 member_id = 1;   // 发起推荐的队员
+  int64 target_id = 2;   // 被推荐的目标
+  bool accept = 3;       // true = 批准（向目标发正式邀请）；false = 拒绝（通知队员被拒）
+}
+
 // 队伍动作。action 取值 = 服务端 PartyAction 枚举值（移植自 EU shared/party.h EPartyAction：
 // 1=LEAVE 2=KICK 3=DELEGATE 4=DISBAND_PARTY 6=CHANGE_MODE；DISBAND_RAID(5) 不做——D3）
 message C2S_PartyAction {
@@ -1061,8 +1076,25 @@ message S2C_PartyPlayUpdate {
 
 message S2C_PartyInvite {
   int64 party_id = 1;
+  // 发起者（邀请人 / **申请人**，按 direction 解读）
   int64 inviter_id = 2;
   string inviter_name = 3;
+  // 弹窗方向（用户 2026-09-25 矩阵；EU 两个分支归一成一条协议）：
+  //   0 = 对方**邀请你入队** → 点"接受"走 C2S_PartyAccept，你入**对方**的队（场景 1/5，及场景2 队长批准后）
+  //   1 = 对方**申请加入你的队** → 点"同意"走 C2S_PartyAccept，**对方**入你的队
+  //       （你是队长 = 场景3，同意即入队；你是队员 = 场景4，同意后转队长终审）
+  int32 direction = 4;
+}
+
+// 队长端弹窗（两层确认的第一层）：队员端先同意，再由队长批复——两个场景共用本消息，stage 区分：
+//   · stage=0（场景2）：队员 X 推荐 Y 入队 ⇒ 批准后服务端以**队长名义**向 Y 发标准邀请，Y 还要确认；
+//   · stage=1（场景4）：散人 Y 申请入队、队员 X 已同意 ⇒ 批准即让 Y 入队（Y 早已确认要进）。
+message S2C_PartyRecommendAsk {
+  int64 member_id = 1;
+  string member_name = 2;
+  int64 target_id = 3;
+  string target_name = 4;
+  int32 stage = 5;
 }
 
 // ==================== 系统消息 (900-999) ====================

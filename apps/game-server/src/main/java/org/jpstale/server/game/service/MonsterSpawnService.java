@@ -71,7 +71,7 @@ public class MonsterSpawnService {
     private CombatService combatService;
 
     /** 怪物名 → 模板 */
-    private final Map<String, MonsterList> monsterTemplatesByName = new ConcurrentHashMap<>();
+    private final Map<Integer, MonsterList> monsterTemplatesById = new ConcurrentHashMap<>();
     /**
      * `monsterid`（业务 id，全库唯一）→ 模板。
      *
@@ -83,7 +83,7 @@ public class MonsterSpawnService {
     /** 加权随机用：mapId → 累积权重数组 */
     private final Map<Integer, int[]> cumulativeWeightsByMap = new ConcurrentHashMap<>();
     /** 加权随机用：mapId → 对应怪物名列表 */
-    private final Map<Integer, List<String>> monsterNamesByMap = new ConcurrentHashMap<>();
+    private final Map<Integer, List<Integer>> monsterIdsByMap = new ConcurrentHashMap<>();
     /** 总tick计数器 */
     private long tickCounter = 0;
     /** 每张地图的总权重 */
@@ -96,14 +96,16 @@ public class MonsterSpawnService {
         buildSpawnTables();
         // 启动时不刷怪，等待玩家进入
         log.info("MonsterSpawnService initialized: {} monster types, 0 monsters spawned",
-            monsterTemplatesByName.size());
+            monsterTemplatesById.size());
     }
 
     private void loadMonsterTemplates() {
         List<MonsterList> templates = monsterListMapper.selectList(null);
         for (MonsterList t : templates) {
             if (t.getName() != null && !t.getName().isBlank()) {
-                monsterTemplatesByName.put(t.getName().trim(), t);
+                if (t.getId() != null) {
+                monsterTemplatesById.put(t.getId(), t);
+            }
             }
             if (t.getMonsterId() != null) {
                 MonsterList prev = monsterTemplatesByMonsterId.put(t.getMonsterId(), t);
@@ -134,20 +136,20 @@ public class MonsterSpawnService {
             MonsterSpawnConfig config = gameMap.getMonsterSpawnConfig();
             if (config == null || config.getWaves().isEmpty()) continue;
 
-            List<String> names = new ArrayList<>();
+            List<Integer> ids = new ArrayList<>();
             List<Integer> weights = new ArrayList<>();
             int totalWeight = 0;
 
             for (MonsterWave wave : config.getWaves()) {
-                if (monsterTemplatesByName.containsKey(wave.getMonsterName())) {
-                    names.add(wave.getMonsterName());
+                if (monsterTemplatesById.containsKey(wave.getMonsterId())) {
+                    ids.add(wave.getMonsterId());
                     totalWeight += wave.getCount();
                     weights.add(totalWeight);
                 }
             }
 
-            if (!names.isEmpty()) {
-                monsterNamesByMap.put(mapId, names);
+            if (!ids.isEmpty()) {
+                monsterIdsByMap.put(mapId, ids);
                 cumulativeWeightsByMap.put(mapId, weights.stream().mapToInt(Integer::intValue).toArray());
                 totalWeightByMap.put(mapId, totalWeight);
             }
@@ -185,11 +187,11 @@ public class MonsterSpawnService {
             SpawnPoint targetPoint = selectSpawnPoint(gameMap);
             if (targetPoint == null) continue;
 
-            // 加权随机选怪物类型
-            String monsterName = pickRandomMonster(mapId);
-            if (monsterName == null) continue;
+            // 加权随机选怪物类型（id = monsterlist 主键）
+            Integer monsterId = pickRandomMonster(mapId);
+            if (monsterId == null) continue;
 
-            MonsterList template = monsterTemplatesByName.get(monsterName);
+            MonsterList template = monsterTemplatesById.get(monsterId);
             if (template == null) continue;
 
             // 确定组队大小
@@ -279,19 +281,19 @@ public class MonsterSpawnService {
 
     // ======== 加权随机选怪物 ========
 
-    private String pickRandomMonster(int mapId) {
+    private Integer pickRandomMonster(int mapId) {
         int[] cumulative = cumulativeWeightsByMap.get(mapId);
-        List<String> names = monsterNamesByMap.get(mapId);
+        List<Integer> ids = monsterIdsByMap.get(mapId);
         Integer total = totalWeightByMap.get(mapId);
-        if (cumulative == null || names == null || total == null || total == 0) return null;
+        if (cumulative == null || ids == null || total == null || total == 0) return null;
 
         int rnd = ThreadLocalRandom.current().nextInt(total);
         for (int i = 0; i < cumulative.length; i++) {
             if (rnd < cumulative[i]) {
-                return names.get(i);
+                return ids.get(i);
             }
         }
-        return names.getLast();
+        return ids.getLast();
     }
 
     // ======== 创建怪物实例 ========
@@ -307,6 +309,8 @@ public class MonsterSpawnService {
     private Monster applyTemplate(MonsterList template) {
         Monster monster = new Monster();
         monster.setName(template.getName());
+        // i18n 键（monsterlist.namekey = inf 词干）随 Appear 下发，客户端据此查显示名
+        monster.setNameKey(template.getNameKey());
         monster.setLevel(template.getLevel() != null ? template.getLevel() : 1);
         monster.setHp(template.getHp() != null ? template.getHp() : 1);
         monster.setMaxHp(template.getHp() != null ? template.getHp() : 1);
@@ -654,7 +658,8 @@ public class MonsterSpawnService {
 
     // ======== 外部接口 ========
 
-    public MonsterList getTemplate(String name) {
-        return monsterTemplatesByName.get(name);
+    /** 按 **monsterlist 主键** 取模板（mapmonster 的槽位已是 id 外键）。 */
+    public MonsterList getTemplate(int id) {
+        return monsterTemplatesById.get(id);
     }
 }

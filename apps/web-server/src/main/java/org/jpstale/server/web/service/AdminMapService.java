@@ -235,13 +235,15 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         if (body == null) {
             throw new IllegalArgumentException("请求体为空");
         }
-        Map<String, Integer> monsterIds = monsterIdsByName();
+        // 槽位 = **monsterlist.id**（外键）；存在性校验 = id 是否在 monsterlist 里
+        java.util.Set<Integer> monsterIds = monsterListMapper.selectList(null).stream()
+                .map(MonsterList::getId).collect(java.util.stream.Collectors.toSet());
         List<String> warnings = new ArrayList<>();
 
-        String[] waveNames = new String[WAVE_SLOTS];
+        Integer[] waveIds = new Integer[WAVE_SLOTS];
         Integer[] waveCounts = new Integer[WAVE_SLOTS];
-        String[] bossNames = new String[BOSS_SLOTS];
-        String[] subNames = new String[BOSS_SLOTS];
+        Integer[] bossIds = new Integer[BOSS_SLOTS];
+        Integer[] subIds = new Integer[BOSS_SLOTS];
 
         Object rawWaves = body.get("waves");
         if (rawWaves != null) {
@@ -251,11 +253,11 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
             for (Object o : list) {
                 Map<?, ?> m = asMap(o, "waves");
                 int slot = slotOf(m.get("slot"), WAVE_SLOTS, "waves");
-                String name = blankToNull(JsonValues.toStr(m.get("monster")));
-                if (name == null) {
+                Integer monsterId = JsonValues.toInt(m.get("monster"), "waves 的 monster");
+                if (monsterId == null) {
                     continue;
                 }
-                if (waveNames[slot - 1] != null) {
+                if (waveIds[slot - 1] != null) {
                     throw new IllegalArgumentException("monster" + slot + " 出现了两次");
                 }
                 Integer count = JsonValues.toInt(m.get("count"), "waves 的 count");
@@ -266,12 +268,12 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
                     throw new IllegalArgumentException("monster" + slot + " 的数量不能为负（" + count + "）");
                 }
                 if (count == 0) {
-                    warnings.add("monster" + slot + "（" + name + "）数量为 0，刷怪代码会跳过它");
+                    warnings.add("monster" + slot + "（id " + monsterId + "）数量为 0，刷怪代码会跳过它");
                 }
-                if (!monsterIds.containsKey(name)) {
-                    warnings.add("monster" + slot + "：怪物名 " + name + " 在 monsterlist 里找不到，刷怪代码会跳过它");
+                if (!monsterIds.contains(monsterId)) {
+                    warnings.add("monster" + slot + "：怪物 id " + monsterId + " 在 monsterlist 里不存在，刷怪代码会跳过它");
                 }
-                waveNames[slot - 1] = name;
+                waveIds[slot - 1] = monsterId;
                 waveCounts[slot - 1] = count;
             }
         }
@@ -288,18 +290,18 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
                     throw new IllegalArgumentException("bossWaves 的 kind 只能是 boss 或 sub（收到：" + kind + "）");
                 }
                 int slot = slotOf(m.get("slot"), BOSS_SLOTS, "bossWaves");
-                String name = blankToNull(JsonValues.toStr(m.get("monster")));
-                if (name == null) {
+                Integer monsterId = JsonValues.toInt(m.get("monster"), "bossWaves 的 monster");
+                if (monsterId == null) {
                     continue;
                 }
-                String[] target = kind.equals("boss") ? bossNames : subNames;
+                Integer[] target = kind.equals("boss") ? bossIds : subIds;
                 if (target[slot - 1] != null) {
                     throw new IllegalArgumentException(kind + slot + " 出现了两次");
                 }
-                if (!monsterIds.containsKey(name)) {
-                    warnings.add(kind + "monster" + slot + "：怪物名 " + name + " 在 monsterlist 里找不到，刷怪代码会跳过它");
+                if (!monsterIds.contains(monsterId)) {
+                    warnings.add(kind + "monster" + slot + "：怪物 id " + monsterId + " 在 monsterlist 里不存在，刷怪代码会跳过它");
                 }
-                target[slot - 1] = name;
+                target[slot - 1] = monsterId;
             }
         }
 
@@ -317,11 +319,11 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
             row.setMaxMonsters(maxMonsters == null ? 0 : maxMonsters);
             row.setInterval(interval == null ? 0 : interval);
             for (int i = 0; i < WAVE_SLOTS; i++) {
-                setWave(row, i, waveNames[i], waveCounts[i]);
+                setWave(row, i, waveIds[i], waveCounts[i]);
             }
             for (int i = 0; i < BOSS_SLOTS; i++) {
-                setBoss(row, i, bossNames[i]);
-                setSub(row, i, subNames[i]);
+                setBoss(row, i, bossIds[i]);
+                setSub(row, i, subIds[i]);
             }
             mapMonsterMapper.insert(row);
         } else {
@@ -335,18 +337,18 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
                 u.set("interval", interval);
             }
             for (int i = 0; i < WAVE_SLOTS; i++) {
-                u.set("monster" + (i + 1), waveNames[i]);
+                u.set("monster" + (i + 1), waveIds[i]);
                 u.set("count" + (i + 1), waveCounts[i]);
             }
             for (int i = 0; i < BOSS_SLOTS; i++) {
-                u.set("bossmonster" + (i + 1), bossNames[i]);
-                u.set("submonster" + (i + 1), subNames[i]);
+                u.set("bossmonster" + (i + 1), bossIds[i]);
+                u.set("submonster" + (i + 1), subIds[i]);
             }
             mapMonsterMapper.update(null, u);
         }
         log.info("[MapAdmin] 保存刷怪配置 地图id={}{}；槽位 {} / boss {} / sub {}；告警 {} 条：{}",
-                id, created ? "（新建）" : "", countNonBlank(waveNames), countNonBlank(bossNames),
-                countNonBlank(subNames), warnings.size(), warnings);
+                id, created ? "（新建）" : "", countNonBlank(waveIds), countNonBlank(bossIds),
+                countNonBlank(subIds), warnings.size(), warnings);
 
         Map<String, Object> out = spawn(id);
         out.put("created", created);
@@ -373,9 +375,9 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         return s == null || s.isBlank() ? null : s.trim();
     }
 
-    private static int countNonBlank(String[] arr) {
+    private static int countNonBlank(Integer[] arr) {
         int n = 0;
-        for (String s : arr) {
+        for (Integer s : arr) {
             if (s != null) {
                 n++;
             }
@@ -383,38 +385,38 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         return n;
     }
 
-    private void setWave(MapMonster row, int i, String name, Integer count) {
+    private void setWave(MapMonster row, int i, Integer monsterId, Integer count) {
         switch (i) {
-            case 0 -> { row.setMonster1(name); row.setCount1(count); }
-            case 1 -> { row.setMonster2(name); row.setCount2(count); }
-            case 2 -> { row.setMonster3(name); row.setCount3(count); }
-            case 3 -> { row.setMonster4(name); row.setCount4(count); }
-            case 4 -> { row.setMonster5(name); row.setCount5(count); }
-            case 5 -> { row.setMonster6(name); row.setCount6(count); }
-            case 6 -> { row.setMonster7(name); row.setCount7(count); }
-            case 7 -> { row.setMonster8(name); row.setCount8(count); }
-            case 8 -> { row.setMonster9(name); row.setCount9(count); }
-            case 9 -> { row.setMonster10(name); row.setCount10(count); }
-            case 10 -> { row.setMonster11(name); row.setCount11(count); }
-            case 11 -> { row.setMonster12(name); row.setCount12(count); }
+            case 0 -> { row.setMonster1(monsterId); row.setCount1(count); }
+            case 1 -> { row.setMonster2(monsterId); row.setCount2(count); }
+            case 2 -> { row.setMonster3(monsterId); row.setCount3(count); }
+            case 3 -> { row.setMonster4(monsterId); row.setCount4(count); }
+            case 4 -> { row.setMonster5(monsterId); row.setCount5(count); }
+            case 5 -> { row.setMonster6(monsterId); row.setCount6(count); }
+            case 6 -> { row.setMonster7(monsterId); row.setCount7(count); }
+            case 7 -> { row.setMonster8(monsterId); row.setCount8(count); }
+            case 8 -> { row.setMonster9(monsterId); row.setCount9(count); }
+            case 9 -> { row.setMonster10(monsterId); row.setCount10(count); }
+            case 10 -> { row.setMonster11(monsterId); row.setCount11(count); }
+            case 11 -> { row.setMonster12(monsterId); row.setCount12(count); }
             default -> throw new IllegalStateException("wave 槽位越界：" + i);
         }
     }
 
-    private void setBoss(MapMonster row, int i, String name) {
+    private void setBoss(MapMonster row, int i, Integer monsterId) {
         switch (i) {
-            case 0 -> row.setBossMonster1(name);
-            case 1 -> row.setBossMonster2(name);
-            case 2 -> row.setBossMonster3(name);
+            case 0 -> row.setBossMonster1(monsterId);
+            case 1 -> row.setBossMonster2(monsterId);
+            case 2 -> row.setBossMonster3(monsterId);
             default -> throw new IllegalStateException("boss 槽位越界：" + i);
         }
     }
 
-    private void setSub(MapMonster row, int i, String name) {
+    private void setSub(MapMonster row, int i, Integer monsterId) {
         switch (i) {
-            case 0 -> row.setSubMonster1(name);
-            case 1 -> row.setSubMonster2(name);
-            case 2 -> row.setSubMonster3(name);
+            case 0 -> row.setSubMonster1(monsterId);
+            case 1 -> row.setSubMonster2(monsterId);
+            case 2 -> row.setSubMonster3(monsterId);
             default -> throw new IllegalStateException("sub 槽位越界：" + i);
         }
     }
@@ -692,7 +694,8 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         if (map == null) {
             return null;
         }
-        Map<String, Integer> monsterIdByName = monsterIdsByName();
+        // 槽位存的就是 **monsterlist.id**（2026-09-25 迁移）；显示名由 id 解析
+        Map<Integer, String> monsterNameById = monsterNamesById();
         MapMonster row = null;
         for (MapMonster mm : mapMonsterMapper.selectList(null)) {
             if (id.toString().equals(mm.getStage())) {
@@ -708,11 +711,11 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         List<Map<String, Object>> bossWaves = new ArrayList<>();
         if (row != null) {
             for (int i = 1; i <= WAVE_SLOTS; i++) {
-                addWave(waves, i, waveSlot(row, i), waveCount(row, i), monsterIdByName);
+                addWave(waves, i, waveSlot(row, i), waveCount(row, i), monsterNameById);
             }
             for (int i = 1; i <= BOSS_SLOTS; i++) {
-                addBossWave(bossWaves, "boss", i, bossSlot(row, i), monsterIdByName);
-                addBossWave(bossWaves, "sub", i, subSlot(row, i), monsterIdByName);
+                addBossWave(bossWaves, "boss", i, bossSlot(row, i), monsterNameById);
+                addBossWave(bossWaves, "sub", i, subSlot(row, i), monsterNameById);
             }
         }
         out.put("waves", waves);
@@ -720,44 +723,44 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         return out;
     }
 
-    private void addWave(List<Map<String, Object>> out, int slot, String name, Integer count,
-                         Map<String, Integer> monsterIdByName) {
-        if (name == null || name.isBlank()) {
+    private void addWave(List<Map<String, Object>> out, int slot, Integer monsterId, Integer count,
+                         Map<Integer, String> monsterNameById) {
+        if (monsterId == null) {
             return;
         }
         Map<String, Object> w = new LinkedHashMap<>();
         w.put("slot", slot);
-        w.put("monsterName", name.trim());
+        w.put("monsterId", monsterId);
+        w.put("monsterName", monsterNameById.get(monsterId));   // 未知的 id ⇒ null（JS 端显示 #id）
         w.put("count", count);
-        w.put("monsterId", monsterIdByName.get(name.trim()));
         out.add(w);
     }
 
-    private void addBossWave(List<Map<String, Object>> out, String kind, int slot, String name,
-                             Map<String, Integer> monsterIdByName) {
-        if (name == null || name.isBlank()) {
+    private void addBossWave(List<Map<String, Object>> out, String kind, int slot, Integer monsterId,
+                             Map<Integer, String> monsterNameById) {
+        if (monsterId == null) {
             return;
         }
         Map<String, Object> w = new LinkedHashMap<>();
         w.put("kind", kind);
         w.put("slot", slot);
-        w.put("monsterName", name.trim());
-        w.put("monsterId", monsterIdByName.get(name.trim()));
+        w.put("monsterId", monsterId);
+        w.put("monsterName", monsterNameById.get(monsterId));
         out.add(w);
     }
 
-    /** 这份数据（`mapmonster`）是**按名字**指怪物的 —— 名字到主键的映射在这里建一次。 */
-    private Map<String, Integer> monsterIdsByName() {
-        Map<String, Integer> out = new LinkedHashMap<>();
+    /** id → 显示名（monsterlist.name，英文名）：管理端列表展示用。 */
+    private Map<Integer, String> monsterNamesById() {
+        Map<Integer, String> out = new LinkedHashMap<>();
         for (MonsterList m : monsterListMapper.selectList(null)) {
-            if (m.getName() != null && !m.getName().isBlank()) {
-                out.put(m.getName().trim(), m.getId());
+            if (m.getId() != null) {
+                out.put(m.getId(), m.getName());
             }
         }
         return out;
     }
 
-    private static String waveSlot(MapMonster mm, int i) {
+    private static Integer waveSlot(MapMonster mm, int i) {
         return switch (i) {
             case 1 -> mm.getMonster1();
             case 2 -> mm.getMonster2();
@@ -793,7 +796,7 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         };
     }
 
-    private static String bossSlot(MapMonster mm, int i) {
+    private static Integer bossSlot(MapMonster mm, int i) {
         return switch (i) {
             case 1 -> mm.getBossMonster1();
             case 2 -> mm.getBossMonster2();
@@ -802,7 +805,7 @@ public class AdminMapService extends AdminEntityService<MapList, MapQueryParams>
         };
     }
 
-    private static String subSlot(MapMonster mm, int i) {
+    private static Integer subSlot(MapMonster mm, int i) {
         return switch (i) {
             case 1 -> mm.getSubMonster1();
             case 2 -> mm.getSubMonster2();

@@ -102,9 +102,9 @@ public class MapManager {
         }
     }
 
-    private void addWave(List<MonsterWave> waves, String monsterName, Integer count) {
-        if (monsterName != null && !monsterName.isBlank() && count != null && count > 0) {
-            waves.add(new MonsterWave(monsterName.trim(), count));
+    private void addWave(List<MonsterWave> waves, Integer monsterId, Integer count) {
+        if (monsterId != null && monsterId > 0 && count != null && count > 0) {
+            waves.add(new MonsterWave(monsterId, count));
         }
     }
 

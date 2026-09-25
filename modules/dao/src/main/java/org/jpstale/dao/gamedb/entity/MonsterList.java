@@ -20,6 +20,9 @@ public class MonsterList {
     private Integer id;
     @TableField("name")
     private String name;
+    /** i18n 键（inf 词干，如 4_hopy）；显示名在客户端 locales 的 monster.<namekey>.name。NULL = 未映射。 */
+    @TableField("namekey")
+    private String nameKey;
     @TableField("modelfile")
     private String modelFile;
     @TableField("level")

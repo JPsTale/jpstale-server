@@ -21,6 +21,8 @@ public class Monster extends BaseEntity {
      */
     private int templateId;
     private String name;
+    /** 显示名的 i18n 键（monsterlist.namekey = inf 词干）；NULL = 未映射 ⇒ 客户端回落 name。 */
+    private String nameKey;
     private int level;
     private int hp;
     private int maxHp;

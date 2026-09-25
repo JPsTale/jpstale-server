@@ -299,6 +299,10 @@ public class MonsterAOI {
         if (m.getModelFile() != null) {
             appear.setModelFile(m.getModelFile());
         }
+        // 显示名的 i18n 键（monsterlist.namekey = inf 词干）；NULL = 未映射 ⇒ 客户端回落 name
+        if (m.getNameKey() != null && !m.getNameKey().isBlank()) {
+            appear.setNameKey(m.getNameKey());
+        }
         // 尸体：**必须显式下发**。中途进场/重连的观察者拿不到 Death 事件，
         // 只能靠这个标记把"尸体"和"活怪"分开（否则会看到一具站着的尸体）。
         // 不要改由客户端从 hp == 0 推 —— 那是隐式信号（见 proto 该字段注释）。
