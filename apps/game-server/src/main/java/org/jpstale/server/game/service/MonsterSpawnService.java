@@ -323,9 +323,9 @@ public class MonsterSpawnService {
         // 规范化为磁盘实际小写 .inx 路径（Linux 大小写敏感）。
         // ⚠ 必须在 canRun / 动画自检**之前** —— 那两处都按 modelFile 查表。
         monster.setModelFile(normalizeModelPath(template.getModelFile()));
-        // i18n 键名段（= 该怪 .inf 的文件名词干）：由**模型路径**反查 inf 名（MONSTER_NAME_KEYS 生成表，
+        // i18n 键名段（= 该怪 .inf 的文件名词干）：模型路径 + **本行英文名**选候选（共用模型的多只怪各得各的名字）
         // `npm run monster-names` 从中文客户端的 Monster/ 目录机械抽取）。对不上 = 空串 ⇒ 客户端用数据名。
-        monster.setNameKey(infKeyOf(template.getModelFile()));
+        monster.setNameKey(infKeyOf(template.getModelFile(), template.getName()));
         // 动画条目表（下面 canRun 与攻击动画自检都要用，先取）
         MonsterAnimData animTable = MonsterAnimData.get();
         // canRun = IQ≥6 且**该模型有 RUN 动画**。
@@ -482,35 +482,60 @@ public class MonsterSpawnService {
     }
 
     /**
-     * 模型路径（DB 原始值，如 `char\monster\Monimp\Monimp-a.INI`）→ 该怪 .inf 的**文件名词干**
-     * （小写、无扩展名，如 `85_king bat`）。查生成表 {@link #MONSTER_NAME_KEYS}
-     * （键/值都小写；对不上 = null，**不猜**）。生成器见客户端仓库 `scripts/extract-monster-names.ts`。
+     * 模型路径 + 该行的 monsterlist 名 → 该怪 .inf 的**文件名词干**（i18n 键名段）。
+     *
+     * <p>⚠ **多个怪共用一个模型**（hopy.ini ← Hopy/Hopy Kid；minegolem.ini ← Mine Golem/Iron Golem），
+     * 各自 inf 的中文名不同 ⇒ 对照表记的是**候选数组**，按**该行的英文名**匹配候选的 `e`（inf 的
+     * `*Name`/库名）选词干 —— 精确到行；匹配不上取第一个（生成器已把"有中文名"的候选排前）。
+     * 对不上（模型不在表里）= null，**不猜**。生成器见客户端仓库 `scripts/extract-monster-names.ts`。
      */
-    public static String infKeyOf(String rawModelPath) {
+    public static String infKeyOf(String rawModelPath, String rowName) {
         if (rawModelPath == null || rawModelPath.isBlank()) {
             return null;
         }
-        return MONSTER_NAME_KEYS.get(rawModelPath.replace('\\', '/').trim().toLowerCase());
+        var cands = MONSTER_NAME_KEYS.get(rawModelPath.replace('\\', '/').trim().toLowerCase());
+        if (cands == null || cands.isEmpty()) {
+            return null;
+        }
+        if (rowName != null && !rowName.isBlank()) {
+            for (var c : cands) {
+                if (rowName.equalsIgnoreCase(c.e())) {
+                    return c.s();
+                }
+            }
+        }
+        return cands.get(0).s();
     }
 
     /**
-     * 模型路径 → .inf 文件名词干 的对照表（生成物，随 jar 发布）。
+     * 模型路径 → 候选 inf 列表 的对照表（生成物，随 jar 发布）。
+     * 结构：`{ 模型路径: [{ s: 词干, e: 英文名|null }, …] }`。
      * ⚠ 与名字表本体分开放：名字是 i18n 数据（客户端），这个映射是服务端建怪时算 nameKey 用的。
      */
-    private static final java.util.Map<String, String> MONSTER_NAME_KEYS = loadMonsterNameKeys();
+    private static final java.util.Map<String, java.util.List<NameCandidate>> MONSTER_NAME_KEYS =
+            loadMonsterNameKeys();
 
-    private static java.util.Map<String, String> loadMonsterNameKeys() {
+    /** 对照表的一条候选（`monster-name-keys.json` 的 `{s, e}`）。 */
+    private record NameCandidate(String s, String e) {
+    }
+
+    private static java.util.Map<String, java.util.List<NameCandidate>> loadMonsterNameKeys() {
         try (var in = MonsterSpawnService.class.getResourceAsStream("/monsterdata/monster-name-keys.json")) {
             if (in == null) {
                 throw new IllegalStateException("缺 classpath 资源 monsterdata/monster-name-keys.json"
                         + " —— 由客户端仓库 scripts/extract-monster-names.ts 生成，随 common-service/dao 发布");
             }
             var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(in);
-            var out = new java.util.HashMap<String, String>();
+            var out = new java.util.HashMap<String, java.util.List<NameCandidate>>();
             var fields = root.fields();
             while (fields.hasNext()) {
                 var e = fields.next();
-                out.put(e.getKey(), e.getValue().asText());
+                var list = new java.util.ArrayList<NameCandidate>();
+                for (var c : e.getValue()) {
+                    list.add(new NameCandidate(c.get("s").asText(),
+                            c.hasNonNull("e") ? c.get("e").asText() : null));
+                }
+                out.put(e.getKey(), java.util.List.copyOf(list));
             }
             return java.util.Map.copyOf(out);
         } catch (java.io.IOException e) {
