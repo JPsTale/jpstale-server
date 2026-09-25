@@ -172,6 +172,13 @@ public class AOIManager {
                 clan = new String[]{String.valueOf(row.get("clan_name")), icon != null ? String.valueOf(icon.intValue()) : ""};
             }
             clanCache.put(charId, clan);
+            // 写回 Player：S2C_CharacterStatus（角色面板）的公会字段从这里取 ——
+            // PlayerService 不再自己查库/缓存（缓存的 owner 只有这一处，AGENTS #15）
+            Player p2 = e.getPlayer();
+            if (p2 != null) {
+                p2.setClanName(clan[0]);
+                p2.setClanMark(clan[1]);
+            }
             return clan;
         } catch (Exception ex) {
             log.error("[AOI] 查公会失败（这**不是**「没有公会」）chName={}: {}", chName, ex.toString(), ex);

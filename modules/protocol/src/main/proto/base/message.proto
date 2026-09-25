@@ -572,6 +572,11 @@ message S2C_CharacterStatus {
   // 转职阶级（原版 smCharInfo.ChangeJob：0=1转…3=4转；JobService 按等级 20/40/60 推进）。
   // 面板职业名按它取 jobTier[rank]；头模档位走 S2C_AppearanceUpdate.rank（外观链），这里是面板链。
   int32 rank = 49;
+  // 公会显示（2026-09-25）：自机名牌与角色信息面板的**初始态**来源 —— 进图时 AOI 已查过
+  // ul/clanlist（clanOf 缓存到 Player），这里随状态推送一起下发；建会/入会/退会后的**增量**
+  // 走 S2C_ClanUpdate（609），不靠下一次状态推送。
+  string clan_name = 50;    // 空串 = 无公会
+  string clan_mark = 51;    // 图标编号（clandb.cl.miconcnt 转字符串）；无公会为空串
 }
 
 // 外观更新：穿/脱装备、W 武器切换后服务端推送，客户端据此更新 3D 角色模型。

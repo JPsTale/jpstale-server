@@ -365,7 +365,10 @@ public class PlayerService {
             .setSkillPoint(skillPointService.free(p, SkillPointService.Pool.ONE))
             .setSpecialSkillPoint(skillPointService.free(p, SkillPointService.Pool.FOUR))
             // 转职阶级（JobService 按等级推进；面板职业名 jobTier[rank] 用）
-            .setRank(p.getRank());
+            .setRank(p.getRank())
+            // 公会显示（自机名牌 + 角色信息面板的初始态；建会后的增量走 S2C_ClanUpdate）
+            .setClanName(p.getClanName() != null ? p.getClanName() : "")
+            .setClanMark(p.getClanMark() != null ? p.getClanMark() : "");
     }
 
     /**

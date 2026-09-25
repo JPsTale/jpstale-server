@@ -71,6 +71,12 @@ public class Player {
      */
     private transient boolean skillResetUsed;
 
+    // ===== 公会显示（随 AOI 的 clanOf 缓存写回；characterStatus 下发用）=====
+    /** 公会名；空串 = 无公会。缓存的唯一 owner 是 AOIManager.clanOf（查 ul/clanlist）。 */
+    private transient String clanName = "";
+    /** 图标编号（clandb.cl.miconcnt 转字符串）；空串 = 无。与 clanName 同源同生命周期。 */
+    private transient String clanMark = "";
+
     /* ─────────────── 属性包访问器（唯一读写入口；见字段注释） ─────────────── */
 
     /** 该键的值；无该键 ⇒ 注册表默认值（未注册的键 ⇒ 0）。 */
