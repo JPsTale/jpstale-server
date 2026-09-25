@@ -21,8 +21,6 @@ public class Monster extends BaseEntity {
      */
     private int templateId;
     private String name;
-    /** 怪物显示名的 i18n 键名段（= 该怪 .inf 文件名词干，小写无扩展名；空 = 没对上 inf）。 */
-    private String nameKey;
     private int level;
     private int hp;
     private int maxHp;
