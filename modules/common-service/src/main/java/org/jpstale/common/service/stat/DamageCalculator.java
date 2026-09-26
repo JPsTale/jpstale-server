@@ -37,9 +37,21 @@ public class DamageCalculator {
      *                         （`SkillSub.cpp:1935-1943`，`Jumping_Crash_Attack_Rating[point]`）
      * @param critBonusPct     暴击**率**加成（加在暴击率上再掷，不是加伤害）—— Critical Hit 的
      *                         `Critical_Hit_Critical[point]`（`Svr_Damge.cpp` 的 `Critical[0] += 表值`）
+     * @param noCrit           该技能**不暴击** —— 源码把暴击清零：`Critical[0] = 0`（Holy Bolt
+     *                         `Svr_Damge.cpp:3135` / Multi Spark `:3145/3149`；魔系技能通例）
      */
-    public record SkillMods(int accuracyBonusPct, int critBonusPct) {
-        public static final SkillMods NONE = new SkillMods(0, 0);
+    public record SkillMods(int accuracyBonusPct, int critBonusPct, boolean noCrit) {
+        public static final SkillMods NONE = new SkillMods(0, 0, false);
+
+        /** 两参便利构造（不关心 noCrit 的调用方，绝大多数是它）。 */
+        public SkillMods(int accuracyBonusPct, int critBonusPct) {
+            this(accuracyBonusPct, critBonusPct, false);
+        }
+
+        /** 该技能的"禁暴击"修正（ Holy Bolt / Multi Spark 等，`Critical[0] = 0`）。 */
+        public static SkillMods withoutCrit() {
+            return new SkillMods(0, 0, true);
+        }
     }
 
     /**
@@ -54,7 +66,7 @@ public class DamageCalculator {
         if (ThreadLocalRandom.current().nextInt(100) >= hitPercent) {
             return DamageResult.miss();
         }
-        return damageBody(player, monster, skillDamage, mods.critBonusPct());
+        return damageBody(player, monster, skillDamage, mods);
     }
 
     /** 只要暴击率加成的版本（Critical Hit 等）。 */
@@ -71,22 +83,24 @@ public class DamageCalculator {
      * 除命中判定外，其余（暴击/吸收/过度保护/最小 1 点）与普攻**同一条实现**（`damageBody`）。
      */
     public DamageResult calculatePlayerToMonsterAlwaysHit(Player player, MonsterStats monster, int skillDamage) {
-        return damageBody(player, monster, skillDamage, 0);
+        return damageBody(player, monster, skillDamage, SkillMods.NONE);
     }
 
     /** 命中判定**之后**的那半段（伤害本体）：普攻与所有技能共用，保证"不同技能只在命中/加成上分岔"。 */
-    private DamageResult damageBody(Player player, MonsterStats monster, int skillDamage, int critBonus) {
+    private DamageResult damageBody(Player player, MonsterStats monster, int skillDamage, SkillMods mods) {
         DamageResult result = new DamageResult();
 
         // 1. 基础伤害 = 玩家攻击力 + 技能伤害
         int baseDamage = skillDamage > 0 ? skillDamage : calculatePlayerAttack(player);
         result.setRawDamage(baseDamage);
 
-        // 2. 暴击判定
-        int criticalRate = calculateCriticalRate(player.getLevel(), monster.level()) + critBonus;
-        if (ThreadLocalRandom.current().nextInt(100) < criticalRate) {
-            baseDamage = (baseDamage * 170) / 100; // 1.7x 暴击伤害
-            result.setCritical(true);
+        // 2. 暴击判定（noCrit 技能不掷：源码 `Critical[0] = 0` 直接清零暴击）
+        if (!mods.noCrit()) {
+            int criticalRate = calculateCriticalRate(player.getLevel(), monster.level()) + mods.critBonusPct();
+            if (ThreadLocalRandom.current().nextInt(100) < criticalRate) {
+                baseDamage = (baseDamage * 170) / 100; // 1.7x 暴击伤害
+                result.setCritical(true);
+            }
         }
 
         // 3. 元素抗性减伤 (TODO: 实现元素系统)

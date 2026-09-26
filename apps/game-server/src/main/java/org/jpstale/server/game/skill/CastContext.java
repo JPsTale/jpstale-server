@@ -101,6 +101,15 @@ public final class CastContext {
         return statCalculator.attackPower(player);
     }
 
+    /**
+     * **装备伤害之和**（裸值）：{@code [min,max]} = 已装备物品的 `sItemInfo.Damage` 之和。
+     * 两个用途：`Power2 = 面板攻击力 − 这个值`（Healing，`Damage.cpp:253-254`）；
+     * 以及 Divine/Chain Lightning 的伤害**就是**它的掷点（原版把武器裸伤传进 `dm_SendRangeDamage`）。
+     */
+    public int[] weaponDamage() {
+        return statCalculator.weaponDamage(player);
+    }
+
     /** {@code [min,max]} 含端点随机（原版 GetRandomPos）。 */
     public int roll(double min, double max) {
         return SkillCombat.randBetween(min, max);

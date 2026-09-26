@@ -48,6 +48,23 @@ public class TargetSelectors {
     }
 
     /**
+     * 同图的存活怪（非召唤物）——**不带距离条件**的基础候选集。
+     *
+     * <p>Divine Lightning（轮转扫描）/ Chain Lightning（最近邻链）在它之上做各自的走查：
+     * 链式/轮转的距离与排序规则是**技能自己的知识**（规格书 §2.3 / §3.3），不进共用层。
+     */
+    public List<Monster> monstersOnMap(PlayerEntity self) {
+        List<Monster> candidates = new ArrayList<>();
+        for (Monster m : entityRegistry.allMonsters()) {
+            if (!m.isAlive() || m.isSummon() || m.getMapId() != self.getMapId()) {
+                continue;
+            }
+            candidates.add(m);
+        }
+        return candidates;
+    }
+
+    /**
      * 单目标校验：存在/存活/非召唤物/同图/距离（≤ 武器射程）。
      * 不可用 ⇒ `null`（有日志，**不静默换目标** —— 调用方按"零目标"处理）。
      */

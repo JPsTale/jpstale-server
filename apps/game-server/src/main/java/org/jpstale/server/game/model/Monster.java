@@ -81,6 +81,42 @@ public class Monster extends BaseEntity {
     private long lastAttackTime;
     private long deathTime;
 
+    // ======== Holy Mind 减益（祭司 T1.4 对怪施放） ========
+    //
+    // 原版是怪物身上的 `PlayHolyMind[2]`（`character.h:637`）：`[0]` = 减伤百分比、`[1]` = 剩余时长
+    // （1/16 秒粒度的计数，`rsPlayHolyMind` 写入 `LParam<<4`，每 tick `--`，`character.cpp:6534`）；
+    // 怪物出手时 `Power -= Power * PlayHolyMind[0] / 100`（`character.cpp:14917-14918`）。
+    // 我们用**到期时刻戳**代替倒数计数（不用每 tick 扫；判旧即过期），语义一致。
+
+    /** 出手伤害减免百分比（`HolyMind_DecDamage[point-1]`，10..34）。0 = 没有减益。 */
+    private int holyMindDecPct;
+    /** 减益到期时刻（`System.currentTimeMillis()`）；过期即失效（查时判，不靠 tick）。 */
+    private long holyMindUntilMs;
+
+    /**
+     * 施加 Holy Mind 减益（`rsPlayHolyMind`，`OnSever.cpp:16616-16617`）。
+     *
+     * @param decPct    出手伤害减免百分比
+     * @param durationMs 时长（原版 15 秒 = `LParam 15`；⚠ 按**生物抗性缩短**的那半句没实现 ——
+     *                  我们的 `MonsterStats` 还没有抗性字段，缺的就是那个输入，见类头缺口登记）
+     */
+    public void applyHolyMind(int decPct, long durationMs) {
+        this.holyMindDecPct = decPct;
+        this.holyMindUntilMs = System.currentTimeMillis() + durationMs;
+    }
+
+    /** 当前生效的出手减伤百分比；没施过/已过期 ⇒ 0。 */
+    public int holyMindDecPct() {
+        if (holyMindDecPct <= 0) {
+            return 0;
+        }
+        if (System.currentTimeMillis() >= holyMindUntilMs) {
+            holyMindDecPct = 0;   // 过期即清（顺手清字段，避免长期残留旧值）
+            return 0;
+        }
+        return holyMindDecPct;
+    }
+
     // ======== 召唤物归属（怪物水晶） ========
     //
     // 对应原版的三件套：`lpMasterPlayInfo`（主人指针）+ `smCharInfo.Next_Exp`（**借字段**存主人

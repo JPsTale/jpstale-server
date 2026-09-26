@@ -543,6 +543,20 @@ public class PlayerStatCalculator {
     public int[] baseAttack(Player p) { return stats(p).baseAttack; }
 
     /**
+     * **装备伤害之和**（裸值，未经属性换算）：{@code [min,max]} = EquipSummary 的 damageMin/damageMax
+     * （原版 `sinAttack_Damage[0/1] += sItemInfo.Damage[0/1]` 逐件累加）。徒手 = {0,0}。
+     *
+     * <p>两个消费方：① `Power2` = 面板攻击力 − 这个裸值（原版 `Damage.cpp:253-254`，
+     * Healing 的回复量基数用 `Power2/3`）；② Divine Lightning / Chain Lightning 的伤害就是
+     * **武器裸伤害掷点**（原版 `dm_SendRangeDamage(…, sItemInfo.Damage[0], sItemInfo.Damage[1], …)`，
+     * 规格书 §2.4/§3.3 —— 不是面板攻击力）。
+     */
+    public int[] weaponDamage(Player p) {
+        var e = stats(p).equip;
+        return new int[]{e.damageMin, e.damageMax};
+    }
+
+    /**
      * 攻击力区间（面板显示 + 伤害掷点共用）：含装备伤害之和（原版 `sinAttack_Damage[0/1] += Damage[0/1]`）。
      * 徒手用 baseAttack；有武器：min=1 + dMin*(STR+F)/F + (TAL+AGI)/40，max=3 + dMax*(STR+F)/F + (TAL+AGI)/40
      * （对齐原版 sinInvenTory.cpp；F=meleeDamageFactor）。

@@ -2,6 +2,7 @@ package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jpstale.common.service.model.DamageResult;
+import org.jpstale.common.service.model.MonsterStats;
 import org.jpstale.common.service.model.Player;
 import org.jpstale.common.service.stat.DamageCalculator;
 import org.jpstale.server.game.entity.PlayerEntity;
@@ -692,13 +693,29 @@ public class AiEngine {
     }
 
     /** 怪 → 玩家（原有实现，逐字保留；只把出刀节奏挪到了 `tryAttack`） */
+    /**
+     * 出手侧 stats：Holy Mind 减益把怪的攻击力按百分比削掉**再进伤害公式**
+     * （原版削的是出手方的 `TransAttackData.Power`，`character.cpp:14917-14918`：
+     * `Power -= Power * PlayHolyMind[0] / 100` —— 在防御/吸收之前，不是事后削最终伤害）。
+     * 没有减益时原样返回。
+     */
+    private static MonsterStats attackerStats(Monster attacker) {
+        MonsterStats s = attacker.combatStats();
+        int pct = attacker.holyMindDecPct();
+        if (pct <= 0) {
+            return s;
+        }
+        return new MonsterStats(s.level(), s.defense(), s.absorption(), s.maxHp(), s.attackRating(),
+                s.atkMin() - s.atkMin() * pct / 100, s.atkMax() - s.atkMax() * pct / 100);
+    }
+
     private void resolveMonsterVsPlayer(Monster monster, PlayerEntity target, long interval) {
         Player player = target.getPlayer();
 
         if (player == null) {
             return;
         }
-        DamageResult result = damageCalculator.calculateMonsterToPlayer(monster.combatStats(), player);
+        DamageResult result = damageCalculator.calculateMonsterToPlayer(attackerStats(monster), player);
 
         // 未命中（原版 sinGetMonsterAccuracy）：不扣血、不写战斗日志、不触发受击硬直，
         // 只广播一条 missed 让受害者头顶飘 MISS —— 低等级怪打高等级玩家常常打空，正是靠这条体现。
@@ -800,7 +817,7 @@ public class AiEngine {
      */
     private void resolveMonsterVsMonster(Monster attacker, Monster defender) {
         DamageResult result = damageCalculator.calculateMonsterToMonster(
-            attacker.combatStats(), defender.combatStats());
+            attackerStats(attacker), defender.combatStats());
 
         int mapId = defender.getMapId();
         float bx = (float) defender.getX();
