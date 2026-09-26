@@ -59,23 +59,24 @@ class SkillRulesTest {
 
     @Test
     void 槽位未开放被拒_按转职档() {
-        // 1 转只开 0..4：把前 4 槽学会后，第 5 槽（0 基 5）唯一被拒的原因是"槽没开"
+        // 1 转只开 0..3（原版 ChangeJobSkillPlus=5 含普攻占位 ⇒ 真实技能 4 个）：
+        // 把前 3 槽学会后，第 4 槽（0 基 4）唯一被拒的原因是"槽没开"
         Player p = pikeman(30, 0, 999_999);
-        chainLearned(p, 4);
-        assertEquals(SkillRules.Reason.OK, SkillRules.judge(p, resolveAt(p, 4), 5), "槽 4 是 1 转的最后一槽");
-        assertEquals(SkillRules.Reason.SLOT_LOCKED, SkillRules.judge(p, resolveAt(p, 5), 5));
+        chainLearned(p, 3);
+        assertEquals(SkillRules.Reason.OK, SkillRules.judge(p, resolveAt(p, 3), 5), "槽 3 是 1 转的最后一槽");
+        assertEquals(SkillRules.Reason.SLOT_LOCKED, SkillRules.judge(p, resolveAt(p, 4), 5));
 
-        // 2 转开 0..12
+        // 2 转开 0..11
         Player p2 = pikeman(60, 2, 999_999);
-        chainLearned(p2, 12);
-        assertEquals(SkillRules.Reason.OK, SkillRules.judge(p2, resolveAt(p2, 12), 5));
-        assertEquals(SkillRules.Reason.SLOT_LOCKED, SkillRules.judge(p2, resolveAt(p2, 13), 5));
+        chainLearned(p2, 11);
+        assertEquals(SkillRules.Reason.OK, SkillRules.judge(p2, resolveAt(p2, 11), 5));
+        assertEquals(SkillRules.Reason.SLOT_LOCKED, SkillRules.judge(p2, resolveAt(p2, 12), 5));
     }
 
     @Test
     void 五转四格一律未开放_哪怕满级满转() {
-        // 5 转（槽序 16..19）：原版没有 5 转 ⇒ 既无点池也无价目表；`openSlots(4)` 是 17
-        // （会放过槽 16），所以这一条必须由"没有价"来挡 —— 挡不住就会算出 0 元技能
+        // 5 转（槽序 16..19）：原版没有 5 转 ⇒ 既无点池也无价目表；`openSlots(4)` = 16，
+        // 槽 16 被槽位门与"没有价"两道门一起挡 —— 后者在 resolve 阶段先挡，防的是 0 元技能
         Player p = pikeman(99, 4, 999_999);
         chainLearned(p, 16);
         for (int i = 16; i < 20; i++) {
@@ -212,12 +213,13 @@ class SkillRulesTest {
 
     @Test
     void 槽位开放表() {
-        assertEquals(5, SkillRules.openSlots(0));
-        assertEquals(9, SkillRules.openSlots(1));
-        assertEquals(13, SkillRules.openSlots(2));
-        assertEquals(17, SkillRules.openSlots(3));
-        assertEquals(17, SkillRules.openSlots(4), "5 转预留：按 4 转算");
-        assertEquals(5, SkillRules.openSlots(-1), "负值不炸，按未转职");
+        // 原版 ChangeJobSkillPlus={5,9,13,17} 含普攻占位 ⇒ 开放数 = 值 − 1（见 SkillRules.OPEN_SLOTS）
+        assertEquals(4, SkillRules.openSlots(0), "1 转真实技能 4 个（不含普攻占位）");
+        assertEquals(8, SkillRules.openSlots(1));
+        assertEquals(12, SkillRules.openSlots(2));
+        assertEquals(16, SkillRules.openSlots(3));
+        assertEquals(16, SkillRules.openSlots(4), "5 转预留：按 4 转算");
+        assertEquals(4, SkillRules.openSlots(-1), "负值不炸，按未转职");
     }
 
     /** 全 11 职业 × 20 槽：id、编号、前置链与需求等级没有错位（off-by-one 只会在这种表上看出来）。 */

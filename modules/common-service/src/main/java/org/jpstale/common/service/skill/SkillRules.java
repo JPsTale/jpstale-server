@@ -31,8 +31,21 @@ public final class SkillRules {
     /** 每转职档 4 个槽。 */
     private static final int TIER_SLOTS = 4;
 
-    /** 槽位开放数：下标 = rank（1 转 5 / 2 转 9 / 3 转 13 / 4 转 17）。rank 更高按 4 转算。 */
-    private static final int[] OPEN_SLOTS = {5, 9, 13, 17, 17};
+    /**
+     * 槽位开放数：下标 = rank（1 转 4 / 2 转 8 / 3 转 12 / 4 转 16）。rank 更高按 4 转算。
+     *
+     * <p>原版数的是 {@code ChangeJobSkillPlus = {ChangeJob 0→5, 1→9, 2→13, 3→17}}
+     * （客户端 {@code sinSkill.cpp:1601-1614}），它是**含普攻占位**的排他上界，不是开放数：
+     * {@code UseSkill[0]} 是客户端手工伪造的普攻槽（{@code SearchUseSkill}：{@code Point=1}、
+     * 恒 {@code Flag=Use=1}），**真实技能从 {@code UseSkill[1]} 装起**；学习门 =
+     * {@code j < ChangeJobSkillPlus} 且 {@code j≠0}（{@code CheckingNowSkillState}），
+     * 转职任务按钮同样只数 {@code UseSkill[1..Plus-1]}（{@code sinSubMain.cpp:1461}）
+     * ⇒ 1 转真实可学技能只有 4 个。我们的 {@code slotInJob} 不含普攻占位（0 基 = 原版 j−1）
+     * ⇒ 开放数 = {@code ChangeJobSkillPlus − 1}。
+     * <p>⚠ 2026-09-26 订正：此前把 5/9/13/17 原样当开放数，每个档多开一槽
+     * （1 转第 5 个技能可学、第 6 个才被拒）。
+     */
+    private static final int[] OPEN_SLOTS = {4, 8, 12, 16, 16};
 
     /** 学习费基数（16 项，下标 = 技能编号 − 1）。 */
     private static final int[] MONEY = {
