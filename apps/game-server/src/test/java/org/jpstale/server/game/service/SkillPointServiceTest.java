@@ -58,17 +58,27 @@ class SkillPointServiceTest {
 
 
     /**
-     * 造一个注入了 `skillData` 的 {@link SkillCastService}（无 Spring 容器时的惯例：反射注入，
-     * 同 `DamageCalculatorTest`）。`buildSkillList` 会经它读"伤害百分比"（面板数据）。
+     * 造一个注入了 `skillData` 与**职业效果目录**的 {@link SkillCastService}（无 Spring 容器时的惯例：
+     * 反射注入，同 `DamageCalculatorTest`）。`buildSkillList` 会经它读"伤害百分比"（面板数据）——
+     * 那条链 2026-09-26 起经由 `JobSkillsCatalog` 分派到 `PikemanSkills`，所以两个都要接上。
      */
     private static SkillCastService castService(SkillDataRegistry data) {
         SkillCastService svc = new SkillCastService();
+        org.jpstale.server.game.skill.job.PikemanSkills pikeman = new org.jpstale.server.game.skill.job.PikemanSkills();
+        org.jpstale.server.game.skill.JobSkillsCatalog catalog =
+                new org.jpstale.server.game.skill.JobSkillsCatalog(List.of(pikeman));
         try {
             java.lang.reflect.Field f = SkillCastService.class.getDeclaredField("skillData");
             f.setAccessible(true);
             f.set(svc, data);
+            java.lang.reflect.Field pk = org.jpstale.server.game.skill.job.PikemanSkills.class.getDeclaredField("skillData");
+            pk.setAccessible(true);
+            pk.set(pikeman, data);
+            java.lang.reflect.Field cf = SkillCastService.class.getDeclaredField("catalog");
+            cf.setAccessible(true);
+            cf.set(svc, catalog);
         } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("注入 skillData 失败", e);
+            throw new IllegalStateException("注入 skillData/catalog 失败", e);
         }
         return svc;
     }
@@ -179,13 +189,14 @@ class SkillPointServiceTest {
 
     @Test
     void 槽位没开被拒() {
-        // 1 转只开 0..4：前 4 槽学会后，第 5 槽（0 基 5）唯一被拒的原因是"槽没开"
+        // 1 转只开 0..3（原版 ChangeJobSkillPlus=5 含普攻占位 ⇒ 真实技能 4 个）：
+        // 前 4 槽学会后，第 5 个技能（0 基 4）唯一被拒的原因是"槽没开"
         Player p = pikeman(30);
         p.setGold(100_000);
         for (int i = 0; i < 4; i++) {
             p.setPropInt(SkillKeys.point(idAt(i)), 1);
         }
-        assertEquals(SkillRules.Reason.SLOT_LOCKED, svc.learn(p, idAt(5)).reason());
+        assertEquals(SkillRules.Reason.SLOT_LOCKED, svc.learn(p, idAt(4)).reason());
     }
 
     @Test

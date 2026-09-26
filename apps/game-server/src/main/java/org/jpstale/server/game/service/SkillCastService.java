@@ -1,21 +1,20 @@
 package org.jpstale.server.game.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.jpstale.common.service.model.DamageResult;
 import org.jpstale.common.service.model.Player;
 import org.jpstale.common.service.props.SkillKeys;
 import org.jpstale.common.service.skill.SkillDataRegistry;
 import org.jpstale.common.service.skill.SkillRules;
-import org.jpstale.common.service.stat.DamageCalculator;
 import org.jpstale.common.service.stat.PlayerStatCalculator;
-import org.jpstale.server.common.enums.skill.SkillIds;
-import org.jpstale.server.game.entity.EntityRegistry;
 import org.jpstale.server.game.entity.PlayerEntity;
-import org.jpstale.server.game.model.Monster;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.game.skill.CastContext;
+import org.jpstale.server.game.skill.HitTarget;
+import org.jpstale.server.game.skill.JobSkills;
+import org.jpstale.server.game.skill.JobSkillsCatalog;
+import org.jpstale.server.game.skill.SegmentResult;
 import org.jpstale.server.proto.base.CommonProto;
-import org.jpstale.server.proto.base.S2C_AttackResult;
 import org.jpstale.server.proto.base.S2C_SkillStart;
 import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,36 +25,32 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 技能施法的**服务端权威编排**（设计文档 D6/D7；§9 P4）。
+ * 技能施法的**生命周期编排**（设计文档 D6/D7；§9 P4）—— 校验、扣费、CD、段防重、起手广播。
  *
  * <p><b>两次上报的链路（用户 2026-09-24 指出此前的实现违背原版做法，已按 D7 重做）</b>：
  * 原版 PT 的攻击/技能是「客户端播动画与特效 + 上报意图 → **动画事件帧**才触发伤害，每次事件帧独立结算」
  * （`EventSkill` 那一侧）。所以本服务分两段：
  * <ol>
- *   <li>{@link #begin} —— 收到 `C2S_UseSkill`（意图）：职业门/已学门/MP 校验 → 扣 MP →
+ *   <li>{@link #begin} —— 收到 `C2S_UseSkill`（意图）：职业门/已学门/迁入门/CD/MP 校验 → 扣 MP →
  *       **广播 {@code S2C_SkillStart}**（旁观者据此播同一条技能动画）→ 记下"待结算的施法"。
  *       此段**不结算任何伤害**。</li>
- *   <li>{@link #hit} —— 收到 `C2S_SkillHit`（事件帧回报）：按 `hit_index` 结算**那一段**，
- *       每段独立（`Critical Hit` 的两段各掷各的）。</li>
+ *   <li>{@link #hit} —— 收到 `C2S_SkillHit`（事件帧回报）：按 `hit_index` 把**那一段**交给
+ *       该职业的效果实现（{@code game.skill.job.*}）结算。每段独立（`Critical Hit` 的两段各掷各的）。</li>
  * </ol>
  * "哪一帧是事件帧"是**动画知识**，只在客户端（服务端没有动作数据）——AGENTS #14 同源。
  *
- * <p><b>逐技能的效果</b>（全部逐字照抄 `docs/技能系统-pikeman.md`，数值取生成物参数表）：
+ * <p><b>结构与职责边界（2026-09-26 重构，用户裁定"一职业一套技能"）</b>：
  * <ul>
- *   <li>{@link SkillIds#PIKE_WIND Pike Wind} —— 以己为中心圆 AoE、**必中**，
- *       伤害 = {@code rand(Pike_Wind_Damage[p][0..1])}（**表值直掷替换**攻击力），
- *       半径 = {@code Pike_Wind_Push_Lenght[p]}，命中者按 `AttackSize − 与施法者距离` 被**推离**；
- *       逐字 {@code SkillSub.cpp:105-129}（选敌）/ {@code Svr_Damge.cpp:2143-2172}（击退）。</li>
- *   <li>{@link SkillIds#CRITICAL_HIT Critical Hit} —— 单体 **2 段**（MotionLoop=2），
- *       每段暴击率 +{@code Critical_Hit_Critical[p]}；伤害走普攻公式。</li>
- *   <li>{@link SkillIds#JUMPING_CRASH Jumping Crash} —— 单体 1 段，伤害 = 攻击力 ×(1+表值%)，
- *       目标为恶魔系再 +30%（逐字 {@code Svr_Damge.cpp:2830-2836}；⚠ 30 不是 desc 的 100%）。</li>
+ *   <li>**本类只管生命周期**，与具体技能无关 —— 不随技能数增长（旧实现把逐技能
+ *       {@code settleXxx} 与 4 处 {@code if (skillId==…)} 分派都堆在这里，已拆走）；</li>
+ *   <li>**逐技能效果**在 {@code game.skill.job.*}（一职业一个类，EU 源码同款组织）；
+ *       登记与分派唯一入口是 {@code JobSkillsCatalog}；</li>
+ *   <li>**共用战斗件**（选敌/伤害落地/击退）在 {@code game.skill.combat.*}，全职业共享一份。</li>
  * </ul>
  *
- * <p><b>已知缺口（显式登记，不静默）</b>：技能 CD 未实现（公式依赖熟练度增长机制，P1 只存值）。
+ * <p>CD/熟练度/绑定表的下发辅助也在这里：它们是"施法"这件事的运行态，同样与具体技能无关。
  */
 @Slf4j
 @Service
@@ -67,22 +62,16 @@ public class SkillCastService {
     /** 单次施法最多结算的事件帧数（与普攻 MAX_ATTACK_SEGMENTS 同量级：原版 `EventFrame[0..3]`）。 */
     private static final int MAX_HIT_SEGMENTS = 4;
 
-    /** 武器族码（idcode 高 16 位）。 */
-    private static final int FAMILY_AXE = 0x0101;
-    private static final int FAMILY_SPEAR = 0x0105;
-    private static final int FAMILY_SWORD = 0x0107;
-
     @Autowired
     private SkillDataRegistry skillData;
 
     @Autowired
-    private DamageCalculator damageCalculator;
-
-    @Autowired
     private PlayerStatCalculator statCalculator;
 
+    /** 职业效果类的唯一登记处（`knows` = 迁入门；`of(job)` = 事件帧结算的分派）。
+     *  可为 null（单测直 new，与下方 skillData 同一惯例）。 */
     @Autowired
-    private EntityRegistry entityRegistry;
+    private JobSkillsCatalog catalog;
 
     @Autowired
     private GameMessageSender messageSender;
@@ -95,23 +84,11 @@ public class SkillCastService {
     @Lazy
     private SkillPointService skillPoints;
 
-    @Autowired
-    private BattleLogService battleLogService;
-
-    /** 死亡入口（同包包私有共用） */
-    @Autowired
-    private CombatService combatService;
-
-    /** 受击反击（与普攻同口径）；@Lazy 防 AI 与战斗的循环依赖 */
-    @Lazy
-    @Autowired
-    private AiEngine aiEngine;
-
     /** 起手的结果。 */
     public enum BeginResult {
         /** 已起手（校验通过、MP 已扣、起手广播已发）—— 后续等事件帧回报结算。 */
         STARTED,
-        /** 该技能**尚未迁入**本服务 ⇒ 调用方保持旧路（当普攻即时结算）。 */
+        /** 该技能**尚未迁入**（对应职业类没有实现）⇒ 调用方保持旧路（当普攻即时结算）。 */
         NOT_MIGRATED,
         /** 被拒绝（非本职业/未学/MP 不足）—— 什么都没发生。 */
         REJECTED,
@@ -136,12 +113,6 @@ public class SkillCastService {
      */
     private final Map<Long, Map<Integer, Long>> lastCastAt = new ConcurrentHashMap<>();
 
-    /** AoE 命中者的结算明细（伤害/击退），供日志与测试。 */
-    public record HitTarget(long monsterId, int damage, boolean critical, boolean missed, boolean knockedBack) {}
-
-    /** 一段的结算结果。 */
-    public record SegmentResult(int skillId, int hitIndex, int mpCost, List<HitTarget> hits) {}
-
     /* ────────────── ① 起手：校验 + 扣 MP + 起手广播（不结算） ────────────── */
 
     /**
@@ -159,7 +130,7 @@ public class SkillCastService {
             log.info("[Skill] {} 起手 {} 拒绝：未学（point=0）", player.getName(), Integer.toHexString(skillId));
             return BeginResult.REJECTED;
         }
-        if (!isMigrated(skillId)) {
+        if (!knowsMigrated(skillId)) {
             return BeginResult.NOT_MIGRATED;   // 未迁入：调用方走旧路，本服务不碰
         }
 
@@ -237,6 +208,11 @@ public class SkillCastService {
         return BeginResult.STARTED;
     }
 
+    /** 该技能是否已迁入（对应职业类有实现）。catalog 未注入（单测直 new）⇒ 按未迁入。 */
+    private boolean knowsMigrated(int skillId) {
+        return catalog != null && catalog.knows(skillId);
+    }
+
     /** **记一次起手**（CD 的起点 = 服务端受理这一刻）。包级可见：测试直测，不必造会话。 */
     void recordCast(long playerId, int skillId, long nowMs) {
         lastCastAt.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>()).put(skillId, nowMs);
@@ -274,9 +250,7 @@ public class SkillCastService {
             // 返回 null = "没有这个数"，由调用方按"无 CD"处理（不下发 0 之外的东西、也不判）
             return null;
         }
-        Long ms = SkillRules.cooldownMs(point, mastery, row.requireMastery());
-        // 上界 17500ms（Mastery=70 那一档）≪ int32 ⇒ 收窄是安全的；null 保持 null（显式未知）
-        return ms;
+        return SkillRules.cooldownMs(point, mastery, row.requireMastery());
     }
 
     /** 玩家离线：清掉他的 CD 计时与待结算（原版也不存 CD ⇒ 重登不延续）。 */
@@ -286,7 +260,7 @@ public class SkillCastService {
         firedSegments.remove(playerId);
     }
 
-    /* ────────────── ② 事件帧：逐段结算 ────────────── */
+    /* ────────────── ② 事件帧：逐段结算（效果在职业类，本类只校验与分派） ────────────── */
 
     /**
      * 事件帧回报（收到 `C2S_SkillHit`）：结算该段。
@@ -332,280 +306,61 @@ public class SkillCastService {
         }
 
         // 目标以**事件帧时点的现实**为准（原版 `lpCharSelPlayer` 语义：动作途中目标可能已死/走开）；
-        // 起手记的 targetId 只用于校验技能/目标一致性（上面已校验技能），这里按回报的目标找。
-        int idx = pc.level1Based() - 1;
-        List<HitTarget> hits;
-        if (skillId == SkillIds.PIKE_WIND.id()) {
-            hits = settlePikeWind(player, self, idx);
-        } else if (skillId == SkillIds.CRITICAL_HIT.id()) {
-            hits = settleCriticalHit(player, self, targetId, idx);
-        } else if (skillId == SkillIds.JUMPING_CRASH.id()) {
-            hits = settleJumpingCrash(player, self, targetId, idx);
-        } else {
+        // 起手记的 targetId 只用于校验技能/目标一致性（上面已校验技能），这里按回报的目标传下去。
+        // 结算交给该职业的效果实现（选敌/算伤害/落地都在那边与 combat 包）；本类不认识任何具体技能。
+        CastContext ctx = new CastContext(player, self, skillId, pc.level1Based(), targetId,
+                skillData, statCalculator);
+        JobSkills handler = catalog != null ? catalog.of(player.getJob()) : null;
+        List<HitTarget> hits = handler == null ? null : handler.settle(ctx);
+        if (hits == null) {
+            // 有起手却无效果实现 ⇒ 正常链路到不了这里（begin 的迁入门挡了）＝改包路径；
+            // 按"零目标"结算并留日志（源码语义：没实现的招不该有任何效果）。
+            log.warn("[Skill] {} 事件帧 {}#{} 无效果实现（迁入门被绕过？）⇒ 零目标",
+                    player.getName(), SkillKeys.describe(skillId), hitIndex);
             hits = List.of();
         }
 
-        int mpCost = mpCostOf(skillId, idx);
+        int mpCost = mpCostOf(skillId, pc.level1Based() - 1);
         log.info("[Skill] {} {} 事件帧 #{} 结算 {} 个目标",
                 player.getName(), SkillKeys.describe(skillId), hitIndex, hits.size());
         return new SegmentResult(skillId, hitIndex, mpCost, hits);
     }
 
-    /** 该技能是否已迁入本服务（未迁入 ⇒ 调用方走旧路）。 */
-    private static boolean isMigrated(int skillId) {
-        return skillId == SkillIds.PIKE_WIND.id()
-                || skillId == SkillIds.CRITICAL_HIT.id()
-                || skillId == SkillIds.JUMPING_CRASH.id();
+    /* ────────────── 成本与面板（生命周期侧的取数，均来自数据） ────────────── */
+
+    /**
+     * MP 消耗：表名来自**源码定义本身**（`SkillDefinition.useManaTable`，即 `[21] UseMana` 那格，
+     * 不再维护手写映射）。`null` 表 = 源码写的是 0 ⇒ 成本 0（这是数据，不是兜底）；
+     * 表在库里缺失/该等级没有值 ⇒ **-1（显式失败，不静默按 0）**。
+     */
+    private int mpCostOf(int skillId, int idx) {
+        if (skillData == null || !skillData.hasId(skillId)) {
+            return -1;   // 未注入（单测直 new）/ 身份表外：显式失败
+        }
+        String table = skillData.definition(skillData.byId(skillId).macro()).useManaTable();
+        if (table == null) {
+            return 0;   // 源码 [21] 写 0 ⇒ 无此表 = 免费
+        }
+        if (!skillData.hasTable(table)) {
+            log.error("[Skill] MP 表缺失：{}（定义 [21] 写的就是它，但生成物里没有）", table);
+            return -1;
+        }
+        if (idx >= skillData.tableLength(table)) {
+            log.error("[Skill] MP 表 {} 在 idx={} 处没有值（源码把表写短了）", table, idx);
+            return -1;
+        }
+        return (int) skillData.table1d(table)[idx];
     }
-
-    /* ────────────── Pike Wind：以己为中心 AoE + 必中 + 推离 ────────────── */
-
-    private List<HitTarget> settlePikeWind(Player player, PlayerEntity self, int idx) {
-        // Pike_Wind_Damage 是 **[10][2]**（min/max），必须走 table2d —— table1d 对二维表会直接抛
-        double[][] dmg2 = skillData.table2d("Pike_Wind_Damage");
-        double[] radiusTable = skillData.table1d("Pike_Wind_Push_Lenght");
-        if (dmg2 == null || radiusTable == null || idx >= dmg2.length || idx >= radiusTable.length) {
-            log.error("[Skill] Pike Wind 参数表缺失（idx={}）", idx);
-            return List.of();
-        }
-        float radius = (float) radiusTable[idx];
-
-        // 选敌：以己为中心的圆，同图、存活、非召唤物；**必中**（dm_SelectRange(…, FALSE)）
-        List<Monster> targets = new ArrayList<>();
-        for (Monster m : entityRegistry.allMonsters()) {
-            if (!m.isAlive() || m.isSummon() || m.getMapId() != self.getMapId()) {
-                continue;
-            }
-            double dx = m.getX() - self.getX();
-            double dz = m.getZ() - self.getZ();
-            if (dx * dx + dz * dz <= (double) radius * radius) {
-                targets.add(m);
-            }
-        }
-
-        // 伤害 = **面板攻击力掷点 × (1 + 表值%)** —— ⚠ **我方决定，与源码不同**（用户 2026-09-24 裁定）：
-        //   源码此招是 `lpTransSkillAttackData->Power = GetRandomPos(Pike_Wind_Damage[Point][0..1])`
-        //   （`Svr_Damge.cpp:4393`）—— 用**自己的表覆盖**攻击力，1 级只有 3..20 ⇒ 比普攻还低
-        //   （用户实测："普攻 40 点，技能只打 20 点"）。同族技能 Ground Pike/Roar/Mechanic Bomb/Spark
-        //   也都是"自己的表覆盖"；**大多数技能**则是 `pow = GetRandomPos(包的 Power[0], Power[1])` +
-        //   技能自己的百分比（包的 `Power[0..1]` = 玩家面板 `Attack_Damage`，`Damage.cpp:809-810`）。
-        //   EU 库（`skilldbnew.skilldata`）给 Pike Wind 也是自己的表（15-25），即"太弱"是共识。
-        //   我们按用户口径把表读作**百分比区间**（1 级 3..20%、10 级 21..80%），伤害随面板攻击力走。
-        int[] ap = statCalculator.attackPower(player);
-        int atk = randBetween(ap[0], ap[1]);
-        int pct = randBetween(dmg2[idx][0], dmg2[idx][1]);
-        int power = atk + atk * pct / 100;
-        List<HitTarget> hits = new ArrayList<>(targets.size());
-        for (Monster m : targets) {
-            // **必中**（原版 `dm_SelectRange(x,y,z,range,FALSE)` ⇒ `dmUseAccuracy = 0`，`Damage.cpp:428/454`）
-            // —— Pike Wind 不做命中判定；用户 2026-09-24 实测"MISS 了，跟原版不一样"⇒ 已改必中入口。
-            DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(player, m.combatStats(), power);
-            applyDamage(player, self, m, r, radius);
-            hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), !r.isMissed()));
-        }
-        return hits;
-    }
-
-    /* ────────────── Critical Hit：单体 1 段/次 + 暴击率加成（两段 = 两次事件帧） ────────────── */
-
-    private List<HitTarget> settleCriticalHit(Player player, PlayerEntity self, long targetId, int idx) {
-        double[] critTable = skillData.table1d("Critical_Hit_Critical");
-        if (critTable == null || idx >= critTable.length) {
-            log.error("[Skill] Critical Hit 参数表缺失（idx={}）", idx);
-            return List.of();
-        }
-        Monster m = requireTarget(player, self, targetId);
-        if (m == null) {
-            return List.of();
-        }
-        int critBonus = (int) critTable[idx];
-        DamageResult r = damageCalculator.calculatePlayerToMonster(player, m.combatStats(), 0, critBonus);
-        applyDamage(player, self, m, r, 0);
-        return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
-    }
-
-    /* ────────────── Jumping Crash：单体 1 段 + Power 百分比 + 恶魔加成 ────────────── */
-
-    private List<HitTarget> settleJumpingCrash(Player player, PlayerEntity self, long targetId, int idx) {
-        double[] dmgTable = skillData.table1d("Jumping_Crash_Damage");
-        if (dmgTable == null || idx >= dmgTable.length) {
-            log.error("[Skill] Jumping Crash 参数表缺失（idx={}）", idx);
-            return List.of();
-        }
-        Monster m = requireTarget(player, self, targetId);
-        if (m == null) {
-            return List.of();
-        }
-        // 伤害 = **攻击力掷点** ×(1 + 表值%)（原版 `Power += Power*Jumping_Crash_Damage[Point]/100`；
-        // 包里的 `Power` 是玩家攻击力，不是武器原始伤害）。
-        // ⚠ 2026-09-24 实测修：此前用 `baseAttack`（**武器原始伤害** 3-5 那种）当基数 ⇒
-        //   55% 加成后仍只有个位数伤害（用户报"固定 9 点"）。面板同源的攻击力区间是 `attackPower`。
-        int[] ap = statCalculator.attackPower(player);
-        int power = randBetween(ap[0], ap[1]);
-        int boosted = power + power * (int) dmgTable[idx] / 100;
-        // 恶魔系 +30%（Svr_Damge.cpp:2834 逐字；⚠ 30 不是 desc 写的 100）
-        if (m.getBrood() == Monster.Brood.DEMON) {
-            boosted += boosted * 30 / 100;
-        }
-        // **施法前临时加命中**（原版把 Attack_Rating 按百分比放大、发包后还原，`SkillSub.cpp:1935-1943`）：
-        // 我们服务端权威 ⇒ 判定时放大同样比例（不改玩家状态，"还原"天然成立）。
-        int accBonus = accuracyBonusOf(idx);
-        DamageResult r = damageCalculator.calculatePlayerToMonster(player, m.combatStats(), boosted,
-                new DamageCalculator.SkillMods(accBonus, 0));
-        applyDamage(player, self, m, r, 0);
-        log.info("[Skill] {} Jumping Crash p{} power={} boosted={} 打 {}#{}（brood={}）",
-                player.getName(), idx + 1, power, boosted, m.getName(), targetId, m.getBrood());
-        return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
-    }
-
-    /* ────────────── 共用件 ────────────── */
 
     /**
      * **面板用**：该技能该等级的"伤害加成百分比"区间（`{min,max}`；单一值时两者相等）。
-     *
      * `null` = 该技能**不是**"攻击力 ×(1+%)"模型（面板不显示伤害行，也不编一个数）。
-     * 这里是各技能伤害模型的**唯一定义处**（与 `settleXxx` 用同一张表），面板只是读它。
+     * 定义在各职业类的 {@link JobSkills#powerPct}（与结算同一张表），这里只做分派。
      *
      * @param point 1 基技能等级
      */
     public int[] powerPctOf(int skillId, int point) {
-        int idx = point - 1;
-        if (idx < 0) {
-            return null;
-        }
-        if (skillId == SkillIds.PIKE_WIND.id()) {
-            double[][] t = skillData.table2d("Pike_Wind_Damage");
-            if (t == null || idx >= t.length) {
-                return null;
-            }
-            return new int[]{(int) t[idx][0], (int) t[idx][1]};
-        }
-        if (skillId == SkillIds.JUMPING_CRASH.id()) {
-            double[] t = skillData.table1d("Jumping_Crash_Damage");
-            if (t == null || idx >= t.length) {
-                return null;
-            }
-            return new int[]{(int) t[idx], (int) t[idx]};
-        }
-        // Critical Hit / 其余：伤害本身不加百分比（它的模型是"暴击率 +表值"）⇒ 不报
-        return null;
-    }
-
-    /** Jumping Crash 的"施法前临时加命中"表值（`Jumping_Crash_Attack_Rating[10] = {10,20,…,65}`，`sinSkill_Info.cpp:193`）。 */
-    private int accuracyBonusOf(int idx) {
-        double[] t = skillData.table1d("Jumping_Crash_Attack_Rating");
-        if (t == null || idx >= t.length) {
-            log.error("[Skill] 命中加成表缺失：Jumping_Crash_Attack_Rating（idx={}）", idx);
-            return 0;
-        }
-        return (int) t[idx];
-    }
-
-    /** 技能的 MP 表名（每个技能一张 `*_UseMana`）。 */
-    private static String mpTableOf(int skillId) {
-        if (skillId == SkillIds.PIKE_WIND.id()) return "Pike_Wind_UseMana";
-        if (skillId == SkillIds.CRITICAL_HIT.id()) return "Critical_Hit_UseMana";
-        if (skillId == SkillIds.JUMPING_CRASH.id()) return "Jumping_Crash_UseMana";
-        return null;
-    }
-
-    /** MP 表值（`<技能>_UseMana[point]`）；表缺失 ⇒ -1（显式失败，不静默按 0）。 */
-    private int mpCostOf(int skillId, int idx) {
-        String table = mpTableOf(skillId);
-        if (table == null) {
-            return -1;
-        }
-        double[] t = skillData.table1d(table);
-        if (t == null || idx >= t.length) {
-            log.error("[Skill] MP 表缺失：{}", table);
-            return -1;
-        }
-        return (int) t[idx];
-    }
-
-    /** 单目标校验：存在/存活/非召唤物/同图/距离（≤ 武器射程）。 */
-    private Monster requireTarget(Player player, PlayerEntity self, long targetId) {
-        Monster m = entityRegistry.findMonster(targetId);
-        if (m == null || !m.isAlive() || m.isSummon() || m.getMapId() != self.getMapId()) {
-            log.info("[Skill] {} 目标 {} 不可用（不存在/已死/召唤物/异图）", player.getName(), targetId);
-            return null;
-        }
-        double dx = self.getX() - m.getX();
-        double dz = self.getZ() - m.getZ();
-        double range = attackRangeOf(player);
-        if (dx * dx + dz * dz > range * range) {
-            log.info("[Skill] {} 目标 {} 超距（>{}）", player.getName(), targetId, range);
-            return null;
-        }
-        return m;
-    }
-
-    /** 攻击距离（武器射程）：与 `CombatService.attackRange` 同一实现（走便捷方法，别各写一份取值链）。 */
-    private double attackRangeOf(Player player) {
-        return statCalculator.shootingRange(player);
-    }
-
-    /**
-     * 结算一条伤害：扣血/死亡 + S2C_AttackResult 广播 + 仇恨（与普攻同口径）。
-     *
-     * @param knockbackDist 推离距离（世界单位）= 原版 `AttackSize`（= `Pike_Wind_Push_Lenght`）；
-     *                      0 = 不推。
-     */
-    private void applyDamage(Player player, PlayerEntity self, Monster m, DamageResult r, float knockbackDist) {
-        S2C_AttackResult.Builder ar = S2C_AttackResult.newBuilder()
-                .setAttackerId(player.getId())
-                .setTargetId(m.getId())
-                .setDamage(r.getFinalDamage())
-                .setIsCritical(r.isCritical())
-                .setHitIndex(0);
-        if (r.isMissed()) {
-            ar.setMissed(true);
-            broadcastResult(self, ar);
-            return;
-        }
-        ar.setMissed(false);
-        m.setHp(m.getHp() - r.getFinalDamage());
-        battleLogService.playerDealtDamage(playerService.sessionOf(player), m.getName(),
-                r.getFinalDamage(), r.isCritical());
-
-        // 受击反击（Evil 无目标时；Neutral 受击也反击）——与普攻同口径
-        if (m.getNature() == 0 || m.getTargetPlayerId() == null) {
-            aiEngine.setTargetPlayer(m, self, self.getX(), self.getZ());
-        }
-
-        // 推离（AttackState=1），逐字 `Svr_Damge.cpp:2143-2172`：
-        //   ang2 = 怪→施法者 的角；ang = ang2+180°（转身背对玩家）；MoveAngle(dist)；再转回来。
-        //   dist = AttackSize − 与施法者的水平距离 ⇒ **越近推得越远**；已在范围外（≤0）不推。
-        //   两条门：|Δy|>100 或水平距>800 ⇒ 不推。
-        // 方向 = **远离**施法者（`-dx/-dz` = 从施法者指向怪）。
-        if (knockbackDist > 0 && m.isAlive()) {
-            double dx = self.getX() - m.getX();
-            double dy = self.getY() - m.getY();
-            double dz = self.getZ() - m.getZ();
-            double horizontal = Math.sqrt(dx * dx + dz * dz);
-            if (Math.abs(dy) <= 100 && horizontal <= 800) {
-                double dist = knockbackDist - horizontal;
-                if (dist > 0) {
-                    m.moveTo(m.getX() - dx, m.getY(), m.getZ() - dz, dist);
-                }
-            }
-        }
-
-        if (!m.isAlive()) {
-            combatService.handleMonsterDeath(m, player);
-        }
-        broadcastResult(self, ar);
-    }
-
-    private void broadcastResult(PlayerEntity self, S2C_AttackResult.Builder ar) {
-        messageSender.broadcastToArea(self.getMapId(), (float) self.getX(), (float) self.getZ(), AOIManager.VIEW_RANGE,
-                ServerMessage.newBuilder().setAttackResult(ar).build());
-    }
-
-    /** [min,max] 含端点随机（原版 GetRandomPos）。 */
-    private static int randBetween(double min, double max) {
-        int lo = (int) Math.round(min);
-        int hi = (int) Math.round(max);
-        return lo + ThreadLocalRandom.current().nextInt(Math.max(1, hi - lo + 1));
+        JobSkills handler = catalog != null ? catalog.of(skillId >> 16) : null;
+        return handler == null ? null : handler.powerPct(skillId, point);
     }
 }

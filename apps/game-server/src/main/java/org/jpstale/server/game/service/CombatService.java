@@ -653,7 +653,7 @@ public class CombatService {
     /**
      * 处理怪物死亡
      */
-    void handleMonsterDeath(Monster monster, Player killer) {   // 包私有：SkillCastService 的技能击杀共用
+    public void handleMonsterDeath(Monster monster, Player killer) {   // public：普攻与技能共用（SkillCombat），原来包私有是因为调用方同包
         monster.onDeath();
 
         // 注意，经验倍率应该是一个动态参数，由服务器管理员来设置基准倍率。如果有什么活动，可能会临时提高全服玩家的经验获取速度。
