@@ -101,6 +101,11 @@ public final class CastContext {
         return statCalculator.attackPower(player);
     }
 
+    /** 武器射程（世界单位）—— 解析"目标可以是玩家"的技能（Healing）时做距离门，与单体选敌同一口径。 */
+    public double shootingRange() {
+        return statCalculator.shootingRange(player);
+    }
+
     /**
      * **装备伤害之和**（裸值）：{@code [min,max]} = 已装备物品的 `sItemInfo.Damage` 之和。
      * 两个用途：`Power2 = 面板攻击力 − 这个值`（Healing，`Damage.cpp:253-254`）；

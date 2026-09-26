@@ -63,10 +63,12 @@ class PriestessSkillsTest {
     void 注册即迁移_未登记的招不算已迁() {
         assertEquals(8, priestess.job());
         for (SkillIds s : new SkillIds[]{SkillIds.HEALING, SkillIds.HOLY_BOLT, SkillIds.MULTISPARK,
-                SkillIds.HOLY_MIND, SkillIds.DIVINE_LIGHTNING, SkillIds.CHAIN_LIGHTNING}) {
+                SkillIds.HOLY_MIND, SkillIds.HOLY_REFLECTION, SkillIds.GRAND_HEALING,
+                SkillIds.DIVINE_LIGHTNING, SkillIds.CHAIN_LIGHTNING}) {
             assertTrue(priestess.handles(s.id()), s + " 应已迁入");
         }
-        assertFalse(priestess.handles(SkillIds.GRAND_HEALING.id()), "Grand Healing 本轮未迁（语义未取全）");
+        // Meditation 是**被动**：走 PlayerStatCalculator 的属性层，不进施法分派（begin 对它回 NOT_MIGRATED）
+        assertFalse(priestess.handles(SkillIds.MEDITATION.id()), "被动不进施法注册表");
         assertFalse(priestess.handles(SkillIds.SUMMON_MUSPELL.id()), "召唤未迁");
     }
 
@@ -101,6 +103,27 @@ class PriestessSkillsTest {
 
         m.applyHolyMind(22, 60_000);        // 生效期内
         assertEquals(22, m.holyMindDecPct());
+    }
+
+    @Test
+    void 技能增益窗口_覆盖刷新_过期归零_离线清理() {
+        org.jpstale.server.game.skill.SkillBuffStates buffs = new org.jpstale.server.game.skill.SkillBuffStates();
+        assertEquals(0, buffs.activeParam(7L, SkillIds.HOLY_REFLECTION.id()), "没施过 = 0");
+
+        buffs.apply(7L, SkillIds.HOLY_REFLECTION.id(), -1, 60);       // 立即过期
+        assertEquals(0, buffs.activeParam(7L, SkillIds.HOLY_REFLECTION.id()), "过期的参数 = 0");
+
+        buffs.apply(7L, SkillIds.HOLY_REFLECTION.id(), 60_000, 60);   // 生效中
+        assertEquals(60, buffs.activeParam(7L, SkillIds.HOLY_REFLECTION.id()));
+
+        buffs.apply(7L, SkillIds.HOLY_REFLECTION.id(), 60_000, 90);   // 重复施放 = 覆盖（原版重写 Time/Param）
+        assertEquals(90, buffs.activeParam(7L, SkillIds.HOLY_REFLECTION.id()));
+
+        buffs.apply(7L, SkillIds.HOLY_MIND.id(), 60_000, 22);         // 别的技能互不干扰
+        assertEquals(22, buffs.activeParam(7L, SkillIds.HOLY_MIND.id()));
+
+        buffs.clear(7L);
+        assertEquals(0, buffs.activeParam(7L, SkillIds.HOLY_REFLECTION.id()), "离线清理后 = 0");
     }
 
     /* ────────────── 选敌算法（规格书 §2.3 / §3.3 的可执行反例） ────────────── */

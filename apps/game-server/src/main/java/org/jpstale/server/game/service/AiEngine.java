@@ -12,6 +12,8 @@ import org.jpstale.server.game.model.MonsterAnimData;
 import org.jpstale.server.game.model.MonsterState;
 import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
+import org.jpstale.server.game.skill.SkillBuffStates;
+import org.jpstale.server.game.skill.combat.SkillCombat;
 import org.jpstale.server.proto.base.S2C_Damage;
 import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +66,10 @@ public class AiEngine {
 
     @Autowired
     private GameMessageSender messageSender;
+
+    /** 玩家技能型限时增益（Holy Reflection 的反弹窗口从这里查） */
+    @Autowired
+    private SkillBuffStates skillBuffStates;
 
     @Autowired
     private org.jpstale.server.game.entity.EntityRegistry entityRegistry;
@@ -709,6 +715,38 @@ public class AiEngine {
                 s.atkMin() - s.atkMin() * pct / 100, s.atkMax() - s.atkMax() * pct / 100);
     }
 
+    /**
+     * Holy Reflection 的反弹落地（条件与公式见调用处注释）。反弹量逐字：
+     * `pow = GetRandomPos(怪 atkMin..atkMax) × Param%`，再 `pow -= pow × 吸收/100`（`OnSever.cpp:34696-34705`）。
+     * 目标死亡记到祭司头上（原版 `lpExt2 = lpPlayInfo`）。
+     */
+    private void reflectHolyReflection(Monster attacker, Player priestess) {
+        int paramPct = skillBuffStates.activeParam(priestess.getId(),
+            org.jpstale.server.common.enums.skill.SkillIds.HOLY_REFLECTION.id());
+        if (paramPct <= 0 || attacker.getBrood() != Monster.Brood.UNDEAD || !attacker.isAlive()) {
+            return;
+        }
+        int pow = SkillCombat.randBetween(attacker.getAtkMin(), attacker.getAtkMax());
+        pow = pow * paramPct / 100;
+        pow -= pow * attacker.combatStats().absorption() / 100;
+        if (pow <= 0) {
+            return;
+        }
+        attacker.setHp(attacker.getHp() - pow);
+        battleLogService.playerDealtDamage(playerService.sessionOf(priestess), attacker.getName(), pow, false);
+        messageSender.broadcastToArea(attacker.getMapId(), (float) attacker.getX(), (float) attacker.getZ(), 50,
+            ServerMessage.newBuilder()
+                .setDamage(S2C_Damage.newBuilder()
+                    .setTargetId(attacker.getId())
+                    .setDamage(pow)
+                    .setCurrentHp(attacker.getHp())
+                    .build())
+                .build());
+        if (!attacker.isAlive()) {
+            combatService.handleMonsterDeath(attacker, priestess);
+        }
+    }
+
     private void resolveMonsterVsPlayer(Monster monster, PlayerEntity target, long interval) {
         Player player = target.getPlayer();
 
@@ -716,6 +754,12 @@ public class AiEngine {
             return;
         }
         DamageResult result = damageCalculator.calculateMonsterToPlayer(attackerStats(monster), player);
+
+        // **Holy Reflection（祭司 J2·3）**：亡灵怪攻击带圣盾的祭司 ⇒ 攻击者按其伤害掷点 ×Param% 吃反弹
+        // （`rsProcessAttack_SkillHolyReflection`，`OnSever.cpp:34671-34730`：在怪的攻击动作帧结算，
+        // 与怪的这一刀是否命中无关；仅对 Brood == UNDEAD 生效；再扣目标吸收）。BIONIC 抗性缩放未做
+        // （怪物无抗性模型，与 Holy Mind 同一缺口）。
+        reflectHolyReflection(monster, player);
 
         // 未命中（原版 sinGetMonsterAccuracy）：不扣血、不写战斗日志、不触发受击硬直，
         // 只广播一条 missed 让受害者头顶飘 MISS —— 低等级怪打高等级玩家常常打空，正是靠这条体现。

@@ -152,6 +152,22 @@ public class PlayerService {
         return players.get(playerId);
     }
 
+    /**
+     * 按**运行时实体 id** 找在线玩家实体 —— Healing 这类"目标可以是玩家"的技能用它解析
+     * 客户端上报的 targetId（怪物走 `EntityRegistry.findMonster`，玩家在这里）。找不到 ⇒ null。
+     */
+    public PlayerEntity entityByRuntimeId(long runtimeId) {
+        if (runtimeId <= 0) {
+            return null;
+        }
+        for (PlayerEntity e : entities.values()) {
+            if (e.getId() == runtimeId) {
+                return e;
+            }
+        }
+        return null;
+    }
+
     // ======== 在线 PlayerEntity(D11/实体化) ========
 
     /** charId → 在线玩家实体 */

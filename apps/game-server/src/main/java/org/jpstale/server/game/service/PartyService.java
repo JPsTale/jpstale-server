@@ -494,6 +494,29 @@ public class PartyService {
     // ==================== 战斗结算接入 ====================
 
     /**
+     * 该玩家所在队伍的**在线成员**（含自己；不在内存缓存的成员跳过）。未组队 ⇒ 空表（不是 null）。
+     * Grand Healing 这类"对全队生效"的技能用它（原版 `rsPlayGrandHealing` 遍历 `lpPartyMaster->PartyUserCount`）。
+     */
+    public List<Player> membersOf(long playerId) {
+        Long partyId = playerPartyMap.get(playerId);
+        if (partyId == null) {
+            return List.of();
+        }
+        Party party = parties.get(partyId);
+        if (party == null) {
+            return List.of();
+        }
+        List<Player> members = new ArrayList<>();
+        for (Long id : party.getMemberIds()) {
+            Player p = playerService.byId(id);
+            if (p != null) {
+                members.add(p);
+            }
+        }
+        return members;
+    }
+
+    /**
      * 击杀经验的全队分摊（EU {@code unitserver.cpp:580-740} OnSendExp）。
      *
      * @return {@code null} = 击杀者未组队（走单人路径）；否则返回"应得经验成员 → 份额"表

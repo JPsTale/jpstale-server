@@ -214,6 +214,8 @@ public class PlayerStatCalculator {
     private static final int[] W_D_MASTERY_BLOCK = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     /** `Critical_Mastery_Critical[10]`（`sinSkill_Info.cpp:232` 逐字）——Critical Mastery 每级暴击值。 */
     private static final int[] CRITICAL_MASTERY_CRITICAL = {7, 8, 9, 10, 12, 13, 14, 15, 16, 17};
+    /** `Meditation_Regen[10]`（`sinSkill_Info.cpp` 逐字）——Meditation 每级回蓝加值（/秒）。 */
+    static final double[] MEDITATION_REGEN = {0.6, 1, 1.4, 1.8, 2.2, 2.6, 3, 3.4, 3.8, 4.2};
 
     /**
      * 已学被动技能对面板的加成（P3：pikeman 三条；其他职业被动**尚未实现**，属 §9 P3 的"各职业被动分批"，
@@ -266,6 +268,14 @@ public class PlayerStatCalculator {
         int cm = p.getPropInt(SkillKeys.point(SkillIds.CRITICAL_MASTERY.id()));
         if (cm > 0 && mainFamily == FAMILY_SPEAR) {
             s.critical = Math.min(50, s.critical + CRITICAL_MASTERY_CRITICAL[Math.min(cm, CRITICAL_MASTERY_CRITICAL.length) - 1]);
+        }
+
+        // —— Meditation（priestess 二转·1，被动）：回蓝**累加**，无武器限制 ——
+        // 逐字 `sinInvenTory1.cpp:7830-7832`：`sinChar->Mana_Regen += Meditation_Regen[Point-1];`
+        // （该册总表唯一 `{0,0,…}` 无武器要求的技能；原版逐 tick 加进回蓝速率，我们逐秒加同值。）
+        int med = p.getPropInt(SkillKeys.point(SkillIds.MEDITATION.id()));
+        if (med > 0) {
+            s.regenMp += MEDITATION_REGEN[Math.min(med, MEDITATION_REGEN.length) - 1];
         }
     }
 

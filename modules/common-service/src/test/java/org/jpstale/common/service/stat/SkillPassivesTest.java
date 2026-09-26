@@ -164,4 +164,35 @@ class SkillPassivesTest {
         assertEquals(0, calc.stats(recalc(bare)).critical,
                 "逐字 if (sInven[0].ItemIndex)：主手没武器 ⇒ 不生效");
     }
+
+    /** priestess（job 8）属性，Meditation 测试用（无装备 ⇒ regen 全来自公式）。 */
+    private static Player priestess() {
+        Player p = new Player(0);
+        p.setCharacterId(8L);
+        p.setJob(8);
+        p.setLevel(20);
+        p.setStrength(14);
+        p.setSpirit(30);
+        p.setTalent(22);
+        p.setAgility(23);
+        p.setHealth(24);
+        p.setHp(1);
+        p.setMp(1);
+        p.setSp(1);
+        return p;
+    }
+
+    @Test
+    void 冥想十级回蓝每秒加四点二() {
+        Player p = priestess();
+        double baseMp = calc.stats(p).regenMp;
+
+        learn(p, SkillIds.MEDITATION, 10);
+        assertEquals(4.2, calc.stats(recalc(p)).regenMp - baseMp, 1e-9,
+                "Meditation_Regen[9] = 4.2（sinInvenTory1.cpp:7830-7832 逐字累加）");
+
+        learn(p, SkillIds.MEDITATION, 1);
+        assertEquals(0.6, calc.stats(recalc(p)).regenMp - baseMp, 1e-9,
+                "Meditation_Regen[0] = 0.6");
+    }
 }

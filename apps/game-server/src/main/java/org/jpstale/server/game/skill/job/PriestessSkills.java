@@ -8,19 +8,17 @@ import org.jpstale.common.service.stat.DamageCalculator;
 import org.jpstale.server.common.enums.skill.SkillIds;
 import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Monster;
-import org.jpstale.server.game.network.GameMessageSender;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.skill.CastContext;
 import org.jpstale.server.game.skill.HitTarget;
 import org.jpstale.server.game.skill.JobSkills;
+import org.jpstale.server.game.skill.SkillBuffStates;
 import org.jpstale.server.game.skill.combat.SkillCombat;
 import org.jpstale.server.game.skill.combat.TargetSelectors;
-import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.PlayerService;
 import org.jpstale.server.proto.base.S2C_Recovery;
 import org.jpstale.server.proto.base.ServerMessage;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -32,37 +30,43 @@ import java.util.function.Function;
 /**
  * 祭司（Priestess，job 8）的技能效果 —— 对照册：{@code docs/技能系统规格书-08-priestess.md}。
  *
- * <p>已迁 6 招（范围裁定：T1 全部 —— 当前 rank 0 唯一可达的档；外加规格书已有完整小节的
- * Divine Lightning（J2）/ Chain Lightning（J4））：
+ * <p>已迁 9 招（T1 全部 + T2 全部 + Chain Lightning；范围依据：rank 0 开 1..4、rank 1 开 5..8，
+ * 转职/GM 提档后 T2 必须可用 —— 用户 2026-09-26 指示）：
  * <ul>
- *   <li><b>Healing</b>（T1.1）自我治疗：{@code rand(Healing_Heal[p][0] + Power2[0]/3 + Spirit/8,
- *       Healing_Heal[p][1] + Power2[1]/3 + Spirit/6)}（`Svr_Damge.cpp:3275-3293` 逐字；
- *       `Power2` = 面板攻击力 − 装备裸伤，`Damage.cpp:253-254`；`Critical[1]` = 主属性
- *       = Spirit（魔法职业），`Damage.cpp:266`）。</li>
+ *   <li><b>Healing</b>（T1.1）治疗：**有玩家目标治目标，没有治自己**（用户 2026-09-26 指正；
+ *       原版按上报序号治疗，`rsPlayHealing` 对 char/user 都生效，`OnSever.cpp:16478`）。
+ *       回复量 = {@code rand(Healing_Heal[p][0] + Power2[0]/3 + Spirit/8, [1] + Power2[1]/3 + Spirit/6)}
+ *       （`Svr_Damge.cpp:3275-3293`；`Power2` = 面板攻击力 − 装备裸伤，`Damage.cpp:253-254`；
+ *       `Critical[1]` = 主属性 = Spirit（魔法职业），`Damage.cpp:266`）。</li>
  *   <li><b>Holy Bolt</b>（T1.2）单体：攻击力掷点 ×(1+{@code HolyBolt_Damage[p]}%)，**不暴击**
  *       （`Svr_Damge.cpp:3132-3136`）。</li>
  *   <li><b>Multi Spark</b>（T1.3）单体：火花数 {@code Param = rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])}
  *       （客户端激活时随机，`SkillSub.cpp:2785-2792`），攻击力掷点 ×(1+{@code M_Spark_Damage[p]×Param}%)，
- *       对怪 +30%（`Svr_Damge.cpp:3139-3150`；源码 `if (lpChar)` = 目标是怪 —— 我们只有 PvM ⇒ 恒成立），
- *       **不暴击**。</li>
+ *       对怪 +30%（`Svr_Damge.cpp:3139-3150`），**不暴击**。</li>
  *   <li><b>Holy Mind</b>（T1.4）对怪减益 15 秒：出手伤害 −{@code HolyMind_DecDamage[p]}%
- *       （`SkillSub.cpp:2817-2836` 发起、`OnSever.cpp:16600-16625` 落地、`character.cpp:14917-14918` 生效）。
- *       ⚠ <b>缺口（显式登记）</b>：源码按时长 ×(100−生物抗性)/100 缩短（`OnSever.cpp:16610-16613`），
- *       我们 {@code MonsterStats} 还没有抗性字段 ⇒ **固定 15 秒**（抗性系统与 DamageCalculator 的
- *       元素抗性 TODO 同一批补）。</li>
+ *       （`SkillSub.cpp:2817-2836`、`OnSever.cpp:16600-16625`、`character.cpp:14917-14918`）。
+ *       ⚠ <b>缺口（显式登记）</b>：生物抗性缩短时长没做（`MonsterStats` 无抗性字段）。</li>
+ *   <li><b>Meditation</b>（T2.1，被动）回蓝累加 {@code Meditation_Regen[p]}/秒 —— 在
+ *       `PlayerStatCalculator.applySkillPassives`（`sinInvenTory1.cpp:7830-7832`），不进本类。</li>
  *   <li><b>Divine Lightning</b>（T2.2）轮转扫描最多 {@code Divine_Lightning_Num[p]} 个敌人
- *       （3D 距离 ≤180、|dy|&lt;65），伤害 = **装备裸伤掷点**、必中（规格书 §3 逐字；
- *       `character.cpp:16266-16280` + `Damage.cpp:538`）。</li>
- *   <li><b>Chain Lightning</b>（T4.3）最近邻链（不是随机！）：主目标起、每次跳向距上一个最近者
- *       （XZ ≤{@code Chain_Lightning_Range[p]}、|dy|&lt;70、排除已选），最多
- *       {@code Chain_Lightning_Num[p]} 个；伤害 = 装备裸伤掷点、必中（规格书 §2 逐字）。</li>
+ *       （3D ≤180、|dy|&lt;65），伤害 = **装备裸伤掷点**、必中（规格书 §3）。</li>
+ *   <li><b>Holy Reflection</b>（T2.3）限时自增益 {@code Holy_Reflection_Time[p]} 秒：期间**亡灵**怪
+ *       攻击祭司 ⇒ 攻击者吃 "其伤害掷点 ×{@code Holy_Reflection_Return_Damage[p]}% −吸收" 的反弹
+ *       （`OnSever.cpp:34126-34131` + `rsProcessAttack_SkillHolyReflection :34671-34730`）。
+ *       生效窗口在 `SkillBuffStates`；反弹落地在 `AiEngine.reflectHolyReflection`。
+ *       ⚠ 同样缺生物抗性缩放（源码 `:34698-34705`）。</li>
+ *   <li><b>Grand Healing</b>（T2.4）**只治队友**（原版发送循环明确跳过施法者本人；
+ *       无队伍 = 无效果，`rsPlayGrandHealing` `OnSever.cpp:16532-16570`；规格书总表"治疗队友"）。
+ *       一次掷点全队同量：{@code rand(Grand_Healing[p][0] + Spirit/8 + Power2[0]/3, …/6 …/3)}。
+ *       不按距离过滤（源码无此判断；Virtual Life 的减量未做——那技能还没实现）。</li>
+ *   <li><b>Chain Lightning</b>（T4.3）最近邻链（不是随机！），裸伤掷点、必中（规格书 §2）。</li>
  * </ul>
  *
- * <p><b>未迁（显式，走旧路）</b>：Meditation（被动，需回蓝挂钩）、Holy Reflection（受击侧反弹规则）、
- * Grand Healing（全队治疗 —— 原版语义未取全：跳过施法者本人的发送循环、无队伍时行为未确认，
- * 待补证后接入组队 API）、Vigor Ball / Resurrection / Extinction / Virtual Life / Glacial Spike /
+ * <p><b>未迁（显式，走旧路）</b>：Vigor Ball / Resurrection / Extinction / Virtual Life / Glacial Spike /
  * Regeneration Field（维持型，U-08-8/9 未决）/ Summon Muspell（召唤系统）、5 转 4 个（无源码，
  * 服务端本就永久拒绝）。
+ * <p><b>客户端缺口（服务端已就绪）</b>：技能施法的目标解析目前只认怪（`WorldView.beginSelfSkill`
+ * 的 `monsterIdOfRoot`），Healing 治玩家目标要等客户端把玩家纳入技能瞄准。
  */
 @Slf4j
 @Service
@@ -71,7 +75,8 @@ public class PriestessSkills implements JobSkills {
     /** Divine Lightning 的轮转扫描位置（每玩家；规格书 §3.3：上次结束处继续扫，`netplay.cpp:12375` 初值 0）。 */
     private final Map<Long, Integer> divineFindCount = new java.util.concurrent.ConcurrentHashMap<>();
 
-    /** 技能 id → 结算方法。**注册即迁移**：`handles`/`settle` 都看它，不另维护名单。 */
+    /** 技能 id → 结算方法。**注册即迁移**：`handles`/`settle` 都看它，不另维护名单。
+     *  ⚠ Meditation 是被动，走 `PlayerStatCalculator` 的属性层，**不注册**在这里。 */
     private final Map<Integer, Function<CastContext, List<HitTarget>>> skills;
 
     @Autowired
@@ -89,10 +94,13 @@ public class PriestessSkills implements JobSkills {
     @Autowired
     private PlayerService playerService;
 
-    /** 治疗飘字广播（与普攻伤害广播同一条 AOI 通道） */
+    /** Grand Healing 的全队名单 */
     @Autowired
-    @Lazy
-    private GameMessageSender messageSender;
+    private org.jpstale.server.game.service.PartyService partyService;
+
+    /** Holy Reflection 的生效窗口 */
+    @Autowired
+    private SkillBuffStates skillBuffStates;
 
     public PriestessSkills() {
         Map<Integer, Function<CastContext, List<HitTarget>>> m = new LinkedHashMap<>();
@@ -100,6 +108,8 @@ public class PriestessSkills implements JobSkills {
         m.put(SkillIds.HOLY_BOLT.id(), this::holyBolt);
         m.put(SkillIds.MULTISPARK.id(), this::multiSpark);
         m.put(SkillIds.HOLY_MIND.id(), this::holyMind);
+        m.put(SkillIds.HOLY_REFLECTION.id(), this::holyReflection);
+        m.put(SkillIds.GRAND_HEALING.id(), this::grandHealing);
         m.put(SkillIds.DIVINE_LIGHTNING.id(), this::divineLightning);
         m.put(SkillIds.CHAIN_LIGHTNING.id(), this::chainLightning);
         this.skills = Map.copyOf(m);
@@ -121,7 +131,7 @@ public class PriestessSkills implements JobSkills {
         return fn == null ? null : fn.apply(c);
     }
 
-    /* ────────────── Healing（T1.1）：自我治疗 ────────────── */
+    /* ────────────── Healing（T1.1）：治疗 —— 有玩家目标治目标，没有治自己 ────────────── */
 
     private List<HitTarget> healing(CastContext c) {
         double[][] heal2 = c.table2d("Healing_Heal");
@@ -139,29 +149,57 @@ public class PriestessSkills implements JobSkills {
         int max = (int) heal2[c.idx()][1] + (ap[1] - wd[1]) / 3 + spirit / 6;
         int amount = c.roll(min, max);
 
-        int healed = Math.min(p.getMaxHp() - p.getHp(), amount);
+        // 目标解析：**有玩家目标治目标**（用户 2026-09-26 指正；原版按上报序号治疗，
+        // `rsPlayHealing` `OnSever.cpp:16478` 对 char/user 都生效），没有/无效 ⇒ 治自己。
+        Player target = resolvePlayerTarget(c);
+        boolean self = (target == p);
+        int healed = Math.min(target.getMaxHp() - target.getHp(), amount);
         if (healed > 0) {
-            p.setHp(p.getHp() + healed);
-            playerService.persistStats(p);
+            target.setHp(target.getHp() + healed);
+            playerService.persistStats(target);
         }
-        PlayerSession session = playerService.sessionOf(p);
-        PlayerEntity self = session != null ? session.getEntity() : null;
-        // 回复广播：**满血也发**（源码 `rsPlayHealing` 对满血目标同样回包，量被 clamp 到 0；
-        // 我们 current_hp 用 clamp 后的权威值）。0 量不发（0 = "没回复"是协议语义）。
-        if (self != null && healed > 0) {
-            playerService.sendPlayerStatus(session, p);
-            messageSender.broadcastToArea(self.getMapId(), (float) self.getX(), (float) self.getZ(), 50,
-                    ServerMessage.newBuilder()
-                            .setRecovery(S2C_Recovery.newBuilder()
-                                    .setTargetId(p.getId())
-                                    .setHpAmount(healed)
-                                    .setCurrentHp(p.getHp())
-                                    .build())
-                            .build());
+        // 回复广播：飘字出现在**被治疗者**头上（原版把回包发给被治疗者的 socket，客户端就地显示）。
+        if (healed > 0) {
+            PlayerSession ts = playerService.sessionOf(target);
+            if (ts != null) {
+                playerService.sendPlayerStatus(ts, target);
+                ts.send(ServerMessage.newBuilder()
+                        .setRecovery(S2C_Recovery.newBuilder()
+                                .setTargetId(target.getId())
+                                .setHpAmount(healed)
+                                .setCurrentHp(target.getHp())
+                                .build())
+                        .build());
+            }
         }
-        log.info("[Skill] {} Healing p{} 回复 {}（表 {}..{} + Power2 {}/3 + Spirit {}/8..6）",
-                p.getName(), c.point(), healed, (int) heal2[c.idx()][0], (int) heal2[c.idx()][1], ap[0] - wd[0], spirit);
+        log.info("[Skill] {} Healing p{} → {}（{}）回复 {}（表 {}..{} + Power2 {}/3 + Spirit {}/8..6）",
+                p.getName(), c.point(), target.getName(), self ? "自己" : "目标", healed,
+                (int) heal2[c.idx()][0], (int) heal2[c.idx()][1], ap[0] - wd[0], spirit);
         return List.of();   // 治疗不是伤害：零目标（源码该 case 不走伤害结算）
+    }
+
+    /**
+     * Healing 的目标解析：targetId 能对上**别的在线玩家**（存活、同图、武器射程内）就治他；
+     * 0 / 自己 / 对不上 ⇒ 治自己。⚠ 当前客户端技能瞄准只认怪，玩家目标要等客户端补（类头缺口）。
+     */
+    private Player resolvePlayerTarget(CastContext c) {
+        PlayerEntity targetEntity = playerService.entityByRuntimeId(c.targetId());
+        if (targetEntity == null || targetEntity.getPlayer() == null) {
+            return c.player();
+        }
+        Player candidate = targetEntity.getPlayer();
+        if (candidate == c.player() || targetEntity.isDead()
+                || targetEntity.getMapId() != c.self().getMapId()) {
+            return c.player();
+        }
+        double dx = targetEntity.getX() - c.self().getX();
+        double dz = targetEntity.getZ() - c.self().getZ();
+        double range = c.shootingRange();
+        if (dx * dx + dz * dz > range * range) {
+            log.info("[Skill] {} Healing 目标 {} 超距（>{}）⇒ 治自己", c.player().getName(), candidate.getName(), range);
+            return c.player();
+        }
+        return candidate;
     }
 
     /* ────────────── Holy Bolt（T1.2）：单体神圣弹，不暴击 ────────────── */
@@ -233,6 +271,75 @@ public class PriestessSkills implements JobSkills {
         log.info("[Skill] {} Holy Mind p{} 怪 {}#{} 出手伤害 -{}% 15 秒",
                 c.player().getName(), c.point(), m.getName(), m.getId(), decPct);
         return List.of();   // 减益不是伤害：零目标
+    }
+
+    /* ────────────── Holy Reflection（T2.3）：限时圣盾，亡灵攻击反弹 ────────────── */
+
+    private List<HitTarget> holyReflection(CastContext c) {
+        double[] timeTable = c.table1d("Holy_Reflection_Time");
+        double[] retTable = c.table1d("Holy_Reflection_Return_Damage");
+        if (timeTable == null || retTable == null || c.idx() >= timeTable.length || c.idx() >= retTable.length) {
+            log.error("[Skill] Holy Reflection 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        // 自增益，不需要目标（`character.cpp:14010`：`SendProcessSKillToServer(SKILL_PLAY_HOLY_REFLECTION, point, 0, 0)`）；
+        // 生效 = 窗口期内亡灵怪的攻击让攻击者吃反弹（`OnSever.cpp:34130-34131` 写 Time/Param 两字段）。
+        int durationSec = (int) timeTable[c.idx()];
+        int returnPct = (int) retTable[c.idx()];
+        skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, returnPct);
+        log.info("[Skill] {} Holy Reflection p{} 圣盾 {} 秒，亡灵反弹 {}%",
+                c.player().getName(), c.point(), durationSec, returnPct);
+        return List.of();   // 增益不是伤害：零目标
+    }
+
+    /* ────────────── Grand Healing（T2.4）：一次掷点，治全队（不含自己） ────────────── */
+
+    private List<HitTarget> grandHealing(CastContext c) {
+        double[][] heal2 = c.table2d("Grand_Healing");
+        if (heal2 == null || c.idx() >= heal2.length) {
+            log.error("[Skill] Grand Healing 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        Player p = c.player();
+        int[] ap = c.attackPower();
+        int[] wd = c.weaponDamage();
+        int spirit = p.getSpirit();
+        // 逐字 `Svr_Damge.cpp:3309-3313`（与 Healing 同族：表值 + Critical[1]/8..6 + Power2/3）：
+        int min = (int) heal2[c.idx()][0] + (ap[0] - wd[0]) / 3 + spirit / 8;
+        int max = (int) heal2[c.idx()][1] + (ap[1] - wd[1]) / 3 + spirit / 6;
+        int amount = c.roll(min, max);
+
+        // **只治队友**：`rsPlayGrandHealing` 的发送循环明确跳过施法者本人（`OnSever.cpp:16546`）；
+        // 无队伍 = 无效果（源码整个包在 `if (dwPartyInfo && lpPartyMaster)` 里）。不按距离过滤（源码无此判断）。
+        List<Player> members = partyService.membersOf(p.getId());
+        int healed = 0;
+        for (Player member : members) {
+            if (member == p || member.getHp() <= 0) {
+                continue;
+            }
+            int take = Math.min(member.getMaxHp() - member.getHp(), amount);
+            if (take <= 0) {
+                continue;
+            }
+            member.setHp(member.getHp() + take);
+            healed++;
+            playerService.persistStats(member);
+            PlayerSession ts = playerService.sessionOf(member);
+            if (ts != null) {
+                playerService.sendPlayerStatus(ts, member);
+                // 原版把回包逐个发给成员自己的 socket（客户端就地飘字）—— 同构：直发，不广播区域
+                ts.send(ServerMessage.newBuilder()
+                        .setRecovery(S2C_Recovery.newBuilder()
+                                .setTargetId(member.getId())
+                                .setHpAmount(take)
+                                .setCurrentHp(member.getHp())
+                                .build())
+                        .build());
+            }
+        }
+        log.info("[Skill] {} Grand Healing p{} 全队治疗 {} 点 → {} 名队友（队伍 {} 人）",
+                p.getName(), c.point(), amount, healed, members.size());
+        return List.of();
     }
 
     /* ────────────── Divine Lightning（T2.2）：轮转扫描 + 裸伤 + 必中 ────────────── */
