@@ -40,9 +40,11 @@ import java.util.function.Function;
  *       `Critical[1]` = 主属性 = Spirit（魔法职业），`Damage.cpp:266`）。</li>
  *   <li><b>Holy Bolt</b>（T1.2）单体：攻击力掷点 ×(1+{@code HolyBolt_Damage[p]}%)，**不暴击**
  *       （`Svr_Damge.cpp:3132-3136`）。</li>
- *   <li><b>Multi Spark</b>（T1.3）单体：火花数 {@code Param = rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])}
- *       （客户端激活时随机，`SkillSub.cpp:2785-2792`），攻击力掷点 ×(1+{@code M_Spark_Damage[p]×Param}%)，
- *       对怪 +30%（`Svr_Damge.cpp:3139-3150`），**不暴击**。</li>
+ *   <li><b>Multi Spark</b>（T1.3）单体 **N 道光芒、每道 = 1×攻击力**（独立命中/暴击/防御/吸收）：
+ *       道数 {@code N = rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])}。
+ *       ⚠ **2026-09-26 用户实测裁定，取代源码公式**（源码的
+ *       {@code Power ×(1+M_Spark_Damage×Param/100)+30%}，`Svr_Damge.cpp:3139-3150` 作废）——
+ *       "这是祭司的主力单体输出技能"。</li>
  *   <li><b>Holy Mind</b>（T1.4）对怪减益 15 秒：出手伤害 −{@code HolyMind_DecDamage[p]}%
  *       （`SkillSub.cpp:2817-2836`、`OnSever.cpp:16600-16625`、`character.cpp:14917-14918`）。
  *       ⚠ <b>缺口（显式登记）</b>：生物抗性缩短时长没做（`MonsterStats` 无抗性字段）。</li>
@@ -223,12 +225,11 @@ public class PriestessSkills implements JobSkills {
         return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
     }
 
-    /* ────────────── Multi Spark（T1.3）：单体多发火花，对怪 +30%，不暴击 ────────────── */
+    /* ────────────── Multi Spark（T1.3）：N 道光芒，每道 = 一整次攻击（用户裁定） ────────────── */
 
     private List<HitTarget> multiSpark(CastContext c) {
-        double[] dmgTable = c.table1d("M_Spark_Damage");
         double[] numTable = c.table1d("M_Spark_Num");
-        if (dmgTable == null || numTable == null || c.idx() >= dmgTable.length || c.idx() >= numTable.length) {
+        if (numTable == null || c.idx() >= numTable.length) {
             log.error("[Skill] Multi Spark 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
@@ -236,21 +237,25 @@ public class PriestessSkills implements JobSkills {
         if (m == null) {
             return List.of();
         }
-        // 火花数：激活时随机定死（`SkillSub.cpp:2785-2786`：cnt = rand(Num/2+1, Num)，随 SkillCode 上行）
-        // —— 我们服务端权威，在这里掷同一区间。
+        // ⚠ **2026-09-26 用户实测裁定，取代源码公式**："它绝对不是单纯加攻击伤害，而是会飞出好几道
+        //   光芒，**每一道光都等于一倍攻击力**。这是祭司的主力单体输出技能！" —— 源码那侧的
+        //   `Power += Power * M_Spark_Damage[Point] * Param / 100`（+对怪 30%）（`Svr_Damge.cpp:3139-3150`）
+        //   **作废**；`M_Spark_Damage` 表与 +30% 不再参与结算。保留的只有**道数**：
+        //   `N = rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])`（`SkillSub.cpp:2785-2786`，客户端的
+        //   火花数视觉同源）。每道 = **一次完整的攻击掷点**（独立命中/暴击/防御/吸收，逐道结算）。
         int num = (int) numTable[c.idx()];
         int sparks = c.roll(num / 2 + 1, num);
-        int[] ap = c.attackPower();
-        int power = c.roll(ap[0], ap[1]);
-        power += power * (int) dmgTable[c.idx()] * sparks / 100;
-        // +30% on Monsters（`Svr_Damge.cpp:3146-3148` 的 `if (lpChar)`；我们只有 PvM ⇒ 目标恒是怪）
-        power += power * 30 / 100;
-        DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power,
-                DamageCalculator.SkillMods.withoutCrit());
-        combat.applyDamage(c.player(), c.self(), m, r, 0);
-        log.info("[Skill] {} Multi Spark p{} 火花 {} power={} 打 {}#{}",
-                c.player().getName(), c.point(), sparks, power, m.getName(), c.targetId());
-        return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
+        List<HitTarget> hits = new ArrayList<>(sparks);
+        for (int i = 0; i < sparks; i++) {
+            int[] ap = c.attackPower();
+            int power = c.roll(ap[0], ap[1]);
+            DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power);
+            combat.applyDamage(c.player(), c.self(), m, r, 0);
+            hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
+        }
+        log.info("[Skill] {} Multi Spark p{} {} 道光芒打 {}#{}（每道 = 1×攻击力，用户裁定）",
+                c.player().getName(), c.point(), sparks, m.getName(), c.targetId());
+        return hits;
     }
 
     /* ────────────── Holy Mind（T1.4）：对怪减益 15 秒 ────────────── */
@@ -457,8 +462,8 @@ public class PriestessSkills implements JobSkills {
     /* ────────────── 面板：伤害百分比（与结算同一张表） ────────────── */
 
     /**
-     * 面板口径：Holy Bolt / Multi Spark 是"攻击力 ×(1+表值%)"模型 ⇒ 报表值
-     * （Multi Spark 的实际倍率随火花数上浮，面板显示**基数** `M_Spark_Damage[p]`，火花数是运行态）。
+     * 面板口径：只有 Holy Bolt 仍是"攻击力 ×(1+表值%)"模型 ⇒ 报表值。
+     * **Multi Spark 已改模型（2026-09-26 用户裁定：N 道光、每道 = 1×攻击力）**⇒ 不再报百分比；
      * 其余（Healing 是回复、Holy Mind 是减益、Divine/Chain Lightning 是裸伤替换）⇒ null 不报。
      */
     @Override
@@ -469,13 +474,6 @@ public class PriestessSkills implements JobSkills {
         }
         if (skillId == SkillIds.HOLY_BOLT.id()) {
             double[] t = skillData.table1d("HolyBolt_Damage");
-            if (t == null || idx >= t.length) {
-                return null;
-            }
-            return new int[]{(int) t[idx], (int) t[idx]};
-        }
-        if (skillId == SkillIds.MULTISPARK.id()) {
-            double[] t = skillData.table1d("M_Spark_Damage");
             if (t == null || idx >= t.length) {
                 return null;
             }

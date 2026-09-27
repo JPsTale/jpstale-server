@@ -84,13 +84,13 @@ class PriestessSkillsTest {
     @Test
     void 面板百分比_只有乘算模型才报() {
         assertArrayEquals(new int[]{14, 14}, priestess.powerPct(SkillIds.HOLY_BOLT.id(), 1),
-                "HolyBolt_Damage[0] = 14");
-        assertArrayEquals(new int[]{16, 16}, priestess.powerPct(SkillIds.MULTISPARK.id(), 1),
-                "Multi Spark 面板显示基数 M_Spark_Damage[0] = 16（实际倍率随火花数上浮）");
+                "1 级 = HolyBolt_Damage[0] = 14");
+        assertNull(priestess.powerPct(SkillIds.MULTISPARK.id(), 1),
+                "Multi Spark 已改模型（2026-09-26 用户裁定：N 道光×1 倍攻击）⇒ 不报百分比");
         assertNull(priestess.powerPct(SkillIds.HEALING.id(), 1), "回复模型不报伤害百分比");
         assertNull(priestess.powerPct(SkillIds.HOLY_MIND.id(), 1), "减益模型不报伤害百分比");
         assertNull(priestess.powerPct(SkillIds.DIVINE_LIGHTNING.id(), 1), "裸伤替换模型不报百分比");
-        assertNull(priestess.powerPct(SkillIds.HOLY_BOLT.id(), 0), "未学 ⇒ 没有这个数");
+        assertNull(priestess.powerPct(SkillIds.HOLY_BOLT.id(), 0), "未学（point=0）⇒ 没有这个数");
     }
 
     @Test
