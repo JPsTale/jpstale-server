@@ -472,16 +472,19 @@ public class PriestessSkills implements JobSkills {
         divineFindCount.put(c.player().getId(), (start + picked.size()) % Math.max(1, candidates.size()));
         if (picked.isEmpty()) return List.of();
 
-        // **伤害公式（原版 `Svr_Damge.cpp:4854-4863` 逐字）**：
-        //   pow = GetRandomPos(武器 Power[0..1]);
-        //   pow += pow * Divine_Lightning_Damage[Point] / 100;      // 技能加成 24..53%（Point 0 基，`Point = ((SkillCode>>8)&0xF)-1`）
-        //   AttackState = 103 ⇒ 逐目标（`Svr_Damge.cpp:1581-1598`）：
-        //     · Brood == UNDEAD ⇒ pow += pow/2                      // 对不死系 +50%
-        //     · rs = Resistance[LIGHTING]/10（钳 ±100）⇒ pow -= pow*rs/100
-        //       ⚠ 我方怪物数据**没有雷抗字段** ⇒ 等价于全体 rs=0（原版 rs=0 时该分支本就跳过）；
-        //         数据缺口登记在此，将来加了抗性列就接上。
-        int[] wd = c.weaponDamage();
-        int roll = c.roll(wd[0], wd[1]);
+        // **伤害公式（原版逐字）**：
+        //   `Svr_Damge.cpp:4858-4859`：pow = GetRandomPos(Power[0..1]) + pow*Divine_Lightning_Damage[Point]/100
+        //   ⚠ **Power[0..1] = 面板攻击区间**，不是武器裸伤 —— `dm_SendRangeDamage`（`Damage.cpp:816-819`）把
+        //   `Power[0..1] = lpCurPlayer->smCharInfo.Attack_Damage[0..1]`（面板），调用方传的武器裸伤
+        //   （`sItemInfo.Damage[0..1]`）进的是 **Power2**（神雷的 103 分支不消费它）。
+        //   第一版取了武器模板裸伤（法杖只有 14-15）⇒ 加成后 ≈20、扣防后与改前无异
+        //   （用户实测"伤害没有增加"，服务端日志 `武器掷 14 +48% ⇒ 20` 为证）。
+        //   加成 24..53%（Point 0 基，`Point = ((SkillCode>>8)&0xF)-1`）；
+        //   AttackState = 103 ⇒ 逐目标（`Svr_Damge.cpp:1581-1598`）：UNDEAD ⇒ pow += pow/2（+50%）；
+        //   rs = Resistance[LIGHTING]/10（钳 ±100）⇒ pow -= pow*rs/100 —— 我方无雷抗列 ⇒ 等价全体 rs=0
+        //   （原版 rs=0 本就跳过；数据缺口登记，不编造）。
+        int[] ap = c.attackPower();
+        int roll = c.roll(ap[0], ap[1]);
         int pct = (int) dmgTable[c.idx()];
         int power = roll + roll * pct / 100;
         List<HitTarget> hits = new ArrayList<>(picked.size());
@@ -492,7 +495,7 @@ public class PriestessSkills implements JobSkills {
             combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
             hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
         }
-        log.info("[Skill] {} Divine Lightning p{}：武器掷 {} +{}% ⇒ {}，命中 {} 目标（不死系各再 +50%）",
+        log.info("[Skill] {} Divine Lightning p{}：面板掷 {} +{}% ⇒ {}，命中 {} 目标（不死系各再 +50%）",
                 c.player().getName(), c.point(), roll, pct, power, hits.size());
         return hits;
     }
@@ -518,8 +521,8 @@ public class PriestessSkills implements JobSkills {
         if (picked.isEmpty()) return List.of();
 
         // **伤害公式（原版 `Svr_Damge.cpp:5249-5263` 逐字）**：
-        //   pow = GetRandomPos(武器 Power[0..1]);
-        //   pow += pow * Chain_Lightning_Damage[Point] / 100;       // 加成 140..185%（Point 0 基）
+        //   pow = GetRandomPos(Power[0..1]) + pow*Chain_Lightning_Damage[Point]/100（140..185%，Point 0 基）
+        //   ⚠ 底数同为**面板攻击**（`dm_SendRangeDamage:816-817`，同 Divine —— 详见上法注释）；
         //   AttackState = 101 ⇒ 逐目标（`Svr_Damge.cpp:1536-1547`）：rs = Resistance[LIGHTING]（**不除 10**，钳 ±100）
         //   ⚠ 同上：我方无雷抗字段 ⇒ 等价全体 rs=0（原版 rs=0 时跳过）。
         double[] dmgTable = c.table1d("Chain_Lightning_Damage");
@@ -527,9 +530,12 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Chain Lightning 加成表 Chain_Lightning_Damage 缺失（idx={}）⇒ 本次不放", c.idx());
             return List.of();
         }
-        int[] wd = c.weaponDamage();
-        int power = c.roll(wd[0], wd[1]);
+        int[] ap = c.attackPower();
+        int power = c.roll(ap[0], ap[1]);
         power += power * (int) dmgTable[c.idx()] / 100;
+        log.info("[Skill] {} Chain Lightning p{}：面板掷 {} ×{}% ⇒ {}，命中 {} 目标",
+                c.player().getName(), c.point(), power * 100 / (100 + (int) dmgTable[c.idx()]),
+                100 + (int) dmgTable[c.idx()], power, picked.size());
         return settleWeaponDamageBurst(c, picked, power);
     }
 

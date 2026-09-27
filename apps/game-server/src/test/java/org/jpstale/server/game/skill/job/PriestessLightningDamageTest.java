@@ -76,4 +76,24 @@ class PriestessLightningDamageTest {
         assertEquals(124, power);
         assertEquals(186, power + power / 2);
     }
+
+    /**
+     * **底数 = 面板攻击，不是武器裸伤**（2026-09-27 用户二轮实测"伤害没有增加"后追源码定案）：
+     * `dm_SendRangeDamage`（`Damage.cpp:816-819`）—— `Power[0..1] = smCharInfo.Attack_Damage[0..1]`
+     * （**面板**），调用方传的 `sItemInfo.Damage[0..1]`（武器裸伤）进的是 **Power2**；
+     * 服务端 `pow = GetRandomPos(Power[0..1])` 掷的是面板。第一版取武器模板裸伤
+     * （法杖 14-15）⇒ +48% 后 ≈20、扣防后与改前无异。
+     */
+    @Test
+    void 底数是面板攻击不是武器裸伤() {
+        // 面板 60..80 的祭司，1 级神雷 ⇒ 74..99；若错用武器裸伤 14..15 ⇒ 只有 17..18（差一个数量级）
+        int[] panel = {60, 80};
+        int lo = panel[0] + panel[0] * 24 / 100;
+        int hi = panel[1] + panel[1] * 24 / 100;
+        assertEquals(74, lo);
+        assertEquals(99, hi);
+        // 对照：武器裸伤 14 ⇒ 17 —— 这正是用户看到的"没有增加"
+        int wrongBase = 14 + 14 * 24 / 100;
+        assertEquals(17, wrongBase);
+    }
 }
