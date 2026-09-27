@@ -217,20 +217,28 @@ public class PriestessSkills implements JobSkills {
             target.setHp(target.getHp() + healed);
             playerService.persistStats(target);
         }
-        // 回复广播：飘字出现在**被治疗者**头上（原版把回包发给被治疗者的 socket，客户端就地显示）。
-        if (healed > 0) {
-            PlayerSession ts = playerService.sessionOf(target);
-            if (ts != null) {
-                playerService.sendPlayerStatus(ts, target);
-                ts.send(ServerMessage.newBuilder()
+        // 目标自己的 HUD（HP/MP/经验条）—— 只发给他本人（`sendPlayerStatus` 是逐会话的）
+        PlayerSession ts = playerService.sessionOf(target);
+        if (ts != null) {
+            playerService.sendPlayerStatus(ts, target);
+        }
+        // **回血广播（我方改动）**：原版 `rsPlayHealing`（`OnSever.cpp:16516-16522`）只把回包发到
+        // **被治疗者自己的 socket**，旁观者拿不到（原版旁观者的血条靠另一条 `OPCODE_PLAYDATAGROUP`
+        // 的目标数据流刷新，我们还没做那条流）⇒ 我们这边表现为"远端看到的血条停在旧值"
+        // （用户 2026-09-27 实测两条：①"祭司自己回血满了、远端还是残血"；②"给枪兵加血、枪兵头上不跳绿字"）。
+        // ⇒ 这里改成**向 AOI 广播**：施法者、被治疗者、旁观者都从这一条更新（被治疗者不再另发，避免重复飘字）。
+        // `hpAmount` 用**掷出的治疗量**而不是被 max 截断后的差值 —— 与原版一致：包里带的是 `WParam`
+        // = 随机出的治疗量，客户端就地飘字；血条上限由 `currentHp` 保证。
+        // ⚠ **满血时也发**（原版照发）：否则"给满血的人加血"在两边都一声不响 —— 用户实测第 2 条就是这个。
+        messageSender.broadcastToArea(c.self().getMapId(), (float) c.self().getX(), (float) c.self().getZ(),
+                AOIManager.VIEW_RANGE,
+                ServerMessage.newBuilder()
                         .setRecovery(S2C_Recovery.newBuilder()
                                 .setTargetId(target.getId())
-                                .setHpAmount(healed)
+                                .setHpAmount(amount)
                                 .setCurrentHp(target.getHp())
                                 .build())
                         .build());
-            }
-        }
         log.info("[Skill] {} Healing p{} → {}（{}）回复 {}（表 {}..{} + Power2 {}/3 + Spirit {}/8..6）",
                 p.getName(), c.point(), target.getName(), self ? "自己" : "目标", healed,
                 (int) heal2[c.idx()][0], (int) heal2[c.idx()][1], ap[0] - wd[0], spirit);
@@ -422,15 +430,17 @@ public class PriestessSkills implements JobSkills {
             PlayerSession ts = playerService.sessionOf(member);
             if (ts != null) {
                 playerService.sendPlayerStatus(ts, member);
-                // 原版把回包逐个发给成员自己的 socket（客户端就地飘字）—— 同构：直发，不广播区域
-                ts.send(ServerMessage.newBuilder()
-                        .setRecovery(S2C_Recovery.newBuilder()
-                                .setTargetId(member.getId())
-                                .setHpAmount(take)
-                                .setCurrentHp(member.getHp())
-                                .build())
-                        .build());
             }
+            // **区域广播**（同 Healing：原版只发成员自己的 socket，旁观者血条不会动 —— 我方改动，见上）
+            messageSender.broadcastToArea(c.self().getMapId(), (float) c.self().getX(), (float) c.self().getZ(),
+                    AOIManager.VIEW_RANGE,
+                    ServerMessage.newBuilder()
+                            .setRecovery(S2C_Recovery.newBuilder()
+                                    .setTargetId(member.getId())
+                                    .setHpAmount(amount)
+                                    .setCurrentHp(member.getHp())
+                                    .build())
+                            .build());
         }
         log.info("[Skill] {} Grand Healing p{} 全队治疗 {} 点 → {} 名队友（队伍 {} 人）",
                 p.getName(), c.point(), amount, healed, members.size());
