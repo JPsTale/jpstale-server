@@ -240,23 +240,21 @@ public class PriestessSkills implements JobSkills {
         if (m == null) {
             return List.of();
         }
-        // ⚠ **2026-09-26 用户实测裁定，取代源码公式**："它绝对不是单纯加攻击伤害，而是会飞出好几道
-        //   光芒，**每一道光都等于一倍攻击力**。这是祭司的主力单体输出技能！" —— 源码那侧的
-        //   `Power += Power * M_Spark_Damage[Point] * Param / 100`（+对怪 30%）（`Svr_Damge.cpp:3139-3150`）
-        //   **作废**；`M_Spark_Damage` 表与 +30% 不再参与结算。保留的只有**道数**：
-        //   `N = rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])`（`SkillSub.cpp:2785-2786`，客户端的
-        //   火花数视觉同源）。每道 = **一次完整的攻击掷点**（独立命中/暴击/防御/吸收，逐道结算）。
-        List<HitTarget> hits = new ArrayList<>(sparks);
-        for (int i = 0; i < sparks; i++) {
-            int[] ap = c.attackPower();
-            int power = c.roll(ap[0], ap[1]);
-            DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power);
-            combat.applyDamage(c.player(), c.self(), m, r, 0);
-            hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
-        }
-        log.info("[Skill] {} Multi Spark p{} {} 道光芒打 {}#{}（每道 = 1×攻击力，用户裁定）",
-                c.player().getName(), c.point(), sparks, m.getName(), c.targetId());
-        return hits;
+        // ⚠ **2026-09-27 用户第二轮裁定（附实测日志）**：
+        //   ① 每道光 = 1×攻击力（第一轮裁定，保留）；② **伤害是一次结算** —— 原版
+        //      `Svr_Damge.cpp:3139-3150` 只算出一个 `Power` 交给 `dm_SendTransDamage` **一次**，
+        //      不是 N 次独立伤害。逐道 applyDamage 会让一次技能触发 **N 次击杀检查**
+        //      （实测：4 道 = 4 条 `Monster killed by prist`、4 份掉落 + 4 份经验）—— 用户抓出。
+        //   ⇒ 现在：N 道的量**合并成一个总伤害**，一次命中/暴击/防御/吸收判定、一次扣血与死亡检查
+        //      （掉落/经验只触发一次）。`M_Spark_Damage` 表与 +30% 仍不参与结算（第一轮裁定）。
+        int[] ap = c.attackPower();
+        int perBolt = c.roll(ap[0], ap[1]);      // 每道光 = 一倍攻击力（同一次掷点，N 道同值）
+        int power = perBolt * sparks;            // 总伤害 = N × 攻击力
+        DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power);
+        combat.applyDamage(c.player(), c.self(), m, r, 0);   // **一次落地**：一次死亡检查/奖励
+        log.info("[Skill] {} Multi Spark p{} {} 道光（每道 {}）合计 {} 打 {}#{} —— 一次结算",
+                c.player().getName(), c.point(), sparks, perBolt, power, m.getName(), c.targetId());
+        return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
     }
 
     /* ────────────── Holy Mind（T1.4）：对怪减益 15 秒 ────────────── */
