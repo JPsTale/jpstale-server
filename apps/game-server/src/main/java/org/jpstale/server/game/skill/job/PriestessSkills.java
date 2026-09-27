@@ -202,6 +202,15 @@ public class PriestessSkills implements JobSkills {
             return List.of();   // 治疗不是伤害：零目标
         }
         Player target = resolvePlayerTarget(c);
+        if (target == null) {
+            // **显式的"没有"**（AGENTS #12）：客户端说"治 X"但服务端认不出 X —— 原版
+            // `rsPlayHealing`（`OnSever.cpp:16478`）这时就是 `return FALSE`（**什么都不做**），
+            // 绝不改成"那就治自己"。此前这里默认回自己 ⇒ 症状是"我点玩家加血，日志写（自己）"，
+            // 一个 id 空间错误被伪装成了正常行为（用户 2026-09-27 实测）。
+            log.warn("[Skill] {} Healing 目标 id={} 解析不到（既不是怪也不是在场玩家）⇒ 本次不治疗"
+                    + "（原版 rsPlayHealing 找不到 serial 时 return FALSE）", p.getName(), c.targetId());
+            return List.of();
+        }
         boolean self = (target == p);
         int healed = Math.min(target.getMaxHp() - target.getHp(), amount);
         if (healed > 0) {
@@ -229,28 +238,59 @@ public class PriestessSkills implements JobSkills {
     }
 
     /**
-     * Healing 的目标解析：targetId 能对上**别的在线玩家**（存活、同图、武器射程内）就治他；
-     * 0 / 自己 / 对不上 ⇒ 治自己。⚠ 当前客户端技能瞄准只认怪，玩家目标要等客户端补（类头缺口）。
+     * Healing 的目标解析（**唯一实现**，怪那一支在主函数里、这里只管玩家）。
+     *
+     * 语义（逐条对齐源码）：
+     *   · `targetId == 0` ⇒ **治自己** —— 原版自疗分支（`SkillSub.cpp:537`）自带 `!lpCharSelPlayer` 守卫；
+     *   · `targetId == 自己` ⇒ 治自己（对着自己点）；
+     *   · 否则按 **charId** 找在场玩家（客户端上报的就是这个 id 空间，见下 ⚠）；
+     *   · **对不上 ⇒ 返回 null = 什么都不做**（主函数显式警告并跳过）—— 对齐
+     *     `rsPlayHealing`（`OnSever.cpp:16478`）找不到 serial 时的 `return FALSE`。
+     *
+     * ⚠ **id 空间**（2026-09-27 修，用户实测"点玩家加血，日志写（自己）"）：
+     *   客户端认得的是 `S2C_PlayerAppear.playerId`，而服务端发的是 **charId**
+     *   （`AOIManager` 的 `setPlayerId(e.getCharId())`）⇒ 客户端回报的 targetId 也是 charId。
+     *   原先这里按 **运行时实体 id** 查（`entityByRuntimeId`，`PlayerEntity.getId()` 走 `EntityIdSource`，
+     *   与 charId 解耦，见 `PlayerEntity` 类注释）⇒ **永远查不到** ⇒ 悄悄回自己。
+     *   现在按 charId 查：`PlayerService.entities` 的键本就是 charId（`entityOf` 也是这么取）。
      */
     private Player resolvePlayerTarget(CastContext c) {
-        PlayerEntity targetEntity = playerService.entityByRuntimeId(c.targetId());
-        if (targetEntity == null || targetEntity.getPlayer() == null) {
-            return c.player();
+        long targetId = c.targetId();
+        Player self = c.player();
+        if (targetId <= 0 || targetId == self.getId()) {
+            return self;
         }
-        Player candidate = targetEntity.getPlayer();
+        Player candidate = playerService.byId(targetId);
+        if (candidate == null) {
+            return null;   // 认不出 ⇒ 显式的"没有"（主函数警告），**不许**改成治自己
+        }
+        PlayerEntity candEntity = playerService.entityOf(candidate);
+        if (candEntity == null) {
+            // 装载着但**不在场上**（已离开地图/退出世界）⇒ 原版 `srFindCharFromSerial` 也找不到 ⇒ 不加
+            log.warn("[Skill] {} Healing 目标 {} 不在场上（无实体）⇒ 本次不治疗",
+                    self.getName(), candidate.getName());
+            return null;
+        }
         // ⚠ **不查地图**：原版 `rsPlayHealing` 只用 `srFindCharFromSerial` 在同一区域服务器里按
         // serial 找人，**没有任何地图判断**（我此前自造了一条"同图"，已按用户 2026-09-27 指示删除）。
-        if (candidate == c.player() || targetEntity.isDead()) {
-            return c.player();
+        // 但"人已经躺下"要跳过：`rsPlayHealing` 只对 `smCharInfo.Life[0] > 0` 的角色加血
+        // （`OnSever.cpp:16483`）——原版照旧回 TRUE 但不加，我们同样是"不加、也不改治自己"。
+        if (candEntity.isDead()) {
+            log.info("[Skill] {} Healing 目标 {} 已死亡 ⇒ 不加血（原版 `Life[0] > 0` 才加）",
+                    self.getName(), candidate.getName());
+            return candidate;
         }
-        double dx = targetEntity.getX() - c.self().getX();
-        double dz = targetEntity.getZ() - c.self().getZ();
+        double dx = candEntity.getX() - c.self().getX();
+        double dz = candEntity.getZ() - c.self().getZ();
         // 距离门同怪：原版 `GetSkillDistRange(SKILL_HEALING) = 180 * fONE`（**不是武器射程**）——
         // 玩家目标与怪目标走同一个门，两条路径不各写一份判据。
+        // ⚠ 超距**不改成治自己**：原版的目标是客户端选定的那一个（`dwTarObjectSerial`），
+        //   超距时 `playmain.cpp:2256` 那一侧根本不会起手；服务端不会把它换成别人。
         if (dx * dx + dz * dz > HEAL_RANGE * HEAL_RANGE) {
-            log.info("[Skill] {} Healing 目标 {} 超距（>{}，`GetSkillDistRange`）⇒ 治自己",
-                    c.player().getName(), candidate.getName(), HEAL_RANGE);
-            return c.player();
+            log.warn("[Skill] {} Healing 目标 {} 超距（>{}，`GetSkillDistRange`）⇒ 本次不治疗"
+                            + "（不改成治自己 —— 目标是客户端选定的那一个）",
+                    self.getName(), candidate.getName(), HEAL_RANGE);
+            return null;
         }
         return candidate;
     }

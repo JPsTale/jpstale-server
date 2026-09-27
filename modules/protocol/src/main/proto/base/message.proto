@@ -786,6 +786,11 @@ message S2C_SkillStart {
   // 原版激活时 GetRandomPos(cnt/2+1, cnt) 一次掷定、随 SkillCode 高位带给结算（SkillSub.cpp:2785-2792）；
   // 客户端视觉（几道光）与服务端结算（打几次）必须同一个数 ⇒ 服务端权威、广播同步（AGENTS #14 同源）。
   int32 spark_count = 7;
+  // **施法者的技能等级**（原版 `lpSkill->Point`，1..10）—— 旁观者要它才能放**随等级变**的招式特效：
+  // 如 Pike Wind 的环（元素数 `15+level`、半径 `level*650`，`HoEffect.cpp:6293-6302`）。
+  // 等级**不在客户端的动画数据里**（动画条目只表达"哪一条动作"）⇒ 只能由服务端广播。
+  // 0 = 未提供（老服务端 / 非技能）⇒ 客户端按"**显式未知**"处理（条目自己决定不放并上报，AGENTS #12）。
+  int32 skill_level = 8;
 }
 
 message S2C_AttackStart {

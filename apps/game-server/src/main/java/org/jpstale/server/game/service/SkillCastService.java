@@ -202,7 +202,8 @@ public class SkillCastService {
         pending.put(pid, new PendingCast(skillId, targetId, point, now, sparkCount));
         firedSegments.put(pid, new ArrayList<>());
 
-        // 起手广播：旁观者立刻播**同一条**技能动画（自己已在本地播）；spark_count 随包下发
+        // 起手广播：旁观者立刻播**同一条**技能动画（自己已在本地播）；spark_count / skill_level 随包下发
+        // （`skill_level` = 本次施法的技能等级：旁观者要它才能放随等级变的特效，如 Pike Wind 的环）
         messageSender.broadcastToArea(self.getMapId(), (float) self.getX(), (float) self.getZ(), AOIManager.VIEW_RANGE,
                 ServerMessage.newBuilder()
                         .setSkillStart(S2C_SkillStart.newBuilder()
@@ -212,6 +213,7 @@ public class SkillCastService {
                                 .setAnimIndex(animIndex)
                                 .setAnimClip(animClip == null ? "" : animClip)
                                 .setSparkCount(sparkCount)
+                                .setSkillLevel(point)
                                 .setTargetPosition(CommonProto.Position.newBuilder()
                                         .setX((float) self.getX()).setY((float) self.getY()).setZ((float) self.getZ())))
                         .build());

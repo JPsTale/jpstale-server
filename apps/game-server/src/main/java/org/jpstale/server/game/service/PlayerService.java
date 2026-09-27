@@ -153,8 +153,13 @@ public class PlayerService {
     }
 
     /**
-     * 按**运行时实体 id** 找在线玩家实体 —— Healing 这类"目标可以是玩家"的技能用它解析
-     * 客户端上报的 targetId（怪物走 `EntityRegistry.findMonster`，玩家在这里）。找不到 ⇒ null。
+     * 按**运行时实体 id**（`PlayerEntity.getId()`，走 `EntityIdSource`）找在线玩家实体。
+     *
+     * ⚠ **客户端上报的 id 不是这个空间**：客户端只认得 `S2C_PlayerAppear.playerId`，而那是
+     * **charId**（`AOIManager` 的 `setPlayerId(e.getCharId())`）⇒ "按客户端给的 targetId 找人"
+     * 要用 `byId(charId)` + `entityOf(player)`（Healing 的玩家目标解析就是这么做的）。
+     * 2026-09-27 前那边误用了本方法 ⇒ 永远查不到 ⇒ 悄悄回自己（用户实测"点玩家加血，日志写（自己）"）。
+     * 本方法保留给"服务端自己持有 runtime id"的场合（如 AI/索敌），**不要**用它解析客户端 id。
      */
     public PlayerEntity entityByRuntimeId(long runtimeId) {
         if (runtimeId <= 0) {
