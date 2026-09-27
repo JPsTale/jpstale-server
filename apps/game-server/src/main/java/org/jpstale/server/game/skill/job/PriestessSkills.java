@@ -171,7 +171,7 @@ public class PriestessSkills implements JobSkills {
         Monster healMonster = null;
         {
             Monster m = targets.aliveMonster(c.targetId());
-            if (m != null && m.getMapId() == c.self().getMapId()) {   // 同图 = 我方实现细节（原版按 serial 同区域查找）
+            if (m != null) {
                 double dx = m.getX() - c.self().getX();
                 double dz = m.getZ() - c.self().getZ();
                 if (dx * dx + dz * dz <= HEAL_RANGE * HEAL_RANGE) {
@@ -183,8 +183,10 @@ public class PriestessSkills implements JobSkills {
             int amount2 = Math.min(healMonster.getMaxHp() - healMonster.getHp(), amount);
             if (amount2 > 0) {
                 healMonster.setHp(healMonster.getHp() + amount2);
-                // 与怪掉血同一条广播通道（`S2C_Recovery` 的 `targetId` 支持怪 —— 客户端
-                // `applyUnitHp` 对 monsters 表同样生效）
+                // ⚠ **我方选择**（原版无此路径）：原版 `rsPlayHealing` 只把回包发给**被治疗者自己的
+                // socket**，而怪没有 socket ⇒ 若不做这一步，治怪在身上**没有任何可见反馈**。
+                // 这里借用怪掉血的同一条 AOI 广播（`S2C_Recovery.targetId` = 怪 id，客户端
+                // `applyUnitHp` 对 monsters 表同样生效）；仅为可见性，不参与任何判定。
                 messageSender.broadcastToArea(c.self().getMapId(),
                         (float) healMonster.getX(), (float) healMonster.getZ(), AOIManager.VIEW_RANGE,
                         ServerMessage.newBuilder()
@@ -236,8 +238,9 @@ public class PriestessSkills implements JobSkills {
             return c.player();
         }
         Player candidate = targetEntity.getPlayer();
-        if (candidate == c.player() || targetEntity.isDead()
-                || targetEntity.getMapId() != c.self().getMapId()) {
+        // ⚠ **不查地图**：原版 `rsPlayHealing` 只用 `srFindCharFromSerial` 在同一区域服务器里按
+        // serial 找人，**没有任何地图判断**（我此前自造了一条"同图"，已按用户 2026-09-27 指示删除）。
+        if (candidate == c.player() || targetEntity.isDead()) {
             return c.player();
         }
         double dx = targetEntity.getX() - c.self().getX();
