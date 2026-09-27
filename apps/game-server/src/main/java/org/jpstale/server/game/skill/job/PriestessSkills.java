@@ -496,7 +496,8 @@ public class PriestessSkills implements JobSkills {
         List<HitTarget> hits = new ArrayList<>(picked.size());
         for (Monster m : picked) {
             DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(c.player(), m.combatStats(), power);
-            combat.applyDamage(c.player(), c.self(), m, r, 0);
+            // 带 skillId：客户端的技能视觉（Divine Lightning 的逐目标落雷）按它反查本招
+            combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
             hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
         }
         return hits;

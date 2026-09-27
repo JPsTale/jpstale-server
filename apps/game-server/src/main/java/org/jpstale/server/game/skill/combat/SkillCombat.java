@@ -56,12 +56,22 @@ public class SkillCombat {
      *                      0 = 不推。
      */
     public void applyDamage(Player player, PlayerEntity self, Monster m, DamageResult r, float knockbackDist) {
+        applyDamage(player, self, m, r, knockbackDist, 0);
+    }
+
+    /**
+     * 同上，但带 **skillId** —— `S2C_AttackResult.skill_id` 随包下发：客户端的技能视觉
+     * （如 Divine Lightning 的逐目标落雷）按它反查"这条结算出自哪一招"（AGENTS #14 同步结果）。
+     * 普攻/未知传 0。
+     */
+    public void applyDamage(Player player, PlayerEntity self, Monster m, DamageResult r, float knockbackDist, int skillId) {
         S2C_AttackResult.Builder ar = S2C_AttackResult.newBuilder()
                 .setAttackerId(player.getId())
                 .setTargetId(m.getId())
                 .setDamage(r.getFinalDamage())
                 .setIsCritical(r.isCritical())
-                .setHitIndex(0);
+                .setHitIndex(0)
+                .setSkillId(skillId);
         if (r.isMissed()) {
             ar.setMissed(true);
             broadcastResult(self, ar);

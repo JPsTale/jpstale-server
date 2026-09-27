@@ -747,6 +747,10 @@ message S2C_AttackResult {
   // ⚠ 只影响外观与武器音，**不改伤害**（真暴击另有 Power×170%，别复用 is_critical）。
   // 服务端暂恒 false，等技能接入攻击链路后再填（见任务书 T3）。
   bool attack_effect = 7;
+  // **哪个技能打的**（0 = 普攻/未知）。技能伤害的视觉按它反查（如 Divine Lightning 的落雷
+  // 要逐目标放，得知道这一条 AttackResult 是不是这个技能的结算）。与 `attacker_id` 一起构成
+  // "谁用哪招打中了谁"的事实（AGENTS #14：同步结果）。
+  int32 skill_id = 8;
 }
 
 // 攻击计划（B 方案）：服务端在**收到起手意图时**即裁定各段结果，随本包下发。
