@@ -15,6 +15,8 @@ import org.jpstale.server.game.skill.JobSkills;
 import org.jpstale.server.game.skill.SkillBuffStates;
 import org.jpstale.server.game.skill.combat.SkillCombat;
 import org.jpstale.server.game.skill.combat.TargetSelectors;
+import org.jpstale.server.game.network.GameMessageSender;
+import org.jpstale.server.game.service.AOIManager;
 import org.jpstale.server.game.service.PlayerService;
 import org.jpstale.server.proto.base.S2C_Recovery;
 import org.jpstale.server.proto.base.ServerMessage;
@@ -96,6 +98,10 @@ public class PriestessSkills implements JobSkills {
     @Autowired
     private PlayerService playerService;
 
+    /** 治疗广播（与普攻伤害同一 AOI 通道；治疗怪时用） */
+    @Autowired
+    private GameMessageSender messageSender;
+
     /** Grand Healing 的全队名单 */
     @Autowired
     private org.jpstale.server.game.service.PartyService partyService;
@@ -151,8 +157,31 @@ public class PriestessSkills implements JobSkills {
         int max = (int) heal2[c.idx()][1] + (ap[1] - wd[1]) / 3 + spirit / 6;
         int amount = c.roll(min, max);
 
-        // 目标解析：**有玩家目标治目标**（用户 2026-09-26 指正；原版按上报序号治疗，
-        // `rsPlayHealing` `OnSever.cpp:16478` 对 char/user 都生效），没有/无效 ⇒ 治自己。
+        // 目标解析：**有目标就治目标**（原版 `SkillSub.cpp:2737` 的 `lpChar` 分支把治疗发给
+        // **被选中的角色** —— 玩家或怪都行：`dm_SendTransDamage(lpChar, …)` → 服务端
+        // `rsPlayHealing`（`OnSever.cpp:16478`）对任意 `smCHAR` 执行 `Life[0] += WParam` 并 clamp）。
+        // 没有/无效的目标才治自己（`SkillSub.cpp:537` 那支自带 `!lpCharSelPlayer` 守卫）。
+        Monster healMonster = targets.single(c.player(), c.self(), c.targetId());
+        if (healMonster != null) {
+            int amount2 = Math.min(healMonster.getMaxHp() - healMonster.getHp(), amount);
+            if (amount2 > 0) {
+                healMonster.setHp(healMonster.getHp() + amount2);
+                // 与怪掉血同一条广播通道（`S2C_Recovery` 的 `targetId` 支持怪 —— 客户端
+                // `applyUnitHp` 对 monsters 表同样生效）
+                messageSender.broadcastToArea(c.self().getMapId(),
+                        (float) healMonster.getX(), (float) healMonster.getZ(), AOIManager.VIEW_RANGE,
+                        ServerMessage.newBuilder()
+                                .setRecovery(S2C_Recovery.newBuilder()
+                                        .setTargetId(healMonster.getId())
+                                        .setHpAmount(amount2)
+                                        .setCurrentHp(healMonster.getHp())
+                                        .build())
+                                .build());
+            }
+            log.info("[Skill] {} Healing p{} → 怪 {}#{} 回复 {}（原版 lpChar 分支）",
+                    p.getName(), c.point(), healMonster.getName(), healMonster.getId(), amount2);
+            return List.of();   // 治疗不是伤害：零目标
+        }
         Player target = resolvePlayerTarget(c);
         boolean self = (target == p);
         int healed = Math.min(target.getMaxHp() - target.getHp(), amount);
