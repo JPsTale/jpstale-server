@@ -228,9 +228,12 @@ public class PriestessSkills implements JobSkills {
     /* ────────────── Multi Spark（T1.3）：N 道光芒，每道 = 一整次攻击（用户裁定） ────────────── */
 
     private List<HitTarget> multiSpark(CastContext c) {
-        double[] numTable = c.table1d("M_Spark_Num");
-        if (numTable == null || c.idx() >= numTable.length) {
-            log.error("[Skill] Multi Spark 参数表缺失（idx={}）", c.idx());
+        // 道数 = **起手时掷定**（`SkillCastService.begin`：rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])，
+        // 随 `S2C_SkillStart.spark_count` 下发给客户端视觉）—— 同一次施法结算与视觉共用一个 N。
+        int sparks = c.sparkCount();
+        if (sparks < 1) {
+            // 正常链路不可能（begin 已掷定并校验）；走到这里 = 绕过起手的改包路径 ⇒ 不结算、留日志
+            log.warn("[Skill] {} Multi Spark 事件帧没有起手道数 ⇒ 不结算", c.player().getName());
             return List.of();
         }
         Monster m = targets.single(c.player(), c.self(), c.targetId());
@@ -243,8 +246,6 @@ public class PriestessSkills implements JobSkills {
         //   **作废**；`M_Spark_Damage` 表与 +30% 不再参与结算。保留的只有**道数**：
         //   `N = rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])`（`SkillSub.cpp:2785-2786`，客户端的
         //   火花数视觉同源）。每道 = **一次完整的攻击掷点**（独立命中/暴击/防御/吸收，逐道结算）。
-        int num = (int) numTable[c.idx()];
-        int sparks = c.roll(num / 2 + 1, num);
         List<HitTarget> hits = new ArrayList<>(sparks);
         for (int i = 0; i < sparks; i++) {
             int[] ap = c.attackPower();

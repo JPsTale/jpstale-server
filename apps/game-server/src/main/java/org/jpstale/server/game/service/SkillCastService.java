@@ -14,6 +14,7 @@ import org.jpstale.server.game.skill.HitTarget;
 import org.jpstale.server.game.skill.JobSkills;
 import org.jpstale.server.game.skill.JobSkillsCatalog;
 import org.jpstale.server.game.skill.SegmentResult;
+import org.jpstale.server.game.skill.combat.SkillCombat;
 import org.jpstale.server.proto.base.CommonProto;
 import org.jpstale.server.proto.base.S2C_SkillStart;
 import org.jpstale.server.proto.base.ServerMessage;
@@ -96,8 +97,14 @@ public class SkillCastService {
         REJECTED_COOLDOWN,
     }
 
-    /** 待结算的施法（每次施法的运行态；`hit` 按它校验段序与目标）。 */
-    private record PendingCast(int skillId, long targetId, int level1Based, long startMs) {}
+    /**
+     * 待结算的施法（每次施法的运行态；`hit` 按它校验段序与目标）。
+     *
+     * <p>`sparkCount` = **服务端在起手掷定的技能参数**（0 = 本技能没有）—— Multi Spark 的道数。
+     * 原版激活时一次掷定、随 SkillCode 高位带给结算（`SkillSub.cpp:2785-2792`）；我们同构：
+     * 一次施法一个 N，事件帧结算与 `S2C_SkillStart` 广播（客户端视觉）共用它。
+     */
+    private record PendingCast(int skillId, long targetId, int level1Based, long startMs, int sparkCount) {}
 
     /** 每玩家至多一次待结算施法（新起手覆盖旧起手 —— 原版同一时刻也只有一个动作）。 */
     private final Map<Long, PendingCast> pending = new ConcurrentHashMap<>();
@@ -179,10 +186,23 @@ public class SkillCastService {
         // CD 的起点 = **服务端受理这一刻**（与扣 MP 同一时刻）；客户端也在收到 `S2C_SkillStart` 后才起表，
         // 于是客户端那圈弧总是**不早于**服务端的窗口结束 ⇒ 不会出现"客户端满了、服务端还在冷却"。
         recordCast(pid, skillId, now);
-        pending.put(pid, new PendingCast(skillId, targetId, point, now));
+        // Multi Spark 的道数在这里**一次掷定**（原版激活时 GetRandomPos(cnt/2+1, cnt)，
+        // `SkillSub.cpp:2785-2792`）——结算与客户端视觉共用这一个数（随 spark_count 下发）。
+        int sparkCount = 0;
+        if (skillId == org.jpstale.server.common.enums.skill.SkillIds.MULTISPARK.id()) {
+            double[] numTable = skillData.table1d("M_Spark_Num");
+            int cnt = idx < numTable.length ? (int) numTable[idx] : 0;
+            if (cnt < 1) {
+                log.error("[Skill] {} 起手 {} 失败：M_Spark_Num 缺失/越界", player.getName(),
+                        SkillKeys.describe(skillId));
+                return BeginResult.REJECTED;
+            }
+            sparkCount = SkillCombat.randBetween(cnt / 2 + 1, cnt);
+        }
+        pending.put(pid, new PendingCast(skillId, targetId, point, now, sparkCount));
         firedSegments.put(pid, new ArrayList<>());
 
-        // 起手广播：旁观者立刻播**同一条**技能动画（自己已在本地播）
+        // 起手广播：旁观者立刻播**同一条**技能动画（自己已在本地播）；spark_count 随包下发
         messageSender.broadcastToArea(self.getMapId(), (float) self.getX(), (float) self.getZ(), AOIManager.VIEW_RANGE,
                 ServerMessage.newBuilder()
                         .setSkillStart(S2C_SkillStart.newBuilder()
@@ -191,6 +211,7 @@ public class SkillCastService {
                                 .setTargetId(targetId)
                                 .setAnimIndex(animIndex)
                                 .setAnimClip(animClip == null ? "" : animClip)
+                                .setSparkCount(sparkCount)
                                 .setTargetPosition(CommonProto.Position.newBuilder()
                                         .setX((float) self.getX()).setY((float) self.getY()).setZ((float) self.getZ())))
                         .build());
@@ -309,7 +330,7 @@ public class SkillCastService {
         // 起手记的 targetId 只用于校验技能/目标一致性（上面已校验技能），这里按回报的目标传下去。
         // 结算交给该职业的效果实现（选敌/算伤害/落地都在那边与 combat 包）；本类不认识任何具体技能。
         CastContext ctx = new CastContext(player, self, skillId, pc.level1Based(), targetId,
-                skillData, statCalculator);
+                skillData, statCalculator, pc.sparkCount());
         JobSkills handler = catalog != null ? catalog.of(player.getJob()) : null;
         List<HitTarget> hits = handler == null ? null : handler.settle(ctx);
         if (hits == null) {

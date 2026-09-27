@@ -782,6 +782,10 @@ message S2C_SkillStart {
   Position target_position = 4;
   int32 anim_index = 5;   // 施法者上报的技能动作条目（原样透传）
   string anim_clip = 6;   // 同一条的语义 ID（校验两端动画数据是否同代）
+  // **服务端掷定的技能参数**（0 = 本技能没有）：Multi Spark 的**道数**在这里随起手下发 ——
+  // 原版激活时 GetRandomPos(cnt/2+1, cnt) 一次掷定、随 SkillCode 高位带给结算（SkillSub.cpp:2785-2792）；
+  // 客户端视觉（几道光）与服务端结算（打几次）必须同一个数 ⇒ 服务端权威、广播同步（AGENTS #14 同源）。
+  int32 spark_count = 7;
 }
 
 message S2C_AttackStart {

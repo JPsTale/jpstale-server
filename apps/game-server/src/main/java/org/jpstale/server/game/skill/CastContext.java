@@ -31,16 +31,28 @@ public final class CastContext {
     private final int point;
     /** 事件帧回报的目标（单体技能用；AoE 忽略它）。 */
     private final long targetId;
+    /**
+     * **服务端在起手掷定的技能参数**（0 = 本技能没有）—— Multi Spark 的道数。
+     * 原版激活时一次掷定随 SkillCode 带给结算（`SkillSub.cpp:2785-2792`）；
+     * `S2C_SkillStart.spark_count` 广播的是同一个数 ⇒ 客户端视觉与服务端结算同源。
+     */
+    private final int sparkCount;
     private final SkillDataRegistry skillData;
     private final PlayerStatCalculator statCalculator;
 
     public CastContext(Player player, PlayerEntity self, int skillId, int point, long targetId,
                        SkillDataRegistry skillData, PlayerStatCalculator statCalculator) {
+        this(player, self, skillId, point, targetId, skillData, statCalculator, 0);
+    }
+
+    public CastContext(Player player, PlayerEntity self, int skillId, int point, long targetId,
+                       SkillDataRegistry skillData, PlayerStatCalculator statCalculator, int sparkCount) {
         this.player = player;
         this.self = self;
         this.skillId = skillId;
         this.point = point;
         this.targetId = targetId;
+        this.sparkCount = sparkCount;
         this.skillData = skillData;
         this.statCalculator = statCalculator;
     }
@@ -69,6 +81,11 @@ public final class CastContext {
 
     public long targetId() {
         return targetId;
+    }
+
+    /** 起手掷定的技能参数（Multi Spark = 道数；0 = 本技能没有）。 */
+    public int sparkCount() {
+        return sparkCount;
     }
 
     /** 参数表 1 维取值（表名是源码里的真实表名，如 {@code Pike_Wind_Push_Lenght}）。 */
