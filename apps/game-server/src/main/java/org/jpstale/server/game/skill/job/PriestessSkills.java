@@ -327,11 +327,8 @@ public class PriestessSkills implements JobSkills {
     /* ────────────── Multi Spark（T1.3）：N 道光芒，每道 = 一整次攻击（用户裁定） ────────────── */
 
     private List<HitTarget> multiSpark(CastContext c) {
-        // 道数 = **起手时掷定**（`SkillCastService.begin`：rand(M_Spark_Num[p]/2+1, M_Spark_Num[p])，
-        // 随 `S2C_SkillStart.spark_count` 下发给客户端视觉）—— 同一次施法结算与视觉共用一个 N。
         int sparks = c.sparkCount();
         if (sparks < 1) {
-            // 正常链路不可能（begin 已掷定并校验）；走到这里 = 绕过起手的改包路径 ⇒ 不结算、留日志
             log.warn("[Skill] {} Multi Spark 事件帧没有起手道数 ⇒ 不结算", c.player().getName());
             return List.of();
         }
@@ -339,20 +336,30 @@ public class PriestessSkills implements JobSkills {
         if (m == null) {
             return List.of();
         }
-        // ⚠ **2026-09-27 用户第二轮裁定（附实测日志）**：
-        //   ① 每道光 = 1×攻击力（第一轮裁定，保留）；② **伤害是一次结算** —— 原版
-        //      `Svr_Damge.cpp:3139-3150` 只算出一个 `Power` 交给 `dm_SendTransDamage` **一次**，
-        //      不是 N 次独立伤害。逐道 applyDamage 会让一次技能触发 **N 次击杀检查**
-        //      （实测：4 道 = 4 条 `Monster killed by prist`、4 份掉落 + 4 份经验）—— 用户抓出。
-        //   ⇒ 现在：N 道的量**合并成一个总伤害**，一次命中/暴击/防御/吸收判定、一次扣血与死亡检查
-        //      （掉落/经验只触发一次）。`M_Spark_Damage` 表与 +30% 仍不参与结算（第一轮裁定）。
+        // **伤害公式（原版 `Svr_Damge.cpp:3138-3151` 逐字，用户 2026-09-27 指出漏加成）**：
+        //   Power += Power * M_Spark_Damage[Point] * Param / 100;   // Param = 技能码高4位 = **本次道数 N**
+        //     ⇒ 每道 = 面板掷 × (1 + 表值%×N)（道越多每道越狠；表值 16..52% 为运营手调值，源码默认 11..47）
+        //   Critical[0] = 0;                                       // **不暴击**
+        //   if (lpChar) Power += Power * 30 / 100;                  // 打怪 +30%（我们的目标只有怪 ⇒ 恒乘）
+        //   总伤 = 每道 × N（用户 2026-09-26 裁定"一次结算"，N 道合计打一次）。
+        double[] dmgTable = c.table1d("M_Spark_Damage");
+        if (dmgTable == null || c.idx() >= dmgTable.length) {
+            log.error("[Skill] Multi Spark 加成表 M_Spark_Damage 缺失（idx={}）⇒ 本次不放", c.idx());
+            return List.of();
+        }
         int[] ap = c.attackPower();
-        int perBolt = c.roll(ap[0], ap[1]);      // 每道光 = 一倍攻击力（同一次掷点，N 道同值）
-        int power = perBolt * sparks;            // 总伤害 = N × 攻击力
-        DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power);
+        int roll = c.roll(ap[0], ap[1]);
+        int pct = (int) dmgTable[c.idx()];
+        int perBolt = roll + roll * pct * sparks / 100;   // Param = N（道数）
+        perBolt += perBolt * 30 / 100;                    // 对怪 +30%
+        int power = perBolt * sparks;
+        // 不暴击（原版 Critical[0]=0）；命中模型沿用本招既有的 accuracy 判定
+        DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power,
+                DamageCalculator.SkillMods.withoutCrit());
         combat.applyDamage(c.player(), c.self(), m, r, 0);   // **一次落地**：一次死亡检查/奖励
-        log.info("[Skill] {} Multi Spark p{} {} 道光（每道 {}）合计 {} 打 {}#{} —— 一次结算",
-                c.player().getName(), c.point(), sparks, perBolt, power, m.getName(), c.targetId());
+        log.info("[Skill] {} Multi Spark p{} {} 道：面板掷 {} +{}%×{} 再 +30% ⇒ 每道 {}，合计 {} 打 {}#{}",
+                c.player().getName(), c.point(), sparks, roll, pct, sparks, perBolt, power,
+                m.getName(), m.getId());
         return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
     }
 
@@ -364,7 +371,6 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Holy Mind 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
-        // 源码必须带目标（`SkillSub.cpp:2824` BeginSkill(…, lpChar, …)）
         Monster m = targets.single(c.player(), c.self(), c.targetId());
         if (m == null) {
             return List.of();
@@ -376,7 +382,6 @@ public class PriestessSkills implements JobSkills {
         return List.of();   // 减益不是伤害：零目标
     }
 
-    /* ────────────── Holy Reflection（T2.3）：限时圣盾，亡灵攻击反弹 ────────────── */
 
     private List<HitTarget> holyReflection(CastContext c) {
         double[] timeTable = c.table1d("Holy_Reflection_Time");
@@ -385,17 +390,14 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Holy Reflection 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
-        // 自增益，不需要目标（`character.cpp:14010`：`SendProcessSKillToServer(SKILL_PLAY_HOLY_REFLECTION, point, 0, 0)`）；
-        // 生效 = 窗口期内亡灵怪的攻击让攻击者吃反弹（`OnSever.cpp:34130-34131` 写 Time/Param 两字段）。
         int durationSec = (int) timeTable[c.idx()];
         int returnPct = (int) retTable[c.idx()];
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, returnPct);
         log.info("[Skill] {} Holy Reflection p{} 圣盾 {} 秒，亡灵反弹 {}%",
                 c.player().getName(), c.point(), durationSec, returnPct);
-        return List.of();   // 增益不是伤害：零目标
+        return List.of();
     }
 
-    /* ────────────── Grand Healing（T2.4）：一次掷点，治全队（不含自己） ────────────── */
 
     private List<HitTarget> grandHealing(CastContext c) {
         double[][] heal2 = c.table2d("Grand_Healing");
@@ -412,8 +414,6 @@ public class PriestessSkills implements JobSkills {
         int max = (int) heal2[c.idx()][1] + (ap[1] - wd[1]) / 3 + spirit / 6;
         int amount = c.roll(min, max);
 
-        // **只治队友**：`rsPlayGrandHealing` 的发送循环明确跳过施法者本人（`OnSever.cpp:16546`）；
-        // 无队伍 = 无效果（源码整个包在 `if (dwPartyInfo && lpPartyMaster)` 里）。不按距离过滤（源码无此判断）。
         List<Player> members = partyService.membersOf(p.getId());
         int healed = 0;
         for (Player member : members) {
@@ -447,8 +447,6 @@ public class PriestessSkills implements JobSkills {
         return List.of();
     }
 
-    /* ────────────── Divine Lightning（T2.2）：轮转扫描 + 裸伤 + 必中 ────────────── */
-
     private List<HitTarget> divineLightning(CastContext c) {
         double[] numTable = c.table1d("Divine_Lightning_Num");
         double[] dmgTable = c.table1d("Divine_Lightning_Damage");
@@ -457,13 +455,10 @@ public class PriestessSkills implements JobSkills {
             return List.of();
         }
         if (dmgTable == null || c.idx() >= dmgTable.length) {
-            // 加成表缺失 ⇒ 不瞎放（原版这里 power 会少一段加成，那不是"没有"是"错"）
             log.error("[Skill] Divine Lightning 加成表 Divine_Lightning_Damage 缺失（idx={}）⇒ 本次不放", c.idx());
             return List.of();
         }
         int maxTargets = (int) numTable[c.idx()];
-        // 轮转：从"上次结束处"继续扫（每玩家滚动位）。源码扫的是固定的玩家数组下标；
-        // 我们按 **monster id 升序**的稳定序列滚动 —— 保证"连续两次施放选中集合不同"这个可观测行为。
         List<Monster> candidates = new ArrayList<>(targets.monstersOnMap(c.self()));
         candidates.sort(java.util.Comparator.comparingLong(Monster::getId));
         int start = divineFindCount.getOrDefault(c.player().getId(), 0);
@@ -472,17 +467,6 @@ public class PriestessSkills implements JobSkills {
         divineFindCount.put(c.player().getId(), (start + picked.size()) % Math.max(1, candidates.size()));
         if (picked.isEmpty()) return List.of();
 
-        // **伤害公式（原版逐字）**：
-        //   `Svr_Damge.cpp:4858-4859`：pow = GetRandomPos(Power[0..1]) + pow*Divine_Lightning_Damage[Point]/100
-        //   ⚠ **Power[0..1] = 面板攻击区间**，不是武器裸伤 —— `dm_SendRangeDamage`（`Damage.cpp:816-819`）把
-        //   `Power[0..1] = lpCurPlayer->smCharInfo.Attack_Damage[0..1]`（面板），调用方传的武器裸伤
-        //   （`sItemInfo.Damage[0..1]`）进的是 **Power2**（神雷的 103 分支不消费它）。
-        //   第一版取了武器模板裸伤（法杖只有 14-15）⇒ 加成后 ≈20、扣防后与改前无异
-        //   （用户实测"伤害没有增加"，服务端日志 `武器掷 14 +48% ⇒ 20` 为证）。
-        //   加成 24..53%（Point 0 基，`Point = ((SkillCode>>8)&0xF)-1`）；
-        //   AttackState = 103 ⇒ 逐目标（`Svr_Damge.cpp:1581-1598`）：UNDEAD ⇒ pow += pow/2（+50%）；
-        //   rs = Resistance[LIGHTING]/10（钳 ±100）⇒ pow -= pow*rs/100 —— 我方无雷抗列 ⇒ 等价全体 rs=0
-        //   （原版 rs=0 本就跳过；数据缺口登记，不编造）。
         int[] ap = c.attackPower();
         int roll = c.roll(ap[0], ap[1]);
         int pct = (int) dmgTable[c.idx()];

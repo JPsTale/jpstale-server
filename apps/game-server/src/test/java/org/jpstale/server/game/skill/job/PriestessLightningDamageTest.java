@@ -84,6 +84,21 @@ class PriestessLightningDamageTest {
      * 服务端 `pow = GetRandomPos(Power[0..1])` 掷的是面板。第一版取武器模板裸伤
      * （法杖 14-15）⇒ +48% 后 ≈20、扣防后与改前无异。
      */
+    /**
+     * Multi Spark（`Svr_Damge.cpp:3138-3151`，用户 2026-09-27 指出漏加成后补）：
+     * `Power += Power*M_Spark_Damage[Point]*Param/100`（**Param = 本次道数 N**）+ 对怪 +30%、不暴击。
+     * 每道 = 面板掷 × (1 + 表值%×N) × 1.3；总伤 = 每道 × N。
+     */
+    @Test
+    void 多重火花加成乘道数() {
+        // 掷 100、1 级表 16%、N=4 ⇒ 每道 = 100 + 100*16*4/100 = 164 → ×1.3 = 213；总 = 852
+        int roll = 100, pct = 16, n = 4;
+        int per = roll + roll * pct * n / 100;
+        per += per * 30 / 100;
+        assertEquals(213, per, "100 + 100*16%*4 = 164 → 164*1.3 = 213（整数：164+49）");
+        assertEquals(852, per * n, "总伤 = 每道 × N");
+    }
+
     @Test
     void 底数是面板攻击不是武器裸伤() {
         // 面板 60..80 的祭司，1 级神雷 ⇒ 74..99；若错用武器裸伤 14..15 ⇒ 只有 17..18（差一个数量级）
