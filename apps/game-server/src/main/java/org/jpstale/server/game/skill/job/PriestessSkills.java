@@ -417,7 +417,7 @@ public class PriestessSkills implements JobSkills {
         List<Player> members = partyService.membersOf(p.getId());
         int healed = 0;
         for (Player member : members) {
-            if (member == p || member.getHp() <= 0) {
+            if (member.isDead()) {
                 continue;
             }
             int take = Math.min(member.getMaxHp() - member.getHp(), amount);
@@ -451,8 +451,14 @@ public class PriestessSkills implements JobSkills {
 
     private List<HitTarget> divineLightning(CastContext c) {
         double[] numTable = c.table1d("Divine_Lightning_Num");
+        double[] dmgTable = c.table1d("Divine_Lightning_Damage");
         if (numTable == null || c.idx() >= numTable.length) {
             log.error("[Skill] Divine Lightning 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        if (dmgTable == null || c.idx() >= dmgTable.length) {
+            // 加成表缺失 ⇒ 不瞎放（原版这里 power 会少一段加成，那不是"没有"是"错"）
+            log.error("[Skill] Divine Lightning 加成表 Divine_Lightning_Damage 缺失（idx={}）⇒ 本次不放", c.idx());
             return List.of();
         }
         int maxTargets = (int) numTable[c.idx()];
@@ -464,8 +470,31 @@ public class PriestessSkills implements JobSkills {
         List<Monster> picked = scanRoundRobin(candidates, start, maxTargets,
                 c.self(), 180.0, 65);
         divineFindCount.put(c.player().getId(), (start + picked.size()) % Math.max(1, candidates.size()));
+        if (picked.isEmpty()) return List.of();
 
-        return settleWeaponDamageBurst(c, picked);
+        // **伤害公式（原版 `Svr_Damge.cpp:4854-4863` 逐字）**：
+        //   pow = GetRandomPos(武器 Power[0..1]);
+        //   pow += pow * Divine_Lightning_Damage[Point] / 100;      // 技能加成 24..53%（Point 0 基，`Point = ((SkillCode>>8)&0xF)-1`）
+        //   AttackState = 103 ⇒ 逐目标（`Svr_Damge.cpp:1581-1598`）：
+        //     · Brood == UNDEAD ⇒ pow += pow/2                      // 对不死系 +50%
+        //     · rs = Resistance[LIGHTING]/10（钳 ±100）⇒ pow -= pow*rs/100
+        //       ⚠ 我方怪物数据**没有雷抗字段** ⇒ 等价于全体 rs=0（原版 rs=0 时该分支本就跳过）；
+        //         数据缺口登记在此，将来加了抗性列就接上。
+        int[] wd = c.weaponDamage();
+        int roll = c.roll(wd[0], wd[1]);
+        int pct = (int) dmgTable[c.idx()];
+        int power = roll + roll * pct / 100;
+        List<HitTarget> hits = new ArrayList<>(picked.size());
+        for (Monster m : picked) {
+            int per = power;
+            if (m.getBrood() == Monster.Brood.UNDEAD) per += per / 2;
+            DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(c.player(), m.combatStats(), per);
+            combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
+            hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
+        }
+        log.info("[Skill] {} Divine Lightning p{}：武器掷 {} +{}% ⇒ {}，命中 {} 目标（不死系各再 +50%）",
+                c.player().getName(), c.point(), roll, pct, power, hits.size());
+        return hits;
     }
 
     /* ────────────── Chain Lightning（T4.3）：最近邻链 + 裸伤 + 必中 ────────────── */
@@ -486,13 +515,30 @@ public class PriestessSkills implements JobSkills {
         }
         List<Monster> picked = chainNearest(targets.monstersOnMap(c.self()), first,
                 (int) numTable[c.idx()], (float) rangeTable[c.idx()]);
-        return settleWeaponDamageBurst(c, picked);
-    }
+        if (picked.isEmpty()) return List.of();
 
-    /** Divine / Chain Lightning 共用：**一次**裸伤掷点 → 逐目标必中结算（同一 power，各自的防御/吸收在公式内生效）。 */
-    private List<HitTarget> settleWeaponDamageBurst(CastContext c, List<Monster> picked) {
+        // **伤害公式（原版 `Svr_Damge.cpp:5249-5263` 逐字）**：
+        //   pow = GetRandomPos(武器 Power[0..1]);
+        //   pow += pow * Chain_Lightning_Damage[Point] / 100;       // 加成 140..185%（Point 0 基）
+        //   AttackState = 101 ⇒ 逐目标（`Svr_Damge.cpp:1536-1547`）：rs = Resistance[LIGHTING]（**不除 10**，钳 ±100）
+        //   ⚠ 同上：我方无雷抗字段 ⇒ 等价全体 rs=0（原版 rs=0 时跳过）。
+        double[] dmgTable = c.table1d("Chain_Lightning_Damage");
+        if (dmgTable == null || c.idx() >= dmgTable.length) {
+            log.error("[Skill] Chain Lightning 加成表 Chain_Lightning_Damage 缺失（idx={}）⇒ 本次不放", c.idx());
+            return List.of();
+        }
         int[] wd = c.weaponDamage();
         int power = c.roll(wd[0], wd[1]);
+        power += power * (int) dmgTable[c.idx()] / 100;
+        return settleWeaponDamageBurst(c, picked, power);
+    }
+
+    /**
+     * Divine / Chain Lightning 共用的**结算尾巴**：同一个 power 逐目标必中（各自的防御/吸收在公式内生效）。
+     * ⚠ power 的算法**两招不同**（各自 case 里的表不同、对目标修正不同），由调用方算好传入 ——
+     * 原版两处逐字见 {@link #divineLightning} / {@link #chainLightning} 的注释。
+     */
+    private List<HitTarget> settleWeaponDamageBurst(CastContext c, List<Monster> picked, int power) {
         List<HitTarget> hits = new ArrayList<>(picked.size());
         for (Monster m : picked) {
             DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(c.player(), m.combatStats(), power);
