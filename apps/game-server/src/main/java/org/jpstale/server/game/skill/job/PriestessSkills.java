@@ -139,7 +139,10 @@ public class PriestessSkills implements JobSkills {
         return fn == null ? null : fn.apply(c);
     }
 
-    /* ────────────── Healing（T1.1）：治疗 —— 有玩家目标治目标，没有治自己 ────────────── */
+    /* ────────────── Healing（T1.1）：治疗 —— 有目标治目标（角色：玩家或怪），没有治自己 ────────────── */
+
+    /** 治疗距离门：原版 `GetSkillDistRange` 的 `case SKILL_HEALING: return 180 * fONE;`（`SkillSub.cpp:1233`） */
+    private static final double HEAL_RANGE = 180;
 
     private List<HitTarget> healing(CastContext c) {
         double[][] heal2 = c.table2d("Healing_Heal");
@@ -161,7 +164,21 @@ public class PriestessSkills implements JobSkills {
         // **被选中的角色** —— 玩家或怪都行：`dm_SendTransDamage(lpChar, …)` → 服务端
         // `rsPlayHealing`（`OnSever.cpp:16478`）对任意 `smCHAR` 执行 `Life[0] += WParam` 并 clamp）。
         // 没有/无效的目标才治自己（`SkillSub.cpp:537` 那支自带 `!lpCharSelPlayer` 守卫）。
-        Monster healMonster = targets.single(c.player(), c.self(), c.targetId());
+        // 距离门 = **原版 `GetSkillDistRange` 的 `case SKILL_HEALING: return 180 * fONE;`**
+        // （`SkillSub.cpp:1233`；`playmain.cpp:2256` 用它判"是否进入射程"）——**不是武器射程**。
+        // ⚠ 召唤物**不排除**：`playmain.cpp:2239-2245` 明确把"Healing 目标是召唤物"那面
+        //    "不可攻击"的旗子清掉（`if (attack_UserMonster && CODE == SKILL_HEALING) attack_UserMonster = 0;`）。
+        Monster healMonster = null;
+        {
+            Monster m = targets.aliveMonster(c.targetId());
+            if (m != null && m.getMapId() == c.self().getMapId()) {   // 同图 = 我方实现细节（原版按 serial 同区域查找）
+                double dx = m.getX() - c.self().getX();
+                double dz = m.getZ() - c.self().getZ();
+                if (dx * dx + dz * dz <= HEAL_RANGE * HEAL_RANGE) {
+                    healMonster = m;
+                }
+            }
+        }
         if (healMonster != null) {
             int amount2 = Math.min(healMonster.getMaxHp() - healMonster.getHp(), amount);
             if (amount2 > 0) {
@@ -225,9 +242,11 @@ public class PriestessSkills implements JobSkills {
         }
         double dx = targetEntity.getX() - c.self().getX();
         double dz = targetEntity.getZ() - c.self().getZ();
-        double range = c.shootingRange();
-        if (dx * dx + dz * dz > range * range) {
-            log.info("[Skill] {} Healing 目标 {} 超距（>{}）⇒ 治自己", c.player().getName(), candidate.getName(), range);
+        // 距离门同怪：原版 `GetSkillDistRange(SKILL_HEALING) = 180 * fONE`（**不是武器射程**）——
+        // 玩家目标与怪目标走同一个门，两条路径不各写一份判据。
+        if (dx * dx + dz * dz > HEAL_RANGE * HEAL_RANGE) {
+            log.info("[Skill] {} Healing 目标 {} 超距（>{}，`GetSkillDistRange`）⇒ 治自己",
+                    c.player().getName(), candidate.getName(), HEAL_RANGE);
             return c.player();
         }
         return candidate;

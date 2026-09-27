@@ -65,7 +65,20 @@ public class TargetSelectors {
     }
 
     /**
+     * 按 id 取怪，**只做"存在且存活"** —— 召唤物、距离、同图等由**调用方按各自技能的源码规则**判，
+     * 不在这里替它决定（例：Healing 按源码**允许**治召唤物、距离门是 `GetSkillDistRange` 的
+     * `180 * fONE`，与"攻击类"的"非召唤物 + 武器射程"不是同一套）。
+     */
+    public Monster aliveMonster(long monsterId) {
+        Monster m = entityRegistry.findMonster(monsterId);
+        return (m != null && m.isAlive()) ? m : null;
+    }
+
+    /**
      * 单目标校验：存在/存活/非召唤物/同图/距离（≤ 武器射程）。
+     *
+     * <p>⚠ **这是"攻击类"技能的规则集**（Pike Wind / Critical Hit / Jumping Crash 一族），
+     * 不是通用规则：治疗类另有依据（见 {@link #aliveMonster}）。
      * 不可用 ⇒ `null`（有日志，**不静默换目标** —— 调用方按"零目标"处理）。
      */
     public Monster single(Player player, PlayerEntity self, long targetId) {
