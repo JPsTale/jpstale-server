@@ -347,8 +347,22 @@ public class Monster extends BaseEntity {
         return Math.round(frames * 160.0 * 1000.0 / (attackAnimStep() * RENDER_FPS));
     }
 
+    /**
+     * **减速生效时的攻击间隔**（Glacial Spike 等）：原版的攻击节奏 = 攻击动画播完（FrameStep
+     * 被 `PlaySlowSpeed` 缩放，`character.cpp:5731-5733`）⇒ 减速 78% ⇒ 间隔 ×256/200。
+     * 我们用 `getAttackIntervalMs()` 表达同一件事 —— AiEngine 取间隔时走这里。
+     */
+    public long getEffectiveAttackIntervalMs() {
+        return Math.round(getAttackIntervalMs() / slowRatio());
+    }
+
+    /**
+     * 广播给客户端的动画播放速率（`S2C_MonsterAppear.anim_rate` / `S2C_MonsterMove.anim_rate`）。
+     * ⚠ 减速期间等比放慢 —— 原版的"慢动作"观感就是 FrameStep 缩放（走/跑动画在客户端本就按
+     * 实际移速缩放，这里补齐**攻击**那一支）。
+     */
     public float getAnimRate() {
-        return attackAnimStep() * (float) RENDER_FPS / 4800f;
+        return (float) (attackAnimStep() * RENDER_FPS / 4800f * slowRatio());
     }
 
     /** 死亡时刻 + `decayTime` 已到（只用于"何时移除"，不是"是否可见"）。 */

@@ -665,6 +665,9 @@ message S2C_MonsterMove {
   // 该状态的**条目索引**（.inx 序号）—— 服务端从 monster-anim.json 里选定的变体，
   // 客户端直接 playMotion(该条目)。与玩家 anim_index 同一语义（谁决定谁下发，见 docs/chars/动画同步.md）。
   int32 anim_index = 5;
+  // **动画播放速率**（与 S2C_MonsterAppear.anim_rate 同源同语义）：减速（冰枪）期间等比放慢
+  // ⇒ 已在视野内的怪不必重 Appear 就能更新（2026-09-28 减速可见性）。
+  float anim_rate = 6;
 }
 
 message S2C_NpcAppear {

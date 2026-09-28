@@ -84,7 +84,8 @@ import java.util.function.Function;
  *   <li><b>Glacial Spike</b>（T4.1）身前矩形 AoE（横向 ±50、前方 0..340，必中，
  *       `character.cpp:17017-17023` 的 {@code dm_SelectRangeBox}）：面板掷 ×(1+
  *       {@code Glacial_Spike_Damage[p]}%（150..195%））+ 减速 {@code PlaySlowSpeed=200、time=8}
- *       （= 200/256 比例 × 8×16 帧 @70fps ≈ 1.83s，`Svr_Damge.cpp:1769-1776`）。⚠ 原版对怪的减速
+ *       （= 200/256 比例、**8 秒** —— time 单位是秒，客户端 `Param2×70` 帧 @70fps，
+ *       `Svr_Damge.cpp:1769-1776` + `character.cpp:10740`；第一版推成 1.83s 是错的）。⚠ 原版对怪的减速
  *       是**客户端**表现（服务端只管玩家目标）；我们的怪是服务端权威移动 ⇒ 服务端持态保持可观测行为。</li>
  *   <li><b>Regeneration Field</b>（T4.2，"上吊"）限时再生场（35..80 秒）：自己 {@code Life_Regen +=
  *       LifeRegen[p]} 全额 + {@code Mana_Regen += ManaRegen[p]} 全额；**队友**（施法者 XZ ≤
@@ -711,7 +712,12 @@ public class PriestessSkills implements JobSkills {
         int[] ap = c.attackPower();
         int power = c.roll(ap[0], ap[1]);
         power += power * (int) dmgTable[c.idx()] / 100;
-        long slowMs = 8L * 16 * 1000L / 70;
+        // 减速：`time = 8` ⇒ **8 秒**、`SlowSpeed = 200`（对 256 的比例 = 78%）
+        //（`Svr_Damge.cpp:1769-1776` 发包；客户端 `PlaySlowCount = Param2×70` 帧 @70fps，
+        // `character.cpp:10740-10743` —— time 单位是**秒**；第一版我推成 1.83s ⇒ 效果不可感知）。
+        // 原版对怪的减速在客户端；我们的怪服务端权威 ⇒ 服务端持态
+        //（移动步长 / 攻击间隔 / 广播的动画速率三处消费）。
+        long slowMs = 8_000L;
         List<HitTarget> hits = new ArrayList<>(picked.size());
         for (Monster m : picked) {
             DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(

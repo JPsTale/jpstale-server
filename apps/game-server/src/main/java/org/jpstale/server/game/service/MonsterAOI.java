@@ -190,6 +190,8 @@ public class MonsterAOI {
                 // 攻击时带上**服务端选定的条目索引** —— 客户端直接播这一条（与玩家 anim_index 同一语义）。
                 // 非攻击状态没有服务端选择的变体，留 0（客户端按自己的状态机匹配）。
                 .setAnimIndex(anim == 0x0100 ? m.getAttackAnimIndex() : 0)
+                // 动画速率（减速期间等比放慢，冰枪）—— 已在视野内的怪不必重 Appear 就能更新。
+                .setAnimRate(m.getAnimRate())
                 .build())
             .build();
         for (Map.Entry<Long, Set<Long>> e : visibleByPlayer.entrySet()) {

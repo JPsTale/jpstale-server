@@ -137,7 +137,7 @@ public class AiEngine {
             // `帧数(monster-attack-frames.json) ÷ 播放步进(DB attackspeed)` 算同样的时长。
             // 少了这一步：怪一刀刚出手、目标一挪出范围就立刻切 CHASE ⇒ **客户端的攻击动画被打断**，
             // 而玩家攻击时却被定身等动画播完 —— 两边不公平（用户 2026-09-16 实测）。
-            long lockMs = monster.getAttackIntervalMs();
+            long lockMs = monster.getEffectiveAttackIntervalMs();   // 减速期间等比拉长（原版攻击节奏=动画节奏）
             if (monster.getState() == MonsterState.ATTACK && lockMs > 0
                     && System.currentTimeMillis() - monster.getLastAttackTime() < lockMs) {
                 faceTarget(monster, target);   // 站桩也要面向目标
@@ -681,7 +681,7 @@ public class AiEngine {
         // 两刀间隔 = 攻击动画时长 —— 唯一判据在 Monster.getAttackIntervalMs()
         // （原版服务端跑同一份 smCHAR::Main()，动画没播完不能出下一刀，等价于这个时长）。
         // 恒 > 0（没有攻击动画的模型由 `NO_ANIM_ATTACK_FRAMES` 推一个间隔，不会变成"永不出刀"）
-        long interval = monster.getAttackIntervalMs();
+        long interval = monster.getEffectiveAttackIntervalMs();   // 减速期间等比拉长
         if (now - monster.getLastAttackTime() < interval) {
             return;
         }
