@@ -269,19 +269,14 @@ public class PriestessSkills implements JobSkills {
         }
         Player candidate = playerService.byId(targetId);
         if (candidate == null) {
-            return null;   // 认不出 ⇒ 显式的"没有"（主函数警告），**不许**改成治自己
+            return null;
         }
         PlayerEntity candEntity = playerService.entityOf(candidate);
         if (candEntity == null) {
-            // 装载着但**不在场上**（已离开地图/退出世界）⇒ 原版 `srFindCharFromSerial` 也找不到 ⇒ 不加
             log.warn("[Skill] {} Healing 目标 {} 不在场上（无实体）⇒ 本次不治疗",
                     self.getName(), candidate.getName());
             return null;
         }
-        // ⚠ **不查地图**：原版 `rsPlayHealing` 只用 `srFindCharFromSerial` 在同一区域服务器里按
-        // serial 找人，**没有任何地图判断**（我此前自造了一条"同图"，已按用户 2026-09-27 指示删除）。
-        // 但"人已经躺下"要跳过：`rsPlayHealing` 只对 `smCharInfo.Life[0] > 0` 的角色加血
-        // （`OnSever.cpp:16483`）——原版照旧回 TRUE 但不加，我们同样是"不加、也不改治自己"。
         if (candEntity.isDead()) {
             log.info("[Skill] {} Healing 目标 {} 已死亡 ⇒ 不加血（原版 `Life[0] > 0` 才加）",
                     self.getName(), candidate.getName());
@@ -289,10 +284,6 @@ public class PriestessSkills implements JobSkills {
         }
         double dx = candEntity.getX() - c.self().getX();
         double dz = candEntity.getZ() - c.self().getZ();
-        // 距离门同怪：原版 `GetSkillDistRange(SKILL_HEALING) = 180 * fONE`（**不是武器射程**）——
-        // 玩家目标与怪目标走同一个门，两条路径不各写一份判据。
-        // ⚠ 超距**不改成治自己**：原版的目标是客户端选定的那一个（`dwTarObjectSerial`），
-        //   超距时 `playmain.cpp:2256` 那一侧根本不会起手；服务端不会把它换成别人。
         if (dx * dx + dz * dz > HEAL_RANGE * HEAL_RANGE) {
             log.warn("[Skill] {} Healing 目标 {} 超距（>{}，`GetSkillDistRange`）⇒ 本次不治疗"
                             + "（不改成治自己 —— 目标是客户端选定的那一个）",
@@ -694,14 +685,24 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Glacial Spike 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
-        Float reportedYaw = c.casterYaw();
+        // 朝向 = **由目标与施法者的坐标算出**（用户 2026-09-28 定）：原版对目标施法时
+        // `lpChar->Angle.y = GetRadian2D(施法者pX/pZ, 目标pX/pZ)`（`SkillSub.cpp:3814`）——
+        // 矩形指向"施法者→目标"。（背景：实体上的角度只在移动包里更新，原地转身不发移动包 ⇒
+        // 2026-09-28 实测"走过去第一发中、原地转身第二发 0 命中"。）
+        // 无目标/目标已死 ⇒ 退回客户端上报的施法朝向（caster_yaw）⇒ 实体最后已知朝向，逐级留痕。
         double yaw;
-        if (reportedYaw != null) {
-            yaw = reportedYaw;
+        Monster aim = c.targetId() > 0 ? targets.aliveMonster(c.targetId()) : null;
+        if (aim != null) {
+            yaw = Math.atan2(aim.getX() - c.self().getX(), aim.getZ() - c.self().getZ());
         } else {
-            log.warn("[Skill] Glacial Spike 起手包没带 caster_yaw（旧客户端/改包？）⇒ "
-                    + "用实体最后已知朝向（最后一次移动的）代替 —— 朝向可能偏旧");
-            yaw = c.self().getAngle();
+            Float reportedYaw = c.casterYaw();
+            if (reportedYaw != null) {
+                yaw = reportedYaw;
+            } else {
+                log.warn("[Skill] Glacial Spike 无目标且起手包没带 caster_yaw（旧客户端/改包？）⇒ "
+                        + "用实体最后已知朝向（最后一次移动的）代替 —— 朝向可能偏旧");
+                yaw = c.self().getAngle();
+            }
         }
         List<Monster> picked = targets.boxInFront(c.self(), yaw, 50, 340);
         if (picked.isEmpty()) {
