@@ -161,6 +161,19 @@ public class RegenerationService {
         hpRegen += field[0];
         mpRegen += field[1];
 
+        // **Virtual Life 上限加成的到期回扫**：`SkillBuffStates` 是查时判过期，没人查就不回落。
+        // 这里每秒把 maxHp 对齐到"基础 + 上限加成"的期望值 —— 到期即回落并钳制当前 HP
+        //（原版到期清零：`sinSkill.cpp:1014-1024` 把 AddVirtualLife 两格清 0）。回落也算变化 ⇒ 推 HUD。
+        int baseMax = statCalculator.maxHp(p);
+        int vlPct = skillBuffStates.activeParam(p.getId(),
+            org.jpstale.server.common.enums.skill.SkillIds.VIRTUAL_LIFE.id());
+        int expectedMax = vlPct > 0 ? baseMax + baseMax * vlPct / 100 : baseMax;
+        boolean maxChanged = false;
+        if (p.getMaxHp() != expectedMax) {
+            p.setMaxHp(expectedMax);
+            maxChanged = true;
+        }
+
         double[] acc = accumulators.computeIfAbsent(p.getId(), k -> new double[3]);
         acc[0] += hpRegen;
         acc[1] += mpRegen;
@@ -173,7 +186,10 @@ public class RegenerationService {
             acc[2] -= statCalculator.staminaUsePerSec(p) * runMs / 1000.0;
         }
 
-        boolean changed = false;
+        boolean changed = maxChanged;
+        if (maxChanged && p.getHp() > p.getMaxHp()) {
+            p.setHp(p.getMaxHp());
+        }
         int dh = (int) acc[0];
         if (dh > 0) {
             acc[0] -= dh;

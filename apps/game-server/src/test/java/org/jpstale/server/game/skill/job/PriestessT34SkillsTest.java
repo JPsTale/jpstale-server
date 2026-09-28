@@ -22,8 +22,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       `Resurrection_Percent[p]` 掷点，成功 ⇒ 原地半血（`sinSetLife(Life[1]/2)`）、无代价；</li>
  *   <li>Extinction：`Svr_Damge.cpp:2622-2700` + `:5142-5146` —— 只打亡灵，
  *       `Extinction_Percent[p]+等级/5` 命中 ⇒ 扣**当前生命**的 `Extinction_Amount[p]%`；</li>
- *   <li>Virtual Life：`character.cpp:15112-15116` —— 受击 `Power -= Power*Percent/100`（**减伤**，
- *       不是描述里的"提升生命上限"）；自施覆盖、队友仅过期后可再施（`OnSever.cpp:34287-34306`）；</li>
+ *   <li>Virtual Life：**一段表值两段效果** —— 受击减伤 `Power -= Power*Percent/100`
+ *       （`character.cpp:15112-15116`）+ 生命上限 `AddVirtualLife[1] = Life[1]×Percent/100`
+ *       （`sinSkill.cpp:7029`，读数 `Life[1]+AddVirtualLife[1]` 见 `sinCharStatus.cpp:1024`；
+ *       用户 2026-09-28 指认）；自施覆盖、队友仅过期后可再施（`OnSever.cpp:34287-34306`）；</li>
  *   <li>Glacial Spike：`character.cpp:17000-17032`（矩形 ±50/0..340 必中）+ `:5240-5247`
  *       （面板 ×(1+150..195%)，AttackState=3）+ `Svr_Damge.cpp:1769-1776`（减速 200、time=8）；</li>
  *   <li>Regeneration Field：`sinInvenTory.cpp:8971-8976`（Life 全额/Mana 自全额、队友减半）
@@ -100,12 +102,15 @@ class PriestessT34SkillsTest {
     }
 
     @Test
-    void virtualLife是减伤不是上限提升() {
-        // `Power -= Power * 5% / 100`：200 伤 ⇒ 190
-        int power = 200;
+    void virtualLife一段表值两段效果() {
         int pct = (int) table("Virtual_Life_Percent")[3];
         assertEquals(5, pct);
+        // 减伤段：`Power -= Power * 5% / 100`：200 伤 ⇒ 190
+        int power = 200;
         assertEquals(190, power - power * pct / 100);
+        // 上限段：`AddVirtualLife[1] = Life[1] * Percent / 100`：基础 1000 ⇒ 上限 1050
+        int baseMax = 1000;
+        assertEquals(1050, baseMax + baseMax * pct / 100);
     }
 
     @Test

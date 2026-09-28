@@ -37,6 +37,10 @@ public class PlayerService {
     @Autowired
     private PlayerStatCalculator statCalculator;
 
+    /** 玩家技能型限时增益（Virtual Life 的上限加成窗从这里查） */
+    @Autowired
+    private org.jpstale.server.game.skill.SkillBuffStates skillBuffStates;
+
     @Autowired
     private CharacterExpDefMapper charExpDefMapper;
 
@@ -96,12 +100,28 @@ public class PlayerService {
     public void recalcPanel(Player p) {
         // 失效派生属性缓存（升级/属性分配/装备变化后重建；stats 惰性一次全量计算）
         statCalculator.invalidate(p);
-        p.setMaxHp(statCalculator.maxHp(p));
+        p.setMaxHp(maxHpWithSkillBuffs(p));
         p.setMaxMp(statCalculator.maxMp(p));
         p.setMaxSp(statCalculator.maxSp(p));
         if (p.getHp() > p.getMaxHp()) p.setHp(p.getMaxHp());
         if (p.getMp() > p.getMaxMp()) p.setMp(p.getMaxMp());
         if (p.getSp() > p.getMaxSp()) p.setSp(p.getMaxSp());
+    }
+
+    /**
+     * 面板最大 HP = 基础值 + **Virtual Life 的上限加成**（buff 生效时 = 基础 ×(1+表值%)）。
+     *
+     * <p>原版逐字：`SetVirtualLife`（`sinSkill.cpp:7029`）
+     * {@code AddVirtualLife[1] = Life[1] * Virtual_Life_Percent[Point-1] / 100}，所有生命读数都是
+     * {@code Life[1] + AddVirtualLife[1]}（角色栏 `sinCharStatus.cpp:1024`、血条 `sinInterFace.cpp:2712`）；
+     * 到期清零（`sinSkill.cpp:1014-1024`，Time 秒 ×70fps）。同一张表值**还**做受击减伤
+     * （`character.cpp:15112`，AiEngine 消费）—— 两段一体，用户 2026-09-28 指认补齐。
+     */
+    private int maxHpWithSkillBuffs(Player p) {
+        int base = statCalculator.maxHp(p);
+        int vlPct = skillBuffStates.activeParam(p.getId(),
+            org.jpstale.server.common.enums.skill.SkillIds.VIRTUAL_LIFE.id());
+        return vlPct > 0 ? base + base * vlPct / 100 : base;
     }
 
     /** characterId -> Player（在线玩家） */
@@ -546,7 +566,7 @@ public class PlayerService {
         player.pushStatAlloc(stat);
 
         // 重算面板（原版 ReformCharForm）
-        player.setMaxHp(statCalculator.maxHp(player));
+        player.setMaxHp(maxHpWithSkillBuffs(player));
         player.setMaxMp(statCalculator.maxMp(player));
         player.setMaxSp(statCalculator.maxSp(player));
 
@@ -578,7 +598,7 @@ public class PlayerService {
         player.setStatePoint(player.getStatePoint() + 1);
 
         // 重算面板（原版 ReformCharForm）
-        player.setMaxHp(statCalculator.maxHp(player));
+        player.setMaxHp(maxHpWithSkillBuffs(player));
         player.setMaxMp(statCalculator.maxMp(player));
         player.setMaxSp(statCalculator.maxSp(player));
 
@@ -620,7 +640,7 @@ public class PlayerService {
         }
         player.setStatePoint(player.getStatePoint() + delta);
 
-        player.setMaxHp(statCalculator.maxHp(player));
+        player.setMaxHp(maxHpWithSkillBuffs(player));
         player.setMaxMp(statCalculator.maxMp(player));
         player.setMaxSp(statCalculator.maxSp(player));
 

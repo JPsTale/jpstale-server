@@ -787,9 +787,10 @@ public class AiEngine {
 
         // ── 受击侧的两个祭司防御增益（源码顺序：Virtual Life 在前、Summon Muspell 在后）──
         //
-        // **Virtual Life（J3.4）**：`Power -= Power * Virtual_Life_Percent[point] / 100`
-        // （`character.cpp:15112-15116` 怪→玩家路径逐字）。⚠ 按代码它是**减伤**（2..13%），
-        // 不是技能描述说的"提升生命上限" —— 照字面读技能名翻车的又一例（AGENTS #95 同族）。
+        // **Virtual Life（J3.4）减伤段**：`Power -= Power * Virtual_Life_Percent[point] / 100`
+        // （`character.cpp:15112-15116` 怪→玩家路径逐字）。⚠ 这只是一段表值的两个效果之一 ——
+        // 另一段是**生命上限 +表值%**（`sinSkill.cpp:7029` 的 AddVirtualLife，在 PlayerService/
+        // RegenerationService 落地）。用户 2026-09-28 指认"上限+减伤"双段，两处都以代码为准。
         int vlPct = skillBuffStates.activeParam(player.getId(),
             org.jpstale.server.common.enums.skill.SkillIds.VIRTUAL_LIFE.id());
         int damage = result.getFinalDamage();

@@ -750,6 +750,9 @@ public class PriestessSkills implements JobSkills {
         }
         int durationSec = (int) timeTable[c.idx()];
         int decPct = (int) pctTable[c.idx()];
+        // **一段表值、两段效果**（用户 2026-09-28 指认补全）：上限 +表值%（PlayerService 面板重算、
+        // RegenerationService 每秒到期回扫）+ 受击减伤 表值%（AiEngine 受击侧）。
+        // 施加/解除都要重算面板 ⇒ 走 recalcPanel。
         // 自施：激活侧要求无目标（`SkillSub.cpp:3267` `!lpCharSelPlayer`）⇒ 无条件覆盖
         //（`OnSever.cpp:34292`）。targetId 恰好解析成**别的在场玩家** ⇒ 队友分支：**仅在过期后**可再施
         //（`:34296-34301` 的 `dwSkill_VirtualLife_Time < now` 判定，两分支不对称，照抄）。
@@ -757,18 +760,21 @@ public class PriestessSkills implements JobSkills {
         if (target != null && target.getId() != c.player().getId()
                 && playerService.entityOf(target) != null) {
             if (skillBuffStates.activeParam(target.getId(), c.skillId()) > 0) {
-                log.info("[Skill] {} Virtual Life p{}：{} 的减伤仍在生效 ⇒ 不刷新（源码如此）",
+                log.info("[Skill] {} Virtual Life p{}：{} 的增益仍在生效 ⇒ 不刷新（源码如此）",
                         c.player().getName(), c.point(), target.getName());
                 return List.of();
             }
             skillBuffStates.apply(target.getId(), c.skillId(), durationSec * 1000L, decPct);
-            log.info("[Skill] {} Virtual Life p{}：队友 {} 减伤 {}% {} 秒",
-                    c.player().getName(), c.point(), target.getName(), decPct, durationSec);
+            playerService.recalcPanel(target);
+            playerService.sendPlayerStatus(playerService.sessionOf(target), target);
+            log.info("[Skill] {} Virtual Life p{}：队友 {} 上限+{}%、减伤 {}%，{} 秒",
+                    c.player().getName(), c.point(), target.getName(), decPct, decPct, durationSec);
             return List.of();
         }
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, decPct);
-        log.info("[Skill] {} Virtual Life p{}：自己减伤 {}% {} 秒（受击侧在 AiEngine 消费）",
-                c.player().getName(), c.point(), decPct, durationSec);
+        playerService.recalcPanel(c.player());
+        log.info("[Skill] {} Virtual Life p{}：自己上限+{}%、减伤 {}%，{} 秒",
+                c.player().getName(), c.point(), decPct, decPct, durationSec);
         return List.of();
     }
 
