@@ -217,6 +217,9 @@ public class MonsterAOI {
         // 负载**先落**：Appear(dead) 与 Death 都从这份负载取"谁杀的/给多少经验"，
         // 且 `state==DEAD ⇒ deathInfo!=null` 是 AOI 自检依赖的不变式（见 reconcile）。
         // expShares = 组队分摊表（**含击杀者**，见 PartyService.distributeExp）；单人击杀时是单条表。
+        // ⚠ 2026-09-28 起 `CombatService.handleMonsterDeath` 在 `onDeath()` **之前**就通过
+        //    `prepareDeathPayload` 写了同一份负载（消掉"宣告死亡与写负载之间"的瞬态窗口）；
+        //    这里的赋值是幂等覆盖，保持此入口自洽。
         m.setDeathInfo(new Monster.DeathInfo(killerId,
             expShares.getOrDefault(killerId, 0L), gold, expShares));
         long mid = m.getId();
@@ -234,6 +237,16 @@ public class MonsterAOI {
                 sendDeath(s, e.getKey(), m);
             }
         }
+    }
+
+    /**
+     * **只写死亡负载、不广播** —— 供 `handleMonsterDeath` 在 `onDeath()` **之前**调用：
+     * 保证 `state==DEAD` 与 `deathInfo` 同时成立（reconcile 自检的不变式），消除
+     * "宣告死亡 → （经验/掉落/落库耗时）→ 写负载"之间的瞬态窗口（2026-09-28 Rabie#302 误报）。
+     */
+    public void prepareDeathPayload(Monster m, long killerId, Map<Long, Long> expShares, int gold) {
+        m.setDeathInfo(new Monster.DeathInfo(killerId,
+            expShares.getOrDefault(killerId, 0L), gold, expShares));
     }
 
     /**

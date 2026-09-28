@@ -737,6 +737,10 @@ message C2S_UseSkill {
   // 服务端原样透传给旁观者（S2C_SkillStart），两端播同一条才不会"一招两种动作"。
   int32 anim_index = 4;
   string anim_clip = 5;
+  // **施法瞬间的朝向**（弧度，three 绕 Y 约定，0 = +Z）。原版方向型 AoE 用客户端活体
+  // `lpCurPlayer->Angle.y`（`character.cpp:17019` 的 dm_SelectRangeBox）—— 原地转身不发
+  // 移动包 ⇒ 服务端实体上的角度停在最后一次移动，用它会朝老方向放（2026-09-28 冰枪 0 命中）。
+  optional float caster_yaw = 6;
 }
 
 message S2C_AttackResult {

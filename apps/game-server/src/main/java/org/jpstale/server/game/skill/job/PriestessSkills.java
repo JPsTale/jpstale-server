@@ -167,7 +167,7 @@ public class PriestessSkills implements JobSkills {
 
     @Override
     public int job() {
-        return 8;   // priestess（skillId 高 16 位同此）
+        return 8;
     }
 
     @Override
@@ -183,7 +183,6 @@ public class PriestessSkills implements JobSkills {
 
     /* ────────────── Healing（T1.1）：治疗 —— 有目标治目标（角色：玩家或怪），没有治自己 ────────────── */
 
-    /** 治疗距离门：原版 `GetSkillDistRange` 的 `case SKILL_HEALING: return 180 * fONE;`（`SkillSub.cpp:1233`） */
     private static final double HEAL_RANGE = 180;
 
     private List<HitTarget> healing(CastContext c) {
@@ -193,8 +192,6 @@ public class PriestessSkills implements JobSkills {
             return List.of();
         }
         Player p = c.player();
-        // Power2 = 面板攻击力 − 装备裸伤（`Damage.cpp:253-254`：Power2 = Power − sItemInfo.Damage）；
-        // Critical[1] = 施法者主属性，魔法职业 = Spirit（`Damage.cpp:266`）。
         int[] ap = c.attackPower();
         int[] wd = c.weaponDamage();
         int spirit = p.getSpirit();
@@ -202,14 +199,6 @@ public class PriestessSkills implements JobSkills {
         int max = (int) heal2[c.idx()][1] + (ap[1] - wd[1]) / 3 + spirit / 6;
         int amount = c.roll(min, max);
 
-        // 目标解析：**有目标就治目标**（原版 `SkillSub.cpp:2737` 的 `lpChar` 分支把治疗发给
-        // **被选中的角色** —— 玩家或怪都行：`dm_SendTransDamage(lpChar, …)` → 服务端
-        // `rsPlayHealing`（`OnSever.cpp:16478`）对任意 `smCHAR` 执行 `Life[0] += WParam` 并 clamp）。
-        // 没有/无效的目标才治自己（`SkillSub.cpp:537` 那支自带 `!lpCharSelPlayer` 守卫）。
-        // 距离门 = **原版 `GetSkillDistRange` 的 `case SKILL_HEALING: return 180 * fONE;`**
-        // （`SkillSub.cpp:1233`；`playmain.cpp:2256` 用它判"是否进入射程"）——**不是武器射程**。
-        // ⚠ 召唤物**不排除**：`playmain.cpp:2239-2245` 明确把"Healing 目标是召唤物"那面
-        //    "不可攻击"的旗子清掉（`if (attack_UserMonster && CODE == SKILL_HEALING) attack_UserMonster = 0;`）。
         Monster healMonster = null;
         {
             Monster m = targets.aliveMonster(c.targetId());
@@ -225,10 +214,6 @@ public class PriestessSkills implements JobSkills {
             int amount2 = Math.min(healMonster.getMaxHp() - healMonster.getHp(), amount);
             if (amount2 > 0) {
                 healMonster.setHp(healMonster.getHp() + amount2);
-                // ⚠ **我方选择**（原版无此路径）：原版 `rsPlayHealing` 只把回包发给**被治疗者自己的
-                // socket**，而怪没有 socket ⇒ 若不做这一步，治怪在身上**没有任何可见反馈**。
-                // 这里借用怪掉血的同一条 AOI 广播（`S2C_Recovery.targetId` = 怪 id，客户端
-                // `applyUnitHp` 对 monsters 表同样生效）；仅为可见性，不参与任何判定。
                 messageSender.broadcastToArea(c.self().getMapId(),
                         (float) healMonster.getX(), (float) healMonster.getZ(), AOIManager.VIEW_RANGE,
                         ServerMessage.newBuilder()
@@ -245,10 +230,6 @@ public class PriestessSkills implements JobSkills {
         }
         Player target = resolvePlayerTarget(c);
         if (target == null) {
-            // **显式的"没有"**（AGENTS #12）：客户端说"治 X"但服务端认不出 X —— 原版
-            // `rsPlayHealing`（`OnSever.cpp:16478`）这时就是 `return FALSE`（**什么都不做**），
-            // 绝不改成"那就治自己"。此前这里默认回自己 ⇒ 症状是"我点玩家加血，日志写（自己）"，
-            // 一个 id 空间错误被伪装成了正常行为（用户 2026-09-27 实测）。
             log.warn("[Skill] {} Healing 目标 id={} 解析不到（既不是怪也不是在场玩家）⇒ 本次不治疗"
                     + "（原版 rsPlayHealing 找不到 serial 时 return FALSE）", p.getName(), c.targetId());
             return List.of();
@@ -264,14 +245,7 @@ public class PriestessSkills implements JobSkills {
         if (ts != null) {
             playerService.sendPlayerStatus(ts, target);
         }
-        // **回血广播（我方改动）**：原版 `rsPlayHealing`（`OnSever.cpp:16516-16522`）只把回包发到
-        // **被治疗者自己的 socket**，旁观者拿不到（原版旁观者的血条靠另一条 `OPCODE_PLAYDATAGROUP`
-        // 的目标数据流刷新，我们还没做那条流）⇒ 我们这边表现为"远端看到的血条停在旧值"
-        // （用户 2026-09-27 实测两条：①"祭司自己回血满了、远端还是残血"；②"给枪兵加血、枪兵头上不跳绿字"）。
-        // ⇒ 这里改成**向 AOI 广播**：施法者、被治疗者、旁观者都从这一条更新（被治疗者不再另发，避免重复飘字）。
-        // `hpAmount` 用**掷出的治疗量**而不是被 max 截断后的差值 —— 与原版一致：包里带的是 `WParam`
-        // = 随机出的治疗量，客户端就地飘字；血条上限由 `currentHp` 保证。
-        // ⚠ **满血时也发**（原版照发）：否则"给满血的人加血"在两边都一声不响 —— 用户实测第 2 条就是这个。
+
         messageSender.broadcastToArea(c.self().getMapId(), (float) c.self().getX(), (float) c.self().getZ(),
                 AOIManager.VIEW_RANGE,
                 ServerMessage.newBuilder()
@@ -287,23 +261,6 @@ public class PriestessSkills implements JobSkills {
         return List.of();   // 治疗不是伤害：零目标（源码该 case 不走伤害结算）
     }
 
-    /**
-     * Healing 的目标解析（**唯一实现**，怪那一支在主函数里、这里只管玩家）。
-     *
-     * 语义（逐条对齐源码）：
-     *   · `targetId == 0` ⇒ **治自己** —— 原版自疗分支（`SkillSub.cpp:537`）自带 `!lpCharSelPlayer` 守卫；
-     *   · `targetId == 自己` ⇒ 治自己（对着自己点）；
-     *   · 否则按 **charId** 找在场玩家（客户端上报的就是这个 id 空间，见下 ⚠）；
-     *   · **对不上 ⇒ 返回 null = 什么都不做**（主函数显式警告并跳过）—— 对齐
-     *     `rsPlayHealing`（`OnSever.cpp:16478`）找不到 serial 时的 `return FALSE`。
-     *
-     * ⚠ **id 空间**（2026-09-27 修，用户实测"点玩家加血，日志写（自己）"）：
-     *   客户端认得的是 `S2C_PlayerAppear.playerId`，而服务端发的是 **charId**
-     *   （`AOIManager` 的 `setPlayerId(e.getCharId())`）⇒ 客户端回报的 targetId 也是 charId。
-     *   原先这里按 **运行时实体 id** 查（`entityByRuntimeId`，`PlayerEntity.getId()` 走 `EntityIdSource`，
-     *   与 charId 解耦，见 `PlayerEntity` 类注释）⇒ **永远查不到** ⇒ 悄悄回自己。
-     *   现在按 charId 查：`PlayerService.entities` 的键本就是 charId（`entityOf` 也是这么取）。
-     */
     private Player resolvePlayerTarget(CastContext c) {
         long targetId = c.targetId();
         Player self = c.player();
@@ -362,7 +319,6 @@ public class PriestessSkills implements JobSkills {
         power += power * (int) dmgTable[c.idx()] / 100;
         DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power,
                 DamageCalculator.SkillMods.withoutCrit());
-        // skillId 随 S2C_AttackResult 下发（原版每条技能结算都带 SkillCode）—— 客户端按它反查招式（AGENTS #110）
         combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
         return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
     }
@@ -379,12 +335,6 @@ public class PriestessSkills implements JobSkills {
         if (m == null) {
             return List.of();
         }
-        // **伤害公式（原版 `Svr_Damge.cpp:3138-3151` 逐字，用户 2026-09-27 指出漏加成）**：
-        //   Power += Power * M_Spark_Damage[Point] * Param / 100;   // Param = 技能码高4位 = **本次道数 N**
-        //     ⇒ 每道 = 面板掷 × (1 + 表值%×N)（道越多每道越狠；表值 16..52% 为运营手调值，源码默认 11..47）
-        //   Critical[0] = 0;                                       // **不暴击**
-        //   if (lpChar) Power += Power * 30 / 100;                  // 打怪 +30%（我们的目标只有怪 ⇒ 恒乘）
-        //   总伤 = 每道 × N（用户 2026-09-26 裁定"一次结算"，N 道合计打一次）。
         double[] dmgTable = c.table1d("M_Spark_Damage");
         if (dmgTable == null || c.idx() >= dmgTable.length) {
             log.error("[Skill] Multi Spark 加成表 M_Spark_Damage 缺失（idx={}）⇒ 本次不放", c.idx());
@@ -396,7 +346,6 @@ public class PriestessSkills implements JobSkills {
         int perBolt = roll + roll * pct * sparks / 100;   // Param = N（道数）
         perBolt += perBolt * 30 / 100;                    // 对怪 +30%
         int power = perBolt * sparks;
-        // 不暴击（原版 Critical[0]=0）；命中模型沿用本招既有的 accuracy 判定
         DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power,
                 DamageCalculator.SkillMods.withoutCrit());
         combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());   // **一次落地**：一次死亡检查/奖励；skillId 同上
@@ -452,7 +401,6 @@ public class PriestessSkills implements JobSkills {
         int[] ap = c.attackPower();
         int[] wd = c.weaponDamage();
         int spirit = p.getSpirit();
-        // 逐字 `Svr_Damge.cpp:3309-3313`（与 Healing 同族：表值 + Critical[1]/8..6 + Power2/3）：
         int min = (int) heal2[c.idx()][0] + (ap[0] - wd[0]) / 3 + spirit / 8;
         int max = (int) heal2[c.idx()][1] + (ap[1] - wd[1]) / 3 + spirit / 6;
         int amount = c.roll(min, max);
@@ -474,7 +422,6 @@ public class PriestessSkills implements JobSkills {
             if (ts != null) {
                 playerService.sendPlayerStatus(ts, member);
             }
-            // **区域广播**（同 Healing：原版只发成员自己的 socket，旁观者血条不会动 —— 我方改动，见上）
             messageSender.broadcastToArea(c.self().getMapId(), (float) c.self().getX(), (float) c.self().getZ(),
                     AOIManager.VIEW_RANGE,
                     ServerMessage.newBuilder()
@@ -536,8 +483,6 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Chain Lightning 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
-        // 链的第 0 个 = 主目标（`character.cpp:17066`：`dm_SelectDamageChainCount(this, chrAttackTarget, …)`；
-        // 没有主目标整招不成立 —— 源码 `if (chrAttackTarget && point)` 直接不触发）
         Monster first = targets.single(c.player(), c.self(), c.targetId());
         if (first == null) {
             log.info("[Skill] {} Chain Lightning 无主目标 ⇒ 不触发（源码同此）", c.player().getName());
@@ -547,11 +492,6 @@ public class PriestessSkills implements JobSkills {
                 (int) numTable[c.idx()], (float) rangeTable[c.idx()]);
         if (picked.isEmpty()) return List.of();
 
-        // **伤害公式（原版 `Svr_Damge.cpp:5249-5263` 逐字）**：
-        //   pow = GetRandomPos(Power[0..1]) + pow*Chain_Lightning_Damage[Point]/100（140..185%，Point 0 基）
-        //   ⚠ 底数同为**面板攻击**（`dm_SendRangeDamage:816-817`，同 Divine —— 详见上法注释）；
-        //   AttackState = 101 ⇒ 逐目标（`Svr_Damge.cpp:1536-1547`）：rs = Resistance[LIGHTING]（**不除 10**，钳 ±100）
-        //   ⚠ 同上：我方无雷抗字段 ⇒ 等价全体 rs=0（原版 rs=0 时跳过）。
         double[] dmgTable = c.table1d("Chain_Lightning_Damage");
         if (dmgTable == null || c.idx() >= dmgTable.length) {
             log.error("[Skill] Chain Lightning 加成表 Chain_Lightning_Damage 缺失（idx={}）⇒ 本次不放", c.idx());
@@ -566,16 +506,10 @@ public class PriestessSkills implements JobSkills {
         return settleWeaponDamageBurst(c, picked, power);
     }
 
-    /**
-     * Divine / Chain Lightning 共用的**结算尾巴**：同一个 power 逐目标必中（各自的防御/吸收在公式内生效）。
-     * ⚠ power 的算法**两招不同**（各自 case 里的表不同、对目标修正不同），由调用方算好传入 ——
-     * 原版两处逐字见 {@link #divineLightning} / {@link #chainLightning} 的注释。
-     */
     private List<HitTarget> settleWeaponDamageBurst(CastContext c, List<Monster> picked, int power) {
         List<HitTarget> hits = new ArrayList<>(picked.size());
         for (Monster m : picked) {
             DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(c.player(), m.combatStats(), power);
-            // 带 skillId：客户端的技能视觉（Divine Lightning 的逐目标落雷）按它反查本招
             combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
             hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
         }
@@ -584,11 +518,6 @@ public class PriestessSkills implements JobSkills {
 
     /* ────────────── 选敌算法（纯函数，可直测；规格书 §2.3 / §3.3） ────────────── */
 
-    /**
-     * **轮转扫描**（Divine Lightning，规格书 §3.3 / `Damage.cpp:538`）：
-     * 从 {@code startOffset} 起按序列滚动，选 3D 距离 ≤{@code range}、|dy|&lt;{@code dyLimit} 的前
-     * {@code maxTargets} 个。不是随机 —— 是滚动扫描（连续两次施放选中集合不同 = 可观测判据 R1）。
-     */
     static List<Monster> scanRoundRobin(List<Monster> candidates, int startOffset, int maxTargets,
                                         PlayerEntity self, double range, int dyLimit) {
         List<Monster> picked = new ArrayList<>(maxTargets);
@@ -605,11 +534,6 @@ public class PriestessSkills implements JobSkills {
         return picked;
     }
 
-    /**
-     * **最近邻链**（Chain Lightning，规格书 §2.3 / `Damage.cpp:662`）：
-     * 第 0 个 = 主目标；之后每轮选"距上一个已选**最近**"的（XZ 平面，|dy|&lt;70），
-     * 排除已选，直到 {@code maxTargets} 个。链指针前移（`lpLinkChar = lpMinChar`）。
-     */
     static List<Monster> chainNearest(List<Monster> candidates, Monster first, int maxTargets, float jumpRange) {
         List<Monster> picked = new ArrayList<>(maxTargets);
         picked.add(first);
@@ -651,9 +575,6 @@ public class PriestessSkills implements JobSkills {
         if (m == null) {
             return List.of();
         }
-        // 持械门（`Svr_Damge.cpp:3498` 逐字）：`Power[0]>Power2[0] && Power[1]>Power2[1]` ——
-        // Power=面板、Power2=面板−装备裸伤 ⇒ 两端都"面板 > 面板−裸伤" ⇔ **装备裸伤两端都 > 0**。
-        // 不满足 return FALSE ⇒ 整招无伤（不是退普攻、不是换徒手公式）。
         int[] wd = c.weaponDamage();
         if (wd[0] <= 0 || wd[1] <= 0) {
             log.info("[Skill] {} Vigor Ball p{} 徒手 ⇒ 不结算（源码 `Power>Power2` 持械门）",
@@ -679,9 +600,6 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Resurrection 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
-        // 目标 = 死亡玩家（charId 空间）。原版客户端只把**死亡队友**发给服务端（`FindDeadPartyUser`）；
-        // 服务端 OnSever 不复查。我方客户端暂不能选死亡玩家（缺口登记）⇒ targetId 解析不到
-        // 死亡玩家 ⇒ 显式不救（不退回"救自己"、不随机找人 —— AGENTS #12）。
         Player target = c.targetId() > 0 ? playerService.byId(c.targetId()) : null;
         PlayerEntity targetEnt = target != null ? playerService.entityOf(target) : null;
         if (target == null || targetEnt == null || !targetEnt.isDead()) {
@@ -711,20 +629,16 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Extinction 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
-        // `dm_SelectRange(x,y,z, 160, FALSE)`（`SkillSub.cpp:633`）—— 圆 160、必中。
-        // 伤害与面板/武器**无关**：`Power = Point+1` 只作表下标（`Svr_Damge.cpp:5144`）。
         int chance = (int) pctTable[c.idx()] + c.player().getLevel() / 5;
         int amountPct = (int) amtTable[c.idx()];
         int killed = 0;
         List<HitTarget> hits = new ArrayList<>();
         for (Monster m : targets.circleAround(c.self(), 160f)) {
-            // `lpChar->smCharInfo.Brood == smCHAR_MONSTER_UNDEAD`（:2637）—— 非亡灵根本不进判定
             if (m.getBrood() != Monster.Brood.UNDEAD) {
                 continue;
             }
-            // 生物抗性缩减（:2641-2647）未做：我方怪物无抗性字段 ⇒ rs=0，等价跳过（缺口登记）
             if (SkillCombat.randBetween(0, 99) >= chance) {
-                continue;   // 未中 ⇒ 该目标无伤、无飘字（源码 SendShowDmg 只在成功分支）
+                continue;
             }
             int life = (int) (m.getHp() * amountPct / 100);   // **当前生命**的 Amount%（:2657）
             DamageResult r = new DamageResult();
@@ -750,12 +664,6 @@ public class PriestessSkills implements JobSkills {
         }
         int durationSec = (int) timeTable[c.idx()];
         int decPct = (int) pctTable[c.idx()];
-        // **一段表值、两段效果**（用户 2026-09-28 指认补全）：上限 +表值%（PlayerService 面板重算、
-        // RegenerationService 每秒到期回扫）+ 受击减伤 表值%（AiEngine 受击侧）。
-        // 施加/解除都要重算面板 ⇒ 走 recalcPanel。
-        // 自施：激活侧要求无目标（`SkillSub.cpp:3267` `!lpCharSelPlayer`）⇒ 无条件覆盖
-        //（`OnSever.cpp:34292`）。targetId 恰好解析成**别的在场玩家** ⇒ 队友分支：**仅在过期后**可再施
-        //（`:34296-34301` 的 `dwSkill_VirtualLife_Time < now` 判定，两分支不对称，照抄）。
         Player target = c.targetId() > 0 ? playerService.byId(c.targetId()) : null;
         if (target != null && target.getId() != c.player().getId()
                 && playerService.entityOf(target) != null) {
@@ -786,16 +694,22 @@ public class PriestessSkills implements JobSkills {
             log.error("[Skill] Glacial Spike 参数表缺失（idx={}）", c.idx());
             return List.of();
         }
-        // `dm_SelectRangeBox(rect = 横 ±50 / 前 0..340, FALSE)`（`character.cpp:17017-17023`）—— 必中
-        List<Monster> picked = targets.boxInFront(c.self(), 50, 340);
+        Float reportedYaw = c.casterYaw();
+        double yaw;
+        if (reportedYaw != null) {
+            yaw = reportedYaw;
+        } else {
+            log.warn("[Skill] Glacial Spike 起手包没带 caster_yaw（旧客户端/改包？）⇒ "
+                    + "用实体最后已知朝向（最后一次移动的）代替 —— 朝向可能偏旧");
+            yaw = c.self().getAngle();
+        }
+        List<Monster> picked = targets.boxInFront(c.self(), yaw, 50, 340);
         if (picked.isEmpty()) {
             return List.of();
         }
         int[] ap = c.attackPower();
         int power = c.roll(ap[0], ap[1]);
         power += power * (int) dmgTable[c.idx()] / 100;
-        // 减速：`time=8`（客户端单位 ×16 帧 @70fps ≈ 1829ms）、`SlowSpeed=200`（对 256 的比例）
-        //（`Svr_Damge.cpp:1769-1776`）。原版对怪的减速在客户端；我们的怪服务端权威 ⇒ 服务端持态。
         long slowMs = 8L * 16 * 1000L / 70;
         List<HitTarget> hits = new ArrayList<>(picked.size());
         for (Monster m : picked) {
@@ -819,8 +733,6 @@ public class PriestessSkills implements JobSkills {
             return List.of();
         }
         int durationSec = (int) timeTable[c.idx()];
-        // 持续窗登记在这里（`OnSever.cpp:34638-34643` 同形）；**再生数值**由 RegenerationService
-        // 每秒 tick 读这个窗 + 范围门施加（自己全额、队友魔法减半 —— 见该方法注释）。
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, c.point());
         log.info("[Skill] {} Regeneration Field p{}：再生场 {} 秒（自己 +Life/Mana 全额，范围内队友魔法减半）",
                 c.player().getName(), c.point(), durationSec);
@@ -836,10 +748,6 @@ public class PriestessSkills implements JobSkills {
             return List.of();
         }
         int durationSec = (int) timeTable[c.idx()];
-        // ⚠ 源码里**没有召唤物生成**（`OpenMonsterFromSkill` 无 MUSPELL 分支）——"Muspell"是
-        //   `SkillCelestialMusPel` 的环绕火球视觉（`character.cpp:14794`），效果是被动两件套：
-        //   招架整刀（BlockPercent）与亡灵吸收（UndeadAbsorbPercent），应用在
-        //   AiEngine.resolveMonsterVsPlayer 的受击侧（源码同位置）。param = point（表下标）。
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, c.point());
         log.info("[Skill] {} Summon Muspell p{}：守佑 {} 秒（招架 {}%，亡灵吸收 {}%）",
                 c.player().getName(), c.point(), durationSec,
@@ -850,11 +758,6 @@ public class PriestessSkills implements JobSkills {
 
     /* ────────────── 面板：伤害百分比（与结算同一张表） ────────────── */
 
-    /**
-     * 面板口径：只有 Holy Bolt 仍是"攻击力 ×(1+表值%)"模型 ⇒ 报表值。
-     * **Multi Spark 已改模型（2026-09-26 用户裁定：N 道光、每道 = 1×攻击力）**⇒ 不再报百分比；
-     * 其余（Healing 是回复、Holy Mind 是减益、Divine/Chain Lightning 是裸伤替换）⇒ null 不报。
-     */
     @Override
     public int[] powerPct(int skillId, int point) {
         int idx = point - 1;

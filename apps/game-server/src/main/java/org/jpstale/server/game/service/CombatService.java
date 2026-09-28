@@ -204,7 +204,8 @@ public class CombatService {
         // （C2S_SkillHit → SkillCastService.hit）才逐段结算。原版同此（客户端播动画、
         // 事件帧触发伤害），见 `SkillsSub.cpp` 的 `EventSkill` 那一侧。
         var r = skillCastService.begin(player, skill.getSkillId(), skill.getTargetId(),
-                skill.getAnimIndex(), skill.getAnimClip());
+                skill.getAnimIndex(), skill.getAnimClip(),
+                skill.hasCasterYaw() ? skill.getCasterYaw() : null);
         if (r == SkillCastService.BeginResult.REJECTED_COOLDOWN) {
             // 冷却中：**明确回一句原因**（原版是拳图标变灰 + `NotUseSkillElement[2]` 那条提示）。
             // 其余拒绝（非本职业/未学/MP 不足）保持原样：客户端自己已有一道预校验，
@@ -654,32 +655,15 @@ public class CombatService {
      * 处理怪物死亡
      */
     public void handleMonsterDeath(Monster monster, Player killer) {   // public：普攻与技能共用（SkillCombat），原来包私有是因为调用方同包
-        monster.onDeath();
-
         // 注意，经验倍率应该是一个动态参数，由服务器管理员来设置基准倍率。如果有什么活动，可能会临时提高全服玩家的经验获取速度。
         // 玩家也可以使用经验道具来提升自己的经验倍率，组队也可能有额外的倍率提升。目前暂时以固定倍率计算，提高测试账号的升级速度。
         long exp = (long) (monster.getExp() * EXP_MODIFIER);
         // 组队分摊（EU OnSendExp：同图+分享距离内即有份、Normal/Hunt 总量%、按加权平均队等级折减）。
         // null = 击杀者未组队 → 单人路径照旧；非 null = 含击杀者在内的份额表。
         Map<Long, Long> expShares = partyService.distributeExp(killer, monster, exp);
-        if (expShares == null) {
-            grantExp(killer, exp);
-            // 权威落库：经验/金币/等级/属性点写回 characterinfo
-            playerService.persistStats(killer);
-            playerService.sendPlayerStatus(playerService.sessionOf(killer), killer);
-        } else {
-            for (Map.Entry<Long, Long> en : expShares.entrySet()) {
-                Player member = playerService.byId(en.getKey());
-                if (member == null) {
-                    continue;
-                }
-                grantExp(member, en.getValue());
-                playerService.persistStats(member);
-                playerService.sendPlayerStatus(playerService.sessionOf(member), member);
-            }
-        }
 
-        // 掉落（对齐 EU OnSetDrop + HandleKill）：dropQuantity + premium/事件加成，逐次掷点
+        // 掉落（对齐 EU OnSetDrop + HandleKill）：dropQuantity + premium/事件加成，逐次掷点。
+        // ⚠ **整段在 onDeath() 之前**：只读怪的位置/模板（不依赖死亡态），而金币金额要进死亡负载。
         int numDrops = Math.max(0, monster.getDropQuantity()) + lootService.extraDrops(killer);
         int gold = 0;
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
@@ -723,6 +707,31 @@ public class CombatService {
                 double gy = mapRegionService.getHeight(monster.getMapId(), gx, gz);
                 long ownerId = monster.isDropIsPublic() ? 0L : killer.getId();
                 groundItems.add(coin, monster.getMapId(), gx, gy, gz, ownerId, 0, gold);
+            }
+        }
+
+        // **死亡负载先落，再宣告死亡**：`state==DEAD ⇒ deathInfo!=null` 是 MonsterAOI.reconcile
+        // 自检依赖的不变式。先 onDeath 再写负载的话，两者之间隔着经验/掉落/落库（毫秒级），
+        // AOI tick 会撞进瞬态窗口误报"DEAD 却没有死亡负载"（2026-09-28 实测，Rabie#302）。
+        monsterAOI.prepareDeathPayload(monster, killer.getId(),
+            expShares != null ? expShares : Map.of(killer.getId(), exp), gold);
+
+        monster.onDeath();
+
+        if (expShares == null) {
+            grantExp(killer, exp);
+            // 权威落库：经验/金币/等级/属性点写回 characterinfo
+            playerService.persistStats(killer);
+            playerService.sendPlayerStatus(playerService.sessionOf(killer), killer);
+        } else {
+            for (Map.Entry<Long, Long> en : expShares.entrySet()) {
+                Player member = playerService.byId(en.getKey());
+                if (member == null) {
+                    continue;
+                }
+                grantExp(member, en.getValue());
+                playerService.persistStats(member);
+                playerService.sendPlayerStatus(playerService.sessionOf(member), member);
             }
         }
 

@@ -104,7 +104,8 @@ public class SkillCastService {
      * 原版激活时一次掷定、随 SkillCode 高位带给结算（`SkillSub.cpp:2785-2792`）；我们同构：
      * 一次施法一个 N，事件帧结算与 `S2C_SkillStart` 广播（客户端视觉）共用它。
      */
-    private record PendingCast(int skillId, long targetId, int level1Based, long startMs, int sparkCount) {}
+    private record PendingCast(int skillId, long targetId, int level1Based, long startMs, int sparkCount,
+                               Float casterYaw) {}
 
     /** 每玩家至多一次待结算施法（新起手覆盖旧起手 —— 原版同一时刻也只有一个动作）。 */
     private final Map<Long, PendingCast> pending = new ConcurrentHashMap<>();
@@ -127,7 +128,7 @@ public class SkillCastService {
      *
      * @param animIndex 施法者**自己播的那一条**技能动作条目（原样透传给旁观者，AGENTS #14）
      */
-    public BeginResult begin(Player player, int skillId, long targetId, int animIndex, String animClip) {
+    public BeginResult begin(Player player, int skillId, long targetId, int animIndex, String animClip, Float casterYaw) {
         if ((skillId >> 16) != player.getJob()) {
             log.info("[Skill] {} 起手 {} 拒绝：非本职业", player.getName(), Integer.toHexString(skillId));
             return BeginResult.REJECTED;
@@ -199,7 +200,7 @@ public class SkillCastService {
             }
             sparkCount = SkillCombat.randBetween(cnt / 2 + 1, cnt);
         }
-        pending.put(pid, new PendingCast(skillId, targetId, point, now, sparkCount));
+        pending.put(pid, new PendingCast(skillId, targetId, point, now, sparkCount, casterYaw));
         firedSegments.put(pid, new ArrayList<>());
 
         // 起手广播：旁观者立刻播**同一条**技能动画（自己已在本地播）；spark_count / skill_level 随包下发
@@ -332,7 +333,7 @@ public class SkillCastService {
         // 起手记的 targetId 只用于校验技能/目标一致性（上面已校验技能），这里按回报的目标传下去。
         // 结算交给该职业的效果实现（选敌/算伤害/落地都在那边与 combat 包）；本类不认识任何具体技能。
         CastContext ctx = new CastContext(player, self, skillId, pc.level1Based(), targetId,
-                skillData, statCalculator, pc.sparkCount());
+                skillData, statCalculator, pc.sparkCount(), pc.casterYaw());
         JobSkills handler = catalog != null ? catalog.of(player.getJob()) : null;
         List<HitTarget> hits = handler == null ? null : handler.settle(ctx);
         if (hits == null) {

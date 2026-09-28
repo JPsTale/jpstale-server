@@ -54,13 +54,13 @@ public class TargetSelectors {
      * {@code rect.left=-50; rect.right=50; rect.top=0; rect.bottom=340(+20+20)} —— 施法者坐标系里
      * 横向 ±50、前方 0..340 的矩形，无高度门。 FALSE = 不做命中判定（必中族）。
      */
-    public List<Monster> boxInFront(PlayerEntity self, double halfWidth, double depth) {
+    public List<Monster> boxInFront(PlayerEntity self, double yaw, double halfWidth, double depth) {
         List<Monster> targets = new ArrayList<>();
         for (Monster m : entityRegistry.allMonsters()) {
             if (!m.isAlive() || m.isSummon() || m.getMapId() != self.getMapId()) {
                 continue;
             }
-            if (inFrontBox(self.getX(), self.getZ(), self.getAngle(), m.getX(), m.getZ(), halfWidth, depth)) {
+            if (inFrontBox(self.getX(), self.getZ(), yaw, m.getX(), m.getZ(), halfWidth, depth)) {
                 targets.add(m);
             }
         }

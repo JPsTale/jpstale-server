@@ -39,22 +39,40 @@ public final class CastContext {
     private final int sparkCount;
     private final SkillDataRegistry skillData;
     private final PlayerStatCalculator statCalculator;
+    /**
+     * **施法瞬间的朝向**（弧度，0 = +Z；`null` = 客户端未上报）。
+     * 原版方向型 AoE（Glacial Spike 的 dm_SelectRangeBox）用客户端活体 `Angle.y` ——
+     * 原地转身不发移动包，实体上的角度停在最后一次移动 ⇒ 方向型技能必须用它。
+     */
+    private final Float casterYaw;
 
     public CastContext(Player player, PlayerEntity self, int skillId, int point, long targetId,
                        SkillDataRegistry skillData, PlayerStatCalculator statCalculator) {
-        this(player, self, skillId, point, targetId, skillData, statCalculator, 0);
+        this(player, self, skillId, point, targetId, skillData, statCalculator, 0, null);
     }
 
     public CastContext(Player player, PlayerEntity self, int skillId, int point, long targetId,
                        SkillDataRegistry skillData, PlayerStatCalculator statCalculator, int sparkCount) {
+        this(player, self, skillId, point, targetId, skillData, statCalculator, sparkCount, null);
+    }
+
+    public CastContext(Player player, PlayerEntity self, int skillId, int point, long targetId,
+                       SkillDataRegistry skillData, PlayerStatCalculator statCalculator, int sparkCount,
+                       Float casterYaw) {
         this.player = player;
         this.self = self;
         this.skillId = skillId;
         this.point = point;
         this.targetId = targetId;
         this.sparkCount = sparkCount;
+        this.casterYaw = casterYaw;
         this.skillData = skillData;
         this.statCalculator = statCalculator;
+    }
+
+    /** 施法瞬间朝向；`null` = 客户端未上报（方向型技能按各自策略显式处理，不静默替值）。 */
+    public Float casterYaw() {
+        return casterYaw;
     }
 
     public Player player() {

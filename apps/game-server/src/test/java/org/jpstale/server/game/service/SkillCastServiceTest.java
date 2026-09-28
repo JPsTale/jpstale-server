@@ -42,14 +42,14 @@ class SkillCastServiceTest {
         Player p = pikeman();
         // fighter 的 Raving（0x010101，§4.6.1 的编码示例）—— job 段 = 1 ≠ 4
         assertEquals(SkillCastService.BeginResult.REJECTED,
-                service.begin(p, 0x010101, 0, 0, ""), "fighter 技能在 pikeman 身上 ⇒ 拒绝");
+                service.begin(p, 0x010101, 0, 0, "", null), "fighter 技能在 pikeman 身上 ⇒ 拒绝");
     }
 
     @Test
     void 未学的技能拒绝() {
         Player p = pikeman();
         assertEquals(SkillCastService.BeginResult.REJECTED,
-                service.begin(p, SkillIds.PIKE_WIND.id(), 0, 0, ""), "props 无 point ⇒ 未学 ⇒ 拒绝");
+                service.begin(p, SkillIds.PIKE_WIND.id(), 0, 0, "", null), "props 无 point ⇒ 未学 ⇒ 拒绝");
     }
 
     @Test
@@ -57,7 +57,7 @@ class SkillCastServiceTest {
         Player p = pikeman();
         p.setPropInt(SkillKeys.point(SkillIds.PIKE_WIND.id()), 0);   // 洗点后：键存在、值 0
         assertEquals(SkillCastService.BeginResult.REJECTED,
-                service.begin(p, SkillIds.PIKE_WIND.id(), 0, 0, ""), "point=0 ⇒ 未学 ⇒ 拒绝");
+                service.begin(p, SkillIds.PIKE_WIND.id(), 0, 0, "", null), "point=0 ⇒ 未学 ⇒ 拒绝");
     }
 
     @Test
@@ -66,7 +66,7 @@ class SkillCastServiceTest {
         // Ground Pike（0x040201）本批尚未迁入 ⇒ NOT_MIGRATED（调用方保持"当普攻即时结算"）
         p.setPropInt(SkillKeys.point(SkillIds.GROUND_PIKE.id()), 5);
         assertEquals(SkillCastService.BeginResult.NOT_MIGRATED,
-                service.begin(p, SkillIds.GROUND_PIKE.id(), 0, 0, ""));
+                service.begin(p, SkillIds.GROUND_PIKE.id(), 0, 0, "", null));
     }
 
     @Test
