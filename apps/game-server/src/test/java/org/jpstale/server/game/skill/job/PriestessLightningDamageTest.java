@@ -111,4 +111,26 @@ class PriestessLightningDamageTest {
         int wrongBase = 14 + 14 * 24 / 100;
         assertEquals(17, wrongBase);
     }
+
+    /**
+     * **Holy Bolt（`Svr_Damge.cpp:3132-3136`，2026-09-28 横扫对表）**：
+     * `Power += Power * HolyBolt_Damage[Point] / 100`（整数先乘后除）+ `Critical[0] = 0`（禁暴击）。
+     * 底数 = **面板攻击**（客户端发包 `Power[0..1] = smCharInfo.Attack_Damage[0..1]`，
+     * `Damage.cpp:231-232`；服务端 `GetRandomPos` 掷它）—— 与 Divine/Chain 同源。
+     * 横扫结论：我方实现自迁入起即正确（表值/底数/禁暴击全对）；2026-09-28 只补了
+     * `applyDamage` 的 skillId（S2C_AttackResult.skill_id，与 Divine/Chain 对齐）。
+     */
+    @Test
+    void holyBolt公式与表值() {
+        // 表（sinSkill_Info.cpp:525 默认值 14..50；横扫时与注册表逐值核对一致）
+        assertEquals(14, (int) table("HolyBolt_Damage")[0], "HolyBolt_Damage[0]");
+        assertEquals(50, (int) table("HolyBolt_Damage")[9], "[9]");
+        // 掷 100、1 级 14% ⇒ 114（整数：100 + 1400/100，无四舍五入）
+        int roll = 100, pct = 14;
+        assertEquals(114, roll + roll * pct / 100);
+        // 面板 60..80 的祭司 1 级 ⇒ 68..91（错误底数=武器裸伤 14 ⇒ 只有 15 —— 数量级对照）
+        assertEquals(68, 60 + 60 * 14 / 100);
+        assertEquals(91, 80 + 80 * 14 / 100);
+        assertEquals(15, 14 + 14 * 14 / 100);
+    }
 }

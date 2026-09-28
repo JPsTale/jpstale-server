@@ -68,7 +68,21 @@ import java.util.function.Function;
  *
  * <p><b>未迁（显式，走旧路）</b>：Vigor Ball / Resurrection / Extinction / Virtual Life / Glacial Spike /
  * Regeneration Field（维持型，U-08-8/9 未决）/ Summon Muspell（召唤系统）、5 转 4 个（无源码，
- * 服务端本就永久拒绝）。
+ * 服务端本就永久拒绝）。⚠ 迁入时各自的**原版公式形态**（2026-09-27 横扫
+ * {@code Svr_Damge.cpp} 全部 PRIESTESS case 的结论，行号均在该文件）：
+ * <ul>
+ *   <li><b>Vigor Ball</b>（:3496）：先过"**必须持械**"门 ——
+ *       {@code Power[0]>Power2[0] && Power[1]>Power2[1]}（Power=面板、Power2=面板−装备裸伤 ⇒
+ *       差 &gt; 0 即有武器），不满足直接 {@code return FALSE}（**无武器整招无伤**，不是退普攻）；
+ *       伤害 = 面板掷 ×(1+{@code Vigor_Ball_Damage[p]}%)，禁暴击。</li>
+ *   <li><b>Glacial Spike</b>（:5240）：与 Holy Bolt 同族 —— 面板掷 ×(1+{@code Glacial_Spike_Damage[p]}%)，
+ *       {@code AttackState = 3}（冰冻缓速在别处消费），未禁暴击。</li>
+ *   <li><b>Extinction</b>（:5142）：**不是百分比技能** —— {@code Power = Point+1}（等级数本身），
+ *       {@code AttackState = 6}（即死/处刑语义在消费侧）；范围攻击路径。</li>
+ *   <li><b>Summon Muspell</b>（:3711）：召唤物**攻击时**生效 —— 伤害完全是
+ *       {@code GetRandomPos(Summon_Muspell_Damage[召唤档][0..1])}（表驱动，**不吃面板**），
+ *       禁暴击；先过"召唤还在有效期"门。</li>
+ * </ul>
  * <p><b>客户端缺口（服务端已就绪）</b>：技能施法的目标解析目前只认怪（`WorldView.beginSelfSkill`
  * 的 `monsterIdOfRoot`），Healing 治玩家目标要等客户端把玩家纳入技能瞄准。
  */
@@ -320,7 +334,8 @@ public class PriestessSkills implements JobSkills {
         power += power * (int) dmgTable[c.idx()] / 100;
         DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power,
                 DamageCalculator.SkillMods.withoutCrit());
-        combat.applyDamage(c.player(), c.self(), m, r, 0);
+        // skillId 随 S2C_AttackResult 下发（原版每条技能结算都带 SkillCode）—— 客户端按它反查招式（AGENTS #110）
+        combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
         return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
     }
 
@@ -356,7 +371,7 @@ public class PriestessSkills implements JobSkills {
         // 不暴击（原版 Critical[0]=0）；命中模型沿用本招既有的 accuracy 判定
         DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power,
                 DamageCalculator.SkillMods.withoutCrit());
-        combat.applyDamage(c.player(), c.self(), m, r, 0);   // **一次落地**：一次死亡检查/奖励
+        combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());   // **一次落地**：一次死亡检查/奖励；skillId 同上
         log.info("[Skill] {} Multi Spark p{} {} 道：面板掷 {} +{}%×{} 再 +30% ⇒ 每道 {}，合计 {} 打 {}#{}",
                 c.player().getName(), c.point(), sparks, roll, pct, sparks, perBolt, power,
                 m.getName(), m.getId());
