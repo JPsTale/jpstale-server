@@ -40,8 +40,77 @@ public class RegenerationService {
     @Autowired
     private MovementService movementService;
 
+    /** 技能型限时增益（Regeneration Field 的持续时间窗从这里查） */
+    @Autowired
+    private org.jpstale.server.game.skill.SkillBuffStates skillBuffStates;
+
+    /** 全队名单（田野只覆盖**队友**与自己） */
+    @Autowired
+    private org.jpstale.server.game.service.PartyService partyService;
+
+    /** 技能参数表（Regeneration_Field_* 从注册表读） */
+    @Autowired
+    private org.jpstale.common.service.skill.SkillDataRegistry skillData;
+
     /** 结算周期：1000ms */
     private static final long CYCLE_MS = 1000;
+
+    /**
+     * 本玩家当前从 Regeneration Field 得到的每秒再生加成 `{hp, mp}`。
+     *
+     * 出自共享层：`sinInvenTory.cpp:8971`（数值）+ `character.cpp:17033-17055`（队友范围门）+
+     * `sinSkill.cpp:7504`（自/队友的 Flag 差）。注册表缺表 ⇒ 按没有处理（数值缺口显式，不编值）。
+     */
+    private double[] regenerationFieldBonus(Player p) {
+        double[] out = {0, 0};
+        double[] life = skillData.table1d("Regeneration_Field_LifeRegen");
+        double[] mana = skillData.table1d("Regeneration_Field_ManaRegen");
+        if (life == null || mana == null) {
+            return out;
+        }
+        // 自己施放的：全额（Flag=1）
+        int own = skillBuffStates.activeParam(p.getId(),
+            org.jpstale.server.common.enums.skill.SkillIds.REGENERATION_FIELD.id());
+        if (own >= 1 && own <= life.length && own <= mana.length) {
+            out[0] += life[own - 1];
+            out[1] += mana[own - 1];
+        }
+        // 队友施放的：在范围内才有，生命全额、魔法减半（Flag=2）
+        org.jpstale.server.game.entity.PlayerEntity self = playerService.entityOf(p);
+        if (self == null) {
+            return out;
+        }
+        for (Player member : partyService.membersOf(p.getId())) {
+            if (member.getId() == p.getId()) {
+                continue;
+            }
+            int pt = skillBuffStates.activeParam(member.getId(),
+                org.jpstale.server.common.enums.skill.SkillIds.REGENERATION_FIELD.id());
+            if (pt < 1 || pt > life.length || pt > mana.length) {
+                continue;
+            }
+            double[] areaTable = skillData.table1d("Regeneration_Field_Area");
+            if (areaTable == null || pt > areaTable.length) {
+                continue;
+            }
+            org.jpstale.server.game.entity.PlayerEntity caster = playerService.entityOf(member);
+            if (caster == null || caster.getMapId() != self.getMapId()) {
+                continue;
+            }
+            double dx = caster.getX() - self.getX();
+            double dz = caster.getZ() - self.getZ();
+            double range = areaTable[pt - 1];
+            if (dx * dx + dz * dz > range * range) {
+                continue;
+            }
+            if (Math.abs(caster.getY() - self.getY()) >= 16.0) {
+                continue;
+            }
+            out[0] += life[pt - 1];
+            out[1] += mana[pt - 1] / 2.0;
+        }
+        return out;
+    }
 
     private long lastTick = 0;
     /** charId → {hpAcc, mpAcc, stmAcc} 小数累加器 */
@@ -82,6 +151,15 @@ public class RegenerationService {
         double hpRegen = statCalculator.regenHp(p);
         double mpRegen = statCalculator.regenMp(p);
         double stmRegen = statCalculator.regenStm(p);
+
+        // **Regeneration Field（祭司 T4.2，"上吊"）**：持续期内给再生加成 ——
+        // `sinInvenTory.cpp:8971-8976`：`Life_Regen += LifeRegen[point-1]`（全额）、
+        // `Mana_Regen += ManaRegen[point-1] / Flag`（自己 Flag=1 全额，**队友 Flag=2 减半**，
+        // `sinSkill.cpp:7504-7533` 的 `Flag = 1 + Party`）。范围 = 施法者 XZ ≤ Area[point-1]
+        // （比较平方）且高度差 <16（`character.cpp:17050-17052`）—— 队友侧逐 tick 判。
+        double[] field = regenerationFieldBonus(p);
+        hpRegen += field[0];
+        mpRegen += field[1];
 
         double[] acc = accumulators.computeIfAbsent(p.getId(), k -> new double[3]);
         acc[0] += hpRegen;

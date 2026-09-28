@@ -32,8 +32,9 @@ import java.util.function.Function;
 /**
  * 祭司（Priestess，job 8）的技能效果 —— 对照册：{@code docs/技能系统规格书-08-priestess.md}。
  *
- * <p>已迁 9 招（T1 全部 + T2 全部 + Chain Lightning；范围依据：rank 0 开 1..4、rank 1 开 5..8，
- * 转职/GM 提档后 T2 必须可用 —— 用户 2026-09-26 指示）：
+ * <p>已迁 <b>16/20（T1–T4 全部）</b>；5 转 4 招无源码（服务端本就永久拒绝），不在本类。
+ * 范围依据：rank 0 开 1..4、rank 1 开 5..8，转职/GM 提档后后续转必须可用（用户 2026-09-26 指示）。
+ * 2026-09-28 用户指示"祭司做到 4 转第 4 个"⇒ T3/T4 剩余 7 招全部迁入：
  * <ul>
  *   <li><b>Healing</b>（T1.1）治疗：**有玩家目标治目标，没有治自己**（用户 2026-09-26 指正；
  *       原版按上报序号治疗，`rsPlayHealing` 对 char/user 都生效，`OnSever.cpp:16478`）。
@@ -64,27 +65,43 @@ import java.util.function.Function;
  *       一次掷点全队同量：{@code rand(Grand_Healing[p][0] + Spirit/8 + Power2[0]/3, …/6 …/3)}。
  *       不按距离过滤（源码无此判断；Virtual Life 的减量未做——那技能还没实现）。</li>
  *   <li><b>Chain Lightning</b>（T4.3）最近邻链（不是随机！），裸伤掷点、必中（规格书 §2）。</li>
+ *   <li><b>Vigor Ball</b>（T3.1）单体：面板掷 ×(1+{@code Vigor_Ball_Damage[p]}%)（26..51%）、
+ *       禁暴击；先过"**必须持械**"门 —— {@code Power>Power2}（两端，`Svr_Damge.cpp:3498`，
+ *       Power2 = 面板−装备裸伤 ⇒ 差&gt;0 即有武器），徒手 {@code return FALSE}（整招无伤，不是退普攻）。</li>
+ *   <li><b>Resurrection</b>（T3.2）复活**死亡玩家**：{@code rand%100 < Resurrection_Percent[p]}
+ *       （40..94%，`OnSever.cpp:34259`）⇒ 原地半血救起（{@code sinSetLife(Life[1]/2)}，
+ *       `netplay.cpp:6547-6566`；无经验/金币代价 —— 原版 {@code PlayUsed_Resurrection} 跳过惩罚）。
+ *       原版目标是**死亡队友**（客户端 {@code FindDeadPartyUser}）；⚠ 我方客户端暂不能选死亡玩家
+ *       （缺口登记），targetId 解析不到死亡玩家 ⇒ 显式不救。</li>
+ *   <li><b>Extinction</b>（T3.3）**只打亡灵**的范围咒杀（`dm_SelectRange(…,160,FALSE)` 圆 160 必中，
+ *       `SkillSub.cpp:633-634`）：对每个范围**内且 Brood==UNDEAD** 的怪，{@code rand%100 <
+ *       Extinction_Percent[p]+等级/5}（抗性缩减未做，无抗性列）命中 ⇒ 扣**当前生命**的
+ *       {@code Extinction_Amount[p]}%（20..52%，`Svr_Damge.cpp:2622-2700`），未命中无飘字。</li>
+ *   <li><b>Virtual Life</b>（T3.4）限时减伤 buff：**按代码是减伤不是"提升生命上限"**
+ *       （`character.cpp:15112`：{@code Power -= Power*Virtual_Life_Percent[p]/100}，2..13%，
+ *       90..270 秒）—— 应用在 AiEngine 受击侧（源码同位置）。自施**无条件覆盖**、对队友
+ *       **仅在过期后**才可再施（`OnSever.cpp:34287-34306` 两分支不对称，照抄）。</li>
+ *   <li><b>Glacial Spike</b>（T4.1）身前矩形 AoE（横向 ±50、前方 0..340，必中，
+ *       `character.cpp:17017-17023` 的 {@code dm_SelectRangeBox}）：面板掷 ×(1+
+ *       {@code Glacial_Spike_Damage[p]}%（150..195%））+ 减速 {@code PlaySlowSpeed=200、time=8}
+ *       （= 200/256 比例 × 8×16 帧 @70fps ≈ 1.83s，`Svr_Damge.cpp:1769-1776`）。⚠ 原版对怪的减速
+ *       是**客户端**表现（服务端只管玩家目标）；我们的怪是服务端权威移动 ⇒ 服务端持态保持可观测行为。</li>
+ *   <li><b>Regeneration Field</b>（T4.2，"上吊"）限时再生场（35..80 秒）：自己 {@code Life_Regen +=
+ *       LifeRegen[p]} 全额 + {@code Mana_Regen += ManaRegen[p]} 全额；**队友**（施法者 XZ ≤
+ *       {@code Area[p]}（250..340）、高度差 &lt;16）生命全额、**魔法减半**（{@code Flag=1+Party}，
+ *       `sinSkill.cpp:7504`）。数值应用在 RegenerationService 每秒 tick（`sinInvenTory.cpp:8971`）。</li>
+ *   <li><b>Summon Muspell</b>（T4.4）持续 120..300 秒的**被动**守佑 —— 源码里**没有任何召唤物生成**
+ *       （"Muspell"是 {@code SkillCelestialMusPel} 的环绕火球视觉，`character.cpp:14794`）：
+ *       受击时 ① {@code rand%100 < BlockPercent[p]}（5..14%）⇒ 整刀闪避（`Svr_Damge.cpp:1294`）；
+ *       ② 攻击者是亡灵 ⇒ 吸收伤害的 {@code UndeadAbsorbPercent[p]}%（10..46%）变成回血
+ *       （`character.cpp:15328` 打包 → 客户端 `:9103-9115` 消费为回血）。应用在 AiEngine 受击侧。</li>
  * </ul>
  *
- * <p><b>未迁（显式，走旧路）</b>：Vigor Ball / Resurrection / Extinction / Virtual Life / Glacial Spike /
- * Regeneration Field（维持型，U-08-8/9 未决）/ Summon Muspell（召唤系统）、5 转 4 个（无源码，
- * 服务端本就永久拒绝）。⚠ 迁入时各自的**原版公式形态**（2026-09-27 横扫
- * {@code Svr_Damge.cpp} 全部 PRIESTESS case 的结论，行号均在该文件）：
- * <ul>
- *   <li><b>Vigor Ball</b>（:3496）：先过"**必须持械**"门 ——
- *       {@code Power[0]>Power2[0] && Power[1]>Power2[1]}（Power=面板、Power2=面板−装备裸伤 ⇒
- *       差 &gt; 0 即有武器），不满足直接 {@code return FALSE}（**无武器整招无伤**，不是退普攻）；
- *       伤害 = 面板掷 ×(1+{@code Vigor_Ball_Damage[p]}%)，禁暴击。</li>
- *   <li><b>Glacial Spike</b>（:5240）：与 Holy Bolt 同族 —— 面板掷 ×(1+{@code Glacial_Spike_Damage[p]}%)，
- *       {@code AttackState = 3}（冰冻缓速在别处消费），未禁暴击。</li>
- *   <li><b>Extinction</b>（:5142）：**不是百分比技能** —— {@code Power = Point+1}（等级数本身），
- *       {@code AttackState = 6}（即死/处刑语义在消费侧）；范围攻击路径。</li>
- *   <li><b>Summon Muspell</b>（:3711）：召唤物**攻击时**生效 —— 伤害完全是
- *       {@code GetRandomPos(Summon_Muspell_Damage[召唤档][0..1])}（表驱动，**不吃面板**），
- *       禁暴击；先过"召唤还在有效期"门。</li>
- * </ul>
+ * <p><b>未迁（显式，走旧路）</b>：仅 5 转 4 个（Divine Force / Ice Meteorite / Thunderstorm /
+ * Divine Cleansing —— 无源码，服务端本就永久拒绝，用户 2026-09-28 指示"暂时不动"）。
  * <p><b>客户端缺口（服务端已就绪）</b>：技能施法的目标解析目前只认怪（`WorldView.beginSelfSkill`
- * 的 `monsterIdOfRoot`），Healing 治玩家目标要等客户端把玩家纳入技能瞄准。
+ * 的 `monsterIdOfRoot`），Healing 治玩家目标 / Resurrection 选死亡玩家要等客户端把（死亡）玩家
+ * 纳入技能瞄准 —— 服务端按 charId 的解析两侧都已就位。
  */
 @Slf4j
 @Service
@@ -108,6 +125,10 @@ public class PriestessSkills implements JobSkills {
 
     @Autowired
     private SkillCombat combat;
+
+    /** 死亡/复活状态机（Resurrection 的原地救起在那里，与三选项复活同一份状态） */
+    @Autowired
+    private org.jpstale.server.game.service.CombatService combatService;
 
     @Autowired
     private PlayerService playerService;
@@ -134,6 +155,13 @@ public class PriestessSkills implements JobSkills {
         m.put(SkillIds.GRAND_HEALING.id(), this::grandHealing);
         m.put(SkillIds.DIVINE_LIGHTNING.id(), this::divineLightning);
         m.put(SkillIds.CHAIN_LIGHTNING.id(), this::chainLightning);
+        m.put(SkillIds.VIGOR_BALL.id(), this::vigorBall);
+        m.put(SkillIds.RESURRECTION.id(), this::resurrection);
+        m.put(SkillIds.EXTINCTION.id(), this::extinction);
+        m.put(SkillIds.VIRTUAL_LIFE.id(), this::virtualLife);
+        m.put(SkillIds.GLACIAL_SPIKE.id(), this::glacialSpike);
+        m.put(SkillIds.REGENERATION_FIELD.id(), this::regenerationField);
+        m.put(SkillIds.SUMMON_MUSPELL.id(), this::summonMuspell);
         this.skills = Map.copyOf(m);
     }
 
@@ -609,6 +637,209 @@ public class PriestessSkills implements JobSkills {
             link = best;   // 链指针前移（步⑦）
         }
         return picked;
+    }
+
+    /* ────────────── Vigor Ball（T3.1）：持械门 + 面板×(1+表值%)，不暴击 ────────────── */
+
+    private List<HitTarget> vigorBall(CastContext c) {
+        double[] dmgTable = c.table1d("Vigor_Ball_Damage");
+        if (dmgTable == null || c.idx() >= dmgTable.length) {
+            log.error("[Skill] Vigor Ball 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        Monster m = targets.single(c.player(), c.self(), c.targetId());
+        if (m == null) {
+            return List.of();
+        }
+        // 持械门（`Svr_Damge.cpp:3498` 逐字）：`Power[0]>Power2[0] && Power[1]>Power2[1]` ——
+        // Power=面板、Power2=面板−装备裸伤 ⇒ 两端都"面板 > 面板−裸伤" ⇔ **装备裸伤两端都 > 0**。
+        // 不满足 return FALSE ⇒ 整招无伤（不是退普攻、不是换徒手公式）。
+        int[] wd = c.weaponDamage();
+        if (wd[0] <= 0 || wd[1] <= 0) {
+            log.info("[Skill] {} Vigor Ball p{} 徒手 ⇒ 不结算（源码 `Power>Power2` 持械门）",
+                    c.player().getName(), c.point());
+            return List.of();
+        }
+        int[] ap = c.attackPower();
+        int roll = c.roll(ap[0], ap[1]);
+        int power = roll + roll * (int) dmgTable[c.idx()] / 100;
+        DamageResult r = damageCalculator.calculatePlayerToMonster(c.player(), m.combatStats(), power,
+                DamageCalculator.SkillMods.withoutCrit());
+        combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
+        log.info("[Skill] {} Vigor Ball p{}：面板掷 {} +{}% ⇒ {}", c.player().getName(), c.point(),
+                roll, (int) dmgTable[c.idx()], power);
+        return List.of(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
+    }
+
+    /* ────────────── Resurrection（T3.2）：概率原地救起死亡玩家 ────────────── */
+
+    private List<HitTarget> resurrection(CastContext c) {
+        double[] pctTable = c.table1d("Resurrection_Percent");
+        if (pctTable == null || c.idx() >= pctTable.length) {
+            log.error("[Skill] Resurrection 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        // 目标 = 死亡玩家（charId 空间）。原版客户端只把**死亡队友**发给服务端（`FindDeadPartyUser`）；
+        // 服务端 OnSever 不复查。我方客户端暂不能选死亡玩家（缺口登记）⇒ targetId 解析不到
+        // 死亡玩家 ⇒ 显式不救（不退回"救自己"、不随机找人 —— AGENTS #12）。
+        Player target = c.targetId() > 0 ? playerService.byId(c.targetId()) : null;
+        PlayerEntity targetEnt = target != null ? playerService.entityOf(target) : null;
+        if (target == null || targetEnt == null || !targetEnt.isDead()) {
+            log.warn("[Skill] {} Resurrection p{}：目标 id={} 不是在场死亡玩家 ⇒ 不救"
+                    + "（客户端尚无选尸能力，缺口登记）", c.player().getName(), c.point(), c.targetId());
+            return List.of();
+        }
+        int chance = (int) pctTable[c.idx()];
+        boolean hit = SkillCombat.randBetween(0, 99) < chance;
+        if (hit && combatService.reviveInPlace(target)) {
+            log.info("[Skill] {} Resurrection p{}：{} 被救起（{}% 成功）",
+                    c.player().getName(), c.point(), target.getName(), chance);
+        } else {
+            // 原版失败就是静默（客户端照放视觉，目标原地不动）—— 这里只留日志
+            log.info("[Skill] {} Resurrection p{}：{} {}% 未通过（原版静默失败）",
+                    c.player().getName(), c.point(), target.getName(), chance);
+        }
+        return List.of();   // 复活不是伤害：零目标
+    }
+
+    /* ────────────── Extinction（T3.3）：160 圆内亡灵咒杀（当前生命% 真伤） ────────────── */
+
+    private List<HitTarget> extinction(CastContext c) {
+        double[] pctTable = c.table1d("Extinction_Percent");
+        double[] amtTable = c.table1d("Extinction_Amount");
+        if (pctTable == null || amtTable == null || c.idx() >= pctTable.length || c.idx() >= amtTable.length) {
+            log.error("[Skill] Extinction 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        // `dm_SelectRange(x,y,z, 160, FALSE)`（`SkillSub.cpp:633`）—— 圆 160、必中。
+        // 伤害与面板/武器**无关**：`Power = Point+1` 只作表下标（`Svr_Damge.cpp:5144`）。
+        int chance = (int) pctTable[c.idx()] + c.player().getLevel() / 5;
+        int amountPct = (int) amtTable[c.idx()];
+        int killed = 0;
+        List<HitTarget> hits = new ArrayList<>();
+        for (Monster m : targets.circleAround(c.self(), 160f)) {
+            // `lpChar->smCharInfo.Brood == smCHAR_MONSTER_UNDEAD`（:2637）—— 非亡灵根本不进判定
+            if (m.getBrood() != Monster.Brood.UNDEAD) {
+                continue;
+            }
+            // 生物抗性缩减（:2641-2647）未做：我方怪物无抗性字段 ⇒ rs=0，等价跳过（缺口登记）
+            if (SkillCombat.randBetween(0, 99) >= chance) {
+                continue;   // 未中 ⇒ 该目标无伤、无飘字（源码 SendShowDmg 只在成功分支）
+            }
+            int life = (int) (m.getHp() * amountPct / 100);   // **当前生命**的 Amount%（:2657）
+            DamageResult r = new DamageResult();
+            r.setRawDamage(life);
+            r.setFinalDamage(life);
+            combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
+            hits.add(new HitTarget(m.getId(), r.getFinalDamage(), false, false, false));
+            killed++;
+        }
+        log.info("[Skill] {} Extinction p{}：咒杀 {}%（含等级/5）× 当前生命 {}%，范围内亡灵命中 {} 个",
+                c.player().getName(), c.point(), chance, amountPct, killed);
+        return hits;
+    }
+
+    /* ────────────── Virtual Life（T3.4）：限时减伤 buff（自/队友不对称刷新） ────────────── */
+
+    private List<HitTarget> virtualLife(CastContext c) {
+        double[] timeTable = c.table1d("Virtual_Life_Time");
+        double[] pctTable = c.table1d("Virtual_Life_Percent");
+        if (timeTable == null || pctTable == null || c.idx() >= timeTable.length || c.idx() >= pctTable.length) {
+            log.error("[Skill] Virtual Life 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        int durationSec = (int) timeTable[c.idx()];
+        int decPct = (int) pctTable[c.idx()];
+        // 自施：激活侧要求无目标（`SkillSub.cpp:3267` `!lpCharSelPlayer`）⇒ 无条件覆盖
+        //（`OnSever.cpp:34292`）。targetId 恰好解析成**别的在场玩家** ⇒ 队友分支：**仅在过期后**可再施
+        //（`:34296-34301` 的 `dwSkill_VirtualLife_Time < now` 判定，两分支不对称，照抄）。
+        Player target = c.targetId() > 0 ? playerService.byId(c.targetId()) : null;
+        if (target != null && target.getId() != c.player().getId()
+                && playerService.entityOf(target) != null) {
+            if (skillBuffStates.activeParam(target.getId(), c.skillId()) > 0) {
+                log.info("[Skill] {} Virtual Life p{}：{} 的减伤仍在生效 ⇒ 不刷新（源码如此）",
+                        c.player().getName(), c.point(), target.getName());
+                return List.of();
+            }
+            skillBuffStates.apply(target.getId(), c.skillId(), durationSec * 1000L, decPct);
+            log.info("[Skill] {} Virtual Life p{}：队友 {} 减伤 {}% {} 秒",
+                    c.player().getName(), c.point(), target.getName(), decPct, durationSec);
+            return List.of();
+        }
+        skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, decPct);
+        log.info("[Skill] {} Virtual Life p{}：自己减伤 {}% {} 秒（受击侧在 AiEngine 消费）",
+                c.player().getName(), c.point(), decPct, durationSec);
+        return List.of();
+    }
+
+    /* ────────────── Glacial Spike（T4.1）：身前矩形 AoE + 冰冻减速 ────────────── */
+
+    private List<HitTarget> glacialSpike(CastContext c) {
+        double[] dmgTable = c.table1d("Glacial_Spike_Damage");
+        if (dmgTable == null || c.idx() >= dmgTable.length) {
+            log.error("[Skill] Glacial Spike 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        // `dm_SelectRangeBox(rect = 横 ±50 / 前 0..340, FALSE)`（`character.cpp:17017-17023`）—— 必中
+        List<Monster> picked = targets.boxInFront(c.self(), 50, 340);
+        if (picked.isEmpty()) {
+            return List.of();
+        }
+        int[] ap = c.attackPower();
+        int power = c.roll(ap[0], ap[1]);
+        power += power * (int) dmgTable[c.idx()] / 100;
+        // 减速：`time=8`（客户端单位 ×16 帧 @70fps ≈ 1829ms）、`SlowSpeed=200`（对 256 的比例）
+        //（`Svr_Damge.cpp:1769-1776`）。原版对怪的减速在客户端；我们的怪服务端权威 ⇒ 服务端持态。
+        long slowMs = 8L * 16 * 1000L / 70;
+        List<HitTarget> hits = new ArrayList<>(picked.size());
+        for (Monster m : picked) {
+            DamageResult r = damageCalculator.calculatePlayerToMonsterAlwaysHit(
+                    c.player(), m.combatStats(), power);
+            combat.applyDamage(c.player(), c.self(), m, r, 0, c.skillId());
+            m.applySlow(200, slowMs);
+            hits.add(new HitTarget(m.getId(), r.getFinalDamage(), r.isCritical(), r.isMissed(), false));
+        }
+        log.info("[Skill] {} Glacial Spike p{}：矩形命中 {} 个，面板掷 +{}% ⇒ {}，减速 {}% ×{}ms",
+                c.player().getName(), c.point(), picked.size(), (int) dmgTable[c.idx()], power, 200 * 100 / 256, slowMs);
+        return hits;
+    }
+
+    /* ────────────── Regeneration Field（T4.2）：再生场（数值应用在 RegenerationService） ────────────── */
+
+    private List<HitTarget> regenerationField(CastContext c) {
+        double[] timeTable = c.table1d("Regeneration_Field_Time");
+        if (timeTable == null || c.idx() >= timeTable.length) {
+            log.error("[Skill] Regeneration Field 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        int durationSec = (int) timeTable[c.idx()];
+        // 持续窗登记在这里（`OnSever.cpp:34638-34643` 同形）；**再生数值**由 RegenerationService
+        // 每秒 tick 读这个窗 + 范围门施加（自己全额、队友魔法减半 —— 见该方法注释）。
+        skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, c.point());
+        log.info("[Skill] {} Regeneration Field p{}：再生场 {} 秒（自己 +Life/Mana 全额，范围内队友魔法减半）",
+                c.player().getName(), c.point(), durationSec);
+        return List.of();
+    }
+
+    /* ────────────── Summon Muspell（T4.4）：被动守佑（招架 + 亡灵吸收） ────────────── */
+
+    private List<HitTarget> summonMuspell(CastContext c) {
+        double[] timeTable = c.table1d("Summon_Muspell_Time");
+        if (timeTable == null || c.idx() >= timeTable.length) {
+            log.error("[Skill] Summon Muspell 参数表缺失（idx={}）", c.idx());
+            return List.of();
+        }
+        int durationSec = (int) timeTable[c.idx()];
+        // ⚠ 源码里**没有召唤物生成**（`OpenMonsterFromSkill` 无 MUSPELL 分支）——"Muspell"是
+        //   `SkillCelestialMusPel` 的环绕火球视觉（`character.cpp:14794`），效果是被动两件套：
+        //   招架整刀（BlockPercent）与亡灵吸收（UndeadAbsorbPercent），应用在
+        //   AiEngine.resolveMonsterVsPlayer 的受击侧（源码同位置）。param = point（表下标）。
+        skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, c.point());
+        log.info("[Skill] {} Summon Muspell p{}：守佑 {} 秒（招架 {}%，亡灵吸收 {}%）",
+                c.player().getName(), c.point(), durationSec,
+                (int) c.table1d("Summon_Muspell_BlockPercent")[c.idx()],
+                (int) c.table1d("Summon_Muspell_UndeadAbsorbPercent")[c.idx()]);
+        return List.of();
     }
 
     /* ────────────── 面板：伤害百分比（与结算同一张表） ────────────── */

@@ -117,6 +117,41 @@ public class Monster extends BaseEntity {
         return holyMindDecPct;
     }
 
+    // ======== 冰冻减速（Glacial Spike） ========
+    //
+    // 原版把减速做在**客户端**（命中包的 AttackState=3 → 各端自己给怪设 `PlaySlowCount/PlaySlowSpeed`，
+    // `Svr_Damge.cpp:1769-1776` 的服务端分支只管**玩家**目标）—— 我们的怪是服务端权威移动，
+    // 客户端那套自减对服务端位移无效 ⇒ 服务端显式持态，保持"怪确实变慢"这一可观测行为。
+    // 数值：`PlaySlowSpeed = 200`（对 256 的比例 = 78%）、`time = 8`（客户端单位 ×16 帧 @70fps ≈ 1.83s）。
+
+    /** 减速期移动速度（raw，对 256 的比例）；0 = 没有减速。 */
+    private int slowSpeedRaw;
+    /** 减速到期时刻；过期即失效（查时判，不靠 tick）。 */
+    private long slowUntilMs;
+
+    /**
+     * 施加冰冻减速（Glacial Spike，`Svr_Damge.cpp:1769-1776` 的 AttackState=3 语义）。
+     *
+     * @param speedRaw   减速期速度档（200 = 正常 256 的 78%）
+     * @param durationMs 时长（原版客户端单位 time=8 ⇒ 8×16 帧 @70fps ≈ 1829ms）
+     */
+    public void applySlow(int speedRaw, long durationMs) {
+        this.slowSpeedRaw = speedRaw;
+        this.slowUntilMs = System.currentTimeMillis() + durationMs;
+    }
+
+    /** 当前减速对移动步长的乘数；没被减/已过期 ⇒ 1.0。 */
+    public double slowRatio() {
+        if (slowSpeedRaw <= 0) {
+            return 1.0;
+        }
+        if (System.currentTimeMillis() >= slowUntilMs) {
+            slowSpeedRaw = 0;   // 过期即清（同 holyMind）
+            return 1.0;
+        }
+        return slowSpeedRaw / 256.0;
+    }
+
     // ======== 召唤物归属（怪物水晶） ========
     //
     // 对应原版的三件套：`lpMasterPlayInfo`（主人指针）+ `smCharInfo.Next_Exp`（**借字段**存主人

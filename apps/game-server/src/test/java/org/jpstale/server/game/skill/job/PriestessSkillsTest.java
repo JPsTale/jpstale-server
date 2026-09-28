@@ -62,14 +62,21 @@ class PriestessSkillsTest {
     @Test
     void 注册即迁移_未登记的招不算已迁() {
         assertEquals(8, priestess.job());
+        // 2026-09-28 用户指示"做到 4 转第 4 个"⇒ T1–T4 全部 16 招中除被动外都迁入
         for (SkillIds s : new SkillIds[]{SkillIds.HEALING, SkillIds.HOLY_BOLT, SkillIds.MULTISPARK,
                 SkillIds.HOLY_MIND, SkillIds.HOLY_REFLECTION, SkillIds.GRAND_HEALING,
-                SkillIds.DIVINE_LIGHTNING, SkillIds.CHAIN_LIGHTNING}) {
+                SkillIds.DIVINE_LIGHTNING, SkillIds.CHAIN_LIGHTNING,
+                SkillIds.VIGOR_BALL, SkillIds.RESURRECTION, SkillIds.EXTINCTION, SkillIds.VIRTUAL_LIFE,
+                SkillIds.GLACIAL_SPIKE, SkillIds.REGENERATION_FIELD, SkillIds.SUMMON_MUSPELL}) {
             assertTrue(priestess.handles(s.id()), s + " 应已迁入");
         }
         // Meditation 是**被动**：走 PlayerStatCalculator 的属性层，不进施法分派（begin 对它回 NOT_MIGRATED）
         assertFalse(priestess.handles(SkillIds.MEDITATION.id()), "被动不进施法注册表");
-        assertFalse(priestess.handles(SkillIds.SUMMON_MUSPELL.id()), "召唤未迁");
+        // 5 转 4 招无源码 ⇒ 永不迁入（用户 2026-09-28：暂时不动）
+        for (SkillIds s : new SkillIds[]{SkillIds.DIVINE_FORCE, SkillIds.ICE_METEORITE,
+                SkillIds.THUNDERSTORM, SkillIds.DIVINE_CLEANSING}) {
+            assertFalse(priestess.handles(s.id()), s + " 是 5 转，应保持未迁");
+        }
     }
 
     @Test

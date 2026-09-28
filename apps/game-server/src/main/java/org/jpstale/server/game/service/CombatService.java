@@ -916,6 +916,8 @@ public class CombatService {
     private static final int REASON_FIELD = 1;
     private static final int REASON_TOWN = 2;
     private static final int REASON_FORCED = 3;
+    /** 复活术（祭司 Resurrection）原地救起 —— 无传送、无代价 */
+    private static final int REASON_RESURRECTION = 4;
 
     /** 村庄复活点：坦普族(job1-4) → 理查登 ric(3)；魔灵族 → 菲尔拉 pilai(21) */
     private static final int TOWN_MAP_TEMPLE = 3;
@@ -1106,6 +1108,49 @@ public class CombatService {
             // 死亡/复活是低频且必须被看见的事件 → 系统频道（同升级），不并入战斗刷屏
             battleLogService.playerRespawned(session);
         }
+    }
+
+    /**
+     * 复活术（祭司 T3.2 Resurrection）：**原地复活** —— 不传送、无经验/金币代价。
+     *
+     * <p>原版逐字：复活成功的结算在**被复活者的客户端**（`netplay.cpp:6547-6566`，收到转发包后
+     * {@code SetMotionFromCode(CHRMOTION_STATE_RESTART); sinSetLife(Life[1]/2)}）—— 半血、起身、
+     * 游戏开始特效；`PlayUsed_Resurrection` 令随后的事件重启跳过经验惩罚（`character.cpp:4968`）。
+     * 我们把同一结果做成服务端权威：半血 + 解除死亡态 + 原地广播起身。
+     *
+     * @return false = 目标没死/不在场（调用方显式处理，不静默）
+     */
+    public boolean reviveInPlace(Player player) {
+        PlayerSession session = playerService.sessionOf(player);
+        PlayerEntity ent = session != null ? session.getEntity() : null;
+        if (ent == null || !player.isDead()) {
+            return false;
+        }
+        deadPlayers.remove(player.getId());
+
+        int half = Math.max(1, player.getMaxHp() / 2);
+        player.setHp(half);
+        player.setDead(false);   // 解除死亡态（唯一判据，见 Player.dead）
+        ent.setMoveState(PlayerMoveState.IDLE);
+
+        // 原地广播起身：同图同点 ⇒ 本人客户端不触发换图，只关死亡面板 + resurrect()；
+        // 旁观者据 playerRespawn 让躺着的 actor 起身（客户端 applyRemoteRevive）。
+        messageSender.broadcastToArea(ent.getMapId(), (float) ent.getX(), (float) ent.getZ(),
+            AOI_BROADCAST_RANGE,
+            ServerMessage.newBuilder()
+                .setPlayerRespawn(S2C_PlayerRespawn.newBuilder()
+                    .setPlayerId(player.getId())
+                    .setMapId(ent.getMapId())
+                    .setPosition(org.jpstale.server.proto.base.CommonProto.Position.newBuilder()
+                        .setX((float) ent.getX()).setY((float) ent.getY()).setZ((float) ent.getZ()).build())
+                    .setHp(half)
+                    .setMaxHp(player.getMaxHp())
+                    .setReason(REASON_RESURRECTION)
+                    .build())
+                .build());
+        playerService.sendPlayerStatus(session, player);
+        log.info("COMBAT {} 被复活术原地救起（hp {}，无代价）", player.getName(), half);
+        return true;
     }
 
     /** 本级跨度经验 = expForLevel(level+1) - expForLevel(level) —— 死亡代价的分母 */

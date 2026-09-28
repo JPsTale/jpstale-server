@@ -84,19 +84,22 @@ public class MovementService {
                 double tx = context.getTargetX();
                 double tz = context.getTargetZ();
                 double step = monster.isCanRun() ? GameConstants.MONSTER_RUN_STEP : GameConstants.MONSTER_WALK_STEP;
+                // 冰冻减速（Glacial Spike）：原版在客户端给怪设 `PlaySlowSpeed`（FrameStep×speed/256，
+                // `character.cpp:5731-5733`）；我们的怪由服务端移动 ⇒ 步长乘同一比例。
+                step *= monster.slowRatio();
                 moveToward(monster, tx, tz, step);
                 break;
             }
             case PATROL: {
                 // 巡逻：朝巡逻点以 walk 速度移动
                 moveToward(monster, context.getPatrolX(), context.getPatrolZ(),
-                    GameConstants.MONSTER_WALK_STEP);
+                    GameConstants.MONSTER_WALK_STEP * monster.slowRatio());
                 break;
             }
             case RETURN: {
                 // 归位：朝出生点以 walk 速度移动
                 moveToward(monster, monster.getSpawnX(), monster.getSpawnZ(),
-                    GameConstants.MONSTER_WALK_STEP);
+                    GameConstants.MONSTER_WALK_STEP * monster.slowRatio());
                 break;
             }
             default:

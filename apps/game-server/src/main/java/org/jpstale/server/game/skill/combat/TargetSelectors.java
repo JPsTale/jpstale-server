@@ -48,6 +48,43 @@ public class TargetSelectors {
     }
 
     /**
+     * 选敌：**身前矩形**（Glacial Spike 的 `dm_SelectRangeBox` 族，必中）。
+     *
+     * <p>逐字 {@code character.cpp:17017-17023}（`SKILL_PLAY_GLACIAL_SPIKE`，MotionEvent==1）：
+     * {@code rect.left=-50; rect.right=50; rect.top=0; rect.bottom=340(+20+20)} —— 施法者坐标系里
+     * 横向 ±50、前方 0..340 的矩形，无高度门。 FALSE = 不做命中判定（必中族）。
+     */
+    public List<Monster> boxInFront(PlayerEntity self, double halfWidth, double depth) {
+        List<Monster> targets = new ArrayList<>();
+        for (Monster m : entityRegistry.allMonsters()) {
+            if (!m.isAlive() || m.isSummon() || m.getMapId() != self.getMapId()) {
+                continue;
+            }
+            if (inFrontBox(self.getX(), self.getZ(), self.getAngle(), m.getX(), m.getZ(), halfWidth, depth)) {
+                targets.add(m);
+            }
+        }
+        return targets;
+    }
+
+    /**
+     * {@code boxInFront} 的**纯几何判定**（可单测）：目标是否落在施法者坐标系里
+     * "横向 ±halfWidth、前方 0..depth" 的矩形内。
+     *
+     * <p>角度约定与 {@code moveToward} 同源：yaw 0 = +Z，前向 = (sinθ, cosθ)。
+     */
+    public static boolean inFrontBox(double selfX, double selfZ, double yaw,
+                                     double targetX, double targetZ, double halfWidth, double depth) {
+        double sin = Math.sin(yaw);
+        double cos = Math.cos(yaw);
+        double dx = targetX - selfX;
+        double dz = targetZ - selfZ;
+        double forward = dx * sin + dz * cos;    // 投到前向轴
+        double lateral = dx * cos - dz * sin;    // 投到横向轴
+        return forward >= 0 && forward <= depth && Math.abs(lateral) <= halfWidth;
+    }
+
+    /**
      * 同图的存活怪（非召唤物）——**不带距离条件**的基础候选集。
      *
      * <p>Divine Lightning（轮转扫描）/ Chain Lightning（最近邻链）在它之上做各自的走查：

@@ -71,6 +71,10 @@ public class AiEngine {
     @Autowired
     private SkillBuffStates skillBuffStates;
 
+    /** 技能参数表（Virtual Life / Summon Muspell 的数值从注册表读，不硬编码） */
+    @Autowired
+    private org.jpstale.common.service.skill.SkillDataRegistry skillData;
+
     @Autowired
     private org.jpstale.server.game.entity.EntityRegistry entityRegistry;
 
@@ -781,6 +785,59 @@ public class AiEngine {
             return;
         }
 
+        // ── 受击侧的两个祭司防御增益（源码顺序：Virtual Life 在前、Summon Muspell 在后）──
+        //
+        // **Virtual Life（J3.4）**：`Power -= Power * Virtual_Life_Percent[point] / 100`
+        // （`character.cpp:15112-15116` 怪→玩家路径逐字）。⚠ 按代码它是**减伤**（2..13%），
+        // 不是技能描述说的"提升生命上限" —— 照字面读技能名翻车的又一例（AGENTS #95 同族）。
+        int vlPct = skillBuffStates.activeParam(player.getId(),
+            org.jpstale.server.common.enums.skill.SkillIds.VIRTUAL_LIFE.id());
+        int damage = result.getFinalDamage();
+        if (vlPct > 0) {
+            damage -= damage * vlPct / 100;
+        }
+
+        // **Summon Muspell（J4.4）**：持续期内 ① `rand%100 < BlockPercent[point]` ⇒ **整刀闪避**
+        // （`character.cpp:15300-15320`：回 OPCODE_SUCCESS_EVATION、不结伤）；② 攻击者是亡灵 ⇒
+        // 吸收 `Power × UndeadAbsorbPercent[point]%` 变成自己的回血（`:15328` 打包 → 客户端
+        // `:9103-9115` 消费为 `sinSetLife(Life+temp)`）。无伤害结算客户端显示，闪避这里按
+        // missed 飘字表达（我方无 SUCCESS_EVATION 展示链，登记近似）。
+        int muspellPoint = skillBuffStates.activeParam(player.getId(),
+            org.jpstale.server.common.enums.skill.SkillIds.SUMMON_MUSPELL.id());
+        if (muspellPoint > 0) {
+            int idx = muspellPoint - 1;
+            double[] blockTable = skillData.table1d("Summon_Muspell_BlockPercent");
+            double[] absorbTable = skillData.table1d("Summon_Muspell_UndeadAbsorbPercent");
+            if (blockTable != null && idx < blockTable.length
+                && java.util.concurrent.ThreadLocalRandom.current().nextInt(100) < (int) blockTable[idx]) {
+                log.debug("[MonsterAI] {}#{} ATK -> SUMMON_MUSPELL 闪避, interval={}ms",
+                    monster.getName(), monster.getId(), interval);
+                messageSender.broadcastToArea(target.getMapId(),
+                    (float) target.getX(), (float) target.getZ(), 50,
+                    ServerMessage.newBuilder()
+                        .setDamage(S2C_Damage.newBuilder()
+                            .setTargetId(player.getId())
+                            .setDamage(0)
+                            .setCurrentHp(player.getHp())
+                            .setMissed(true)
+                            .build())
+                        .build());
+                monster.setLastBroadcastAnim(-1);
+                return;
+            }
+            if (absorbTable != null && idx < absorbTable.length
+                && monster.getBrood() == Monster.Brood.UNDEAD && damage > 0) {
+                int absorb = damage * (int) absorbTable[idx] / 100;
+                if (absorb > 0 && player.getHp() > 0) {
+                    int healed = Math.min(player.getMaxHp() - player.getHp(), absorb);
+                    if (healed > 0) {
+                        player.setHp(player.getHp() + healed);
+                        playerService.sendPlayerStatus(playerService.sessionOf(player), player);
+                    }
+                }
+            }
+        }
+
         // 被格挡（`DamageCalculator` 的格挡判定通过）：伤害为 0、不扣血、不触发受击硬直/受击音，
         // 只广播一条 blocked 让受害者头顶飘 "Blocked" + 客户端随机播 impact/block{1,2,3}.wav。
         // 与 missed 分开：格挡有音、miss 没有（用户 2026-09-16）。
@@ -804,14 +861,14 @@ public class AiEngine {
             return;
         }
 
-        int newHp = Math.max(0, player.getHp() - result.getFinalDamage());
+        int newHp = Math.max(0, player.getHp() - damage);
         player.setHp(newHp);
         // 锻造：被击受伤 → 一次性喂五件防具（原版 `character.cpp:10876-10882` 的五个 DEFENSE_* 调用）
         ageEffectBroadcaster.wrapUpBattleAging(player, ageService.onDamaged(player));
 
         log.debug("[MonsterAI] {}#{} ATK {} dmg={} ({}->{}), interval={}ms",
             monster.getName(), monster.getId(), targetName(target),
-            result.getFinalDamage(), newHp + result.getFinalDamage(), newHp, interval);
+            damage, newHp + damage, newHp, interval);
 
         // 战斗日志：玩家受击（进聊天窗"系统"tab）
         battleLogService.playerHurt(playerService.sessionOf(player), monster.getName(), result.getFinalDamage());
@@ -822,7 +879,7 @@ public class AiEngine {
             ServerMessage.newBuilder()
                 .setDamage(S2C_Damage.newBuilder()
                     .setTargetId(player.getId())
-                    .setDamage(result.getFinalDamage())
+                    .setDamage(damage)
                     .setCurrentHp(newHp)
                     .build())
                 .build());
