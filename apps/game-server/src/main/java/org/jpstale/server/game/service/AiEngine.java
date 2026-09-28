@@ -892,6 +892,11 @@ public class AiEngine {
         monster.setLastBroadcastAnim(-1);
 
         if (newHp <= 0) {
+            // 击杀留痕：怪→玩家伤害全程 DEBUG（INFO 不可见），死亡只有结果没有凶手 ⇒
+            // 本次"map 8 死亡但全程无怪锁定"排查了半天（2026-09-28）。死亡是低频事件，INFO 不刷屏。
+            log.info("[MonsterAI] {}#{} 击杀 {}（伤害 {}，hp {} → 0）",
+                monster.getName(), monster.getId(), targetName(target),
+                result.getFinalDamage(), newHp + result.getFinalDamage());
             // 不再立刻复活：进入死亡态躺下，由玩家在三个选项里选、或 1 分钟后被强制送回村庄。
             // 客户端 HUD 由上面那条 status（hp=0）与 enterDeath 广播的 S2C_PlayerDeath 一起刷新。
             combatService.enterDeath(player);

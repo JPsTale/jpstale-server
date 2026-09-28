@@ -251,8 +251,14 @@ public class PlayerService {
     /** 移除在线实体(下线/踢号) */
     public void removeEntity(long characterId) {
         PlayerEntity entity = entities.remove(characterId);
-        if (entity != null && entity.getSession() != null) {
-            entity.getSession().setEntity(null);
+        if (entity != null) {
+            // 双向都掐断：会话不再指旧实体（原有），旧实体也不再持会话 ——
+            // 否则回选角复用同一连接重登时，旧实体的 isTargetable() 会借"会话还活着"还魂
+            //（2026-09-28 血条闪烁事故的根因之一，见 PlayerEntity.isTargetable 的守卫注释）。
+            if (entity.getSession() != null) {
+                entity.getSession().setEntity(null);
+            }
+            entity.setSession(null);
         }
     }
 

@@ -129,6 +129,15 @@ public class PlayerEntity extends BaseEntity {
      * ⚠ 以后要给"目标有效性"加条件，**只改这里**。
      */
     public boolean isTargetable() {
+        // ⚠ **幽灵实体守卫**（2026-09-28 血条闪烁/异图死亡事故）：回选角/换连接重登时
+        // `PlayerService.removeEntity` 移除旧实体，但**怪物的 AiContext 还锁着它**；而
+        // `session.isPlaying()` 判的是 session 对象 —— 回选角**复用同一连接**，重登后它又是
+        // playing ⇒ 旧实体永远"可被锁定"，map-9 的怪隔着图持续打幽灵，伤害全落在同一个
+        // `Player` 上（= 当前角色的血），enterDeath 又按**会话当前实体**记图 ⇒
+        // "在 map 8 满血状态被 map 9 的怪打死"。故：会话当前实体不是"我" ⇒ 我是幽灵，不可锁定。
+        if (session != null && session.getEntity() != this) {
+            return false;
+        }
         return isPlaying() && !isDead();
     }
 
