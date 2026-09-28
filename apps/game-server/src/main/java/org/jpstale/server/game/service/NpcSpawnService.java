@@ -6,8 +6,11 @@ import org.jpstale.dao.gamedb.entity.MapNpc;
 import org.jpstale.dao.gamedb.entity.NpcList;
 import org.jpstale.dao.gamedb.mapper.MapNpcMapper;
 import org.jpstale.dao.gamedb.mapper.NpcListMapper;
+import org.jpstale.dao.userdb.mapper.UserInfoMapper;
 import org.jpstale.server.game.entity.EntityRegistry;
+import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Npc;
+import org.jpstale.server.game.network.PlayerSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +36,9 @@ public class NpcSpawnService {
 
     @Autowired
     private MapNpcMapper mapNpcMapper;
+
+    @Autowired
+    private UserInfoMapper userInfoMapper;
 
     /** mapId → 该图 NPC 列表（委托 EntityRegistry） */
 
@@ -60,6 +66,7 @@ public class NpcSpawnService {
             Npc npc = new Npc();
             npc.setNpcId(def.getId());
             npc.setEventType(def.getEventType() == null ? 0 : def.getEventType());   // 服务判据（见 NpcCraftTable）
+            npc.setTeleportId(def.getTeleportId() == null ? 0 : def.getTeleportId()); // 传送目的地事件码（见 TravelService.NPC_TELEPORTS）
             npc.setNameKey(def.getName());
             npc.setModelFile(normalizeModelPath(def.getGameFile()));
             npc.setX(mn.getX() == null ? 0 : mn.getX());
@@ -115,6 +122,70 @@ public class NpcSpawnService {
     public Npc findInMap(int mapId, long entityId) {
         Npc n = findById(entityId);
         return (n != null && n.getMapId() == mapId) ? n : null;
+    }
+
+    // ------------------------------------------------------------------
+    // 交互校验（单一实现：NpcShopHandler 与 TravelService 共用 —— AGENTS #15）
+    // ------------------------------------------------------------------
+
+    /**
+     * NPC 交互距离上限（世界单位）。原版这条校验在**客户端**（点谁是谁），服务端没有；
+     * 我们加它是为了防"远程开面板"，取一个明显够用又不过分的值（玩家与 NPC 正常面对面）。
+     */
+    public static final double NPC_INTERACT_RANGE = 96.0d;
+
+    /**
+     * 交互校验：本图有该实体 + 非 GM 专用 + 距离够。任一不过 → 回明确的错误 key 并返回 null。
+     * 商店/传送两个入口共用（商家判定等各自专属的门由调用方自己做）。
+     */
+    public Npc resolveInteractable(PlayerSession session, long entityId, String outOfRangeKey) {
+        PlayerEntity ent = session.getEntity();
+        if (ent == null || ent.getMapId() < 0) {
+            return null;
+        }
+        Npc npc = findInMap(ent.getMapId(), entityId);
+        if (npc == null) {
+            log.warn("[Npc] 交互被拒：entity={} 在 mapId={} 上没有实例（可疑）", entityId, ent.getMapId());
+            sendErrorKey(session, "shop.notHere");
+            return null;
+        }
+        if (!isGm(session)) {
+            if (npc.isGmOnly()) {
+                // 原版：非 GM 点 onlygm 的 NPC → 提示 "> Only for Admins!"（NPC 本身可见）
+                log.info("[Npc] 交互被拒：npc={} 是 GM 专用", npc.getNpcId());
+                sendErrorKey(session, "npc.gmOnly");
+                return null;
+            }
+            double dx = npc.getX() - ent.getX();
+            double dz = npc.getZ() - ent.getZ();
+            if (dx * dx + dz * dz > NPC_INTERACT_RANGE * NPC_INTERACT_RANGE) {
+                log.warn("[Npc] 交互被拒：npc={} 距离 {} 超过 {}（可疑）",
+                        npc.getNpcId(), Math.sqrt(dx * dx + dz * dz), NPC_INTERACT_RANGE);
+                sendErrorKey(session, outOfRangeKey);
+                return null;
+            }
+        }
+        return npc;
+    }
+
+    /** GM 判定：`UserInfo.gamemastertype != 0 && gamemasterlevel > 0`（EU 用 `GameMasterType/Level`）。 */
+    public boolean isGm(PlayerSession session) {
+        Long accountId = session.getAccountId();
+        if (accountId == null) {
+            return false;
+        }
+        var u = userInfoMapper.selectById(accountId);
+        return u != null && u.getGameMasterType() != null && u.getGameMasterType() != 0
+                && u.getGameMasterLevel() != null && u.getGameMasterLevel() > 0;
+    }
+
+    private void sendErrorKey(PlayerSession session, String key) {
+        session.send(org.jpstale.server.proto.base.ServerMessage.newBuilder()
+                .setError(org.jpstale.server.proto.base.S2C_Error.newBuilder()
+                        .setErrorCode(org.jpstale.server.proto.base.CommonProto.ErrorCode.UNKNOWN_ERROR)
+                        .setKey(key)
+                        .build())
+                .build());
     }
 
     /**

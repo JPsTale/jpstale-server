@@ -33,6 +33,9 @@ public class WorldService {
     @Autowired
     private PlayerService playerService;
 
+    @Autowired
+    private TravelService travelService;
+
     /** 边界门槛的服务端权威校验（防作弊）；给玩家的提示由客户端本地拦截负责，避免双份提示 */
     private final java.util.Map<Long, Long> gateLogAt = new java.util.concurrent.ConcurrentHashMap<>();
     private static final long GATE_LOG_MS = 5000;
@@ -48,6 +51,8 @@ public class WorldService {
         for (PlayerSession session : sessionManager.getAllSessions()) {
             if (session == null || !session.isPlaying()) continue;
             checkMapSwitch(session);
+            // 走图门/翅膀门触发（原版 CheckWarpGate 的服务端权威版；见 TravelService.checkGates）
+            travelService.checkGates(session);
         }
     }
 

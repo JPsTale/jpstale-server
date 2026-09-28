@@ -49,6 +49,8 @@ public class ItemNetworkHandler {
     /** 组队金币分摊（D5：拾取时对分享距离内的队友均分，见 PartyService.splitGold）。 */
     private final org.jpstale.server.game.service.PartyService partyService;
     private final org.jpstale.server.game.network.SessionManager sessionManager;
+    /** Teleport Core（BI108）右键 → 选图盘（目的地白名单/使用复核见 TravelService）。 */
+    private final org.jpstale.server.game.service.TravelService travelService;
 
 
     public ItemNetworkHandler(ItemService itemService, PlayerService playerService,
@@ -68,7 +70,8 @@ public class ItemNetworkHandler {
                               org.jpstale.common.service.skill.SkillMasteryService skillMasteryService,
                               org.jpstale.server.game.service.SkillPointService skillPoints,
                               org.jpstale.server.game.service.PartyService partyService,
-                              org.jpstale.server.game.network.SessionManager sessionManager) {
+                              org.jpstale.server.game.network.SessionManager sessionManager,
+                              org.jpstale.server.game.service.TravelService travelService) {
         this.itemService = itemService;
         this.playerService = playerService;
         this.appearanceService = appearanceService;
@@ -88,6 +91,7 @@ public class ItemNetworkHandler {
         this.skillPoints = skillPoints;
         this.partyService = partyService;
         this.sessionManager = sessionManager;
+        this.travelService = travelService;
     }
 
     // ------------------------------------------------------------------
@@ -248,6 +252,14 @@ public class ItemNetworkHandler {
         CrystalService.CrystalDef crystal = CrystalService.defOf(idCode);
         if (crystal != null) {
             useCrystal(session, p, idCode, crystal, req.getUid());
+            return;
+        }
+
+        // ---- ⓪b Teleport Core（BI108）：右键**不直接传**，弹"选图"面板（原版 UsePremiumItem(8) → TCORE UI）----
+        // 不进 EAT 冷却/不广播 EAT（原版无吃动作，直接开 UI）；卷轴此刻**不消耗** ——
+        // 确认选图时才扣（"效果能落地才扣道具"，docs/传送系统.md §4）。白名单与使用复核见 TravelService。
+        if (org.jpstale.server.game.service.TravelService.isTeleportCore(idCode)) {
+            travelService.openTeleportCore(session, p, req.getUid());
             return;
         }
 

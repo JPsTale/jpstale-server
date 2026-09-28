@@ -47,6 +47,9 @@ message ClientMessage {
     C2S_LearnSkill learn_skill = 222;               // 学/升级技能（服务端权威：判定 + 扣钱 + 写技能等级）
     C2S_ResetSkillPoints reset_skill_points = 223;  // 洗点（会话内一次；守卫是内存标记，不落库）
     C2S_SetSkillBinding set_skill_binding = 224;    // 改技能绑定（拳位/快捷栏）；服务端校验后写 props 并回推 S2C_SkillBindings
+    C2S_TravelUse travel_use = 225;                 // 目的地选择：只回 kind + target(=map_id)。目的地永远由服务端查自己的
+                                                    // 代码表（不接受坐标/图号之外的内容；EU NeverSinkTeleportRequest 同形，
+                                                    // 但我们补上"未识别=拒绝"，堵 EU switch 无 default 的洞）
     C2S_SkillHit skill_hit = 226;                   // 技能事件帧回报（逐段结算；D7）
     
 
@@ -103,6 +106,7 @@ message ServerMessage {
     S2C_SkillList skill_list = 212;  // 已学技能表 + 两个技能点池（**只发本人**：技能点是私有的）
     S2C_SkillBindings skill_bindings = 213;  // 技能绑定表（拳位/快捷栏；**只发本人**）—— 与技能表同一批时机下发
     S2C_SkillStart skill_start = 214;        // 技能起手广播（旁观者播同一条技能动画）
+    S2C_TravelOpen travel_open = 215;        // 目的地选择开窗（NPC 传送/翅膀门/传送卷轴）：服务端判完上下文后下发，纯展示
     
     // 怪物 (300-399)
     S2C_MonsterAppear monster_appear = 300;
@@ -1228,6 +1232,35 @@ message S2C_BuffState {
 message S2C_CraftOpen {
   int64 entity_id = 1;     // NPC 实体 id（回给服务端做距离/身份校验用）
   repeated int32 modes = 2;
+}
+
+// ==================== 传送：目的地选择（无状态；设计/取证见 docs/传送系统-原版机制与方案设计.md §7.1） ====================
+
+// 一条可选目的地。**cost / level_req 只作展示**：判定一律在服务端
+// （等级 = gamedb.maplist.levelreq 的 MapManager.canEnter，代码表不携带等级——用户 2026-09-28 定调）。
+message TravelOption {
+  int32 map_id = 1;
+  string name = 2;      // 显示名（客户端没有地图名表，由服务端从 DB maplist.name 直发；
+                        // 将来客户端建立 map.* 名字表后可切回"只发 key"口径）
+  int32 cost = 3;       // 金币费用；0 = 免费
+  int32 level_req = 4;  // 目标图进入等级（MapManager.levelReqOf 运行时填；>=150 = 未开放）
+}
+
+// 服务端判完上下文（踩中翅膀门 / 点击传送 NPC / 右键传送卷轴）后下发，纯展示。
+// kind：1 = NPC 付费传送（npclist.teleportid = EU TeleportID 事件码族，1000..1003）
+//       2 = 翅膀传送门网络（sinWarpGateCODE 9 门；可选数 = 持有最高翅膀档，无翅 2 门）
+//       3 = Teleport Core 选图（HaPremiumItem.cpp TelePort_FieldNum 的目的地列）
+message S2C_TravelOpen {
+  int32 kind = 1;
+  int64 entity_id = 2;                 // NPC 实体 id（kind=1 时）；其余 0
+  repeated TravelOption options = 3;
+}
+
+// 玩家选定。**只回 kind + target(=map_id)** —— 目的地永远由服务端查自己的代码表，
+// 客户端给不了任何坐标（与 EU NeverSinkTeleportRequest{fieldID} 同形）。
+message C2S_TravelUse {
+  int32 kind = 1;
+  int32 target = 2;
 }
 
 // 合成**预览**：客户端把当前投入的 uid 列表报上来，服务端匹配配方后把"会得到什么"发下去。

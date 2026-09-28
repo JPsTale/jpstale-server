@@ -26,6 +26,12 @@ public class Npc extends BaseEntity {
      * ⚠ 我先前按 NPC **id** 硬编码服务 ✗（那是我用另一条血统的脚本名/模型猜出来的），已改为按本字段判。
      */
     private int eventType;
+    /**
+     * `npclist.teleportid` = EU `sUnitInfo.TeleportID`：点击 NPC 时服务端下发 TeleportEvent
+     * 事件码（EU `unitserver.cpp:444`），客户端按码开对应传送目的地。1000..1003 有硬证
+     * （`TravelService.NPC_TELEPORTS`）；其余值未识别不服务。
+     */
+    private int teleportId;
     private String nameKey;   // 本地化 slug（npclist.name）
     private String modelFile; // 规范化模型路径（char/npc/xxx/xxx.inx）
     /**

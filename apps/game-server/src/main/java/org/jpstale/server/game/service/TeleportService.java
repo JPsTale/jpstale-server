@@ -100,6 +100,15 @@ public class TeleportService {
      * @return true = 已搬（并已广播）；false = 目标图不存在或玩家不在场（调用方据此决定回执）
      */
     public boolean teleport(Player player, int mapId, double x, double z, Reason reason) {
+        return teleport(player, mapId, x, z, reason, true);
+    }
+
+    /**
+     * 同上，`resetAngle=false` 时**保留当前朝向**。
+     * 唯一用途：翅膀门的**吸附**（原版踩中门后 `SetPosi` 到门心但不动角度，
+     * `field.cpp:222-224`）——普通传送仍按用户 2026-09-13 指定复位 -π。
+     */
+    public boolean teleport(Player player, int mapId, double x, double z, Reason reason, boolean resetAngle) {
         PlayerEntity entity = playerService.entityOf(player);
         PlayerSession session = entity != null ? entity.getSession() : null;
         if (entity == null) {
@@ -139,10 +148,11 @@ public class TeleportService {
         if (terrainY > 0) {
             entity.setY(terrainY);
         }
-        // 朝向复位为**初始角度**（用户 2026-09-13 指定：-π）。
-        // 广播给本人与旁观者的 S2C_PlayerTeleport 都读 entity.getAngle()，所以在这里改一处即可，
-        // 传送（卷轴/传送门/婚戒/GM）、复活、脱困全都自动带上。
-        entity.setAngle(INITIAL_ANGLE);
+        // 朝向：普通传送复位为**初始角度**（用户 2026-09-13 指定：-π）；吸附（翅膀门）保留原朝向。
+        // 广播给本人与旁观者的 S2C_PlayerTeleport 都读 entity.getAngle()，所以在这里改一处即可。
+        if (resetAngle) {
+            entity.setAngle(INITIAL_ANGLE);
+        }
         entity.setMoveState(PlayerMoveState.IDLE);      // 打断移动/攻击态（站立）
         entity.setLastSyncedAnimState(0x0040);          // 复位动画去重基线（STAND）
         if (switchedMap) {

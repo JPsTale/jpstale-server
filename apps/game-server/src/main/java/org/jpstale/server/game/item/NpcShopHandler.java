@@ -4,15 +4,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.jpstale.common.service.item.*;
 import org.jpstale.common.service.model.Player;
 import org.jpstale.common.service.shop.NpcShopService;
-import org.jpstale.dao.userdb.entity.UserInfo;
-import org.jpstale.dao.userdb.mapper.UserInfoMapper;
-import org.jpstale.server.game.entity.PlayerEntity;
 import org.jpstale.server.game.model.Npc;
 import org.jpstale.server.game.network.GamePacketHandler;
 import org.jpstale.server.game.network.PlayerSession;
 import org.jpstale.server.game.service.GoldService;
 import org.jpstale.server.game.service.NpcSpawnService;
 import org.jpstale.server.game.service.PlayerService;
+import org.jpstale.server.game.service.TravelService;
 import org.jpstale.server.proto.base.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -43,10 +41,9 @@ import java.util.List;
 public class NpcShopHandler {
 
     /**
-     * NPC 交互距离上限（世界单位）。原版这条校验在**客户端**（点谁是谁），服务端没有；
-     * 我们加它是为了防"远程开面板"，所以取一个明显够用又不过分的值（玩家与 NPC 正常面对面）。
+     * NPC 交互距离上限等校验常量见 {@link NpcSpawnService#NPC_INTERACT_RANGE}
+     * （校验实现下沉到 NpcSpawnService，与 TravelService 共用）。
      */
-    private static final double NPC_INTERACT_RANGE = 96.0d;
 
     /** 一次买入/卖出的数量上限（原版 EU 侧拒绝 `iCount > 10000`；我们收紧到 1000，与背包堆叠上限一致）。 */
     private static final int MAX_TRADE_COUNT = 1000;
@@ -57,23 +54,23 @@ public class NpcShopHandler {
     private final ItemRollService itemRollService;
     private final ItemStorageService storage;
     private final GoldService goldService;
-    private final UserInfoMapper userInfoMapper;
     private final PlayerService playerService;
+    private final TravelService travelService;
 
     @Autowired
     public NpcShopHandler(NpcShopService shopService, NpcSpawnService npcSpawnService,
                           ItemService itemService,
                           ItemRollService itemRollService, ItemStorageService storage,
-                          GoldService goldService, UserInfoMapper userInfoMapper,
-                          PlayerService playerService) {
+                          GoldService goldService,
+                          PlayerService playerService, TravelService travelService) {
         this.shopService = shopService;
         this.npcSpawnService = npcSpawnService;
         this.itemService = itemService;
         this.itemRollService = itemRollService;
         this.storage = storage;
         this.goldService = goldService;
-        this.userInfoMapper = userInfoMapper;
         this.playerService = playerService;
+        this.travelService = travelService;
     }
 
     // ------------------------------------------------------------------
@@ -96,9 +93,11 @@ public class NpcShopHandler {
         // 公会服务（eventtype=8 → *_clan_master，全库唯一可辨）。见 `NpcClanTable`。
         org.jpstale.server.game.clan.NpcClanTable.Mode clan =
                 org.jpstale.server.game.clan.NpcClanTable.modeOfEventType(npc.getEventType());
-        if (offers.isEmpty() && craft == null && clan == null) {
+        // 传送服务（npclist.teleportid = EU TeleportID 事件码，见 TravelService.NPC_TELEPORTS）
+        boolean travel = npc.getTeleportId() > 0;
+        if (offers.isEmpty() && craft == null && clan == null && !travel) {
             // 走到这里说明这个 NPC 既没有商品清单、也不在任何服务表里（数据问题或未登记）
-            log.error("[Npc] npc={} 既无商品清单也无打造/公会服务（数据问题或未登记）", npcId);
+            log.error("[Npc] npc={} 既无商品清单也无打造/公会/传送服务（数据问题或未登记）", npcId);
             sendErrorKey(session, "shop.noItems");
             return;
         }
@@ -131,6 +130,12 @@ public class NpcShopHandler {
                             .setEntityId(entityId))
                     .build());
             log.info("[Clan] {} 打开公会菜单 npc={}", session.getCharacterName(), npcId);
+        }
+        if (travel) {
+            Player tp = playerService.requirePlayer(session);
+            if (tp != null) {
+                travelService.openNpcTeleport(session, tp, npc);
+            }
         }
     }
 
@@ -280,10 +285,6 @@ public class NpcShopHandler {
     // 校验与工具
     // ------------------------------------------------------------------
 
-    /**
-     * 取"当前可交互的那个 NPC 实例"：本图存在该**实体 id** + 定义是商家 + 距离够 + onlygm 门。
-     * 任一不过 → 回明确的错误 key 并返回 null（调用方直接 return）。
-     */
     private Npc resolveInteractableNpc(PlayerSession session, long entityId, String outOfRangeKey) {
         return resolveInteractableNpc(session, entityId, outOfRangeKey, true);
     }
@@ -295,16 +296,10 @@ public class NpcShopHandler {
      *        拦在 clan 分支之前，永远到不了）。
      */
     private Npc resolveInteractableNpc(PlayerSession session, long entityId, String outOfRangeKey, boolean requireMerchant) {
-        PlayerEntity ent = session.getEntity();
-        if (ent == null || ent.getMapId() < 0) {
-            return null;
-        }
-        Npc npc = npcSpawnService.findInMap(ent.getMapId(), entityId);
+        // 存在性 / GM 专用 / 距离三道门在 NpcSpawnService.resolveInteractable ——
+        // 与 TravelService（NPC 传送的使用复核）共用同一实现（AGENTS #15：同一判定只写一份）。
+        Npc npc = npcSpawnService.resolveInteractable(session, entityId, outOfRangeKey);
         if (npc == null) {
-            // 该实体 id 不在玩家这张图上（伪造 / 已离开视野）——外挂最爱撞的就是这条
-            log.warn("[Shop] {} 交互被拒：entity={} 在 mapId={} 上没有实例（可疑）",
-                    session.getCharacterName(), entityId, ent.getMapId());
-            sendErrorKey(session, "shop.notHere");
             return null;
         }
         long npcId = npc.getNpcId();
@@ -314,35 +309,7 @@ public class NpcShopHandler {
             sendErrorKey(session, "shop.notMerchant");
             return null;
         }
-        boolean gm = isGm(session);
-        if (!gm) {
-            if (npc.isGmOnly()) {
-                // 原版：非 GM 点 onlygm 的 NPC → 提示 "> Only for Admins!"（NPC 本身可见）
-                log.info("[Shop] {} 交互被拒：npc={} 是 GM 专用", session.getCharacterName(), npcId);
-                sendErrorKey(session, "npc.gmOnly");
-                return null;
-            }
-            double dx = npc.getX() - ent.getX();
-            double dz = npc.getZ() - ent.getZ();
-            if (dx * dx + dz * dz > NPC_INTERACT_RANGE * NPC_INTERACT_RANGE) {
-                log.warn("[Shop] {} 交互被拒：npc={} 距离 {} 超过 {}（可疑）",
-                        session.getCharacterName(), npcId, Math.sqrt(dx * dx + dz * dz), NPC_INTERACT_RANGE);
-                sendErrorKey(session, outOfRangeKey);
-                return null;
-            }
-        }
         return npc;
-    }
-
-    /** GM 判定：`UserInfo.gamemastertype != 0 && gamemasterlevel > 0`（EU 用 `GameMasterType/Level`）。 */
-    private boolean isGm(PlayerSession session) {
-        Long accountId = session.getAccountId();
-        if (accountId == null) {
-            return false;
-        }
-        UserInfo u = userInfoMapper.selectById(accountId);
-        return u != null && u.getGameMasterType() != null && u.getGameMasterType() != 0
-                && u.getGameMasterLevel() != null && u.getGameMasterLevel() > 0;
     }
 
     private Player requirePlayer(PlayerSession session) {
