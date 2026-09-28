@@ -28,6 +28,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class BuffStateService {
 
+    private final org.jpstale.server.game.skill.SkillBuffStates skillBuffStates;
+
+    public BuffStateService(org.jpstale.server.game.skill.SkillBuffStates skillBuffStates) {
+        this.skillBuffStates = skillBuffStates;
+    }
+
     /** 拼当前生效的 buff 列表（服务端权威，无副作用）。 */
     public S2C_BuffState build(Player p) {
         S2C_BuffState.Builder b = S2C_BuffState.newBuilder();
@@ -45,6 +51,17 @@ public class BuffStateService {
                     .setItemlistId(0)
                     .setRemainingMs(Math.max(0, p.getForceOrbUntil() - now))
                     .setTotalMs(tier >= 0 ? ForceOrb.durationMs(tier) : 0)
+                    .setStack(1));
+        }
+        // **技能 buff**（Virtual Life / Regeneration Field / Summon Muspell / Holy Reflection …）：
+        // 与原版 `ContinueSkill[]` 同位 —— 原版左上角那排"圆形图标 + 已过时间饼形填充"画的就是它们
+        //（`sinSkill.cpp:718-720` DrawUp / `:7578` SkillBarDraw；图标 = `sSkill[]` 第 4 列 IconName，
+        // `keep/` 目录 TGA，数据已进生成物 skills[].keepIcon）。客户端按 skill_id 查表，这里只发 id+窗口。
+        for (var e : skillBuffStates.activeOf(p.getId())) {
+            b.addBuffs(BuffStateProto.newBuilder()
+                    .setSkillId(e.skillId())
+                    .setRemainingMs(Math.max(0, e.untilMs() - now))
+                    .setTotalMs(e.totalMs())
                     .setStack(1));
         }
         return b.build();

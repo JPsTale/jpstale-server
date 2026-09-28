@@ -131,6 +131,10 @@ public class PriestessSkills implements JobSkills {
     @Autowired
     private org.jpstale.server.game.service.CombatService combatService;
 
+    /** 左上角 buff 条的唯一生产者（技能 buff 施放后即时可见） */
+    @Autowired
+    private org.jpstale.server.game.service.BuffStateService buffStateService;
+
     @Autowired
     private PlayerService playerService;
 
@@ -377,6 +381,7 @@ public class PriestessSkills implements JobSkills {
         int durationSec = (int) timeTable[c.idx()];
         int returnPct = (int) retTable[c.idx()];
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, returnPct);
+        buffStateService.push(playerService.sessionOf(c.player()), c.player());   // buff 条即时出现
         log.info("[Skill] {} Holy Reflection p{} 圣盾 {} 秒，亡灵反弹 {}%",
                 c.player().getName(), c.point(), durationSec, returnPct);
         return List.of();
@@ -665,7 +670,7 @@ public class PriestessSkills implements JobSkills {
                 return List.of();
             }
             skillBuffStates.apply(target.getId(), c.skillId(), durationSec * 1000L, decPct);
-            playerService.recalcPanel(target);
+            playerService.recalcPanel(target);   // sendPlayerStatus 内含 buff 条推送
             playerService.sendPlayerStatus(playerService.sessionOf(target), target);
             log.info("[Skill] {} Virtual Life p{}：队友 {} 上限+{}%、减伤 {}%，{} 秒",
                     c.player().getName(), c.point(), target.getName(), decPct, decPct, durationSec);
@@ -673,6 +678,7 @@ public class PriestessSkills implements JobSkills {
         }
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, decPct);
         playerService.recalcPanel(c.player());
+        playerService.sendPlayerStatus(playerService.sessionOf(c.player()), c.player());   // 含 buff 条推送
         log.info("[Skill] {} Virtual Life p{}：自己上限+{}%、减伤 {}%，{} 秒",
                 c.player().getName(), c.point(), decPct, decPct, durationSec);
         return List.of();
@@ -741,6 +747,7 @@ public class PriestessSkills implements JobSkills {
         }
         int durationSec = (int) timeTable[c.idx()];
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, c.point());
+        buffStateService.push(playerService.sessionOf(c.player()), c.player());   // buff 条即时出现
         log.info("[Skill] {} Regeneration Field p{}：再生场 {} 秒（自己 +Life/Mana 全额，范围内队友魔法减半）",
                 c.player().getName(), c.point(), durationSec);
         return List.of();
@@ -756,6 +763,7 @@ public class PriestessSkills implements JobSkills {
         }
         int durationSec = (int) timeTable[c.idx()];
         skillBuffStates.apply(c.player().getId(), c.skillId(), durationSec * 1000L, c.point());
+        buffStateService.push(playerService.sessionOf(c.player()), c.player());   // buff 条即时出现
         log.info("[Skill] {} Summon Muspell p{}：守佑 {} 秒（招架 {}%，亡灵吸收 {}%）",
                 c.player().getName(), c.point(), durationSec,
                 (int) c.table1d("Summon_Muspell_BlockPercent")[c.idx()],

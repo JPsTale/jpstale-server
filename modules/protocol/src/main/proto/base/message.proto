@@ -1220,11 +1220,15 @@ message C2S_ForceOrbItem {
 
 // 一条生效中的 buff。目前只有力量石，将来药水/卷轴可复用。
 message BuffStateProto {
-  int32 item_code = 1;                  // 触发物品的原版码（力量石 = sinFO1|tier<<8）
+  int32 item_code = 1;                  // 触发物品的原版码（力量石 = sinFO1|tier<<8）；技能 buff = 0
   int32 itemlist_id = 2;                // 图标来源：客户端按它查 ItemDef（**不新增图标资产**，用物品自己的图标）
   int64 remaining_ms = 3;               // 剩余毫秒（服务端权威；客户端只做倒计时显示）
   int64 total_ms = 4;                   // 本次 buff 的总时长 —— 圆环按 remaining/total 画，缺它画不出比例
   int32 stack = 5;                      // 层数（原版可叠 buff 用；力量石恒 1，留着不猜）
+  // **技能 buff**（>0 时本条是技能增益）：客户端按 skillId 查技能身份表的 keepIcon
+  //（原版 `sSkill[]` 第 4 列，`image/sinimage/skill/keep/` 下 TGA）。
+  // 力量石等物品 buff 此字段 = 0。
+  int32 skill_id = 6;
 }
 
 // 生效中的 buff 列表（服务端在 buff 生效/刷新/到期时推）

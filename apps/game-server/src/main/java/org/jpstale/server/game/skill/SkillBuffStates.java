@@ -2,6 +2,7 @@ package org.jpstale.server.game.skill;
 
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,8 +24,9 @@ public class SkillBuffStates {
 
     /** 施加/刷新（同一技能重复施放 = 覆盖，原版同此：直接重写 Time/Param 两字段）。 */
     public void apply(long playerId, int skillId, long durationMs, int param) {
+        // [到期时刻, 参数值, 总时长毫秒] —— 总时长给客户端画圆环（S2C_BuffState.total_ms）
         buffs.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>())
-                .put(skillId, new long[]{System.currentTimeMillis() + durationMs, param});
+                .put(skillId, new long[]{System.currentTimeMillis() + durationMs, param, durationMs});
     }
 
     /**
@@ -46,6 +48,32 @@ public class SkillBuffStates {
         }
         return (int) entry[1];
     }
+
+    /**
+     * 生效中的全部技能增益（左上角 buff 条的数据源，`BuffStateService` 消费）。
+     * 到期条目顺手清除（与 {@link #activeParam} 同一语义，不靠单独的 tick）。
+     */
+    public java.util.List<ActiveBuff> activeOf(long playerId) {
+        Map<Integer, long[]> bySkill = buffs.get(playerId);
+        if (bySkill == null) {
+            return List.of();
+        }
+        long now = System.currentTimeMillis();
+        java.util.List<ActiveBuff> out = new java.util.ArrayList<>();
+        for (Map.Entry<Integer, long[]> e : bySkill.entrySet()) {
+            long until = e.getValue()[0];
+            long total = e.getValue().length > 2 ? e.getValue()[2] : Math.max(0, until - now);
+            if (now >= until) {
+                bySkill.remove(e.getKey());   // 过期即清（同 activeParam）
+                continue;
+            }
+            out.add(new ActiveBuff(e.getKey(), until, Math.max(0, total)));
+        }
+        return out;
+    }
+
+    /** 一条生效中的技能增益（skillId + 绝对到期时刻 + 总时长毫秒）。 */
+    public record ActiveBuff(int skillId, long untilMs, long totalMs) {}
 
     /** 玩家离线：清掉他的全部技能增益（原版登录清零语义的等价物）。 */
     public void clear(long playerId) {

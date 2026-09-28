@@ -453,18 +453,31 @@ public class PlayerService {
                 continue;
             }
             Player p = players.get(s.getCharacterId());
-            if (p == null || p.getForceOrbUntil() <= 0 || p.getForceOrbUntil() > now) {
-                continue;
+            boolean changed = false;
+            if (p != null && p.getForceOrbUntil() > 0 && p.getForceOrbUntil() <= now) {
+                log.info("[Buff] {} 的力量石 buff 到期（-{} 与 -{}%），清除并回推面板",
+                        p.getName(), p.getForceOrbFlat(), p.getForceOrbPercent());
+                p.setForceOrbUntil(0);
+                p.setForceOrbCode(0);
+                p.setForceOrbFlat(0);
+                p.setForceOrbPercent(0);
+                changed = true;
             }
-            log.info("[Buff] {} 的力量石 buff 到期（-{} 与 -{}%），清除并回推面板",
-                    p.getName(), p.getForceOrbFlat(), p.getForceOrbPercent());
-            p.setForceOrbUntil(0);
-            p.setForceOrbCode(0);
-            p.setForceOrbFlat(0);
-            p.setForceOrbPercent(0);
-            sendPlayerStatus(s, p);   // 攻击力回落 + buff 条清空，一次推完
+            // **技能 buff**（SkillBuffStates）到期回扫：activeOf 查时清过期 ⇒ 表变小就算变化。
+            // 这里也是 Virtual Life 上限回落被观察到的地方（RegenerationService 有对齐逻辑，此处推 HUD）。
+            if (p != null && skillBuffStates.activeOf(p.getId()).size()
+                    != lastSkillBuffCount.getOrDefault(p.getId(), -1)) {
+                lastSkillBuffCount.put(p.getId(), skillBuffStates.activeOf(p.getId()).size());
+                changed = true;
+            }
+            if (changed) {
+                sendPlayerStatus(s, p);   // 攻击力/上限回落 + buff 条清空，一次推完
+            }
         }
     }
+
+    /** 每玩家上一次看到的技能 buff 条数（到期回扫的变化检测用）。 */
+    private final Map<Long, Integer> lastSkillBuffCount = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * 报文入口：属性分配（服务端权威）。
