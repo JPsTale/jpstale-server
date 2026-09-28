@@ -45,11 +45,15 @@ class PriestessLightningDamageTest {
     }
 
     @Test
-    void 加成表首值与源码一致() {
-        assertEquals(24, (int) table("Divine_Lightning_Damage")[0], "Divine_Lightning_Damage[0]（sinSkill_Info.cpp:541）");
-        assertEquals(53, (int) table("Divine_Lightning_Damage")[9], "[9]");
-        assertEquals(140, (int) table("Chain_Lightning_Damage")[0], "Chain_Lightning_Damage[0]（:590）");
-        assertEquals(185, (int) table("Chain_Lightning_Damage")[9], "[9]");
+    void 加成表存在且十格() {
+        // ⚠ 只钉**结构**（表在、10 格）：表值是**运营可调数据**（Divine_Lightning_Num /
+        // M_Spark_Damage / Chain_* 都被用户手调过，2026-09-28）—— 钉绝对值会和调参打架。
+        // 公式本身的钉子在下面各条（用与表无关的字面例子）。
+        for (String t : new String[]{"Divine_Lightning_Damage", "Divine_Lightning_Num",
+                "Chain_Lightning_Damage", "Chain_Lightning_Num", "Chain_Lightning_Range",
+                "HolyBolt_Damage", "M_Spark_Damage"}) {
+            assertEquals(10, table(t).length, t + " 应有 10 格");
+        }
     }
 
     @Test
